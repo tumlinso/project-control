@@ -1,0 +1,7 @@
+# Copy to ~/.config/project-control/tunnel-client.yaml with mode 0600.
+# Confirm field names against the official tunnel client's installed help; the
+# local forwarding target and security boundary below are invariant.
+name: project-control
+transport: streamable-http
+upstream: http://127.0.0.1:8767/mcp
+credentials_from_environment: true

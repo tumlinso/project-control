@@ -1,0 +1,62 @@
+# ChatGPT setup
+
+The local server is complete before this connection procedure. Keep it bound to
+`127.0.0.1`; do not expose port 8767 publicly.
+
+## Local service
+
+1. Initialize the owner-only configuration:
+
+   ```bash
+   uv run project-control config init
+   uv run project-control workspace add disposable source /absolute/path/to/disposable/repo --authority
+   uv run project-control doctor --json
+   ```
+
+2. Copy `deployment/project-control.service` to
+   `~/.config/systemd/user/project-control.service`. Adjust `WorkingDirectory`
+   only if this checkout is not at `~/project-control`, then run:
+
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user enable --now project-control.service
+   systemctl --user status project-control.service
+   curl --fail http://127.0.0.1:8767/healthz
+   curl --fail http://127.0.0.1:8767/readyz
+   ```
+
+The MCP endpoint is `http://127.0.0.1:8767/mcp` and uses stateless Streamable
+HTTP with JSON responses.
+
+## OpenAI account connection gate
+
+These steps require the user's OpenAI account and are intentionally not
+performed by Codex:
+
+1. Enable Developer Mode in ChatGPT.
+2. Create or select an OpenAI Secure MCP Tunnel.
+3. Install the official tunnel client locally and configure it with the tunnel
+   credentials from the OpenAI account. Forward only to
+   `http://127.0.0.1:8767/mcp`. Never paste credentials into Codex chat or store
+   them in this repository.
+4. The files `deployment/tunnel-client.yaml.example` and
+   `deployment/tunnel-client.service.example` are templates. Copy them into the
+   owner-only `~/.config/project-control/` directory, reconcile executable and
+   field names with the installed official client's help, and store credentials
+   only in its supported secret store or a `0600` local environment file.
+5. Run `uv run project-control doctor --tunnel --json`, then enable the tunnel
+   client service.
+6. Create a custom ChatGPT app named `project-control` using that tunnel.
+7. Verify discovery returns exactly these eight tools, all marked read-only:
+   `project_overview`, `project_delta`, `project_frontier`, `inspect`,
+   `evidence`, `plan_preview`, `agent_status`, and `performance_status`.
+8. Start a fresh ChatGPT conversation with the app enabled and run
+   `project_overview` against the registered disposable workspace before adding
+   active engineering projects.
+
+ChatGPT may snapshot tool definitions at connection time. After any future tool
+schema change, explicitly reconnect or recreate the app. The v1 eight-tool
+surface is frozen to minimize that need.
+
+Agent mode does not use custom apps. Deep research may use this app only for its
+read/fetch behavior.
