@@ -32,6 +32,7 @@ def project_manifest(root: Path) -> dict[str, str]:
     return values
 
 
+@unittest.skipUnless(TODO.is_file(), "local todo-orchestrator integration unavailable")
 class AdapterContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

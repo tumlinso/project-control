@@ -21,6 +21,7 @@ def run(argv: list[str], root: Path) -> str:
     return subprocess.run(argv, cwd=root, check=True, text=True, capture_output=True).stdout
 
 
+@unittest.skipUnless(TODO.is_file(), "local todo-orchestrator integration unavailable")
 class PlanPreviewTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

@@ -38,6 +38,7 @@ def manifest(root: Path) -> dict[str, tuple[int, str]]:
     return result
 
 
+@unittest.skipUnless(TODO.is_file(), "local todo-orchestrator integration unavailable")
 class ReadOnlyAuditTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

@@ -37,7 +37,11 @@ class MCPServerTests(unittest.TestCase):
         (self.root / "README.md").write_text("fixture\n", encoding="utf-8")
         subprocess.run(["git", "add", "README.md"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-m", "fixture"], cwd=self.root, check=True, capture_output=True)
-        self.config = ProjectControlConfig(skills_root=Path("/home/tumlinson/.agents/skills"), workspaces={
+        self.skills = Path(self.temporary.name) / "skills"
+        fake_todo = self.skills / "todo-orchestrator" / "scripts" / "todo.py"
+        fake_todo.parent.mkdir(parents=True)
+        fake_todo.write_text("# readiness fixture\n", encoding="utf-8")
+        self.config = ProjectControlConfig(skills_root=self.skills, workspaces={
             "demo": WorkspaceConfig(repositories={"source": RepositoryConfig(root=self.root)})
         })
 
