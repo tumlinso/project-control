@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..adapters.ctxpp import CtxppReadAdapter
-from ..config import ProjectControlConfig
+from ..config import DEFAULT_DENY_PATTERNS, ProjectControlConfig
 from ..models import InspectInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..registry import WorkspaceRegistry
@@ -23,6 +23,7 @@ def inspect_subject(config: ProjectControlConfig, snapshot: ProjectSnapshot, req
     warnings: list[str] = []
     data: dict[str, Any] = {"kind": request.kind, "target": request.target, "intent": request.intent}
     if request.kind in TABLES:
+        warnings.extend(snapshot.warnings_for("todo"))
         rows = snapshot.todo_tables.get(TABLES[request.kind], [])
         matches = [row for row in rows if request.target in {str(row.get("id")), str(row.get("task_id")), str(row.get("owner_task_id")), str(row.get("checkpoint_id")), str(row.get("interface_id"))}]
         data.update(source="todo_authority", freshness="snapshot", matches=matches)
@@ -51,7 +52,7 @@ def inspect_subject(config: ProjectControlConfig, snapshot: ProjectSnapshot, req
                 data.update(source="registered_repository", error=str(exc))
                 warnings.append("source_inspection_unavailable")
         else:
-            result = CtxppReadAdapter(repository.root).inspect(request.target, max_items=30)
+            result = CtxppReadAdapter(repository.root, deny_patterns=[*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns]).inspect(request.target, max_items=30)
             data.update(repository=repository.alias, **result)
             warnings.extend(result.get("warnings", []))
     budget = min(28000, request.budget_tokens * 4)

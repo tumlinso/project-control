@@ -14,7 +14,7 @@ SENSITIVE_KEY = re.compile(
     re.IGNORECASE,
 )
 SENSITIVE_VALUE = re.compile(
-    r"(?i)(bearer\s+[A-Za-z0-9._~+/-]+=*|(?:sk|tok|toc|tos|tol)_[A-Za-z0-9_-]{12,})"
+    r"(?i)(bearer\s+[A-Za-z0-9._~+/-]+=*|(?<![A-Za-z0-9_])(?:sk|tok|toc|tos|tol)_[A-Za-z0-9_-]{12,})"
 )
 
 

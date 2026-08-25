@@ -25,7 +25,15 @@ Every tool is annotated `readOnlyHint=true`, `destructiveHint=false`,
 `idempotentHint=true`, and `openWorldHint=false`. Inputs use a registered
 workspace ID. Results share a schema-versioned envelope with status, observed
 todo revision, repository commits and dirty states, synthesized data, warnings,
-and a reusable explicit cursor.
+and a reusable explicit cursor. The todo revision is nullable when authority is
+unavailable; null is not revision zero. Every emitted cursor is legal input to
+`project_delta`, including nullable revisions and optional working-tree
+fingerprints.
+
+Evidence support is always relevant to the requested subject. Repository
+identity is provenance for source evidence, not affirmative support for an
+arbitrary claim. Provider failures degrade only tools and evidence kinds that
+depend on that provider; unrelated healthy reads do not inherit their warnings.
 
 Budgets are enforced on serialized UTF-8 output. Results use deterministic
 ordering, stable identifiers, deduplication, truncation metadata, freshness,

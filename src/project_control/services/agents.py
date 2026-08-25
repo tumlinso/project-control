@@ -48,4 +48,4 @@ def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput) -> ToolEn
         "observable_only": True,
     }
     warnings = [] if agents or local.get("status") == "ok" else ["agent_state_unavailable"]
-    return envelope("agent_status", snapshot, bounded_payload(data, 10000), warnings=warnings)
+    return envelope("agent_status", snapshot, bounded_payload(data, 10000), warnings=[*snapshot.warnings_for("todo", "worker"), *warnings])

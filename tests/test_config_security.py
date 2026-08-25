@@ -74,6 +74,10 @@ class ConfigSecurityTests(unittest.TestCase):
         self.assertNotIn("abc.def", str(result))
         self.assertNotIn("abcdefghijklmnop", str(result))
 
+    def test_redaction_preserves_identifiers_and_redacts_standalone_tokens(self) -> None:
+        self.assertEqual(redact("task_dependencies"), "task_dependencies")
+        self.assertEqual(redact("value sk_abcdefghijklmnop value"), "value [REDACTED] value")
+
     def test_world_readable_config_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "config.toml"

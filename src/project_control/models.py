@@ -31,6 +31,7 @@ class ProjectIdentity(BaseModel):
 class Cursor(BaseModel):
     todo_revision: int | None = None
     commits: dict[str, str] = Field(default_factory=dict)
+    fingerprints: dict[str, str] = Field(default_factory=dict)
     observed_at: str
 
 
@@ -51,8 +52,9 @@ class ProjectOverviewInput(BaseModel):
 
 
 class DeltaSince(BaseModel):
-    todo_revision: int = Field(ge=0)
+    todo_revision: int | None = Field(default=None, ge=0)
     commits: dict[str, str] = Field(default_factory=dict)
+    fingerprints: dict[str, str] = Field(default_factory=dict)
     observed_at: str | None = None
 
 
@@ -131,11 +133,13 @@ class ProjectSnapshot(BaseModel):
     cuda: dict[str, Any] = Field(default_factory=dict)
     host: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
+    provider_warnings: dict[str, list[str]] = Field(default_factory=dict)
 
     def cursor(self) -> Cursor:
         return Cursor(
             todo_revision=self.todo_revision,
             commits={name: identity.commit for name, identity in self.repositories.items()},
+            fingerprints=self.repository_fingerprints,
             observed_at=self.observed_at,
         )
 
@@ -146,6 +150,12 @@ class ProjectSnapshot(BaseModel):
             todo_revision=self.todo_revision,
             repositories=self.repositories,
         )
+
+    def warnings_for(self, *providers: str) -> list[str]:
+        values: list[str] = []
+        for provider in providers:
+            values.extend(self.provider_warnings.get(provider, []))
+        return list(dict.fromkeys(values))
 
 
 def utc_now() -> str:

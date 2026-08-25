@@ -81,6 +81,13 @@ class PlanPreviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             PlanPreviewInput(project="demo", mode="validate", proposal={"blob": "x" * (257 * 1024)})
 
+    def test_empty_proposal_is_normal_invalid_result(self) -> None:
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.cache)}):
+            result = plan_preview(self.config, self.snapshot, PlanPreviewInput(project="demo", mode="validate", proposal={}))
+        self.assertFalse(result.data["valid"])
+        self.assertIn("proposal_invalid", result.warnings)
+        self.assertNotEqual(result.status.value, "internal_error")
+
 
 if __name__ == "__main__":
     unittest.main()

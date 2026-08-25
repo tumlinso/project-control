@@ -42,6 +42,7 @@ class SnapshotBuilder:
         fingerprints: dict[str, str] = {}
         git_adapters: dict[str, GitReadAdapter] = {}
         warnings: list[str] = []
+        provider_warnings: dict[str, list[str]] = {}
         for alias in sorted(workspace.repositories):
             registered = self.registry.repository(workspace_id, alias)
             try:
@@ -75,17 +76,26 @@ class SnapshotBuilder:
                 tables = todo.state.get("tables", {})
                 if isinstance(tables, dict):
                     todo_tables = {key: value for key, value in tables.items() if isinstance(value, list)}
-                warnings.extend(todo.warnings)
-            except Exception:
-                warnings.append("todo_authority_unavailable")
+                provider_warnings["todo"] = list(todo.warnings)
+            except Exception as exc:
+                code = getattr(exc, "code", None)
+                provider_warnings["todo"] = [code if isinstance(code, str) else "todo_authority_unavailable"]
         else:
-            warnings.append("todo_authority_unavailable")
+            if not authority:
+                provider_warnings["todo"] = ["todo_not_configured"]
+            elif skills_root is None:
+                provider_warnings["todo"] = ["skills_root_unavailable"]
+            else:
+                provider_warnings["todo"] = ["todo_read_command_unavailable"]
 
         authority_root = self.registry.repository(workspace_id, authority).root if authority else next(iter(workspace.repositories.values())).root
         cuda = CudaReadAdapter(authority_root).status(campaign)
-        runtime_base = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
-        worker = LocalWorkerReadAdapter(runtime_base / "local-coding-worker" / "supervisor-state.json").status()
+        worker = LocalWorkerReadAdapter(LocalWorkerReadAdapter.current_state_path()).status()
         host = HostReadAdapter().capacity() if include_host else {}
+        provider_warnings["cuda"] = list(cuda.get("warnings", []))
+        provider_warnings["worker"] = list(worker.get("warnings", []))
+        if include_host:
+            provider_warnings["host"] = list(host.get("warnings", []))
         snapshot = ProjectSnapshot(
             workspace_id=workspace_id,
             display_name=workspace.display_name,
@@ -100,5 +110,6 @@ class SnapshotBuilder:
             cuda=cuda,
             host=host,
             warnings=list(dict.fromkeys(warnings)),
+            provider_warnings=provider_warnings,
         )
         return self.cache.put(cache_key, snapshot)

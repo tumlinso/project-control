@@ -12,7 +12,7 @@ BUDGETS = {"compact": 6000, "standard": 10000, "expanded": 16000}
 def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max_items: int = 20) -> ToolEnvelope:
     tasks = snapshot.todo_tables.get("tasks", [])
     active = [task for task in tasks if task.get("status") == "in_progress"]
-    ready_ids = {item.get("id") for item in snapshot.todo_status.get("ready", []) if isinstance(item, dict)}
+    ready_ids = {item.get("id") or item.get("task_id") for item in snapshot.todo_status.get("ready", []) if isinstance(item, dict)}
     ready = [task for task in tasks if task.get("id") in ready_ids]
     attention = [task for task in tasks if task.get("attention_reason") or task.get("status") == "blocked"]
     recent = sorted(
@@ -36,4 +36,4 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
         "performance_attention": snapshot.cuda.get("warnings", []),
         "recommended_focus": [item.get("id") for item in (active or ready or attention)[:5]],
     }
-    return envelope("project_overview", snapshot, bounded_payload(data, BUDGETS[detail]))
+    return envelope("project_overview", snapshot, bounded_payload(data, BUDGETS[detail]), warnings=snapshot.warnings_for("todo", "cuda"))

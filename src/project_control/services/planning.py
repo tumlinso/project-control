@@ -14,7 +14,6 @@ from ..models import PlanPreviewInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..registry import WorkspaceRegistry
 from ..snapshot import resolve_skills_root
-from ..subprocesses import FixedCommandRunner
 
 
 class MutationDetected(RuntimeError):
@@ -53,7 +52,7 @@ def _identities(registry: WorkspaceRegistry, project: str) -> dict[str, tuple[st
 
 
 def _todo_revision(root: Path, todo_script: Path) -> int | None:
-    return TodoReadAdapter(root, todo_script).observe().revision
+    return TodoReadAdapter(root, todo_script).revision()
 
 
 def _planning_context(snapshot: ProjectSnapshot) -> dict[str, Any]:
@@ -78,7 +77,7 @@ def _planning_context(snapshot: ProjectSnapshot) -> dict[str, Any]:
 def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, request: PlanPreviewInput) -> ToolEnvelope:
     if request.mode == "context":
         budget = 10000 if request.detail == "standard" else 6000
-        return envelope("plan_preview", snapshot, bounded_payload({"mode": "context", **_planning_context(snapshot)}, budget))
+        return envelope("plan_preview", snapshot, bounded_payload({"mode": "context", **_planning_context(snapshot)}, budget), warnings=snapshot.warnings_for("todo"))
 
     registry = WorkspaceRegistry(config)
     workspace = registry.workspace(request.project)
@@ -94,7 +93,7 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     digest = hashlib.sha256(encoded).hexdigest()
     before_identity = _identities(registry, request.project)
     before_revision = _todo_revision(root, todo_script)
-    runner = FixedCommandRunner(max_capture_bytes=4 * 1024 * 1024)
+    todo_adapter = TodoReadAdapter(root, todo_script)
     temporary_path: Path | None = None
     try:
         descriptor, name = tempfile.mkstemp(prefix="proposal-", suffix=".json", dir=_app_temp_directory())
@@ -104,27 +103,8 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
-        base = ["python", str(todo_script), "plan"]
-        validate = runner.run(
-            [*base, "validate", "--file", str(temporary_path), "--repo-root", str(root), "--json"],
-            cwd=root,
-            timeout=15.0,
-            check=False,
-        )
-        diff = runner.run(
-            [*base, "diff", "--file", str(temporary_path), "--repo-root", str(root), "--json"],
-            cwd=root,
-            timeout=15.0,
-            check=False,
-        )
-        try:
-            validate_json = validate.json()
-        except Exception:
-            validate_json = {"ok": False, "code": "invalid_output"}
-        try:
-            diff_json = diff.json()
-        except Exception:
-            diff_json = {"ok": False, "code": "invalid_output"}
+        validate_json = todo_adapter.plan_read("validate", temporary_path)
+        diff_json = todo_adapter.plan_read("diff", temporary_path)
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
@@ -162,5 +142,7 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
                 "Do not proceed if base identities changed materially.",
             ],
         }
-    warnings = [] if valid else ["proposal_invalid"]
+    warnings = snapshot.warnings_for("todo")
+    if not valid:
+        warnings.append("proposal_invalid")
     return envelope("plan_preview", snapshot, bounded_payload(result, 32000), warnings=warnings)

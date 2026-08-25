@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -58,11 +59,26 @@ class DomainAdapterTests(unittest.TestCase):
         self.assertEqual(before, state.stat().st_mtime_ns)
 
     def test_cuda_reads_existing_artifact_without_controller(self) -> None:
-        artifact = self.root / "cuda-campaigns.json"
-        artifact.write_text(json.dumps({"schema_version": 1, "campaigns": [{"id": "c1", "status": "accepted", "gpu_uuid": "hidden"}]}), encoding="utf-8")
+        runtime = self.root / ".todo-orchestrator" / "runtime"
+        runtime.mkdir(parents=True)
+        artifact = runtime / "background.sqlite3"
+        connection = sqlite3.connect(artifact)
+        connection.executescript("""
+            CREATE TABLE background_watches (id TEXT PRIMARY KEY, state TEXT, spec_json TEXT, event_cursor INTEGER, created_at REAL, updated_at REAL);
+            CREATE TABLE background_jobs (id TEXT PRIMARY KEY, watch_id TEXT, task_id TEXT, todo_revision INTEGER, kind TEXT);
+            CREATE TABLE background_results (id TEXT PRIMARY KEY, job_id TEXT, status TEXT, classification TEXT, severity INTEGER, valid INTEGER, contaminated INTEGER, summary_json TEXT, created_at REAL);
+            CREATE TABLE background_meta (key TEXT PRIMARY KEY, value TEXT);
+        """)
+        connection.execute("INSERT INTO background_watches VALUES (?,?,?,?,?,?)", ("c1", "armed", json.dumps({"watch": {"task_ids": ["T1"]}, "benchmark": {"metric": "ms", "direction": "minimize"}}), 3, 1.0, 2.0))
+        connection.execute("INSERT INTO background_jobs VALUES (?,?,?,?,?)", ("j1", "c1", "T1", 7, "benchmark"))
+        connection.execute("INSERT INTO background_results VALUES (?,?,?,?,?,?,?,?,?)", ("r1", "j1", "accepted", "material-regression", 2, 1, 0, json.dumps({"metric": "ms", "comparison_percent": 12.5, "provenance": {"gpu_uuid": "hidden"}}), 3.0))
+        connection.commit()
+        connection.close()
         before = artifact.stat().st_mtime_ns
         result = CudaReadAdapter(self.root).status("c1")
         self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["campaigns"][0]["id"], "c1")
+        self.assertEqual(result["results"][0]["classification"], "material-regression")
         self.assertNotIn("gpu_uuid", str(result))
         self.assertEqual(before, artifact.stat().st_mtime_ns)
 

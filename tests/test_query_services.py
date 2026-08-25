@@ -44,7 +44,7 @@ class QueryServiceTests(unittest.TestCase):
                 "handoffs": [{"id": "H1", "task_id": "T1", "kind": "complete", "note": "done"}],
             },
             local_worker={"status": "unavailable"},
-            cuda={"status": "unavailable", "warnings": ["none"]},
+            cuda={"status": "unavailable", "campaigns": [], "facts": [], "results": [], "warnings": ["none"]},
             host={"status": "ok", "memory": {}},
         )
 
@@ -61,11 +61,27 @@ class QueryServiceTests(unittest.TestCase):
         task = inspect_subject(self.config, self.snapshot, InspectInput(project="demo", kind="task", target="T1"))
         self.assertEqual(task.data["matches"][0]["id"], "T1")
 
+    def test_path_inspection_ignores_unrelated_todo_warning(self) -> None:
+        self.snapshot.provider_warnings = {"todo": ["todo_authority_unavailable"]}
+        result = inspect_subject(self.config, self.snapshot, InspectInput(project="demo", kind="path", target="src/module.py", repository="source"))
+        self.assertNotIn("todo_authority_unavailable", result.warnings)
+
     def test_evidence_reports_support_and_provenance(self) -> None:
-        result = evidence_for(self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["gates", "worker", "git"]))
+        result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["gates", "worker", "git"]))
         self.assertEqual(result.data["confidence"], "high")
         self.assertIn("todo-gate:G1", result.data["provenance_ids"])
         self.assertNotIn("stdout", json.dumps(result.model_dump()))
+
+    def test_nonexistent_subject_has_no_git_pseudo_support(self) -> None:
+        subject = "THIS-SUBJECT-DEFINITELY-DOES-NOT-EXIST-XYZ-92841"
+        result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject=subject, kinds=["git"]))
+        self.assertEqual(result.data["confidence"], "insufficient")
+        self.assertEqual(result.data["support"], [])
+
+    def test_git_evidence_requires_matching_repository_or_commit(self) -> None:
+        result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="source", kinds=["git"]))
+        self.assertEqual(result.data["confidence"], "high")
+        self.assertEqual(result.data["support"][0]["kind"], "git_identity")
 
     def test_agents_are_observable_only(self) -> None:
         result = agent_status(self.snapshot, AgentStatusInput(project="demo"))
@@ -76,6 +92,16 @@ class QueryServiceTests(unittest.TestCase):
         result = performance_status(self.snapshot, PerformanceStatusInput(project="demo"))
         self.assertFalse(result.data["execution_performed"])
         self.assertIn("performance_evidence_unavailable", result.warnings)
+
+    def test_performance_uses_structured_classifications(self) -> None:
+        self.snapshot.cuda = {
+            "status": "ok", "warnings": [], "campaigns": [{"id": "c1"}],
+            "facts": [{"fact_id": "f1", "classification": "material-improvement", "compatibility": "compatible", "measurement": {"uncontaminated": True}}],
+            "results": [{"id": "r1", "classification": "material-regression", "contaminated": False}],
+        }
+        result = performance_status(self.snapshot, PerformanceStatusInput(project="demo", campaign="c1"))
+        self.assertEqual(result.data["regressions"][0]["id"], "r1")
+        self.assertEqual(result.data["improvements"][0]["fact_id"], "f1")
 
 
 if __name__ == "__main__":

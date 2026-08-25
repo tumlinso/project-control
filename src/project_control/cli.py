@@ -8,6 +8,7 @@ from typing import Sequence
 
 from .config import config_path, config_summary, init_config, load_config, save_config
 from .registry import RegistryError, WorkspaceRegistry
+from .snapshot import SnapshotBuilder, resolve_skills_root
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -48,8 +49,29 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
         checks["config"] = "ok"
         checks["workspaces"] = sorted(config.workspaces)
         checks["ready"] = bool(config.workspaces)
+        providers: dict[str, object] = {}
+        builder = SnapshotBuilder(config)
         for workspace_id in config.workspaces:
             registry.workspace(workspace_id)
+            snapshot = builder.build(workspace_id)
+            todo_warnings = snapshot.warnings_for("todo")
+            providers[workspace_id] = {
+                "skills_root": "ok" if resolve_skills_root(config, workspace_id) else "unavailable",
+                "todo": {
+                    "status": "ok" if snapshot.todo_revision is not None else "unavailable",
+                    "revision": snapshot.todo_revision,
+                    "cause": todo_warnings[0] if todo_warnings else None,
+                },
+                "cuda": {
+                    "status": snapshot.cuda.get("status", "unavailable"),
+                    "cause": (snapshot.warnings_for("cuda") or [None])[0],
+                },
+                "local_worker": {
+                    "status": snapshot.local_worker.get("status", "unavailable"),
+                    "cause": (snapshot.warnings_for("worker") or [None])[0],
+                },
+            }
+        checks["providers"] = providers
     except (FileNotFoundError, PermissionError, ValueError) as exc:
         checks.update(config="unavailable", ready=False, error=str(exc))
     if tunnel:

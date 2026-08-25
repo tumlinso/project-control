@@ -16,6 +16,9 @@ files, private keys, model weights, dependency trees, and Python caches without
 blocking ordinary source identifiers containing `key`. Files must be UTF-8
 text, binary-free, and no larger than 2 MiB. Subprocesses use fixed argument
 vectors, no shell, bounded output, short timeouts, and a minimal environment.
+Read-only todo CLI calls additionally preserve only the state-location variables
+required by its public resolver (`TODO_ORCHESTRATOR_STATE_DIR`, `XDG_STATE_HOME`,
+and `HOME` when present) and use the server's running Python interpreter.
 
 Todo is read only through public status/export/ready/explain/changes and plan
 validate/diff behavior covered by non-mutation tests. Ctxpp never scans or

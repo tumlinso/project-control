@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from ..subprocesses import FixedCommandRunner
+from ..subprocesses import CommandError, FixedCommandRunner
 
 
 @dataclass(frozen=True)
@@ -84,3 +84,34 @@ class GitReadAdapter:
         if len(value.encode("utf-8")) > max_bytes:
             raise ValueError("Git object exceeds text limit")
         return value
+
+    def grep(self, pattern: str, *, max_items: int = 50, deny_patterns: Iterable[str] = ()) -> list[dict[str, object]]:
+        """Return bounded canonical source matches; Git's no-match exit is normal."""
+        if not pattern or pattern.startswith("-") or len(pattern) > 512:
+            raise ValueError("invalid Git grep pattern")
+        limit = max(1, min(max_items, 200))
+        pathspecs = [
+            "*.c", "*.cc", "*.cpp", "*.cxx", "*.cu", "*.cuh", "*.h", "*.hh", "*.hpp", "*.hxx", "*.py",
+            ":(exclude).git/**", ":(exclude).todo-orchestrator/runtime/**", ":(exclude).ctxpp/**",
+            ":(exclude)node_modules/**", ":(exclude)__pycache__/**",
+        ]
+        pathspecs.extend(f":(exclude,glob){item}" for item in deny_patterns if item and not item.startswith("-"))
+        result = self.runner.run(
+            ["git", "grep", "-n", "-I", "-F", "--", pattern, *pathspecs],
+            cwd=self.root,
+            timeout=8.0,
+            check=False,
+        )
+        if result.returncode == 1:
+            return []
+        if result.returncode != 0:
+            raise CommandError("Git source search unavailable")
+        matches: list[dict[str, object]] = []
+        for line in result.stdout.splitlines():
+            parts = line.split(":", 2)
+            if len(parts) != 3 or not parts[1].isdigit():
+                continue
+            matches.append({"path": parts[0], "line": int(parts[1]), "excerpt": parts[2][:500]})
+            if len(matches) >= limit:
+                break
+        return matches

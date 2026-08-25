@@ -54,6 +54,19 @@ class ProjectModelTests(unittest.TestCase):
         self.assertEqual(result.data["changes"][0]["category"], "validation")
         self.assertEqual(result.data["new_cursor"]["todo_revision"], 8)
 
+    def test_nullable_cursor_round_trip_is_bounded(self) -> None:
+        snapshot = fixture_snapshot().model_copy(update={"todo_revision": None, "todo_tables": {}})
+        since = DeltaSince.model_validate(snapshot.cursor().model_dump(mode="json"))
+        result = project_delta(snapshot, since, {})
+        self.assertIn("todo_delta_unavailable", result.warnings)
+        self.assertNotEqual(result.status.value, "internal_error")
+
+    def test_delta_detects_same_commit_working_tree_change(self) -> None:
+        snapshot = fixture_snapshot().model_copy(update={"repository_fingerprints": {"source": "new"}})
+        since = DeltaSince(todo_revision=8, commits={"source": "abc"}, fingerprints={"source": "old"})
+        result = project_delta(snapshot, since, {})
+        self.assertTrue(result.data["git_changes"][0]["working_tree_changed"])
+
     def test_normalizer_enforces_budget_and_redacts(self) -> None:
         value = {"items": [{"id": str(index), "text": "x" * 100} for index in range(100)], "api_token": "secret"}
         result = bounded_payload(value, 1000)

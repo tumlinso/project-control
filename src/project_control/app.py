@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Callable
+from typing import Annotated, Any, Callable, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -57,6 +57,15 @@ READ_ONLY = ToolAnnotations(
     idempotentHint=True,
     openWorldHint=False,
 )
+
+OverviewDetail = Literal["compact", "standard", "expanded"]
+DeltaDetail = Literal["architectural", "standard", "implementation"]
+InspectKind = Literal["task", "interface", "checkpoint", "decision", "dependency", "symbol", "path", "subsystem"]
+InspectIntent = Literal["architecture", "implementation", "debug", "review", "performance"]
+EvidenceKind = Literal["source", "tests", "gates", "worker", "cuda", "git"]
+EvidenceDetail = Literal["summary", "provenance", "bounded_excerpt"]
+PlanMode = Literal["context", "validate", "handoff"]
+PlanDetail = Literal["compact", "standard"]
 
 
 class Runtime:
@@ -111,7 +120,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def project_overview(project: str, detail: str = "standard", max_items: int = 20) -> dict[str, Any]:
+    def project_overview(project: str, detail: OverviewDetail = "standard", max_items: Annotated[int, Field(ge=1, le=100)] = 20) -> dict[str, Any]:
         request = ProjectOverviewInput(project=project, detail=detail, max_items=max_items)
         return runtime.invoke("project_overview", project, lambda: project_overview_service(runtime.snapshot(project), detail=request.detail, max_items=request.max_items))
 
@@ -120,7 +129,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def project_delta(project: str, since: DeltaSince, detail: str = "standard", max_items: int = 40) -> dict[str, Any]:
+    def project_delta(project: str, since: DeltaSince, detail: DeltaDetail = "standard", max_items: Annotated[int, Field(ge=1, le=200)] = 40) -> dict[str, Any]:
         request = ProjectDeltaInput(project=project, since=since, detail=detail, max_items=max_items)
         def operation() -> ToolEnvelope:
             snapshot = runtime.snapshot(project)
@@ -134,7 +143,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def project_frontier(project: str, max_ready: int = 20, include_blocked: bool = True, include_parallel_groups: bool = True) -> dict[str, Any]:
+    def project_frontier(project: str, max_ready: Annotated[int, Field(ge=1, le=100)] = 20, include_blocked: bool = True, include_parallel_groups: bool = True) -> dict[str, Any]:
         request = ProjectFrontierInput(project=project, max_ready=max_ready, include_blocked=include_blocked, include_parallel_groups=include_parallel_groups)
         return runtime.invoke("project_frontier", project, lambda: project_frontier_service(runtime.snapshot(project), max_ready=request.max_ready, include_blocked=request.include_blocked, include_parallel_groups=request.include_parallel_groups))
 
@@ -143,7 +152,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def inspect(project: str, kind: str, target: str, repository: str | None = None, intent: str = "architecture", budget_tokens: int = 4000) -> dict[str, Any]:
+    def inspect(project: str, kind: InspectKind, target: Annotated[str, Field(min_length=1, max_length=512)], repository: str | None = None, intent: InspectIntent = "architecture", budget_tokens: Annotated[int, Field(ge=256, le=7000)] = 4000) -> dict[str, Any]:
         request = InspectInput(project=project, kind=kind, target=target, repository=repository, intent=intent, budget_tokens=budget_tokens)
         return runtime.invoke("inspect", project, lambda: inspect_subject(active_config, runtime.snapshot(project), request))
 
@@ -152,16 +161,16 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def evidence(project: str, subject: str, kinds: list[str] | None = None, detail: str = "summary", max_items: int = 30) -> dict[str, Any]:
+    def evidence(project: str, subject: Annotated[str, Field(min_length=1, max_length=512)], kinds: list[EvidenceKind] | None = None, detail: EvidenceDetail = "summary", max_items: Annotated[int, Field(ge=1, le=100)] = 30) -> dict[str, Any]:
         request = EvidenceInput(project=project, subject=subject, kinds=kinds or [], detail=detail, max_items=max_items)
-        return runtime.invoke("evidence", project, lambda: evidence_for(runtime.snapshot(project), request))
+        return runtime.invoke("evidence", project, lambda: evidence_for(active_config, runtime.snapshot(project), request))
 
     @mcp.tool(
         description="Return planning context, non-mutating plan validation/diff, or a prospective Codex handoff; never applies a plan.",
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def plan_preview(project: str, mode: str, objective: str | None = None, proposal: dict[str, Any] | None = None, detail: str = "standard") -> dict[str, Any]:
+    def plan_preview(project: str, mode: PlanMode, objective: Annotated[str | None, Field(max_length=4000)] = None, proposal: dict[str, Any] | None = None, detail: PlanDetail = "standard") -> dict[str, Any]:
         request = PlanPreviewInput(project=project, mode=mode, objective=objective, proposal=proposal, detail=detail)
         return runtime.invoke("plan_preview", project, lambda: plan_preview_service(active_config, runtime.snapshot(project), request))
 
@@ -179,7 +188,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def performance_status(project: str, campaign: str | None = None, detail: str = "standard", include_host_capacity: bool = True) -> dict[str, Any]:
+    def performance_status(project: str, campaign: Annotated[str | None, Field(max_length=256)] = None, detail: OverviewDetail = "standard", include_host_capacity: bool = True) -> dict[str, Any]:
         request = PerformanceStatusInput(project=project, campaign=campaign, detail=detail, include_host_capacity=include_host_capacity)
         return runtime.invoke("performance_status", project, lambda: performance_status_service(runtime.snapshot(project, host=request.include_host_capacity, campaign=request.campaign), request))
 

@@ -60,4 +60,4 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
         "critical_path_basis": "authoritative dependencies + explicit heuristic",
         "local_worker_suitability": [{"task_id": item.get("id"), "suitable": item.get("kind") == "workstream", "basis": "heuristic"} for item in ready[:max_ready]],
     }
-    return envelope("project_frontier", snapshot, bounded_payload(data, 12000))
+    return envelope("project_frontier", snapshot, bounded_payload(data, 12000), warnings=snapshot.warnings_for("todo"))

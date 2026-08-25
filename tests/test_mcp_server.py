@@ -62,6 +62,11 @@ class MCPServerTests(unittest.TestCase):
         self.assertLess(len(SERVER_INSTRUCTIONS), 1500)
         required_prefix = "Use project-control to inspect live engineering projects"
         self.assertTrue(SERVER_INSTRUCTIONS.startswith(required_prefix))
+        schemas = {tool.name: tool.inputSchema for tool in tools}
+        self.assertEqual(schemas["project_overview"]["properties"]["detail"]["enum"], ["compact", "standard", "expanded"])
+        self.assertEqual(schemas["project_overview"]["properties"]["max_items"]["maximum"], 100)
+        self.assertEqual(schemas["inspect"]["properties"]["kind"]["enum"], ["task", "interface", "checkpoint", "decision", "dependency", "symbol", "path", "subsystem"])
+        self.assertEqual(schemas["inspect"]["properties"]["budget_tokens"]["maximum"], 7000)
 
     def test_health_ready_version_and_nonloopback_refusal(self) -> None:
         with TestClient(create_asgi_app(self.config)) as client:
