@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+import os
+import stat
+import tempfile
+import unittest
+from pathlib import Path
+
+from project_control.config import (
+    ProjectControlConfig,
+    ServerConfig,
+    init_config,
+    load_config,
+    save_config,
+)
+from project_control.registry import RegistryError, WorkspaceRegistry
+from project_control.security import SecurityError, read_bounded_text, redact, resolve_registered_path
+
+
+class ConfigSecurityTests(unittest.TestCase):
+    def test_private_round_trip_and_loopback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "config" / "config.toml"
+            init_config(path)
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(path.parent.stat().st_mode), 0o700)
+            config = load_config(path)
+            self.assertEqual(config.server.host, "127.0.0.1")
+            with self.assertRaises(ValueError):
+                ServerConfig(host="0.0.0.0")
+            with self.assertRaises(ValueError):
+                ServerConfig(host="localhost")
+
+    def test_registry_accepts_ids_not_unregistered_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repo"
+            root.mkdir()
+            config = ProjectControlConfig()
+            registry = WorkspaceRegistry(config)
+            registry.add_workspace("demo", "source", root, authority=True)
+            self.assertEqual(registry.repository("demo").root, root.resolve())
+            with self.assertRaises(RegistryError):
+                registry.repository("missing")
+            with self.assertRaises(RegistryError):
+                registry.add_workspace("../bad", "source", root)
+
+    def test_symlink_secret_binary_and_oversized_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "repo"
+            root.mkdir()
+            (root / "src").mkdir()
+            (root / "src" / "key_value.cc").write_text("int key_value = 1;\n", encoding="utf-8")
+            self.assertIn("key_value", read_bounded_text(root, "src/key_value.cc"))
+            (root / ".env").write_text("SECRET=x", encoding="utf-8")
+            with self.assertRaises(SecurityError):
+                read_bounded_text(root, ".env")
+            (root / "data.dat").write_bytes(b"a\x00b")
+            with self.assertRaises(SecurityError):
+                read_bounded_text(root, "data.dat")
+            (root / "large.txt").write_text("12345", encoding="utf-8")
+            with self.assertRaises(SecurityError):
+                read_bounded_text(root, "large.txt", max_bytes=4)
+            outside = base / "outside.txt"
+            outside.write_text("outside", encoding="utf-8")
+            (root / "escape.txt").symlink_to(outside)
+            with self.assertRaises(SecurityError):
+                resolve_registered_path(root, "escape.txt")
+
+    def test_redaction_is_recursive(self) -> None:
+        value = {"api_key": "visible?", "nested": ["Bearer abc.def", {"safe": "toc_abcdefghijklmnop"}]}
+        result = redact(value)
+        self.assertEqual(result["api_key"], "[REDACTED]")
+        self.assertNotIn("abc.def", str(result))
+        self.assertNotIn("abcdefghijklmnop", str(result))
+
+    def test_world_readable_config_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "config.toml"
+            save_config(ProjectControlConfig(), path)
+            os.chmod(path, 0o644)
+            with self.assertRaises(PermissionError):
+                load_config(path)
+
+
+if __name__ == "__main__":
+    unittest.main()
