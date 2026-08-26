@@ -73,6 +73,13 @@ class ProjectModelTests(unittest.TestCase):
         self.assertTrue(result["truncation"]["truncated"])
         self.assertNotIn("secret", json.dumps(result))
 
+    def test_normalizer_bounds_nested_semantic_collections(self) -> None:
+        value = {"semantic_todo": {"material_events": [{"id": str(index), "detail": "x" * 80} for index in range(100)]}}
+        result = bounded_payload(value, 1200)
+        self.assertLessEqual(len(json.dumps(result, sort_keys=True, separators=(",", ":")).encode()), 1200)
+        self.assertEqual(result["truncation"]["items_considered"], 100)
+        self.assertLess(result["truncation"]["items_returned"], 100)
+
 
 if __name__ == "__main__":
     unittest.main()

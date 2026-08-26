@@ -48,20 +48,20 @@ class SnapshotBuilder:
             try:
                 git = GitReadAdapter(registered.root)
                 identity = git.identity()
-                repositories[alias] = RepositoryIdentity(commit=identity.commit, dirty=identity.dirty)
+                repositories[alias] = RepositoryIdentity(
+                    commit=identity.commit,
+                    dirty=identity.dirty,
+                    working_tree_fingerprint=identity.status_fingerprint,
+                )
                 fingerprints[alias] = identity.status_fingerprint
                 git_adapters[alias] = git
             except Exception:
                 warnings.append(f"git_identity_unavailable:{alias}")
-        cache_key = (workspace_id, tuple((key, item.commit, item.dirty, fingerprints.get(key)) for key, item in repositories.items()), include_host, campaign)
-        cached = self.cache.get(cache_key)
-        if cached is not None:
-            return cached
-
         todo_revision = None
         project_uuid = None
         todo_status: dict[str, Any] = {}
         todo_tables: dict[str, list[dict[str, Any]]] = {}
+        todo_semantic: dict[str, Any] = {}
         authority = workspace.authority_repository
         skills_root = resolve_skills_root(self.config, workspace_id)
         if authority and authority in git_adapters and skills_root:
@@ -73,6 +73,7 @@ class SnapshotBuilder:
                 todo_revision = todo.revision
                 project_uuid = todo.project_uuid
                 todo_status = todo.status
+                todo_semantic = todo.semantic
                 tables = todo.state.get("tables", {})
                 if isinstance(tables, dict):
                     todo_tables = {key: value for key, value in tables.items() if isinstance(value, list)}
@@ -96,6 +97,13 @@ class SnapshotBuilder:
         provider_warnings["worker"] = list(worker.get("warnings", []))
         if include_host:
             provider_warnings["host"] = list(host.get("warnings", []))
+        cache_key = (
+            workspace_id,
+            tuple((key, item.commit, item.dirty, fingerprints.get(key)) for key, item in repositories.items()),
+            todo_revision,
+            include_host,
+            campaign,
+        )
         snapshot = ProjectSnapshot(
             workspace_id=workspace_id,
             display_name=workspace.display_name,
@@ -106,6 +114,7 @@ class SnapshotBuilder:
             repository_fingerprints=fingerprints,
             todo_status=todo_status,
             todo_tables=todo_tables,
+            todo_semantic=todo_semantic,
             local_worker=worker,
             cuda=cuda,
             host=host,

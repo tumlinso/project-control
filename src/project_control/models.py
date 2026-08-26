@@ -19,6 +19,7 @@ class ToolStatus(str, Enum):
 class RepositoryIdentity(BaseModel):
     commit: str
     dirty: bool
+    working_tree_fingerprint: str | None = None
 
 
 class ProjectIdentity(BaseModel):
@@ -32,6 +33,7 @@ class Cursor(BaseModel):
     todo_revision: int | None = None
     commits: dict[str, str] = Field(default_factory=dict)
     fingerprints: dict[str, str] = Field(default_factory=dict)
+    working_tree_fingerprints: dict[str, str] = Field(default_factory=dict)
     observed_at: str
 
 
@@ -55,7 +57,20 @@ class DeltaSince(BaseModel):
     todo_revision: int | None = Field(default=None, ge=0)
     commits: dict[str, str] = Field(default_factory=dict)
     fingerprints: dict[str, str] = Field(default_factory=dict)
+    working_tree_fingerprints: dict[str, str] = Field(default_factory=dict)
     observed_at: str | None = None
+    task: str | None = Field(default=None, max_length=256)
+    checkpoint: str | None = Field(default=None, max_length=256)
+    interface: str | None = Field(default=None, max_length=256)
+    commit: str | None = Field(default=None, max_length=128)
+    time: str | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def one_semantic_anchor(self) -> "DeltaSince":
+        anchors = [self.todo_revision is not None, self.task is not None, self.checkpoint is not None, self.interface is not None, self.time is not None]
+        if sum(anchors) > 1:
+            raise ValueError("select at most one todo revision, task, checkpoint, interface, or time anchor")
+        return self
 
 
 class ProjectDeltaInput(BaseModel):
@@ -129,6 +144,7 @@ class ProjectSnapshot(BaseModel):
     repository_fingerprints: dict[str, str] = Field(default_factory=dict)
     todo_status: dict[str, Any] = Field(default_factory=dict)
     todo_tables: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
+    todo_semantic: dict[str, Any] = Field(default_factory=dict)
     local_worker: dict[str, Any] = Field(default_factory=dict)
     cuda: dict[str, Any] = Field(default_factory=dict)
     host: dict[str, Any] = Field(default_factory=dict)
@@ -140,6 +156,7 @@ class ProjectSnapshot(BaseModel):
             todo_revision=self.todo_revision,
             commits={name: identity.commit for name, identity in self.repositories.items()},
             fingerprints=self.repository_fingerprints,
+            working_tree_fingerprints=self.repository_fingerprints,
             observed_at=self.observed_at,
         )
 

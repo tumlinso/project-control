@@ -19,6 +19,7 @@ class TodoObservation:
     project_uuid: str | None
     status: dict[str, Any]
     state: dict[str, Any]
+    semantic: dict[str, Any]
     warnings: tuple[str, ...] = ()
 
 
@@ -75,6 +76,24 @@ class TodoReadAdapter:
             raise TodoReadError(self._error_code(operation, result.get("code")))
         return result
 
+    def _semantic_call(self, action: str, *arguments: str, timeout: float = 12.0) -> dict[str, Any]:
+        if action not in {"state", "anchor", "delta"}:
+            raise ValueError("todo semantic operation is not read-only allowlisted")
+        argv = [
+            sys.executable, str(self.todo_script), "semantic", action,
+            "--repo-root", str(self.root), *arguments, "--json",
+        ]
+        command = self.runner.run(
+            argv, cwd=self.root, timeout=timeout, env=self.safe_environment(), check=False
+        )
+        try:
+            result = redact(command.json())
+        except CommandError as exc:
+            raise TodoReadError("todo_semantic_unavailable") from exc
+        if not result.get("ok"):
+            raise TodoReadError("todo_semantic_unavailable")
+        return result
+
     def status(self) -> dict[str, Any]:
         return self._call("status")
 
@@ -90,6 +109,15 @@ class TodoReadAdapter:
         if since < 0:
             raise ValueError("revision must be non-negative")
         return self._call("changes", "--since", str(since))
+
+    def semantic_state(self, *arguments: str) -> dict[str, Any]:
+        return self._semantic_call("state", *arguments).get("data", {})
+
+    def semantic_anchor(self, *arguments: str) -> dict[str, Any]:
+        return self._semantic_call("anchor", *arguments).get("data", {})
+
+    def semantic_delta(self, *arguments: str) -> dict[str, Any]:
+        return self._semantic_call("delta", *arguments, timeout=20.0).get("data", {})
 
     def plan_read(self, operation: str, proposal_file: Path, *, timeout: float = 15.0) -> dict[str, Any]:
         if operation not in {"validate", "diff"}:
@@ -175,6 +203,7 @@ class TodoReadAdapter:
     def observe(self) -> TodoObservation:
         last_status: dict[str, Any] = {}
         last_state: dict[str, Any] = {}
+        last_semantic: dict[str, Any] = {}
         for attempt in range(2):
             status = self.status()
             data = status.get("data", {})
@@ -187,6 +216,7 @@ class TodoReadAdapter:
                     self._project_uuid(self._authority_root()),
                     data,
                     {},
+                    {},
                     (exc.code,),
                 )
             except (CommandError, OSError, ValueError, json.JSONDecodeError):
@@ -196,15 +226,23 @@ class TodoReadAdapter:
                     self._project_uuid(self._authority_root()),
                     data,
                     {},
+                    {},
                     ("todo_snapshot_unavailable",),
                 )
             status_revision = data.get("project_revision")
             state_revision = state.get("project_revision")
-            last_status, last_state = data, state
-            if isinstance(status_revision, int) and status_revision == state_revision:
+            semantic_warning: tuple[str, ...] = ()
+            try:
+                semantic = self.semantic_state("--current-only")
+            except TodoReadError:
+                semantic = {}
+                semantic_warning = ("todo_semantic_unavailable",)
+            semantic_revision = semantic.get("revision") if semantic else status_revision
+            last_status, last_state, last_semantic = data, state, semantic
+            if isinstance(status_revision, int) and status_revision == state_revision == semantic_revision:
                 project = state.get("project", {})
                 project_uuid = project.get("project_uuid") if isinstance(project, dict) else None
-                return TodoObservation(status_revision, project_uuid, data, state)
+                return TodoObservation(status_revision, project_uuid, data, state, semantic, semantic_warning)
         revision = last_status.get("project_revision")
         project = last_state.get("project", {})
         project_uuid = project.get("project_uuid") if isinstance(project, dict) else None
@@ -213,6 +251,7 @@ class TodoReadAdapter:
             project_uuid if isinstance(project_uuid, str) else None,
             last_status,
             {},
+            last_semantic,
             ("todo_observation_raced",),
         )
 
