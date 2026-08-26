@@ -1,0 +1,22 @@
+{
+  "controller_evidence_id": "sanitized-controller-evidence",
+  "maximum_mad_percent": 2.04081708,
+  "migration_exit_evidence": {
+    "all_candidates_correct": true,
+    "all_cells_clear_at_two_percent": true,
+    "csr_fallback_regime": true,
+    "native_cellerator_win": true,
+    "row_masked_real_regime": true
+  },
+  "raw_sha256": "e4bd0b696503e93d964d74fa333d2600e8f828af0eea0119c57e829b1607376d",
+  "record_count": 36,
+  "schema": "CE-ARCH-92-SUMMARY/1",
+  "timing_basis": "amortized_total_ms_at_expected_reuse_8",
+  "trace_count": 4,
+  "widths": [1, 16, 32],
+  "winners": [
+    {"amortized_total_ms": 2.6497089, "clear": true, "n": 1, "runner_up_margin_percent": 160.2785, "trace_id": "gse147520-local-x-support-r256-s7", "winner": "csr"},
+    {"amortized_total_ms": 7.63501751, "clear": true, "n": 16, "runner_up_margin_percent": 10.4268, "trace_id": "pbmc3k-raw-local-support-r512-s7", "winner": "feature_major"},
+    {"amortized_total_ms": 0.0352995003, "clear": true, "n": 32, "runner_up_margin_percent": 158.0047, "trace_id": "adversarial-tiny-partial-blocks", "winner": "feature_major_cta"}
+  ]
+}

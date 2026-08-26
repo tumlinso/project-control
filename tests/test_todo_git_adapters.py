@@ -144,11 +144,25 @@ class AdapterContractTests(unittest.TestCase):
             return (0, {"ok": True, "code": "success", "data": {"project_revision": revision}})
         def export(revision):
             return (0, {"ok": True, "code": "success", "data": {"project_revision": revision, "state": {"project_revision": revision, "project": project, "tables": {}}}})
-        runner = SequenceRunner([status(1), export(2), status(3), export(4)])
+        def semantic(revision):
+            return (0, {"ok": True, "code": "success", "data": {"revision": revision, "tasks": []}})
+        runner = SequenceRunner([status(1), export(2), semantic(2), status(3), export(4), semantic(4)])
         observation = TodoReadAdapter(self.root, TODO, runner=runner).observe()
-        self.assertEqual(len(runner.calls), 4)
+        self.assertEqual(len(runner.calls), 6)
         self.assertEqual(observation.warnings, ("todo_observation_raced",))
         self.assertEqual(observation.state, {})
+
+    def test_observation_preserves_raw_fallback_when_semantic_command_is_unavailable(self) -> None:
+        project = {"project_uuid": "fixture-uuid"}
+        runner = SequenceRunner([
+            (0, {"ok": True, "code": "success", "data": {"project_revision": 5}}),
+            (0, {"ok": True, "code": "success", "data": {"state": {"project_revision": 5, "project": project, "tables": {}}}}),
+            (2, {"ok": False, "code": "internal_error", "error": {"message": "unsupported"}}),
+        ])
+        observation = TodoReadAdapter(self.root, TODO, runner=runner).observe()
+        self.assertEqual(observation.revision, 5)
+        self.assertEqual(observation.semantic, {})
+        self.assertEqual(observation.warnings, ("todo_semantic_unavailable",))
 
     def test_revision_read_does_not_export(self) -> None:
         runner = SequenceRunner([(0, {"ok": True, "code": "success", "data": {"project_revision": 9}})])

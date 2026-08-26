@@ -139,8 +139,12 @@ class ProjectModelTests(unittest.TestCase):
         before = historical.model_dump(mode="json")
         result = performance_status(historical, PerformanceStatusInput(project="demo"))
         self.assertEqual(result.data["regressions"], [])
-        self.assertEqual([item["id"] for item in result.data["historical_measurements"]], ["cp-math-v100-result"])
-        self.assertEqual(result.data["campaigns_and_facts"]["results"], cuda["results"])
+        historical_measurement = result.data["historical_measurements"][0]
+        self.assertEqual(historical_measurement["id"], "cp-math-v100-result")
+        self.assertEqual(historical_measurement["campaign_id"], "cp-math-small-n")
+        self.assertEqual(historical_measurement["classification"], "material-regression")
+        self.assertEqual(historical_measurement["linked_task_ids"], ["CP-MATH-13"])
+        self.assertNotIn("campaigns_and_facts", result.data)
         self.assertEqual(next(item for item in tables["tasks"] if item["id"] == "CP-MATH-13")["notes"], "preserved benchmark provenance")
         self.assertEqual(historical.model_dump(mode="json"), before)
 
@@ -167,6 +171,13 @@ class ProjectModelTests(unittest.TestCase):
         result = bounded_payload(value, 1000)
         self.assertTrue(result["truncation"]["truncated"])
         self.assertNotIn("secret", json.dumps(result))
+
+    def test_normalizer_bounds_nested_semantic_collections(self) -> None:
+        value = {"semantic_todo": {"material_events": [{"id": str(index), "detail": "x" * 80} for index in range(100)]}}
+        result = bounded_payload(value, 1200)
+        self.assertLessEqual(len(json.dumps(result, sort_keys=True, separators=(",", ":")).encode()), 1200)
+        self.assertEqual(result["truncation"]["items_considered"], 100)
+        self.assertLess(result["truncation"]["items_returned"], 100)
 
 
 if __name__ == "__main__":

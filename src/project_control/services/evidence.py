@@ -6,6 +6,8 @@ from ..adapters.ctxpp import CtxppReadAdapter
 from ..config import DEFAULT_DENY_PATTERNS, ProjectControlConfig
 from ..models import EvidenceInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
+from ..graph import ProjectGraph
+from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
 
 
@@ -30,14 +32,28 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     contradictions: list[dict[str, Any]] = []
     provenance: list[str] = []
     warnings: list[str] = []
+    stale: list[dict[str, Any]] = []
+    reconciled = ProjectReconciler(snapshot).reconcile()
+    graph = ProjectGraph(snapshot, reconciled)
+    resolution = graph.resolve(request.subject)
+    related = graph.related(resolution["entity"]["key"]) if resolution["status"] == "resolved" else []
+    related_task_ids = {
+        item["id"] for item in related if item["type"] == "task"
+    }
+    if resolution["status"] == "resolved" and resolution["entity"]["type"] == "task":
+        related_task_ids.add(resolution["entity"]["id"])
+    related_ids = {item["id"] for item in related}
+    if resolution["status"] == "resolved":
+        related_ids.add(resolution["entity"]["id"])
 
     if "gates" in kinds or "tests" in kinds:
         warnings.extend(snapshot.warnings_for("todo"))
-        for gate in snapshot.todo_tables.get("gates", []):
-            if not _linked(request.subject, gate, ("id", "task_id", "owner_task_id")):
+        for gate in reconciled.gates:
+            if not (_linked(request.subject, gate, ("id", "task_id", "owner_task_id")) or str(gate.get("id")) in related_ids or str(gate.get("task_id")) in related_task_ids):
                 continue
             item = {key: gate.get(key) for key in ("id", "task_id", "type", "status", "valid", "last_run_at")}
-            (support if gate.get("valid") else contradictions).append({"kind": "gate", **item})
+            destination = stale if gate.get("relevance") == "historical" else support if gate.get("raw_valid", gate.get("valid")) else contradictions
+            destination.append({"kind": "gate", "relevance": gate.get("relevance"), **item})
             provenance.append(f"todo-gate:{gate.get('id')}")
 
     if "worker" in kinds:
@@ -52,6 +68,11 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
             if isinstance(claim, dict) and _linked(request.subject, claim, ("id", "task_id")):
                 support.append({"kind": "claim", "task_id": claim.get("task_id"), "state": "active"})
                 provenance.append(f"todo-claim:{claim.get('task_id')}")
+        for item in related:
+            if item["type"] in {"artifact", "handoff", "child_execution"}:
+                destination = stale if item.get("relevance") == "historical" else support
+                destination.append({"kind": item["type"], **item["record"]})
+                provenance.append(f"project-graph:{item['type']}:{item['id']}")
 
     if kinds.intersection({"source", "tests"}):
         registry = WorkspaceRegistry(config)
@@ -81,10 +102,16 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
 
     if "cuda" in kinds:
         warnings.extend(snapshot.warnings_for("cuda"))
-        for collection in ("campaigns", "facts", "results"):
-            for record in snapshot.cuda.get(collection, []):
-                if isinstance(record, dict) and _cuda_relevant(request.subject, record):
-                    support.append({"kind": f"cuda_{collection[:-1]}", **record})
+        projected = {
+            "campaigns": reconciled.performance["campaigns"],
+            "facts": [*reconciled.performance["current_evidence"], *reconciled.performance["historical_evidence"]],
+        }
+        for collection, records in projected.items():
+            for record in records:
+                linked = set(record.get("linked_task_ids", [])) & related_task_ids
+                if _cuda_relevant(request.subject, record) or linked or str(record.get("id") or record.get("fact_id")) in related_ids:
+                    destination = stale if record.get("relevance") == "historical" else support
+                    destination.append({"kind": f"cuda_{collection[:-1]}", **record})
                     provenance.append(f"cuda:{record.get('id') or record.get('fact_id') or record.get('campaign_id')}")
 
     if "git" in kinds:
@@ -98,15 +125,18 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
 
     confidence = "high" if support and not contradictions else "mixed" if support else "insufficient"
     caveats = list(dict.fromkeys(warnings))
-    if not support:
+    if not support and not stale:
         caveats.append("no_matching_evidence")
     data = {
         "claim": request.subject,
         "confidence": confidence,
         "support": support[: request.max_items],
         "contradictions": contradictions[: request.max_items],
+        "stale_or_historical": stale[: request.max_items],
+        "unmeasured_or_unvalidated": [] if support else [request.subject],
+        "resolution": resolution,
         "caveats": list(dict.fromkeys(caveats)),
         "provenance_ids": list(dict.fromkeys(provenance))[: request.max_items],
     }
-    response_warnings = warnings if warnings else ([] if support else ["evidence_unavailable"])
+    response_warnings = warnings if warnings else ([] if support or stale else ["evidence_unavailable"])
     return envelope("evidence", snapshot, bounded_payload(data, 18000), warnings=list(dict.fromkeys(response_warnings)))

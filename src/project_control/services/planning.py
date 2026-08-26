@@ -12,6 +12,8 @@ from ..adapters.todo import TodoReadAdapter
 from ..config import ProjectControlConfig, ensure_private_directory
 from ..models import PlanPreviewInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
+from ..graph import ProjectGraph
+from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
 from ..snapshot import resolve_skills_root
 
@@ -55,8 +57,27 @@ def _todo_revision(root: Path, todo_script: Path) -> int | None:
     return TodoReadAdapter(root, todo_script).revision()
 
 
-def _planning_context(snapshot: ProjectSnapshot) -> dict[str, Any]:
+def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -> dict[str, Any]:
     tasks = snapshot.todo_tables.get("tasks", [])
+    if objective:
+        reconciled = ProjectReconciler(snapshot).reconcile()
+        graph = ProjectGraph(snapshot, reconciled)
+        resolution = graph.resolve(objective)
+        related = graph.related(resolution["entity"]["key"]) if resolution["status"] == "resolved" else []
+        task_ids = {item["id"] for item in related if item["type"] == "task"}
+        if resolution["status"] == "resolved" and resolution["entity"]["type"] == "task":
+            task_ids.add(resolution["entity"]["id"])
+        return {
+            "objective": objective,
+            "resolution": resolution,
+            "tasks": [item for task_id, item in reconciled.tasks.items() if task_id in task_ids],
+            "related": related,
+            "active_claims": [item for item in snapshot.todo_status.get("active_claims", []) if str(item.get("task_id")) in task_ids],
+            "performance_assumptions": [item for item in reconciled.performance["current_evidence"] if set(item.get("linked_task_ids", [])) & task_ids],
+            "plan_schema_version": 2,
+            "base_revision": snapshot.todo_revision,
+            "base_commits": {key: value.commit for key, value in snapshot.repositories.items()},
+        }
     prefixes = sorted({str(item.get("id", "")).split("-", 1)[0] for item in tasks if "-" in str(item.get("id", ""))})
     return {
         "task_prefixes": prefixes,
@@ -77,7 +98,7 @@ def _planning_context(snapshot: ProjectSnapshot) -> dict[str, Any]:
 def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, request: PlanPreviewInput) -> ToolEnvelope:
     if request.mode == "context":
         budget = 10000 if request.detail == "standard" else 6000
-        return envelope("plan_preview", snapshot, bounded_payload({"mode": "context", **_planning_context(snapshot)}, budget), warnings=snapshot.warnings_for("todo"))
+        return envelope("plan_preview", snapshot, bounded_payload({"mode": "context", **_planning_context(snapshot, request.objective)}, budget), warnings=snapshot.warnings_for("todo"))
 
     registry = WorkspaceRegistry(config)
     workspace = registry.workspace(request.project)
@@ -127,6 +148,17 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "base_revision": before_revision,
         "base_commits": {alias: identity[0] for alias, identity in before_identity.items()},
         "mutation_guard": "unchanged",
+    }
+    reconciled = ProjectReconciler(snapshot).reconcile()
+    affected = {str(item) for item in [*result["would_add"], *result["would_modify"]]}
+    result["prospective_impact"] = {
+        "basis": "deterministic todo relations; possible_impact where proposal detail is insufficient",
+        "active_tasks_likely_made_stale": [item.get("id") for item in reconciled.active if str(item.get("id")) in affected],
+        "interfaces_or_consumers_affected": [item for item in snapshot.todo_tables.get("interfaces", []) if str(item.get("owner_task_id")) in affected],
+        "gates_or_checkpoints_likely_invalidated": [item.get("id") for item in [*reconciled.gates, *reconciled.checkpoints] if str(item.get("task_id")) in affected],
+        "ownership_conflicts": result["scope_conflicts"],
+        "performance_assumptions_needing_reconsideration": [item.get("id") or item.get("fact_id") for item in reconciled.performance["current_evidence"] if set(item.get("linked_task_ids", [])) & affected],
+        "safe_parallel_work_unaffected": [item.get("id") for item in reconciled.ready if str(item.get("id")) not in affected],
     }
     if request.mode == "handoff" and valid:
         result["handoff"] = {

@@ -24,21 +24,61 @@ def bounded_payload(value: dict[str, Any], budget_bytes: int) -> dict[str, Any]:
     if len(encoded(clean)) <= budget_bytes:
         return clean
     clean = dict(clean)
-    clean["truncation"] = {"truncated": True, "budget_bytes": budget_bytes}
-    for key in sorted(clean):
-        item = clean[key]
-        if isinstance(item, list) and len(item) > 3:
-            clean[key] = item[: max(1, len(item) // 2)]
+
+    def collections(node: Any, *, root: bool = False):
+        lists = []
+        strings = []
+        dictionaries = []
+        if isinstance(node, dict):
+            if not root:
+                dictionaries.append(node)
+            for key, item in node.items():
+                if key == "truncation":
+                    continue
+                if isinstance(item, str):
+                    strings.append((node, key, item))
+                else:
+                    child_lists, child_strings, child_dicts = collections(item)
+                    lists.extend(child_lists)
+                    strings.extend(child_strings)
+                    dictionaries.extend(child_dicts)
+        elif isinstance(node, list):
+            lists.append(node)
+            for item in node:
+                child_lists, child_strings, child_dicts = collections(item)
+                lists.extend(child_lists)
+                strings.extend(child_strings)
+                dictionaries.extend(child_dicts)
+        return lists, strings, dictionaries
+
+    considered = sum(len(item) for item in collections(clean, root=True)[0])
+    clean["truncation"] = {
+        "truncated": True,
+        "budget_bytes": budget_bytes,
+        "items_considered": considered,
+        "items_returned": considered,
+        "historical_items_omitted": int(clean.get("ranking", {}).get("historical_items_omitted", 0)) if isinstance(clean.get("ranking"), dict) else 0,
+    }
+
     while len(encoded(clean)) > budget_bytes:
-        candidates = [(key, item) for key, item in clean.items() if isinstance(item, list) and len(item) > 1]
-        if candidates:
-            key, item = max(candidates, key=lambda pair: len(encoded(pair[1])))
-            clean[key] = item[:-1]
+        lists, strings, dictionaries = collections(clean, root=True)
+        list_candidates = [item for item in lists if len(item) > 1]
+        if list_candidates:
+            item = max(list_candidates, key=lambda candidate: len(encoded(candidate)))
+            del item[-max(1, len(item) // 2):]
             continue
-        strings = [(key, item) for key, item in clean.items() if isinstance(item, str) and len(item) > 64]
-        if strings:
-            key, item = max(strings, key=lambda pair: len(pair[1]))
-            clean[key] = item[: max(64, len(item) // 2)] + "…"
+        string_candidates = [item for item in strings if len(item[2]) > 64]
+        if string_candidates:
+            parent, key, item = max(string_candidates, key=lambda candidate: len(candidate[2]))
+            parent[key] = item[: max(64, len(item) // 2)] + "…"
             continue
+        dict_candidates = [item for item in dictionaries if len(item) > 1 and "truncation" not in item]
+        if dict_candidates:
+            selected = max(dict_candidates, key=lambda candidate: len(encoded(candidate)))
+            removable = [key for key in sorted(selected, reverse=True) if key not in {"id", "type", "status", "relevance"}]
+            if removable:
+                selected.pop(removable[0])
+                continue
         break
+    clean["truncation"]["items_returned"] = sum(len(item) for item in collections(clean, root=True)[0])
     return clean

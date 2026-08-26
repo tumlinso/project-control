@@ -64,6 +64,12 @@ class GitReadAdapter:
             commits.append({"commit": sha, "observed_at": timestamp, "subject": subject})
         return commits
 
+    def commit_at_or_before(self, timestamp: str) -> str | None:
+        if not timestamp or timestamp.startswith("-") or len(timestamp) > 64:
+            raise ValueError("invalid Git time anchor")
+        value = self._git("log", "-1", f"--before={timestamp}", "--format=%H").strip()
+        return value or None
+
     def diff_names(self, older: str, newer: str = "HEAD", max_items: int = 200) -> list[dict[str, str]]:
         raw = self._git("diff", "--name-status", older, newer)
         changes = []

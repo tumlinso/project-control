@@ -74,6 +74,7 @@ class PlanPreviewTests(unittest.TestCase):
         self.assertEqual(before, after_handoff)
         self.assertTrue(validated.data["valid"])
         self.assertEqual(validated.data["mutation_guard"], "unchanged")
+        self.assertIn("prospective_impact", validated.data)
         self.assertEqual(handed.data["handoff"]["handoff_version"], 1)
         self.assertFalse(any(self.cache.rglob("proposal-*.json")))
 
