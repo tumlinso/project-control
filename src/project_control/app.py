@@ -11,6 +11,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from .adapters.git import GitReadAdapter
+from .adapters.todo import TodoReadAdapter
 from .config import ProjectControlConfig, ServerConfig, load_config
 from .models import (
     AgentStatusInput,
@@ -135,7 +136,15 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
             snapshot = runtime.snapshot(project)
             registry = WorkspaceRegistry(active_config)
             adapters = {alias: GitReadAdapter(registry.repository(project, alias).root) for alias in snapshot.repositories}
-            return project_delta_service(snapshot, request.since, adapters, detail=request.detail, max_items=request.max_items)
+            workspace = registry.workspace(project)
+            skills_root = resolve_skills_root(active_config, project)
+            todo_adapter = None
+            if workspace.authority_repository and skills_root:
+                todo_adapter = TodoReadAdapter(
+                    registry.repository(project, workspace.authority_repository).root,
+                    skills_root / "todo-orchestrator" / "scripts" / "todo.py",
+                )
+            return project_delta_service(snapshot, request.since, adapters, detail=request.detail, max_items=request.max_items, todo_adapter=todo_adapter)
         return runtime.invoke("project_delta", project, operation)
 
     @mcp.tool(
