@@ -199,7 +199,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
     )
     def performance_status(project: str, campaign: Annotated[str | None, Field(max_length=256)] = None, detail: OverviewDetail = "standard", include_host_capacity: bool = True) -> dict[str, Any]:
         request = PerformanceStatusInput(project=project, campaign=campaign, detail=detail, include_host_capacity=include_host_capacity)
-        return runtime.invoke("performance_status", project, lambda: performance_status_service(runtime.snapshot(project, host=request.include_host_capacity, campaign=request.campaign), request))
+        return runtime.invoke("performance_status", project, lambda: performance_status_service(runtime.snapshot(project, host=request.include_host_capacity, campaign=request.campaign), request, active_config))
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def health(_: Request) -> JSONResponse:
