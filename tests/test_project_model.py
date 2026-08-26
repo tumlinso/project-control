@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import unittest
 
-from project_control.models import DeltaSince, ProjectSnapshot, RepositoryIdentity
+from project_control.models import DeltaSince, PerformanceStatusInput, ProjectSnapshot, RepositoryIdentity
 from project_control.normalize import bounded_payload
 from project_control.services.delta import project_delta
 from project_control.services.frontier import project_frontier
 from project_control.services.overview import project_overview
+from project_control.services.performance import performance_status
 
 
 def fixture_snapshot() -> ProjectSnapshot:
@@ -48,6 +49,100 @@ class ProjectModelTests(unittest.TestCase):
         self.assertEqual(result.data["ready"][0]["id"], "T2")
         self.assertIn("heuristic", result.data["critical_path_basis"])
         self.assertEqual(result.data["blocked"][0]["immediate_blockers"], ["T2"])
+
+    def test_superseded_cp_math_task_cannot_enter_current_frontier(self) -> None:
+        snapshot = fixture_snapshot()
+        tables = dict(snapshot.todo_tables)
+        tables["tasks"] = [
+            *tables["tasks"],
+            {"id": "CP-MATH-13", "title": "Legacy backend expansion", "status": "superseded", "priority": 999},
+        ]
+        tables["task_dependencies"] = [
+            *tables["task_dependencies"],
+            {"task_id": "CP-MATH-13", "prerequisite_task_id": "T2"},
+        ]
+        status = dict(snapshot.todo_status)
+        status["ready"] = [*status["ready"], {"id": "CP-MATH-13"}]
+        status["active_claims"] = [*status["active_claims"], {"task_id": "CP-MATH-13"}]
+        result = project_frontier(snapshot.model_copy(update={"todo_tables": tables, "todo_status": status}))
+        self.assertNotIn("CP-MATH-13", result.data["critical_path"])
+        self.assertNotIn("CP-MATH-13", {item["id"] for item in result.data["ready"]})
+        self.assertNotIn("CP-MATH-13", {item["id"] for item in result.data["blocked"]})
+        self.assertNotIn("CP-MATH-13", {item["task_id"] for item in result.data["local_worker_suitability"]})
+        self.assertNotIn("CP-MATH-13", {item["task_id"] for item in result.data["active_claims"]})
+
+    def test_terminal_owner_retires_checkpoint_and_validation_attention(self) -> None:
+        snapshot = fixture_snapshot()
+        tables = dict(snapshot.todo_tables)
+        tables["tasks"] = [
+            *tables["tasks"],
+            {"id": "CP-MATH-17", "title": "Legacy integration", "status": "superseded", "priority": 999},
+        ]
+        tables["checkpoints"] = [
+            {"id": "CP-MATH-COMPLETE", "task_id": "CP-MATH-17", "state": "pending"},
+        ]
+        tables["gates"] = [
+            {"id": "CPMATH-17-BUILD", "task_id": "CP-MATH-17", "checkpoint_id": "CP-MATH-COMPLETE", "required": 1, "valid": 0},
+        ]
+        result = project_overview(snapshot.model_copy(update={"todo_tables": tables}), detail="compact")
+        self.assertEqual(result.data["architectural_attention"], [])
+        self.assertEqual(result.data["validation_attention"], [])
+        self.assertNotIn("CP-MATH-17", result.data["recommended_focus"])
+
+    def test_terminal_checkpoint_still_surfaces_when_live_work_requires_it(self) -> None:
+        snapshot = fixture_snapshot()
+        tables = dict(snapshot.todo_tables)
+        tables["tasks"] = [
+            *tables["tasks"],
+            {"id": "HISTORY", "title": "Historical producer", "status": "archived", "priority": 1},
+        ]
+        tables["checkpoints"] = [{"id": "OLD-CHECKPOINT", "task_id": "HISTORY", "state": "revoked"}]
+        tables["gates"] = [{"id": "OLD-GATE", "task_id": "HISTORY", "checkpoint_id": "OLD-CHECKPOINT", "required": 1, "valid": 0}]
+        tables["task_dependencies"] = [
+            *tables["task_dependencies"],
+            {"task_id": "T2", "checkpoint_id": "OLD-CHECKPOINT"},
+        ]
+        result = project_overview(snapshot.model_copy(update={"todo_tables": tables}), detail="compact")
+        self.assertEqual([item["id"] for item in result.data["architectural_attention"]], ["OLD-CHECKPOINT"])
+        self.assertEqual([item["id"] for item in result.data["validation_attention"]], ["OLD-GATE"])
+
+    def test_live_ce_arch_dependencies_survive_historical_filtering(self) -> None:
+        snapshot = fixture_snapshot()
+        tables = dict(snapshot.todo_tables)
+        tables["tasks"] = [
+            {"id": "CE-ARCH-94", "title": "Live consumer", "status": "planned", "priority": 20},
+            {"id": "CE-ARCH-93", "title": "Live producer", "status": "planned", "priority": 19},
+            {"id": "CP-MATH-13", "title": "Historical work", "status": "invalidated", "priority": 999},
+        ]
+        tables["task_dependencies"] = [
+            {"task_id": "CE-ARCH-94", "prerequisite_task_id": "CE-ARCH-93"},
+        ]
+        status = {"ready": [{"id": "CE-ARCH-93"}], "active_claims": []}
+        result = project_frontier(snapshot.model_copy(update={"todo_tables": tables, "todo_status": status}))
+        self.assertEqual(result.data["critical_path"], ["CE-ARCH-94", "CE-ARCH-93"])
+        self.assertEqual(result.data["blocked"], [{"id": "CE-ARCH-94", "title": "Live consumer", "immediate_blockers": ["CE-ARCH-93"]}])
+
+    def test_historical_task_and_performance_provenance_remain_queryable(self) -> None:
+        snapshot = fixture_snapshot()
+        tables = dict(snapshot.todo_tables)
+        tables["tasks"] = [
+            *tables["tasks"],
+            {"id": "CP-MATH-13", "title": "Historical work", "status": "superseded", "notes": "preserved benchmark provenance"},
+        ]
+        cuda = {
+            "status": "ok",
+            "campaigns": [{"id": "cp-math-small-n", "task_ids": ["CP-MATH-13"]}],
+            "facts": [],
+            "results": [{"id": "cp-math-v100-result", "campaign_id": "cp-math-small-n", "classification": "material-regression"}],
+        }
+        historical = snapshot.model_copy(update={"todo_tables": tables, "cuda": cuda})
+        before = historical.model_dump(mode="json")
+        result = performance_status(historical, PerformanceStatusInput(project="demo"))
+        self.assertEqual(result.data["regressions"], [])
+        self.assertEqual([item["id"] for item in result.data["historical_measurements"]], ["cp-math-v100-result"])
+        self.assertEqual(result.data["campaigns_and_facts"]["results"], cuda["results"])
+        self.assertEqual(next(item for item in tables["tasks"] if item["id"] == "CP-MATH-13")["notes"], "preserved benchmark provenance")
+        self.assertEqual(historical.model_dump(mode="json"), before)
 
     def test_delta_uses_explicit_cursor_and_returns_new_one(self) -> None:
         result = project_delta(fixture_snapshot(), DeltaSince(todo_revision=6, commits={"source": "abc"}), {})
