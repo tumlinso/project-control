@@ -15,6 +15,18 @@ class CommandError(RuntimeError):
     pass
 
 
+class CommandTimeoutError(CommandError):
+    """A bounded read exceeded its operation-specific deadline."""
+
+
+class CommandUnavailableError(CommandError):
+    """The fixed executable could not be started."""
+
+
+class CommandCaptureError(CommandError):
+    """A provider exceeded the configured local capture bound."""
+
+
 @dataclass(frozen=True)
 class CommandResult:
     argv0: str
@@ -67,10 +79,12 @@ class FixedCommandRunner:
                 timeout=timeout,
                 check=False,
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise CommandError(f"read command unavailable: {Path(argv[0]).name}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise CommandTimeoutError(f"read command timed out: {Path(argv[0]).name}") from exc
+        except OSError as exc:
+            raise CommandUnavailableError(f"read command unavailable: {Path(argv[0]).name}") from exc
         if len(completed.stdout) > self.max_capture_bytes or len(completed.stderr) > self.max_capture_bytes:
-            raise CommandError("command output exceeded capture limit")
+            raise CommandCaptureError("command output exceeded capture limit")
         result = CommandResult(
             argv0=Path(argv[0]).name,
             returncode=completed.returncode,

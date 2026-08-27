@@ -8,7 +8,7 @@ from typing import Sequence
 
 from .config import config_path, config_summary, init_config, load_config, save_config
 from .registry import RegistryError, WorkspaceRegistry
-from .snapshot import SnapshotBuilder, resolve_skills_root
+from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -53,14 +53,18 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
         builder = SnapshotBuilder(config)
         for workspace_id in config.workspaces:
             registry.workspace(workspace_id)
+            provider = resolve_todo_provider(config, workspace_id)
             snapshot = builder.build(workspace_id)
             todo_warnings = snapshot.warnings_for("todo")
             providers[workspace_id] = {
                 "skills_root": "ok" if resolve_skills_root(config, workspace_id) else "unavailable",
+                "todo_provider": provider.local_diagnostics(),
                 "todo": {
                     "status": "ok" if snapshot.todo_revision is not None else "unavailable",
                     "revision": snapshot.todo_revision,
                     "cause": todo_warnings[0] if todo_warnings else None,
+                    "components": snapshot.todo_status.get("component_authority", {}),
+                    "consistency": snapshot.todo_status.get("observation_consistency"),
                 },
                 "cuda": {
                     "status": snapshot.cuda.get("status", "unavailable"),

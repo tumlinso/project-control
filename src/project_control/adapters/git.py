@@ -15,6 +15,18 @@ class GitIdentity:
     changed_paths: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class GitWorktreeIdentity:
+    worktree_id: str
+    root: Path
+    head: str
+    branch: str | None
+    detached: bool
+    dirty: bool
+    working_tree_fingerprint: str
+    dirty_paths: tuple[str, ...]
+
+
 class GitReadAdapter:
     _ALLOWED = {
         "rev-parse",
@@ -25,6 +37,7 @@ class GitReadAdapter:
         "merge-base",
         "ls-files",
         "grep",
+        "worktree",
     }
 
     def __init__(self, root: Path, runner: FixedCommandRunner | None = None):
@@ -54,6 +67,51 @@ class GitReadAdapter:
 
         fingerprint = hashlib.sha256("\x00".join(relevant_records).encode()).hexdigest()
         return GitIdentity(commit, bool(relevant_records), fingerprint, tuple(sorted(set(paths))))
+
+    def common_dir(self) -> Path:
+        value = Path(self._git("rev-parse", "--git-common-dir").strip())
+        return (self.root / value).resolve() if not value.is_absolute() else value.resolve()
+
+    @staticmethod
+    def _stable_worktree_id(common: Path, root: Path) -> str:
+        import hashlib
+
+        return "wt-" + hashlib.sha256(f"{common}\0{root.resolve()}".encode()).hexdigest()[:16]
+
+    def worktrees(self) -> tuple[GitWorktreeIdentity, ...]:
+        common = self.common_dir()
+        raw = self._git("worktree", "list", "--porcelain", timeout=8.0)
+        records: list[dict[str, str | bool]] = []
+        current: dict[str, str | bool] = {}
+        for line in [*raw.splitlines(), ""]:
+            if not line:
+                if current:
+                    records.append(current)
+                    current = {}
+                continue
+            key, _, value = line.partition(" ")
+            current[key] = value if value else True
+        results: list[GitWorktreeIdentity] = []
+        for record in records:
+            raw_root = record.get("worktree")
+            if not isinstance(raw_root, str):
+                continue
+            root = Path(raw_root).resolve()
+            try:
+                adapter = GitReadAdapter(root, self.runner)
+                if adapter.common_dir() != common:
+                    continue
+                identity = adapter.identity()
+            except (CommandError, OSError, ValueError):
+                continue
+            branch_value = record.get("branch")
+            branch = str(branch_value).removeprefix("refs/heads/") if isinstance(branch_value, str) else None
+            results.append(GitWorktreeIdentity(
+                self._stable_worktree_id(common, root), root, identity.commit, branch,
+                bool(record.get("detached")), identity.dirty, identity.status_fingerprint,
+                identity.changed_paths,
+            ))
+        return tuple(sorted(results, key=lambda item: item.worktree_id))
 
     def recent_commits(self, max_items: int = 20) -> list[dict[str, str]]:
         count = max(1, min(max_items, 100))
