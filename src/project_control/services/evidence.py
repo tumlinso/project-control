@@ -34,6 +34,7 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     provenance: list[str] = []
     warnings: list[str] = []
     stale: list[dict[str, Any]] = []
+    unvalidated: list[dict[str, Any]] = []
     reconciled = ProjectReconciler(snapshot).reconcile()
     graph = ProjectGraph(snapshot, reconciled)
     resolution = graph.resolve(request.subject)
@@ -53,7 +54,17 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
             if not (_linked(request.subject, gate, ("id", "task_id", "owner_task_id")) or str(gate.get("id")) in related_ids or str(gate.get("task_id")) in related_task_ids):
                 continue
             item = {key: gate.get(key) for key in ("id", "task_id", "type", "status", "valid", "last_run_at")}
-            destination = stale if gate.get("relevance") == "historical" else support if gate.get("raw_valid", gate.get("valid")) else contradictions
+            state = str(gate.get("effective_state") or gate.get("raw_status") or gate.get("status") or "").casefold()
+            valid = bool(gate.get("raw_valid", gate.get("valid")))
+            pending = state in {"pending", "ready", "unvalidated", "current_pending", "not_run", "queued"} or not state
+            failed = state in {"failed", "invalid", "current_failed", "historical_invalid"}
+            destination = (
+                stale if gate.get("relevance") == "historical"
+                else support if valid
+                else contradictions if failed
+                else unvalidated if pending
+                else contradictions
+            )
             destination.append({"kind": "gate", "relevance": gate.get("relevance"), **item})
             provenance.append(f"todo-gate:{gate.get('id')}")
 
@@ -179,13 +190,14 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "support": support[: request.max_items],
         "contradictions": contradictions[: request.max_items],
         "stale_or_historical": stale[: request.max_items],
-        "unmeasured_or_unvalidated": [] if support else [request.subject],
+        "unmeasured_or_unvalidated": unvalidated[: request.max_items] or ([] if support else [request.subject]),
         "resolution": resolution,
         "caveats": list(dict.fromkeys(caveats)),
         "provenance_ids": list(dict.fromkeys(provenance))[: request.max_items],
         "evidence_state_counts": {
             "current_support": len(support), "contradiction": len(contradictions),
-            "stale": len(stale), "inference": 0, "absence": int(not support and not stale),
+            "stale": len(stale), "unvalidated": len(unvalidated), "inference": 0,
+            "absence": int(not support and not stale and not unvalidated),
         },
         "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }

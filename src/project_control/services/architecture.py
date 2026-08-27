@@ -9,7 +9,7 @@ from ..graph import ProjectGraph
 from ..models import ArchitectureContextInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..reconcile import ProjectReconciler
-from ..retrieval import authority_label, is_current, page
+from ..retrieval import economical_record, is_current, page, relevance_priority
 from ..workflow import workflow_view, workflow_warnings
 
 
@@ -34,6 +34,11 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
     graph = ProjectGraph(snapshot, reconciled)
     seed_limit = min(max(request.max_items, 8), 96)
     seeds = [item for item in graph.seed_candidates(request.question, max_items=seed_limit) if is_current(item.get("record", {}), request.scope)]
+    seeds.sort(key=lambda item: (
+        relevance_priority(item.get("record", {})),
+        0 if item.get("type") in {"interface", "decision", "invariant", "path", "symbol", "git_commit"} else 1,
+        -float(item.get("query_coverage") or 0), str(item.get("type")), str(item.get("id")),
+    ))
     if request.inclusion_categories:
         included = set(request.inclusion_categories)
         seeds = [item for item in seeds if item["theme"] in included or item["type"] in included]
@@ -95,8 +100,14 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
         observed_entities.setdefault((str(item["type"]), str(item["id"])), {
             "type": item["type"], "id": item["id"], "title": item["title"],
             "relevance": item.get("relevance"), "authority_label": "derived_relationship",
-            "record": item.get("record", {}),
+            "record": economical_record(item.get("record", {}), expanded=request.detail == "expanded"),
         })
+    for key, item in list(observed_entities.items()):
+        if isinstance(item.get("record"), dict):
+            observed_entities[key] = {
+                **item,
+                "record": economical_record(item["record"], expanded=request.detail == "expanded"),
+            }
 
     def entities(*types: str) -> list[dict[str, Any]]:
         return [

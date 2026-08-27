@@ -17,6 +17,7 @@ from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
 from ..snapshot import resolve_skills_root
 from ..workflow import workflow_summary
+from ..retrieval import economical_record, relevance_priority
 
 
 class MutationDetected(RuntimeError):
@@ -65,15 +66,52 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
     if objective:
         reconciled = ProjectReconciler(snapshot).reconcile()
         graph = ProjectGraph(snapshot, reconciled)
-        resolution = graph.resolve(objective)
-        related = graph.related(resolution["entity"]["key"]) if resolution["status"] == "resolved" else []
-        task_ids = {item["id"] for item in related if item["type"] == "task"}
-        if resolution["status"] == "resolved" and resolution["entity"]["type"] == "task":
-            task_ids.add(resolution["entity"]["id"])
+        seeds = graph.seed_candidates(objective, max_items=16)
+        seeds.sort(key=lambda item: (
+            relevance_priority(item.get("record", {})),
+            0 if item.get("type") in {"interface", "decision", "invariant", "path", "symbol", "git_commit"} else 1,
+            -float(item.get("query_coverage") or 0), str(item.get("type")), str(item.get("id")),
+        ))
+        broad_seeds: list[dict[str, Any]] = []
+        seen_themes: set[str] = set()
+        for item in seeds:
+            if item["theme"] not in seen_themes:
+                broad_seeds.append(item)
+                seen_themes.add(item["theme"])
+        for item in seeds:
+            if item not in broad_seeds:
+                broad_seeds.append(item)
+            if len(broad_seeds) >= 8:
+                break
+        expanded = graph.expand_seeds(broad_seeds, max_items=48)
+        expanded.sort(key=lambda item: (
+            relevance_priority(item.get("record", {})), str(item.get("type")), str(item.get("id")),
+        ))
+        task_ids = {item["id"] for item in [*seeds, *expanded] if item["type"] == "task"}
+        subjects = [
+            {
+                "type": item["type"], "id": item["id"], "title": item["title"],
+                "theme": item["theme"], "match_basis": item["match_basis"],
+                "query_coverage": item["query_coverage"], "relevance": item.get("relevance"),
+            }
+            for item in broad_seeds
+        ]
+        resolution = {
+            "status": "resolved" if subjects else "not_found",
+            "retrieval_mode": "multi_seed" if len(subjects) > 1 else "single_seed" if subjects else "none",
+            "reason": "multi_seed_objective_retrieval" if len(subjects) > 1 else "single_relevant_subject" if subjects else "no_deterministic_subject_match",
+            "subjects": subjects,
+        }
+        related = [
+            {
+                key: value for key, value in item.items() if key != "record"
+            } | {"record": economical_record(item.get("record", {}), expanded=False)}
+            for item in expanded[:32]
+        ]
         return {
             "objective": objective,
             "resolution": resolution,
-            "tasks": [item for task_id, item in reconciled.tasks.items() if task_id in task_ids],
+            "tasks": [economical_record(item, expanded=False) for task_id, item in reconciled.tasks.items() if task_id in task_ids],
             "related": related,
             "active_claims": [item for item in snapshot.todo_status.get("active_claims", []) if str(item.get("task_id")) in task_ids],
             "performance_assumptions": [item for item in reconciled.performance["current_evidence"] if set(item.get("linked_task_ids", [])) & task_ids],

@@ -198,12 +198,17 @@ def project_delta(
     for item in workflow_events:
         collection = _workflow_collection(str(item.get("type") or ""))
         workflow_changes.setdefault(collection, []).append(item)
+    readiness_sections = [semantic_delta.get("tasks"), semantic_delta.get("checkpoints")]
+    semantic_readiness_changed = any(
+        any(bool(values) for values in section.values()) if isinstance(section, dict) else bool(section)
+        for section in readiness_sections
+    )
     data = {
         "semantic_todo": semantic_view,
         "anchor": anchor,
         "changes": sorted(events, key=lambda item: (item["category"] == "coordination", -int(item.get("revision") or 0)))[:max_items],
         "git_changes": git_changes,
-        "readiness_changed": bool(semantic_delta.get("tasks") or semantic_delta.get("checkpoints")) or any(item["type"].startswith(("task.", "claim.", "checkpoint.")) for item in events),
+        "readiness_changed": semantic_readiness_changed or any(item["type"].startswith(("task.", "claim.", "checkpoint.")) for item in events),
         "workflow": workflow_summary(snapshot),
         "workflow_changed": bool(workflow_events),
         "workflow_changes": {key: value[:max_items] for key, value in sorted(workflow_changes.items())},

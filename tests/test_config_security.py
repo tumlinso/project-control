@@ -89,6 +89,9 @@ class ConfigSecurityTests(unittest.TestCase):
         self.assertEqual(public["worktree_path"], "[REDACTED]")
         self.assertEqual(stable_public_id("wt", private), stable_public_id("wt", private))
         self.assertNotIn("home", stable_public_id("wt", private))
+        embedded = redact_output({"anchor": f"evidence at {private}", "relative": "docs/evidence.md"})
+        self.assertNotIn(private, embedded["anchor"])
+        self.assertEqual(embedded["relative"], "docs/evidence.md")
 
     def test_world_readable_config_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -53,6 +53,7 @@ from .services.planning import MutationDetected, plan_preview as plan_preview_se
 from .services.program import program_context as program_context_service
 from .services.source_context import source_context as source_context_service
 from .snapshot import SnapshotBuilder, resolve_skills_root
+from .security import redact_output
 
 
 SERVER_INSTRUCTIONS = (
@@ -122,7 +123,7 @@ class Runtime:
 
     def invoke(self, tool: str, project: str, operation: Callable[[], ToolEnvelope]) -> dict[str, Any]:
         try:
-            return operation().model_dump(mode="json")
+            return redact_output(operation().model_dump(mode="json"))
         except (RegistryError, ValidationError, ValueError) as exc:
             return self.failure(tool, project, ToolStatus.INVALID_REQUEST, str(exc))
         except MutationDetected:

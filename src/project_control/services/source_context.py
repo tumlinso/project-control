@@ -17,6 +17,7 @@ from ..security import SecurityError, is_allowlisted_text_path, is_denied, redac
 from ..source_index import SourceLexicalIndex
 from ..subprocesses import CommandError
 from ..worktrees import WorktreeCatalog, WorktreeSelectionError
+from ..retrieval import economical_record
 
 
 def _cursor(identity: str, offset: int) -> str:
@@ -218,7 +219,7 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
             for relation, table in table_relations.items():
                 if relation in request.requested_relations:
                     item[relation] = [
-                        record for record in snapshot.todo_tables.get(table, [])
+                        economical_record(record, expanded=request.detail == "expanded") for record in snapshot.todo_tables.get(table, [])
                         if relation_token.casefold() in json.dumps(record, sort_keys=True, default=str).casefold()
                     ][:30]
             if "performance_evidence" in request.requested_relations:

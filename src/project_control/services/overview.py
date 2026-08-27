@@ -105,19 +105,29 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             key: workflow.get(key) for key in ("available", "reason", "revision", "active_run_id", "authority")
             if workflow.get(key) is not None
         }
-        compact_workflow["pending_patches"] = [
+        pending_patches = [
             {key: item.get(key) for key in ("id", "task_id", "workspace_id", "state") if item.get(key) is not None}
             for item in workflow.get("pending_patches", [])[:3]
         ]
-        compact_workflow["blocking_messages"] = [
+        if pending_patches:
+            compact_workflow["pending_patches"] = pending_patches
+        blocking_messages = [
             {key: item.get(key) for key in ("id", "task_id", "kind", "state") if item.get(key) is not None}
             for item in workflow.get("blocking_messages", [])[:3]
         ]
-        compact_workflow["unresolved_questions"] = [
+        if blocking_messages:
+            compact_workflow["blocking_messages"] = blocking_messages
+        unresolved_questions = [
             {key: item.get(key) for key in ("id", "task_id", "state") if item.get(key) is not None}
             for item in workflow.get("unresolved_questions", [])[:3]
         ]
-        compact_workflow["collection_counts"] = workflow.get("collection_counts", {})
+        if unresolved_questions:
+            compact_workflow["unresolved_questions"] = unresolved_questions
+        collection_counts = {
+            key: value for key, value in workflow.get("collection_counts", {}).items() if value
+        }
+        if collection_counts:
+            compact_workflow["collection_counts"] = collection_counts
         tiny = lambda items: [
             {key: item.get(key) for key in ("id", "title", "effective_state") if item.get(key) is not None}
             for item in items[:5]
@@ -126,7 +136,10 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             "identity": data["identity"],
             "workflow": compact_workflow,
             "provider_health": {
-                key: {"status": value.get("status"), "error_code": value.get("error_code"), "revision": value.get("revision")}
+                key: {
+                    field: value.get(field) for field in ("status", "error_code", "revision")
+                    if value.get(field) is not None
+                }
                 for key, value in data["provider_health"].items()
             },
             "worktree_summary": {

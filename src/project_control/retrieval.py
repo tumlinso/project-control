@@ -67,6 +67,39 @@ def is_current(record: dict[str, Any], scope: str) -> bool:
     return True
 
 
+def relevance_priority(record: dict[str, Any]) -> int:
+    """Rank current authority ahead of reference and historical material."""
+    relevance = str(record.get("relevance") or record.get("current_relevance") or "unknown")
+    state = str(record.get("effective_state") or record.get("state") or record.get("status") or "")
+    if relevance in {"historical", "superseded"} or state in {
+        "superseded", "canceled", "cancelled", "abandoned", "invalidated", "historical_stale",
+    }:
+        return 3
+    if relevance in {"current", "current_attention"} and not bool(record.get("terminal")):
+        return 0
+    if relevance == "reference":
+        return 1
+    return 2
+
+
+def economical_record(record: dict[str, Any], *, expanded: bool) -> dict[str, Any]:
+    """Keep authority records useful without carrying large historical prose by default."""
+    if expanded:
+        return record
+    result: dict[str, Any] = {}
+    bulky = {"note", "notes", "content", "payload", "raw_payload", "raw_result", "transcript", "log"}
+    for key, value in record.items():
+        if key in bulky:
+            if isinstance(value, str) and value:
+                result[f"{key}_summary"] = value[:256] + ("…" if len(value) > 256 else "")
+            continue
+        if isinstance(value, str) and len(value) > 1024:
+            result[key] = value[:1024] + "…"
+        else:
+            result[key] = value
+    return result
+
+
 def material_event(event: dict[str, Any]) -> bool:
     name = str(event.get("event_type") or event.get("type") or "").casefold()
     if any(word in name for word in NOISE_EVENT_WORDS):

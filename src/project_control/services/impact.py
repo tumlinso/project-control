@@ -8,7 +8,7 @@ from ..graph import ProjectGraph
 from ..models import ImpactPreviewInput, ProjectSnapshot, ProposalEnvelope, ToolEnvelope, VersionedPrecondition, envelope
 from ..normalize import bounded_payload
 from ..reconcile import ProjectReconciler
-from ..retrieval import page
+from ..retrieval import page, relevance_priority
 from ..workflow import workflow_view, workflow_warnings
 
 
@@ -48,12 +48,20 @@ def impact_preview(snapshot: ProjectSnapshot, request: ImpactPreviewInput) -> To
         else:
             unknown.append({"target": target, "reason": resolved["reason"], "candidates": resolved.get("candidates", []), "authority_label": "missing_evidence"})
     heuristic = graph.seed_candidates(request.hypothesis, max_items=min(request.max_items, 64))
+    if request.detail != "expanded":
+        heuristic = [item for item in heuristic if relevance_priority(item.get("record", {})) < 3]
     proven_keys = {item["key"] for item in explicit}
     proven = [{**item, "impact_basis": "explicit_target", "authority_label": "authoritative_fact"} for item in explicit]
     possible = []
     for item in [*explicit, *heuristic]:
         key = item["key"]
-        for related in graph.related(key, max_hops=1, max_items=request.max_items):
+        related_items = graph.related(key, max_hops=1, max_items=request.max_items)
+        related_items.sort(key=lambda related: (
+            relevance_priority(related.get("record", {})), str(related.get("type")), str(related.get("id")),
+        ))
+        for related in related_items:
+            if request.detail != "expanded" and relevance_priority(related.get("record", {})) >= 3:
+                continue
             identity = f"{related['type']}:{related['id']}"
             if identity in proven_keys:
                 continue

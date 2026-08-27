@@ -10,6 +10,7 @@ from pathlib import Path
 
 from project_control.app import create_mcp
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from project_control.snapshot import SnapshotBuilder
 
 
 TODO = Path("/home/tumlinson/.agents/skills/todo-orchestrator/scripts/todo.py")
@@ -124,6 +125,16 @@ class ReadOnlyAuditTests(unittest.TestCase):
         serialized = json.dumps(results, default=lambda value: value.model_dump(mode="json") if hasattr(value, "model_dump") else str(value))
         for forbidden in ("toc_", "tos_", "tol_", "gpu_uuid", "raw_log", "stdout", "stderr"):
             self.assertNotIn(forbidden, serialized.lower())
+
+    def test_snapshot_populates_semantic_fingerprint_precondition(self) -> None:
+        snapshot = SnapshotBuilder(self.config).build("disposable")
+        semantic = snapshot.component_authority["todo_semantic_state"]
+        self.assertIsNotNone(semantic.read_authority_fingerprint)
+        self.assertEqual(
+            snapshot.observation_preconditions().todo_semantic_authority_fingerprint,
+            semantic.read_authority_fingerprint,
+        )
+        self.assertEqual(snapshot.cursor().todo_semantic_fingerprint, semantic.read_authority_fingerprint)
 
     def test_concurrent_overviews_are_bounded_and_non_mutating(self) -> None:
         before = self.sentinel()

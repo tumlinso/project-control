@@ -212,6 +212,7 @@ class SnapshotBuilder:
         todo_tables: dict[str, list[dict[str, Any]]] = {}
         todo_semantic: dict[str, Any] = {}
         todo_workflow: dict[str, Any] = {}
+        component_authority: dict[str, Any] = {}
         authority = workspace.authority_repository
         provider = resolve_todo_provider(self.config, workspace_id)
         skills_root = provider.skills_root if provider.compatible else None
@@ -227,6 +228,7 @@ class SnapshotBuilder:
                 todo_status["component_authority"] = {
                     key: component.public() for key, component in todo.components.items()
                 }
+                component_authority = todo_status["component_authority"]
                 todo_status["observation_consistency"] = todo.consistency
                 todo_semantic = todo.semantic
                 todo_workflow = todo.workflow
@@ -276,6 +278,7 @@ class SnapshotBuilder:
             todo_tables=todo_tables,
             todo_semantic=todo_semantic,
             todo_workflow=todo_workflow,
+            component_authority=component_authority,
             local_worker=worker,
             cuda=cuda,
             host=host,

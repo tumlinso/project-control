@@ -10,6 +10,7 @@ from typing import Any
 from .models import ProjectSnapshot
 from .reconcile import ReconciledProject
 from .workflow import workflow_view
+from .retrieval import relevance_priority
 
 
 STOP_WORDS = {
@@ -284,7 +285,7 @@ class ProjectGraph:
         pool = [item for item in self.entities.values() if not expected_types or item["type"] in expected_types]
         wanted = normalize(question)
         wanted_tokens = tokens(question)
-        ranked: list[tuple[tuple[float, float, float, str, str], dict[str, Any]]] = []
+        ranked: list[tuple[tuple[float, int, int, float, float, str, str], dict[str, Any]]] = []
         for item in pool:
             aliases = [normalize(alias) for alias in item["aliases"]]
             exact = float(normalize(item["id"]) == wanted or wanted in aliases)
@@ -294,8 +295,11 @@ class ProjectGraph:
             precision = len(common) / len(item_tokens) if item_tokens else 0.0
             if not exact and not common:
                 continue
-            relevance = 1.0 if item.get("relevance") in {"current", "current_attention"} else 0.5
-            key = (-exact, -coverage, -precision, -relevance, item["type"], item["id"])
+            relevance = relevance_priority(item.get("record", {}))
+            authority_kind = 0 if item["type"] in {"interface", "decision", "invariant", "path", "symbol", "git_commit"} else 1
+            # Exact identifiers remain exact. For lexical candidates, current
+            # architectural/source authority outranks a stronger stale note.
+            key = (-exact, relevance, authority_kind, -coverage, -precision, item["type"], item["id"])
             ranked.append((key, {
                 "type": item["type"],
                 "id": item["id"],

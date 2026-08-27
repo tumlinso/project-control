@@ -27,6 +27,9 @@ SENSITIVE_KEY = re.compile(
 SENSITIVE_VALUE = re.compile(
     r"(?i)(bearer\s+[A-Za-z0-9._~+/-]+=*|(?<![A-Za-z0-9_])(?:sk|tok|toc|tos|tol)_[A-Za-z0-9_-]{12,})"
 )
+LOCAL_ABSOLUTE_PATH = re.compile(
+    r"(?<![A-Za-z0-9:])/(?:home|tmp|var|run|mnt|media|opt|srv|root)(?:/[A-Za-z0-9._@+,:=-]+)+"
+)
 
 
 class SecurityError(ValueError):
@@ -107,6 +110,10 @@ def redact_text(value: str) -> str:
     return SENSITIVE_VALUE.sub("[REDACTED]", value)
 
 
+def redact_output_text(value: str) -> str:
+    return LOCAL_ABSOLUTE_PATH.sub("[REDACTED_PATH]", redact_text(value))
+
+
 def redact(value: Any) -> Any:
     if isinstance(value, dict):
         return {
@@ -134,5 +141,5 @@ def redact_output(value: Any) -> Any:
     if isinstance(value, tuple):
         return tuple(redact_output(item) for item in value)
     if isinstance(value, str):
-        return redact_text(value)
+        return redact_output_text(value)
     return value
