@@ -145,6 +145,7 @@ class ProjectSnapshot(BaseModel):
     todo_status: dict[str, Any] = Field(default_factory=dict)
     todo_tables: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
     todo_semantic: dict[str, Any] = Field(default_factory=dict)
+    todo_workflow: dict[str, Any] = Field(default_factory=dict)
     local_worker: dict[str, Any] = Field(default_factory=dict)
     cuda: dict[str, Any] = Field(default_factory=dict)
     host: dict[str, Any] = Field(default_factory=dict)

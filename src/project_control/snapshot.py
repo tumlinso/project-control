@@ -62,6 +62,7 @@ class SnapshotBuilder:
         todo_status: dict[str, Any] = {}
         todo_tables: dict[str, list[dict[str, Any]]] = {}
         todo_semantic: dict[str, Any] = {}
+        todo_workflow: dict[str, Any] = {}
         authority = workspace.authority_repository
         skills_root = resolve_skills_root(self.config, workspace_id)
         if authority and authority in git_adapters and skills_root:
@@ -74,6 +75,7 @@ class SnapshotBuilder:
                 project_uuid = todo.project_uuid
                 todo_status = todo.status
                 todo_semantic = todo.semantic
+                todo_workflow = todo.workflow
                 tables = todo.state.get("tables", {})
                 if isinstance(tables, dict):
                     todo_tables = {key: value for key, value in tables.items() if isinstance(value, list)}
@@ -115,6 +117,7 @@ class SnapshotBuilder:
             todo_status=todo_status,
             todo_tables=todo_tables,
             todo_semantic=todo_semantic,
+            todo_workflow=todo_workflow,
             local_worker=worker,
             cuda=cuda,
             host=host,

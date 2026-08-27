@@ -5,13 +5,15 @@ from typing import Any
 from ..models import ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..reconcile import ProjectReconciler, rank_items
+from ..workflow import workflow_summary, workflow_warnings
 
 
-BUDGETS = {"compact": 6000, "standard": 10000, "expanded": 16000}
+BUDGETS = {"compact": 4000, "standard": 9000, "expanded": 15000}
 
 
 def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max_items: int = 20) -> ToolEnvelope:
     reconciled = ProjectReconciler(snapshot).reconcile()
+    workflow = workflow_summary(snapshot, max_items=max_items)
 
     def compact(task: dict[str, Any]) -> dict[str, Any]:
         return {key: task.get(key) for key in (
@@ -29,6 +31,9 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
         fallback_focus = reconciled.active or reconciled.ready or reconciled.blocked
         focus.extend(str(item.get("id")) for item in fallback_focus)
     focus = list(dict.fromkeys(item for item in focus if item and item != "None"))[:5]
+    recovery_focus = [str(item.get("id")) for item in workflow.get("recovery_needed", []) if item.get("id")]
+    message_focus = [str(item.get("task_id")) for item in workflow.get("blocking_messages", []) if item.get("task_id")]
+    focus = list(dict.fromkeys([*recovery_focus, *message_focus, *focus]))[:5]
 
     current_programs = sorted(
         reconciled.programs,
@@ -38,6 +43,7 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
 
     data = {
         "identity": {"display_name": snapshot.display_name, "project_uuid": snapshot.project_uuid},
+        "workflow": workflow,
         "current_project_state": current_programs[:max_items],
         "active_work": [compact(item) for item in reconciled.active[:max_items]],
         "ready_work": [compact(item) for item in reconciled.ready[:max_items]],
@@ -64,5 +70,5 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             "budget_bytes": BUDGETS[detail],
         },
     }
-    warnings = [*snapshot.warnings_for("todo", "cuda"), *reconciled.warnings]
+    warnings = [*snapshot.warnings_for("todo", "cuda"), *reconciled.warnings, *workflow_warnings(snapshot)]
     return envelope("project_overview", snapshot, bounded_payload(data, BUDGETS[detail]), warnings=list(dict.fromkeys(warnings)))

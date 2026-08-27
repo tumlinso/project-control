@@ -28,6 +28,20 @@ full todo lifecycle in every service. When an older installed todo lacks these
 commands, raw-table behavior remains available with the explicit
 `todo_semantic_unavailable` warning.
 
+Todo's separate `semantic workflow` result is stored as `todo_workflow` and
+revision-checked with status, export, and semantic state. It is the sole source
+for runs, first-class lane queues and roles, authoritative dispatches, typed
+blocking messages, rendezvous, managed workspaces, patch and integration state,
+recovery attention, context versions, safe parallel groups, and parent-linked
+local children. Project-control does not reconstruct these meanings by joining
+raw workflow tables.
+
+First-class dispatches and subordinate local executions are different graph
+node types. A first-class agent appears only when todo's normalized read proves
+the live session/dispatch/claim/lane/context tuple. A local child remains linked
+to its parent task and lane where known, but never enters the lane tree or
+run-level fan-in.
+
 `ProjectReconciler` combines the semantic work view with Git identity,
 registered artifacts and gate evidence, CUDA facts/results, and observable
 worker/host state. It assigns current/reference/historical/superseded relevance,
@@ -61,3 +75,7 @@ degrades to an explicit partial result instead of causing a repair mutation.
 No filesystem monitor, project-control history database, shadow Git history,
 vector index, agent-attribution service, or background observer is part of this
 architecture.
+
+Older kernels degrade explicitly to `todo_workflow_semantic_unavailable`.
+Existing task/evidence observation remains available, workflow-only collections
+remain empty, and no fallback invents activity or performs recovery.

@@ -6,7 +6,9 @@ elicitation, UI, arbitrary file access, shell, or write operations.
 1. `project_overview` synthesizes the current program, work, blockers,
    architecture/validation/performance attention, material completion,
    filtered historical counts, cross-authority warnings, and judgment-oriented
-   recommended focus.
+   recommended focus. Additive workflow output covers the active run/lane tree,
+   typed blockers, rendezvous, workspace/patch/integration state, recovery
+   attention, and context cursors.
 2. `project_delta` accepts a cursor, todo revision, task, checkpoint, interface,
    commit, or time anchor. Todo resolves semantic anchors and coalesces its full
    interval before budgeting; Git paths are grouped by task scopes and stable
@@ -14,12 +16,16 @@ elicitation, UI, arbitrary file access, shell, or write operations.
 3. `project_frontier` reports semantic-lifecycle-eligible ready work, active
    claims, blockers, path-prefix/lock/interface/checkpoint contention, and safe
    parallel groups. Terminal and superseded work is excluded. Critical-path and
-   local-worker suitability remain explicitly labeled heuristics.
+   local-worker suitability remain explicitly labeled heuristics. When workflow
+   semantics are available, serial queues and safe groups come directly from
+   todo's normalized read.
 4. `inspect` examines one bounded task, contract, source symbol, path, decision,
    dependency, or subsystem through registered roots and the transient project
    graph. Architectural concepts resolve across task names/objectives,
    interfaces, registered artifacts, paths, tests, and performance links before
-   source fallback.
+   source fallback. The existing `subsystem` kind also resolves run, lane,
+   dispatch, message, rendezvous, workspace, patch, integration, and subordinate
+   child identities without changing the public input schema.
 5. `evidence` resolves its subject first, then synthesizes relevant current
    support, contradiction, stale/historical evidence, unmeasured assumptions,
    freshness-sensitive confidence, and bounded provenance.
@@ -27,7 +33,9 @@ elicitation, UI, arbitrary file access, shell, or write operations.
    an app-private proposal without applying it, adds a conservative prospective
    impact section, or packages a prospective Codex handoff.
 7. `agent_status` reports only observable sessions, claims, children, results,
-   and existing local-service state.
+   and existing local-service state. It separates authoritative first-class
+   Codex lane dispatches, claim-only observations, and subordinate local-worker
+   children; local children are never peer run participants.
 8. `performance_status` projects raw campaign state into active-watch, current,
    reference, historical, superseded, or noncomparable lifecycle; prioritizes
    current-compatible measurements and registered architecture evidence; and
@@ -43,6 +51,11 @@ and a reusable explicit cursor. The todo revision is nullable when authority is
 unavailable; null is not revision zero. Every emitted cursor is legal input to
 `project_delta`, including nullable revisions and optional working-tree
 fingerprints.
+
+The exact eight tool names and all version-1 input schemas remain frozen.
+Workflow support is output-only. If `todo semantic workflow` is unavailable,
+responses carry `todo_workflow_semantic_unavailable`; project-control does not
+query raw workflow tables or invoke recovery.
 
 For compatibility, cursors retain the original `fingerprints` map and also
 emit the explicit `working_tree_fingerprints` name. Each repository identity

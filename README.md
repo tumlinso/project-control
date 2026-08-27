@@ -5,6 +5,11 @@ ChatGPT a compact live view of registered engineering workspaces. It synthesizes
 architecture, planning, coordination, evidence, source identity, and performance
 state while leaving every mutation with Codex and the existing coding skills.
 
+It is the observation plane for the unified workflow product:
+`coding-workflow` is the model-facing protocol and `todo-orchestrator` is its
+transactional kernel. Project-control consumes todo's additive normalized
+workflow read and never becomes a second orchestration authority.
+
 The v1 MCP surface is frozen to eight tools:
 
 - `project_overview`
@@ -39,6 +44,18 @@ Configuration lives at `$XDG_CONFIG_HOME/project-control/config.toml` or
 `~/.config/project-control/config.toml`, with mode `0600`. Register repositories
 only through `project-control workspace add`; MCP tools accept stable workspace
 and repository IDs, never filesystem roots.
+
+Workflow data is additive output on the existing eight tools. It includes the
+active run, first-class Codex lane tree and serial queues, authoritative
+dispatches, typed blockers, rendezvous, managed workspaces, pending patches,
+integration conflicts, context cursors, safe parallel groups, and recovery
+attention. `agent_status` keeps first-class Codex/project agents separate from
+subordinate local-worker child executions. Claims alone are not agents, and a
+local child is never a lane, role, communicator, or rendezvous participant.
+
+An older todo kernel without `semantic workflow` produces an explicit partial
+result while legacy task reads remain available. Project-control does not infer
+missing workflow semantics from raw tables or repair project state.
 
 The service provides `/healthz`, `/readyz`, `/version`, and the loopback MCP URL
 `http://127.0.0.1:8767/mcp`. See `docs/SECURITY.md` for the enforced capability

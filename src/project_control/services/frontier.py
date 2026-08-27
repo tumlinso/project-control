@@ -6,10 +6,12 @@ from typing import Any
 from ..models import ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..reconcile import ProjectReconciler, paths_overlap
+from ..workflow import workflow_summary, workflow_warnings
 
 
 def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_blocked: bool = True, include_parallel_groups: bool = True) -> ToolEnvelope:
     reconciled = ProjectReconciler(snapshot).reconcile()
+    workflow = workflow_summary(snapshot, max_items=max_ready)
     tasks = reconciled.tasks
     ready = reconciled.ready
     ready_ids = [str(item.get("id")) for item in ready]
@@ -51,18 +53,18 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
             or (left, right) in interface_relations or (right, left) in interface_relations
             or (left, right) in checkpoint_relations or (right, left) in checkpoint_relations
         )
-    groups: list[list[str]] = []
+    heuristic_groups: list[list[str]] = []
     if include_parallel_groups:
         for task in ready:
             task_id = str(task.get("id"))
             placed = False
-            for group in groups:
+            for group in heuristic_groups:
                 if all(not conflict(task_id, other) for other in group):
                     group.append(task_id)
                     placed = True
                     break
             if not placed:
-                groups.append([task_id])
+                heuristic_groups.append([task_id])
     blocked = []
     if include_blocked:
         for task_id, task in tasks.items():
@@ -91,7 +93,26 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
         "ready": [{"id": item.get("id"), "title": item.get("title"), "priority": item.get("priority")} for item in ready[:max_ready]],
         "active_claims": active_claims,
         "blocked": blocked[:max_ready],
-        "parallel_groups": groups,
+        "parallel_groups": list(workflow.get("safe_parallel_groups", [])) if workflow["available"] and include_parallel_groups else heuristic_groups,
+        "parallel_group_basis": "todo_semantic_workflow" if workflow["available"] else "compatibility scope/dependency heuristic",
+        "lane_frontier": [
+            {
+                "run_id": run.get("id"),
+                "lane_id": lane.get("id"),
+                "role": lane.get("role"),
+                "state": lane.get("state"),
+                "context_cursor": lane.get("context_cursor"),
+                "serial_queue": lane.get("serial_queue", []),
+                "dispatch": lane.get("dispatch"),
+                "workspace": lane.get("workspace"),
+            }
+            for run in [workflow.get("active_run")] if isinstance(run, dict) for lane in run.get("lanes", [])
+        ] if workflow["available"] else [],
+        "blocking_run_messages": list(workflow.get("blocking_messages", [])),
+        "unresolved_questions": list(workflow.get("unresolved_questions", [])),
+        "rendezvous": list(workflow.get("rendezvous", [])),
+        "integration_queue": list(workflow.get("integration_queue", [])),
+        "recovery_needed": list(workflow.get("recovery_needed", [])),
         "critical_path": critical,
         "critical_path_basis": "authoritative dependencies + explicit heuristic",
         "local_worker_suitability": [{
@@ -102,4 +123,4 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
         } for task in ready[:max_ready]],
         "historical_state_filtered": reconciled.historical_counts,
     }
-    return envelope("project_frontier", snapshot, bounded_payload(data, 12000), warnings=list(dict.fromkeys([*snapshot.warnings_for("todo"), *reconciled.warnings])))
+    return envelope("project_frontier", snapshot, bounded_payload(data, 12000), warnings=list(dict.fromkeys([*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)])))

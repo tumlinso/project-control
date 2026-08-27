@@ -20,6 +20,7 @@ class TodoObservation:
     status: dict[str, Any]
     state: dict[str, Any]
     semantic: dict[str, Any]
+    workflow: dict[str, Any]
     warnings: tuple[str, ...] = ()
 
 
@@ -77,7 +78,7 @@ class TodoReadAdapter:
         return result
 
     def _semantic_call(self, action: str, *arguments: str, timeout: float = 12.0) -> dict[str, Any]:
-        if action not in {"state", "anchor", "delta"}:
+        if action not in {"state", "anchor", "delta", "workflow"}:
             raise ValueError("todo semantic operation is not read-only allowlisted")
         argv = [
             sys.executable, str(self.todo_script), "semantic", action,
@@ -118,6 +119,9 @@ class TodoReadAdapter:
 
     def semantic_delta(self, *arguments: str) -> dict[str, Any]:
         return self._semantic_call("delta", *arguments, timeout=20.0).get("data", {})
+
+    def semantic_workflow(self) -> dict[str, Any]:
+        return self._semantic_call("workflow").get("data", {})
 
     def plan_read(self, operation: str, proposal_file: Path, *, timeout: float = 15.0) -> dict[str, Any]:
         if operation not in {"validate", "diff"}:
@@ -204,6 +208,7 @@ class TodoReadAdapter:
         last_status: dict[str, Any] = {}
         last_state: dict[str, Any] = {}
         last_semantic: dict[str, Any] = {}
+        last_workflow: dict[str, Any] = {}
         for attempt in range(2):
             status = self.status()
             data = status.get("data", {})
@@ -217,6 +222,7 @@ class TodoReadAdapter:
                     data,
                     {},
                     {},
+                    {},
                     (exc.code,),
                 )
             except (CommandError, OSError, ValueError, json.JSONDecodeError):
@@ -225,6 +231,7 @@ class TodoReadAdapter:
                     revision if isinstance(revision, int) else None,
                     self._project_uuid(self._authority_root()),
                     data,
+                    {},
                     {},
                     {},
                     ("todo_snapshot_unavailable",),
@@ -237,12 +244,24 @@ class TodoReadAdapter:
             except TodoReadError:
                 semantic = {}
                 semantic_warning = ("todo_semantic_unavailable",)
+            workflow_warning: tuple[str, ...] = ()
+            try:
+                workflow = self.semantic_workflow()
+                if workflow.get("available") is False:
+                    workflow_warning = ("todo_workflow_semantic_unavailable",)
+            except TodoReadError:
+                workflow = {}
+                workflow_warning = ("todo_workflow_semantic_unavailable",)
             semantic_revision = semantic.get("revision") if semantic else status_revision
-            last_status, last_state, last_semantic = data, state, semantic
-            if isinstance(status_revision, int) and status_revision == state_revision == semantic_revision:
+            workflow_revision = workflow.get("revision") if workflow else status_revision
+            last_status, last_state, last_semantic, last_workflow = data, state, semantic, workflow
+            if isinstance(status_revision, int) and status_revision == state_revision == semantic_revision == workflow_revision:
                 project = state.get("project", {})
                 project_uuid = project.get("project_uuid") if isinstance(project, dict) else None
-                return TodoObservation(status_revision, project_uuid, data, state, semantic, semantic_warning)
+                return TodoObservation(
+                    status_revision, project_uuid, data, state, semantic, workflow,
+                    tuple(dict.fromkeys([*semantic_warning, *workflow_warning])),
+                )
         revision = last_status.get("project_revision")
         project = last_state.get("project", {})
         project_uuid = project.get("project_uuid") if isinstance(project, dict) else None
@@ -252,6 +271,7 @@ class TodoReadAdapter:
             last_status,
             {},
             last_semantic,
+            last_workflow,
             ("todo_observation_raced",),
         )
 

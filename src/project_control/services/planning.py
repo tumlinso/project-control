@@ -16,6 +16,7 @@ from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
 from ..snapshot import resolve_skills_root
+from ..workflow import workflow_summary
 
 
 class MutationDetected(RuntimeError):
@@ -59,6 +60,8 @@ def _todo_revision(root: Path, todo_script: Path) -> int | None:
 
 def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -> dict[str, Any]:
     tasks = snapshot.todo_tables.get("tasks", [])
+    workflow = workflow_summary(snapshot)
+    accepted_plan_schema_versions = [2, 3] if workflow["available"] else [2]
     if objective:
         reconciled = ProjectReconciler(snapshot).reconcile()
         graph = ProjectGraph(snapshot, reconciled)
@@ -74,7 +77,9 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
             "related": related,
             "active_claims": [item for item in snapshot.todo_status.get("active_claims", []) if str(item.get("task_id")) in task_ids],
             "performance_assumptions": [item for item in reconciled.performance["current_evidence"] if set(item.get("linked_task_ids", [])) & task_ids],
+            "workflow": workflow,
             "plan_schema_version": 2,
+            "accepted_plan_schema_versions": accepted_plan_schema_versions,
             "base_revision": snapshot.todo_revision,
             "base_commits": {key: value.commit for key, value in snapshot.repositories.items()},
         }
@@ -89,7 +94,9 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
         "dependencies": snapshot.todo_tables.get("task_dependencies", []),
         "gates": snapshot.todo_tables.get("gates", []),
         "invariants": snapshot.todo_tables.get("invariants", []),
+        "workflow": workflow,
         "plan_schema_version": 2,
+        "accepted_plan_schema_versions": accepted_plan_schema_versions,
         "base_revision": snapshot.todo_revision,
         "base_commits": {key: value.commit for key, value in snapshot.repositories.items()},
     }

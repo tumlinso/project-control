@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import socket
 import subprocess
@@ -23,6 +24,17 @@ from project_control.config import ProjectControlConfig, RepositoryConfig, Works
 EXPECTED = {
     "project_overview", "project_delta", "project_frontier", "inspect",
     "evidence", "plan_preview", "agent_status", "performance_status",
+}
+
+INPUT_SCHEMA_SHA256 = {
+    "project_overview": "42e86341f8b3869562c721e1cbd7f3e9f025a87f14182feb860b5e2763590b83",
+    "project_delta": "7bc19453e1f23884df01629936b88a9585794a02311d72e0e1f624d8ca90c708",
+    "project_frontier": "ad4c2888841c1395c612fe56427a8a6f6b36454aafe0eea1301ea5d2cea56061",
+    "inspect": "b4cc372064f72054ba2bed95bc0ebcbcc285d3aea786d8ebda2c7477c9a56afd",
+    "evidence": "2e26d42ebdd8bb4be9dfc170aa18dbdcaef34a9fd5ade8c286c2c8773be1c7f4",
+    "plan_preview": "3b34bfc5c59670fe82df3fac81f746c9b0401093403bad6459895ca31e94dda9",
+    "agent_status": "15065af772af4bb13c5a717e55eb122dcc116635a45c9413ce6da21710caa0b2",
+    "performance_status": "c50251ba7af1c1ff5659c218e93f489d8826dc68c330ddaa1b68f9c5219547b7",
 }
 
 
@@ -63,6 +75,10 @@ class MCPServerTests(unittest.TestCase):
         required_prefix = "Use project-control to inspect live engineering projects"
         self.assertTrue(SERVER_INSTRUCTIONS.startswith(required_prefix))
         schemas = {tool.name: tool.inputSchema for tool in tools}
+        self.assertEqual({
+            name: hashlib.sha256(json.dumps(schema, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            for name, schema in schemas.items()
+        }, INPUT_SCHEMA_SHA256)
         self.assertEqual(schemas["project_overview"]["properties"]["detail"]["enum"], ["compact", "standard", "expanded"])
         self.assertEqual(schemas["project_overview"]["properties"]["max_items"]["maximum"], 100)
         self.assertEqual(schemas["inspect"]["properties"]["kind"]["enum"], ["task", "interface", "checkpoint", "decision", "dependency", "symbol", "path", "subsystem"])

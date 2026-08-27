@@ -6,6 +6,7 @@ from ..adapters.git import GitReadAdapter
 from ..adapters.todo import TodoReadAdapter, TodoReadError
 from ..models import DeltaSince, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
+from ..workflow import workflow_summary, workflow_warnings
 
 
 def _category(event_type: str) -> str:
@@ -150,6 +151,15 @@ def project_delta(
         "changes": sorted(events, key=lambda item: (item["category"] == "coordination", -int(item.get("revision") or 0)))[:max_items],
         "git_changes": git_changes,
         "readiness_changed": bool(semantic_delta.get("tasks") or semantic_delta.get("checkpoints")) or any(item["type"].startswith(("task.", "claim.", "checkpoint.")) for item in events),
+        "workflow": workflow_summary(snapshot),
+        "workflow_changed": bool(
+            effective_revision is not None
+            and any(
+                int(item.get("revision", -1)) > effective_revision
+                and str(item.get("event_type", "")).startswith("workflow")
+                for item in snapshot.todo_tables.get("events", [])
+            )
+        ),
         "new_cursor": snapshot.cursor().model_dump(mode="json"),
         "ranking": {
             "items_considered": int(semantic_delta.get("raw_event_count", len(events))),
@@ -158,4 +168,4 @@ def project_delta(
             "budget_bytes": 16000,
         },
     }
-    return envelope("project_delta", snapshot, bounded_payload(data, 16000), warnings=list(dict.fromkeys(warnings)))
+    return envelope("project_delta", snapshot, bounded_payload(data, 16000), warnings=list(dict.fromkeys([*warnings, *workflow_warnings(snapshot)])))

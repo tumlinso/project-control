@@ -146,9 +146,12 @@ class AdapterContractTests(unittest.TestCase):
             return (0, {"ok": True, "code": "success", "data": {"project_revision": revision, "state": {"project_revision": revision, "project": project, "tables": {}}}})
         def semantic(revision):
             return (0, {"ok": True, "code": "success", "data": {"revision": revision, "tasks": []}})
-        runner = SequenceRunner([status(1), export(2), semantic(2), status(3), export(4), semantic(4)])
+        runner = SequenceRunner([
+            status(1), export(2), semantic(2), semantic(2),
+            status(3), export(4), semantic(4), semantic(4),
+        ])
         observation = TodoReadAdapter(self.root, TODO, runner=runner).observe()
-        self.assertEqual(len(runner.calls), 6)
+        self.assertEqual(len(runner.calls), 8)
         self.assertEqual(observation.warnings, ("todo_observation_raced",))
         self.assertEqual(observation.state, {})
 
@@ -158,11 +161,28 @@ class AdapterContractTests(unittest.TestCase):
             (0, {"ok": True, "code": "success", "data": {"project_revision": 5}}),
             (0, {"ok": True, "code": "success", "data": {"state": {"project_revision": 5, "project": project, "tables": {}}}}),
             (2, {"ok": False, "code": "internal_error", "error": {"message": "unsupported"}}),
+            (2, {"ok": False, "code": "internal_error", "error": {"message": "unsupported"}}),
         ])
         observation = TodoReadAdapter(self.root, TODO, runner=runner).observe()
         self.assertEqual(observation.revision, 5)
         self.assertEqual(observation.semantic, {})
-        self.assertEqual(observation.warnings, ("todo_semantic_unavailable",))
+        self.assertEqual(observation.workflow, {})
+        self.assertEqual(observation.warnings, ("todo_semantic_unavailable", "todo_workflow_semantic_unavailable"))
+
+    def test_observation_keeps_state_semantics_when_only_workflow_read_is_unsupported(self) -> None:
+        project = {"project_uuid": "fixture-uuid"}
+        runner = SequenceRunner([
+            (0, {"ok": True, "code": "success", "data": {"project_revision": 5}}),
+            (0, {"ok": True, "code": "success", "data": {"state": {"project_revision": 5, "project": project, "tables": {}}}}),
+            (0, {"ok": True, "code": "success", "data": {"revision": 5, "tasks": []}}),
+            (2, {"ok": False, "code": "internal_error", "error": {"message": "unsupported"}}),
+        ])
+        observation = TodoReadAdapter(self.root, TODO, runner=runner).observe()
+        self.assertEqual(observation.semantic, {"revision": 5, "tasks": []})
+        self.assertEqual(observation.workflow, {})
+        self.assertEqual(observation.warnings, ("todo_workflow_semantic_unavailable",))
+        self.assertEqual(runner.calls[-1][0][2:4], ["semantic", "workflow"])
+        self.assertEqual(runner.calls[-1][1]["env"]["TODO_ORCHESTRATOR_READ_ONLY"], "1")
 
     def test_revision_read_does_not_export(self) -> None:
         runner = SequenceRunner([(0, {"ok": True, "code": "success", "data": {"project_revision": 9}})])

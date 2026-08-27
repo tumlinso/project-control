@@ -9,6 +9,7 @@ from typing import Any
 
 from .models import ProjectSnapshot
 from .reconcile import ReconciledProject
+from .workflow import workflow_view
 
 
 STOP_WORDS = {
@@ -153,6 +154,69 @@ class ProjectGraph:
                 self._edge(key, self.key("cuda_campaign", str(campaign_id)), "result_of", "CUDA result campaign")
             for task_id in item.get("linked_task_ids", []):
                 self._edge(key, self.key("task", str(task_id)), "linked_task", "CUDA result task")
+
+        workflow = workflow_view(self.snapshot)
+        if workflow["available"]:
+            # Declare the entire lane tree before relationships so arbitrary IDs and
+            # deep hierarchies cannot cause a parent edge to be silently dropped.
+            for run in workflow.get("runs", []):
+                self._add_entity("run", run.get("id"), run, title=f"Run {run.get('id')}")
+                for lane in run.get("lanes", []):
+                    self._add_entity("lane", lane.get("id"), lane, title=f"{lane.get('role')} lane {lane.get('id')}")
+            for run in workflow.get("runs", []):
+                run_key = self.key("run", str(run.get("id")))
+                if run.get("root_task_id"):
+                    self._edge(run_key, self.key("task", str(run["root_task_id"])), "root_task", "todo semantic workflow")
+                for lane in run.get("lanes", []):
+                    lane_key = self.key("lane", str(lane.get("id")))
+                    self._edge(run_key, lane_key, "contains_lane", "todo semantic workflow")
+                    if lane.get("parent_lane_id"):
+                        self._edge(lane_key, self.key("lane", str(lane["parent_lane_id"])), "child_lane", "todo semantic workflow")
+                    for queued in lane.get("queue", []):
+                        if queued.get("task_id"):
+                            self._edge(lane_key, self.key("task", str(queued["task_id"])), "queues", "todo semantic workflow")
+                    dispatch = lane.get("dispatch")
+                    if isinstance(dispatch, dict) and dispatch.get("dispatch_id"):
+                        dispatch_key = self._add_entity("workflow_dispatch", dispatch["dispatch_id"], dispatch)
+                        self._edge(lane_key, dispatch_key, "dispatches", "todo semantic workflow")
+                        if dispatch.get("task_id"):
+                            self._edge(dispatch_key, self.key("task", str(dispatch["task_id"])), "owns_claim_for", "todo semantic workflow")
+                    workspace = lane.get("workspace")
+                    if isinstance(workspace, dict) and workspace.get("id"):
+                        workspace_key = self._add_entity("workspace", workspace["id"], workspace)
+                        self._edge(lane_key, workspace_key, "uses_workspace", "todo semantic workflow")
+            for message in workflow.get("blocking_messages", []):
+                key = self._add_entity("run_message", message.get("id"), message)
+                if message.get("author_lane_id"):
+                    self._edge(self.key("lane", str(message["author_lane_id"])), key, "authored_message", "todo semantic workflow")
+                if message.get("task_id"):
+                    self._edge(key, self.key("task", str(message["task_id"])), "blocks", "todo semantic workflow")
+            for rendezvous in workflow.get("rendezvous", []):
+                key = self._add_entity("rendezvous", rendezvous.get("id"), rendezvous)
+                if rendezvous.get("run_id"):
+                    self._edge(self.key("run", str(rendezvous["run_id"])), key, "has_rendezvous", "todo semantic workflow")
+                if rendezvous.get("join_task_id"):
+                    self._edge(key, self.key("task", str(rendezvous["join_task_id"])), "opens_join_task", "todo semantic workflow")
+            for integration in workflow.get("integration_queue", []):
+                key = self._add_entity("integration", integration.get("id"), integration)
+                if integration.get("integration_task_id"):
+                    self._edge(key, self.key("task", str(integration["integration_task_id"])), "integrates_into", "todo semantic workflow")
+                if integration.get("integrator_lane_id"):
+                    self._edge(self.key("lane", str(integration["integrator_lane_id"])), key, "owns_integration", "todo semantic workflow")
+            for artifact in workflow.get("patch_artifacts", []):
+                key = self._add_entity("patch_artifact", artifact.get("id"), artifact)
+                if artifact.get("lane_id"):
+                    self._edge(self.key("lane", str(artifact["lane_id"])), key, "produces_patch", "todo semantic workflow")
+                if artifact.get("task_id"):
+                    self._edge(self.key("task", str(artifact["task_id"])), key, "produces_patch", "todo semantic workflow")
+                if artifact.get("workspace_id"):
+                    self._edge(self.key("workspace", str(artifact["workspace_id"])), key, "contains_patch", "todo semantic workflow")
+            for child in workflow.get("local_children", []):
+                key = self._add_entity("local_child", child.get("child_execution_id"), child)
+                if child.get("parent_task_id"):
+                    self._edge(self.key("task", str(child["parent_task_id"])), key, "has_subordinate_child", "todo semantic workflow")
+                if child.get("parent_lane_id"):
+                    self._edge(self.key("lane", str(child["parent_lane_id"])), key, "owns_subordinate_child", "todo semantic workflow")
         for alias, identity in self.snapshot.repositories.items():
             self._add_entity("git_commit", f"{alias}:{identity.commit}", {
                 "repository": alias,
