@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from .config import ProgramConfig, ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 
 
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -55,6 +55,49 @@ class WorkspaceRegistry:
         if not root.is_dir():
             raise RegistryError("registered repository root is not a directory")
         return RegisteredRepository(workspace_id, selected, root)
+
+    def program(self, program_id: str) -> ProgramConfig:
+        validate_id(program_id, "program")
+        try:
+            return self.config.programs[program_id]
+        except KeyError as exc:
+            raise RegistryError("unknown program") from exc
+
+    def program_workspaces(
+        self,
+        *,
+        program_id: str | None = None,
+        workspaces: list[str] | None = None,
+    ) -> tuple[list[str], dict[str, object]]:
+        """Resolve a configured or explicit query grouping.
+
+        The returned metadata makes the non-authoritative nature of membership
+        explicit so callers cannot accidentally present it as a dependency.
+        """
+
+        explicit = list(workspaces or [])
+        if bool(program_id) == bool(explicit):
+            raise RegistryError("select exactly one configured program or explicit workspace list")
+        if program_id:
+            program = self.program(program_id)
+            selected = list(program.workspaces)
+            metadata: dict[str, object] = {
+                "id": program_id,
+                "display_name": program.display_name,
+                "selection": "configured_program",
+            }
+        else:
+            if len(explicit) > 16:
+                raise RegistryError("explicit workspace list exceeds 16")
+            if len(explicit) != len(set(explicit)):
+                raise RegistryError("explicit workspace list must be unique")
+            selected = explicit
+            metadata = {"id": None, "display_name": None, "selection": "explicit_workspace_list"}
+        for workspace_id in selected:
+            self.workspace(workspace_id)
+        metadata["membership_semantics"] = "query_grouping_only"
+        metadata["architectural_authority"] = False
+        return selected, metadata
 
     def add_workspace(
         self,

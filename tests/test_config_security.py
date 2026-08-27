@@ -7,10 +7,13 @@ import unittest
 from pathlib import Path
 
 from project_control.config import (
+    ProgramConfig,
     ProjectControlConfig,
     ServerConfig,
     init_config,
     load_config,
+    migrate_config,
+    render_config,
     save_config,
 )
 from project_control.registry import RegistryError, WorkspaceRegistry
@@ -94,6 +97,55 @@ class ConfigSecurityTests(unittest.TestCase):
             os.chmod(path, 0o644)
             with self.assertRaises(PermissionError):
                 load_config(path)
+
+    def test_schema_v1_is_read_without_implicit_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "config.toml"
+            path.write_text('schema_version = 1\n[server]\nhost = "127.0.0.1"\nport = 8767\ntransport = "streamable-http"\n', encoding="utf-8")
+            os.chmod(path, 0o600)
+            before = path.read_bytes()
+            config = load_config(path)
+            self.assertEqual(config.schema_version, 1)
+            self.assertEqual(path.read_bytes(), before)
+            preview = migrate_config(path, apply=False)
+            self.assertTrue(preview["migration_required"])
+            self.assertFalse(preview["applied"])
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_explicit_schema_v2_migration_preserves_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repo"
+            root.mkdir()
+            path = Path(temporary) / "config.toml"
+            config = ProjectControlConfig(
+                schema_version=1,
+                workspaces={"demo": {"repositories": {"source": {"root": root}}}},
+            )
+            save_config(config, path)
+            result = migrate_config(path, apply=True)
+            self.assertTrue(result["applied"])
+            migrated = load_config(path)
+            self.assertEqual(migrated.schema_version, 2)
+            self.assertIn("demo", migrated.workspaces)
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+
+    def test_programs_render_only_under_schema_v2(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = ProjectControlConfig(
+                schema_version=2,
+                workspaces={"demo": {"repositories": {"source": {"root": root}}}},
+                programs={"stack": ProgramConfig(display_name="Stack", workspaces=["demo"])},
+            )
+            rendered = render_config(config)
+            self.assertIn("[programs.stack]", rendered)
+            self.assertIn('workspaces = ["demo"]', rendered)
+            with self.assertRaisesRegex(ValueError, "programs require"):
+                ProjectControlConfig(
+                    schema_version=1,
+                    workspaces=config.workspaces,
+                    programs=config.programs,
+                )
 
 
 if __name__ == "__main__":
