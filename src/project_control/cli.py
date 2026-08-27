@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from .config import config_path, config_summary, init_config, load_config, save_config
+from .config import apply_config_migration, config_path, config_summary, init_config, load_config, migrate_config_dry_run, save_config
 from .registry import RegistryError, WorkspaceRegistry
 from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
 
@@ -18,6 +18,10 @@ def _parser() -> argparse.ArgumentParser:
     config = commands.add_parser("config")
     config_commands = config.add_subparsers(dest="config_command", required=True)
     config_commands.add_parser("init")
+    migrate = config_commands.add_parser("migrate")
+    migration_mode = migrate.add_mutually_exclusive_group(required=True)
+    migration_mode.add_argument("--dry-run", action="store_true")
+    migration_mode.add_argument("--apply", action="store_true")
 
     workspace = commands.add_parser("workspace")
     workspace_commands = workspace.add_subparsers(dest="workspace_command", required=True)
@@ -87,8 +91,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "config":
-            target = init_config()
-            print(target)
+            if args.config_command == "init":
+                print(init_config())
+            else:
+                result = apply_config_migration() if args.apply else migrate_config_dry_run()
+                print(json.dumps(result, sort_keys=True))
             return 0
         if args.command == "workspace":
             config = load_config()

@@ -1,1 +1,1 @@
-"""Bounded synthesis services for the eight MCP tools."""
+"""Bounded read-only synthesis services for the fourteen MCP tools."""

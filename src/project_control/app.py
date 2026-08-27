@@ -15,9 +15,13 @@ from .adapters.todo import TodoReadAdapter
 from .config import ProjectControlConfig, ServerConfig, load_config
 from .models import (
     AgentStatusInput,
+    ArchitectureContextInput,
+    CoordinationViewInput,
     DeltaSince,
     EvidenceInput,
     InspectInput,
+    HistoryTraceInput,
+    ImpactPreviewInput,
     PerformanceStatusInput,
     PlanPreviewInput,
     ProjectDeltaInput,
@@ -25,31 +29,42 @@ from .models import (
     ProjectIdentity,
     ProjectOverviewInput,
     ProjectSnapshot,
+    ProgramContextInput,
     RepositoryIdentity,
+    SourceContextInput,
+    SourceTarget,
     ToolEnvelope,
     ToolStatus,
     utc_now,
 )
 from .registry import RegistryError, WorkspaceRegistry
 from .services.agents import agent_status as agent_status_service
+from .services.architecture import architecture_context as architecture_context_service
+from .services.coordination import coordination_view as coordination_view_service
 from .services.delta import project_delta as project_delta_service
 from .services.evidence import evidence_for
 from .services.frontier import project_frontier as project_frontier_service
+from .services.history import history_trace as history_trace_service
+from .services.impact import impact_preview as impact_preview_service
 from .services.inspect import inspect_subject
 from .services.overview import project_overview as project_overview_service
 from .services.performance import performance_status as performance_status_service
 from .services.planning import MutationDetected, plan_preview as plan_preview_service
+from .services.program import program_context as program_context_service
+from .services.source_context import source_context as source_context_service
 from .snapshot import SnapshotBuilder, resolve_skills_root
 
 
 SERVER_INSTRUCTIONS = (
-    "Use project-control to inspect live engineering projects and reason about architecture, planning, review, "
-    "coordination, evidence, and performance. Start with project_overview or project_delta. Use project_frontier "
-    "for safe next work, inspect/evidence for bounded detail, and plan_preview to validate or package prospective "
-    "work for Codex. All tools are strictly read-only: they never claim tasks, edit files, run workers or "
-    "benchmarks, reserve GPUs, or mutate Git/todo state. Bind recommendations to observed todo revisions and Git "
-    "commits. Agent state is observable-only. Hand proposed mutations to Codex through the authoritative coding "
-    "workflow and skills read interfaces. A plan preview is prospective and has never been applied."
+    "Use project-control to inspect live engineering projects as ChatGPT's read-only architectural, source, "
+    "history, planning, and coordination "
+    "observatory. Start with architecture_context for broad questions, project_overview for status, or "
+    "project_delta for change. Use source_context for bounded multi-target source reads and coordination_view for "
+    "todo-authoritative workflow state. Todo semantic workflow owns operational truth; durable export only enriches "
+    "anchored records. All tools are strictly read-only: they never claim tasks, mark messages read, advance cursors, "
+    "edit files, run workers or benchmarks, reserve resources, or mutate Git/todo state. Cross-project observations "
+    "are independent, and program membership is not architectural authority. Send any proposed mutation to Codex "
+    "through coding-workflow; proposal envelopes are inert and confer no authority."
 )
 
 READ_ONLY = ToolAnnotations(
@@ -61,12 +76,27 @@ READ_ONLY = ToolAnnotations(
 
 OverviewDetail = Literal["compact", "standard", "expanded"]
 DeltaDetail = Literal["architectural", "standard", "implementation"]
-InspectKind = Literal["task", "interface", "checkpoint", "decision", "dependency", "symbol", "path", "subsystem"]
+InspectKind = Literal[
+    "task", "interface", "checkpoint", "decision", "dependency", "symbol", "path", "subsystem",
+    "run", "lane", "dispatch", "message", "rendezvous", "context_fragment", "workspace",
+    "worktree", "patch", "integration", "gate", "invariant", "artifact", "commit", "test",
+]
 InspectIntent = Literal["architecture", "implementation", "debug", "review", "performance"]
-EvidenceKind = Literal["source", "tests", "gates", "worker", "cuda", "git"]
+EvidenceKind = Literal[
+    "source", "tests", "gates", "worker", "cuda", "git", "architecture", "decision",
+    "message", "context", "workspace", "integration",
+]
 EvidenceDetail = Literal["summary", "provenance", "bounded_excerpt"]
 PlanMode = Literal["context", "validate", "handoff"]
 PlanDetail = Literal["compact", "standard"]
+ContextDetail = Literal["compact", "standard", "expanded"]
+ArchitectureScope = Literal["current", "current_and_reference", "all"]
+SourceKind = Literal["path", "symbol", "subsystem", "text"]
+SourceSelectorIntent = Literal["architecture", "implementation", "debug", "review", "performance"]
+SourceRelation = Literal[
+    "definitions", "references", "callers", "callees", "tests", "build_config_references",
+    "documentation", "recent_changes", "task_ownership", "interfaces", "performance_evidence",
+]
 
 
 class Runtime:
@@ -161,8 +191,8 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def inspect(project: str, kind: InspectKind, target: Annotated[str, Field(min_length=1, max_length=512)], repository: str | None = None, intent: InspectIntent = "architecture", budget_tokens: Annotated[int, Field(ge=256, le=7000)] = 4000) -> dict[str, Any]:
-        request = InspectInput(project=project, kind=kind, target=target, repository=repository, intent=intent, budget_tokens=budget_tokens)
+    def inspect(project: str, kind: InspectKind, target: Annotated[str, Field(min_length=1, max_length=512)], repository: str | None = None, intent: InspectIntent = "architecture", budget_tokens: Annotated[int, Field(ge=256, le=32768)] = 4000, line_start: Annotated[int | None, Field(ge=1)] = None, line_end: Annotated[int | None, Field(ge=1)] = None, worktree_id: Annotated[str | None, Field(max_length=128)] = None, source_selector: Annotated[str, Field(max_length=128)] = "working_tree", continuation_cursor: Annotated[str | None, Field(max_length=2048)] = None) -> dict[str, Any]:
+        request = InspectInput(project=project, kind=kind, target=target, repository=repository, intent=intent, budget_tokens=budget_tokens, line_start=line_start, line_end=line_end, worktree_id=worktree_id, source_selector=source_selector, continuation_cursor=continuation_cursor)
         return runtime.invoke("inspect", project, lambda: inspect_subject(active_config, runtime.snapshot(project), request))
 
     @mcp.tool(
@@ -201,6 +231,66 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         request = PerformanceStatusInput(project=project, campaign=campaign, detail=detail, include_host_capacity=include_host_capacity)
         return runtime.invoke("performance_status", project, lambda: performance_status_service(runtime.snapshot(project, host=request.include_host_capacity, campaign=request.campaign), request, active_config))
 
+    @mcp.tool(
+        description="Orient a broad architectural or planning question with multi-seed retrieval, authority labels, active context, risks, and observation preconditions.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def architecture_context(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], repository: str | None = None, worktree_id: Annotated[str | None, Field(max_length=128)] = None, detail: ContextDetail = "standard", scope: ArchitectureScope = "current_and_reference", inclusion_categories: Annotated[list[str] | None, Field(max_length=32)] = None, max_items: Annotated[int, Field(ge=1, le=500)] = 60, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
+        request = ArchitectureContextInput(project=project, question=question, repository=repository, worktree_id=worktree_id, detail=detail, scope=scope, inclusion_categories=inclusion_categories or [], max_items=max_items, continuation_cursor=continuation_cursor)
+        return runtime.invoke("architecture_context", project, lambda: architecture_context_service(runtime.snapshot(project), request))
+
+    @mcp.tool(
+        description="Observe todo-authoritative runs, lanes, dispatches and children separately, enriched read-only with messages, fragments, rendezvous and integration state.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def coordination_view(project: str, run_id: Annotated[str | None, Field(max_length=256)] = None, lane_id: Annotated[str | None, Field(max_length=256)] = None, task_id: Annotated[str | None, Field(max_length=256)] = None, since_revision: Annotated[int | None, Field(ge=0)] = None, detail: ContextDetail = "standard", include_resolved_messages: bool = False, include_historical_arrivals: bool = False, max_items: Annotated[int, Field(ge=1, le=1000)] = 100, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
+        request = CoordinationViewInput(project=project, run_id=run_id, lane_id=lane_id, task_id=task_id, since_revision=since_revision, detail=detail, include_resolved_messages=include_resolved_messages, include_historical_arrivals=include_historical_arrivals, max_items=max_items, continuation_cursor=continuation_cursor)
+        return runtime.invoke("coordination_view", project, lambda: coordination_view_service(runtime.snapshot(project), request))
+
+    @mcp.tool(
+        description="Read one to thirty-two registered source targets with worktree, line-range, relation, race, provenance and continuation controls.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def source_context(project: str, repository: str, targets: Annotated[list[SourceTarget], Field(min_length=1, max_length=32)], worktree_id: Annotated[str | None, Field(max_length=128)] = None, source_selector: Annotated[str, Field(min_length=1, max_length=128)] = "working_tree", intent: SourceSelectorIntent = "implementation", requested_relations: Annotated[list[SourceRelation] | None, Field(max_length=16)] = None, detail: ContextDetail = "standard", budget_bytes: Annotated[int, Field(ge=1024, le=128 * 1024)] = 48 * 1024, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
+        request = SourceContextInput(project=project, repository=repository, targets=targets, worktree_id=worktree_id, source_selector=source_selector, intent=intent, requested_relations=requested_relations or [], detail=detail, budget_bytes=budget_bytes, continuation_cursor=continuation_cursor)
+        return runtime.invoke("source_context", project, lambda: source_context_service(active_config, runtime.snapshot(project), request))
+
+    @mcp.tool(
+        description="Trace how a task, interface, architecture, path or subsystem reached its current state without exposing logs or inventing causality.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def history_trace(project: str, subject: Annotated[str, Field(min_length=1, max_length=1024)], from_revision: Annotated[int | None, Field(ge=0)] = None, from_time: Annotated[str | None, Field(max_length=64)] = None, from_task: Annotated[str | None, Field(max_length=256)] = None, from_checkpoint: Annotated[str | None, Field(max_length=256)] = None, from_interface: Annotated[str | None, Field(max_length=256)] = None, from_commit: Annotated[str | None, Field(max_length=128)] = None, to_revision: Annotated[int | None, Field(ge=0)] = None, to_commit: Annotated[str | None, Field(max_length=128)] = None, detail: ContextDetail = "standard", max_events: Annotated[int, Field(ge=1, le=1000)] = 100, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
+        request = HistoryTraceInput(project=project, subject=subject, from_revision=from_revision, from_time=from_time, from_task=from_task, from_checkpoint=from_checkpoint, from_interface=from_interface, from_commit=from_commit, to_revision=to_revision, to_commit=to_commit, detail=detail, max_events=max_events, continuation_cursor=continuation_cursor)
+        return runtime.invoke("history_trace", project, lambda: history_trace_service(runtime.snapshot(project), request))
+
+    @mcp.tool(
+        description="Preview proven, possible and unknown consequences of an architectural hypothesis and optionally return an inert proposal envelope.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def impact_preview(project: str, hypothesis: Annotated[str, Field(min_length=1, max_length=12000)], proposed_change: dict[str, Any] | None = None, target_entities: Annotated[list[str] | None, Field(max_length=64)] = None, detail: ContextDetail = "standard", max_items: Annotated[int, Field(ge=1, le=1000)] = 100, include_proposal_envelope: bool = True) -> dict[str, Any]:
+        request = ImpactPreviewInput(project=project, hypothesis=hypothesis, proposed_change=proposed_change, target_entities=target_entities or [], detail=detail, max_items=max_items, include_proposal_envelope=include_proposal_envelope)
+        return runtime.invoke("impact_preview", project, lambda: impact_preview_service(runtime.snapshot(project), request))
+
+    @mcp.tool(
+        description="Synthesize independently observed context across a configured query-only program or explicit bounded registered workspace list.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def program_context(question: Annotated[str, Field(min_length=1, max_length=12000)], program_id: Annotated[str | None, Field(max_length=128)] = None, workspaces: Annotated[list[str] | None, Field(max_length=16)] = None, detail: ContextDetail = "standard", max_items: Annotated[int, Field(ge=1, le=1000)] = 100, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
+        project = program_id or "program"
+        try:
+            request = ProgramContextInput(program_id=program_id, workspaces=workspaces or [], question=question, detail=detail, max_items=max_items, continuation_cursor=continuation_cursor)
+            return program_context_service(active_config, request)
+        except (RegistryError, ValidationError, ValueError) as exc:
+            return runtime.failure("program_context", project, ToolStatus.INVALID_REQUEST, str(exc))
+        except Exception:
+            return runtime.failure("program_context", project, ToolStatus.INTERNAL_ERROR, "bounded_read_failed")
+
     @mcp.custom_route("/healthz", methods=["GET"])
     async def health(_: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "config": "parseable"})
@@ -214,7 +304,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request) -> JSONResponse:
-        return JSONResponse({"name": "project-control", "version": "0.1.0", "tool_schema_version": 1})
+        return JSONResponse({"name": "project-control", "version": "0.2.0", "tool_schema_version": 2})
 
     return mcp
 

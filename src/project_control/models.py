@@ -208,7 +208,7 @@ class InspectInput(BaseModel):
     target: str = Field(min_length=1, max_length=512)
     repository: str | None = None
     intent: Literal["architecture", "implementation", "debug", "review", "performance"] = "architecture"
-    budget_tokens: int = Field(default=4000, ge=256, le=7000)
+    budget_tokens: int = Field(default=4000, ge=256, le=32768)
     line_start: int | None = Field(default=None, ge=1)
     line_end: int | None = Field(default=None, ge=1)
     worktree_id: str | None = Field(default=None, max_length=128)

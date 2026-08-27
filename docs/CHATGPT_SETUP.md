@@ -9,6 +9,7 @@ The local server is complete before this connection procedure. Keep it bound to
 
    ```bash
    uv run project-control config init
+   uv run project-control config migrate --dry-run
    uv run project-control workspace add disposable source /absolute/path/to/disposable/repo --authority
    uv run project-control doctor --json
    ```
@@ -47,16 +48,18 @@ performed by Codex:
 5. Run `uv run project-control doctor --tunnel --json`, then enable the tunnel
    client service.
 6. Create a custom ChatGPT app named `project-control` using that tunnel.
-7. Verify discovery returns exactly these eight tools, all marked read-only:
+7. Verify discovery returns exactly these fourteen tools, all marked read-only:
    `project_overview`, `project_delta`, `project_frontier`, `inspect`,
-   `evidence`, `plan_preview`, `agent_status`, and `performance_status`.
+   `evidence`, `plan_preview`, `agent_status`, `performance_status`,
+   `architecture_context`, `coordination_view`, `source_context`,
+   `history_trace`, `impact_preview`, and `program_context`.
 8. Start a fresh ChatGPT conversation with the app enabled and run
    `project_overview` against the registered disposable workspace before adding
    active engineering projects.
 
 ChatGPT may snapshot tool definitions at connection time. After any future tool
-schema change, explicitly reconnect or recreate the app. The v1 eight-tool
-surface is frozen to minimize that need.
+schema change, explicitly reconnect or recreate the app. The original eight v1
+calls remain compatible within the fourteen-tool schema-v2 surface.
 
 Agent mode does not use custom apps. Deep research may use this app only for its
 read/fetch behavior.

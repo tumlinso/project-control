@@ -17,6 +17,8 @@ SKILLS = Path("/home/tumlinson/.agents/skills")
 TOOLS = (
     "project_overview", "project_delta", "project_frontier", "inspect",
     "evidence", "plan_preview", "agent_status", "performance_status",
+    "architecture_context", "coordination_view", "source_context", "history_trace",
+    "impact_preview", "program_context",
 )
 
 
@@ -103,6 +105,12 @@ class ReadOnlyAuditTests(unittest.TestCase):
             "plan_preview": {"project": "disposable", "mode": "validate", "proposal": self.proposal, "detail": "standard"},
             "agent_status": {"project": "disposable", "include_children": True, "include_local_services": True},
             "performance_status": {"project": "disposable", "detail": "expanded", "include_host_capacity": True},
+            "architecture_context": {"project": "disposable", "question": "How do planning, workflow and source authority fit together?", "detail": "compact"},
+            "coordination_view": {"project": "disposable", "detail": "compact"},
+            "source_context": {"project": "disposable", "repository": "source", "targets": [{"kind": "path", "value": "source.cc", "line_start": 1, "line_end": 1}], "detail": "compact"},
+            "history_trace": {"project": "disposable", "subject": "D-01", "detail": "compact"},
+            "impact_preview": {"project": "disposable", "hypothesis": "Change the source contract", "detail": "compact"},
+            "program_context": {"workspaces": ["disposable"], "question": "What is current?", "detail": "compact"},
         }
         return {name: await self.mcp.call_tool(name, arguments) for name, arguments in calls.items()}
 
