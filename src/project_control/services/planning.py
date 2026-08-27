@@ -10,7 +10,7 @@ from typing import Any
 from ..adapters.git import GitReadAdapter
 from ..adapters.todo import TodoReadAdapter
 from ..config import ProjectControlConfig, ensure_private_directory
-from ..models import PlanPreviewInput, ProjectSnapshot, ToolEnvelope, envelope
+from ..models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
@@ -82,6 +82,7 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
             "accepted_plan_schema_versions": accepted_plan_schema_versions,
             "base_revision": snapshot.todo_revision,
             "base_commits": {key: value.commit for key, value in snapshot.repositories.items()},
+            "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         }
     prefixes = sorted({str(item.get("id", "")).split("-", 1)[0] for item in tasks if "-" in str(item.get("id", ""))})
     return {
@@ -99,6 +100,7 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
         "accepted_plan_schema_versions": accepted_plan_schema_versions,
         "base_revision": snapshot.todo_revision,
         "base_commits": {key: value.commit for key, value in snapshot.repositories.items()},
+        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
 
 
@@ -117,6 +119,24 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     todo_script = skills_root / "todo-orchestrator" / "scripts" / "todo.py"
     root = registry.repository(request.project, workspace.authority_repository).root
     proposal = request.proposal or {}
+    proposal_envelope: ProposalEnvelope | None = None
+    proposal_precondition_mismatches: list[str] = []
+    if proposal.get("proposal_version") == 1 and isinstance(proposal.get("proposed_change"), dict):
+        try:
+            proposal_envelope = ProposalEnvelope.model_validate(proposal)
+            observed = snapshot.observation_preconditions()
+            expected = proposal_envelope.observation_preconditions
+            if expected.workspace_id != observed.workspace_id:
+                proposal_precondition_mismatches.append("workspace_id")
+            if expected.todo_revision is not None and expected.todo_revision != observed.todo_revision:
+                proposal_precondition_mismatches.append("todo_revision")
+            if expected.workflow_authority_fingerprint and expected.workflow_authority_fingerprint != observed.workflow_authority_fingerprint:
+                proposal_precondition_mismatches.append("workflow_authority_fingerprint")
+            if expected.repository_commits != observed.repository_commits:
+                proposal_precondition_mismatches.append("repository_commits")
+            proposal = proposal_envelope.proposed_change
+        except ValueError:
+            proposal_precondition_mismatches.append("proposal_envelope_invalid")
     encoded = json.dumps(proposal, sort_keys=True, indent=2).encode("utf-8")
     digest = hashlib.sha256(encoded).hexdigest()
     before_identity = _identities(registry, request.project)
@@ -155,6 +175,14 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "base_revision": before_revision,
         "base_commits": {alias: identity[0] for alias, identity in before_identity.items()},
         "mutation_guard": "unchanged",
+        "plan_schema_version_observed": proposal.get("schema_version"),
+        "accepted_plan_schema_versions": [2, 3],
+        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
+        "proposal_envelope": {
+            "recognized": proposal_envelope is not None,
+            "authority_to_apply": False,
+            "precondition_mismatches": proposal_precondition_mismatches,
+        },
     }
     reconciled = ProjectReconciler(snapshot).reconcile()
     affected = {str(item) for item in [*result["would_add"], *result["would_modify"]]}
@@ -166,6 +194,8 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "ownership_conflicts": result["scope_conflicts"],
         "performance_assumptions_needing_reconsideration": [item.get("id") or item.get("fact_id") for item in reconciled.performance["current_evidence"] if set(item.get("linked_task_ids", [])) & affected],
         "safe_parallel_work_unaffected": [item.get("id") for item in reconciled.ready if str(item.get("id")) not in affected],
+        "runs_lanes_and_rendezvous": workflow_summary(snapshot),
+        "worktree_identities": snapshot.observation_preconditions().model_dump(mode="json")["worktrees"],
     }
     if request.mode == "handoff" and valid:
         result["handoff"] = {

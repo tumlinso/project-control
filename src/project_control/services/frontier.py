@@ -108,6 +108,21 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
             }
             for run in [workflow.get("active_run")] if isinstance(run, dict) for lane in run.get("lanes", [])
         ] if workflow["available"] else [],
+        "ready_lane_heads": [
+            {
+                "run_id": run.get("id"), "lane_id": lane.get("id"), "role": lane.get("role"),
+                "task_id": lane.get("serial_queue", [{}])[0].get("task_id") if lane.get("serial_queue") else None,
+                "lane_state": lane.get("state"), "serialization": "serial_queue",
+            }
+            for run in [workflow.get("active_run")] if isinstance(run, dict)
+            for lane in run.get("lanes", [])
+            if lane.get("serial_queue") and lane.get("state") in {"ready", "active"}
+        ] if workflow["available"] else [],
+        "role_requirements": [
+            {"lane_id": lane.get("id"), "role": lane.get("role")}
+            for run in [workflow.get("active_run")] if isinstance(run, dict)
+            for lane in run.get("lanes", []) if lane.get("role")
+        ] if workflow["available"] else [],
         "blocking_run_messages": list(workflow.get("blocking_messages", [])),
         "unresolved_questions": list(workflow.get("unresolved_questions", [])),
         "rendezvous": list(workflow.get("rendezvous", [])),
@@ -122,5 +137,6 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
             "verification_clues": [gate.get("id") for gate in reconciled.gates if gate.get("task_id") == task.get("id")],
         } for task in ready[:max_ready]],
         "historical_state_filtered": reconciled.historical_counts,
+        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
     return envelope("project_frontier", snapshot, bounded_payload(data, 12000), warnings=list(dict.fromkeys([*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)])))

@@ -21,6 +21,15 @@ def _heartbeat_age(expires_at: str | None) -> int | None:
 def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput) -> ToolEnvelope:
     workflow = workflow_summary(snapshot, max_items=100)
     first_class_agents = list(workflow.get("first_class_agents", [])) if workflow["available"] else []
+    lane_worktrees = {
+        str(lane.get("id")): (lane.get("workspace") or {}).get("worktree_id")
+        for run in [workflow.get("active_run")] if isinstance(run, dict)
+        for lane in run.get("lanes", []) if isinstance(lane, dict)
+    }
+    first_class_agents = [
+        {**item, **({"worktree_id": lane_worktrees.get(str(item.get("lane_id")))} if lane_worktrees.get(str(item.get("lane_id"))) else {})}
+        for item in first_class_agents
+    ]
     legacy_claims = []
     for claim in snapshot.todo_status.get("active_claims", []):
         if not isinstance(claim, dict):
@@ -58,6 +67,9 @@ def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput) -> ToolEn
         "workflow_authority_available": bool(workflow["available"]),
         "stale_or_orphaned": snapshot.todo_status.get("orphaned_claims", []),
         "local_services": local,
+        "local_supervisor_capacity": local,
+        "observer_jobs": [],
+        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         "observable_only": True,
     }
     warnings = [] if workflow["available"] else [str(workflow.get("reason") or "agent_state_unavailable")]
