@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -25,6 +26,7 @@ class GitWorktreeIdentity:
     dirty: bool
     working_tree_fingerprint: str
     dirty_paths: tuple[str, ...]
+    observed_at: str
 
 
 class GitReadAdapter:
@@ -65,7 +67,29 @@ class GitReadAdapter:
                 relevant_records.append(record)
         import hashlib
 
-        fingerprint = hashlib.sha256("\x00".join(relevant_records).encode()).hexdigest()
+        digest = hashlib.sha256("\x00".join(relevant_records).encode())
+        # Porcelain records say that a path is dirty, but not which dirty image was
+        # observed. Add bounded streaming content identities so repeated edits do
+        # not reuse a stale source cache key.
+        for relative in sorted(set(paths)):
+            candidate = self.root / relative
+            digest.update(b"\0path\0" + relative.encode(errors="replace"))
+            try:
+                if candidate.is_symlink():
+                    digest.update(b"symlink\0" + candidate.readlink().as_posix().encode())
+                elif candidate.is_file():
+                    stat = candidate.stat()
+                    digest.update(f"{stat.st_size}\0{stat.st_mtime_ns}\0".encode())
+                    with candidate.open("rb") as stream:
+                        remaining = 64 * 1024 * 1024
+                        while remaining > 0 and (block := stream.read(min(1024 * 1024, remaining))):
+                            digest.update(block)
+                            remaining -= len(block)
+                else:
+                    digest.update(b"absent")
+            except OSError:
+                digest.update(b"racy")
+        fingerprint = digest.hexdigest()
         return GitIdentity(commit, bool(relevant_records), fingerprint, tuple(sorted(set(paths))))
 
     def common_dir(self) -> Path:
@@ -110,6 +134,7 @@ class GitReadAdapter:
                 self._stable_worktree_id(common, root), root, identity.commit, branch,
                 bool(record.get("detached")), identity.dirty, identity.status_fingerprint,
                 identity.changed_paths,
+                datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
             ))
         return tuple(sorted(results, key=lambda item: item.worktree_id))
 
@@ -149,6 +174,22 @@ class GitReadAdapter:
             raise ValueError("Git object exceeds text limit")
         return value
 
+    def verify_revision(self, revision: str) -> str:
+        if not revision or revision.startswith("-") or len(revision) > 128:
+            raise ValueError("invalid Git revision")
+        return self._git("rev-parse", "--verify", f"{revision}^{{commit}}").strip()
+
+    def changed_path_commits(self, relative_path: str, max_items: int = 20) -> list[dict[str, str]]:
+        if relative_path.startswith("-") or ".." in Path(relative_path).parts:
+            raise ValueError("invalid path")
+        count = max(1, min(max_items, 100))
+        raw = self._git("log", f"-{count}", "--format=%H%x09%cI%x09%s", "--", relative_path)
+        values = []
+        for line in raw.splitlines():
+            sha, timestamp, subject = (line.split("\t", 2) + ["", ""])[:3]
+            values.append({"commit": sha, "observed_at": timestamp, "subject": subject})
+        return values
+
     def grep(self, pattern: str, *, max_items: int = 50, deny_patterns: Iterable[str] = ()) -> list[dict[str, object]]:
         """Return bounded canonical source matches; Git's no-match exit is normal."""
         if not pattern or pattern.startswith("-") or len(pattern) > 512:
@@ -156,6 +197,9 @@ class GitReadAdapter:
         limit = max(1, min(max_items, 200))
         pathspecs = [
             "*.c", "*.cc", "*.cpp", "*.cxx", "*.cu", "*.cuh", "*.h", "*.hh", "*.hpp", "*.hxx", "*.py",
+            "*.md", "*.markdown", "*.rst", "*.toml", "*.yaml", "*.yml", "*.json", "*.cmake",
+            "*.sh", "*.bash", "*.zsh", "*.txt", ":(glob)**/CMakeLists.txt", ":(glob)**/Makefile",
+            ":(glob)**/Dockerfile", ":(glob)**/AGENTS.md",
             ":(exclude).git/**", ":(exclude).todo-orchestrator/runtime/**", ":(exclude).ctxpp/**",
             ":(exclude)node_modules/**", ":(exclude)__pycache__/**",
         ]
