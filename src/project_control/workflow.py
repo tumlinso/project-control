@@ -38,7 +38,22 @@ def _pick(record: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
     return {field: record.get(field) for field in fields if record.get(field) is not None}
 
 
-def _lane(record: dict[str, Any], max_items: int) -> dict[str, Any]:
+def _worktree_id(snapshot: ProjectSnapshot, workspace: dict[str, Any]) -> str | None:
+    explicit = workspace.get("worktree_id")
+    if explicit:
+        return str(explicit)
+    repository = str(workspace.get("repository") or "")
+    candidates = snapshot.repositories.get(repository).worktrees if repository in snapshot.repositories else {}
+    branch = workspace.get("branch")
+    head = workspace.get("head") or workspace.get("source_commit")
+    matches = [
+        item.id for item in candidates.values()
+        if (not branch or item.branch == branch) and (not head or item.head == head)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _lane(snapshot: ProjectSnapshot, record: dict[str, Any], max_items: int) -> dict[str, Any]:
     dispatch = record.get("dispatch")
     workspace = record.get("workspace")
     return {
@@ -49,13 +64,15 @@ def _lane(record: dict[str, Any], max_items: int) -> dict[str, Any]:
         ],
         "queue_items_omitted": max(0, len(record.get("queue", [])) - max_items),
         "dispatch": _pick(dispatch, (
-            "dispatch_id", "session_id", "claim_id", "task_id", "heartbeat_at",
-            "heartbeat_fresh", "hostname", "pid", "process_start", "context_version", "observable",
+            "task_id", "heartbeat_at", "heartbeat_fresh", "context_version", "observable",
         )) if isinstance(dispatch, dict) else None,
-        "workspace": _pick(workspace, (
-            "id", "run_id", "lane_id", "repository", "base_commit", "worktree_path",
-            "branch", "mode", "state", "integration_task_id", "merge_result", "cleanup_eligible",
-        )) if isinstance(workspace, dict) else None,
+        "workspace": {
+            **_pick(workspace, (
+                "id", "run_id", "lane_id", "repository", "base_commit", "branch", "mode", "state",
+                "integration_task_id", "merge_result", "cleanup_eligible",
+            )),
+            **({"worktree_id": _worktree_id(snapshot, workspace)} if _worktree_id(snapshot, workspace) else {}),
+        } if isinstance(workspace, dict) else None,
     }
 
 
@@ -76,7 +93,7 @@ def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50) -> dict[
     if isinstance(active, dict):
         active_run = {
             **_pick(active, ("id", "root_task_id", "status", "active_charter_version")),
-            "lanes": [_lane(item, max_items) for item in list(active.get("lanes", []))[:max_items] if isinstance(item, dict)],
+            "lanes": [_lane(snapshot, item, max_items) for item in list(active.get("lanes", []))[:max_items] if isinstance(item, dict)],
             "lanes_omitted": max(0, len(active.get("lanes", [])) - max_items),
         }
 
@@ -93,11 +110,11 @@ def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50) -> dict[
         "active_run_id": view.get("active_run_id"),
         "active_run": active_run,
         "first_class_agents": records("first_class_agents", (
-            "run_id", "lane_id", "role", "dispatch_id", "session_id", "claim_id", "task_id",
-            "heartbeat_at", "heartbeat_fresh", "hostname", "pid", "process_start", "context_version", "observable",
+            "run_id", "lane_id", "role", "task_id",
+            "heartbeat_at", "heartbeat_fresh", "context_version", "observable",
         )),
         "subordinate_local_children": records("local_children", (
-            "child_execution_id", "parent_claim_id", "parent_task_id", "parent_lane_id", "state", "access_mode",
+            "child_execution_id", "parent_task_id", "parent_lane_id", "state", "access_mode",
         )),
         "blocking_messages": records("blocking_messages", (
             "id", "run_id", "author_lane_id", "task_id", "kind", "blocking", "state", "revision",

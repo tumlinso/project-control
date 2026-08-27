@@ -10,15 +10,50 @@ from ..workflow import workflow_summary, workflow_warnings
 
 
 def _category(event_type: str) -> str:
-    if event_type.startswith(("interface.", "checkpoint.", "decision.")):
+    if event_type.startswith(("interface.", "checkpoint.", "decision.", "workflow.interface.", "workflow_context_fragment")):
         return "architecture"
-    if event_type.startswith(("gate.", "evidence.")):
+    if event_type.startswith(("gate.", "evidence.", "workflow_post_merge_gate")):
         return "validation"
-    if event_type.startswith(("claim.", "child.", "continue.", "handoff.")):
+    if event_type.startswith((
+        "claim.", "child.", "continue.", "handoff.", "run.", "workflow_run.", "lane.",
+        "role.", "dispatch.", "workflow_dispatch.", "workflow_message.", "message.",
+        "rendezvous.", "arrival.", "context_fragment.", "workspace.", "patch.",
+        "integration.", "recovery.",
+        "workflow.", "workflow_",
+    )):
         return "coordination"
     if event_type.startswith(("task.", "plan.")):
         return "implementation"
     return "administrative"
+
+
+def _workflow_collection(event_type: str) -> str:
+    value = event_type.casefold()
+    mappings = (
+        (("workflow.run",), "runs"),
+        (("workflow.lane",), "lanes"),
+        (("workflow.dispatch",), "dispatches"),
+        (("workflow_message", "workflow_messages", "message."), "messages"),
+        (("workflow_context_fragment",), "context_fragments"),
+        (("workflow_rendezvous",), "rendezvous"),
+        (("workflow_workspace", "workspace."), "workspaces"),
+        (("workflow_patch", "workflow_artifact", "patch."), "patches"),
+        (("workflow_integration", "integration."), "integrations"),
+        (("workflow_recovery", "recovery."), "recovery"),
+        (("workflow.child", "child."), "local_children"),
+        (("workflow.interface",), "interfaces"),
+        (("workflow.task",), "tasks"),
+        (("workflow_post_merge_gate",), "gates"),
+    )
+    return next((category for prefixes, category in mappings if value.startswith(prefixes)), "other")
+
+
+def _is_workflow_event(event_type: str) -> bool:
+    value = event_type.casefold()
+    return value.startswith((
+        "workflow.", "workflow_", "message.", "rendezvous.", "arrival.",
+        "context_fragment.", "workspace.", "patch.", "integration.", "recovery.", "child.",
+    ))
 
 
 def _git_categories(changes: list[dict[str, str]], snapshot: ProjectSnapshot, related_tasks: set[str]) -> list[dict[str, Any]]:
@@ -145,6 +180,24 @@ def project_delta(
     semantic_view = dict(semantic_delta)
     if "material_events" in semantic_view:
         semantic_view["material_events"] = semantic_view["material_events"][:max_items] if detail == "implementation" else []
+    workflow_events = [
+        {
+            "revision": item.get("revision"),
+            "category": _category(str(item.get("event_type", ""))),
+            "type": item.get("event_type"),
+            "subject": item.get("entity_id"),
+            "observed_at": item.get("timestamp"),
+        }
+        for item in snapshot.todo_tables.get("events", [])
+        if effective_revision is not None
+        and int(item.get("revision", -1)) > effective_revision
+        and _is_workflow_event(str(item.get("event_type", "")))
+        and not any(word in str(item.get("event_type", "")).casefold() for word in ("heartbeat", "pulse", "receipt", "cursor"))
+    ]
+    workflow_changes: dict[str, list[dict[str, Any]]] = {}
+    for item in workflow_events:
+        collection = _workflow_collection(str(item.get("type") or ""))
+        workflow_changes.setdefault(collection, []).append(item)
     data = {
         "semantic_todo": semantic_view,
         "anchor": anchor,
@@ -152,14 +205,13 @@ def project_delta(
         "git_changes": git_changes,
         "readiness_changed": bool(semantic_delta.get("tasks") or semantic_delta.get("checkpoints")) or any(item["type"].startswith(("task.", "claim.", "checkpoint.")) for item in events),
         "workflow": workflow_summary(snapshot),
-        "workflow_changed": bool(
-            effective_revision is not None
-            and any(
-                int(item.get("revision", -1)) > effective_revision
-                and str(item.get("event_type", "")).startswith("workflow")
-                for item in snapshot.todo_tables.get("events", [])
-            )
-        ),
+        "workflow_changed": bool(workflow_events),
+        "workflow_changes": {key: value[:max_items] for key, value in sorted(workflow_changes.items())},
+        "observation_skew": {
+            name: component.revision_skew for name, component in sorted(snapshot.component_authority.items())
+            if component.revision_skew is not None
+        },
+        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         "new_cursor": snapshot.cursor().model_dump(mode="json"),
         "ranking": {
             "items_considered": int(semantic_delta.get("raw_event_count", len(events))),

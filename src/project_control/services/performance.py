@@ -7,6 +7,7 @@ from ..adapters.git import GitReadAdapter
 from ..models import PerformanceStatusInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..reconcile import ProjectReconciler
+from ..workflow import workflow_summary
 
 if TYPE_CHECKING:
     from ..config import ProjectControlConfig
@@ -96,6 +97,21 @@ def performance_status(snapshot: ProjectSnapshot, request: PerformanceStatusInpu
     current_regressions = reconciled.performance["current_regressions"]
     current_improvements = reconciled.performance["current_improvements"]
     historical_measurements = reconciled.performance["historical_evidence"]
+    workflow = workflow_summary(snapshot)
+    lane_by_task = {
+        str(item.get("task_id")): {"run_id": item.get("run_id"), "lane_id": item.get("lane_id"), "context_version": item.get("context_version")}
+        for item in workflow.get("first_class_agents", []) if item.get("task_id")
+    }
+
+    def source_context(item: dict) -> dict:
+        source = item.get("source", {}) if isinstance(item.get("source"), dict) else {}
+        task_ids = item.get("linked_task_ids", [])
+        return {
+            "source_commit": source.get("commit"),
+            "source_worktree_id": source.get("worktree_id"),
+            "workflow_links": [lane_by_task[task_id] for task_id in task_ids if task_id in lane_by_task],
+            "context_relevance": item.get("relevance", "unknown"),
+        }
     data = {
         "campaign": request.campaign,
         "current_architectural_evidence": [*registered, *current[:20]],
@@ -116,6 +132,19 @@ def performance_status(snapshot: ProjectSnapshot, request: PerformanceStatusInpu
         "local_worker_capacity": snapshot.local_worker,
         "host_capacity": snapshot.host if request.include_host_capacity else {"status": "not_requested"},
         "execution_performed": False,
+        "source_and_workflow_context": {
+            str(item.get("id") or item.get("fact_id")): source_context(item)
+            for item in [*current, *historical_measurements]
+            if item.get("id") or item.get("fact_id")
+        },
+        "repository_source_identities": {
+            alias: {
+                "commit": identity.commit,
+                "worktrees": {worktree_id: {"head": worktree.head, "dirty": worktree.dirty} for worktree_id, worktree in identity.worktrees.items()},
+            }
+            for alias, identity in snapshot.repositories.items()
+        },
+        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
     if request.detail == "expanded":
         data["historical_campaigns_and_evidence"] = {

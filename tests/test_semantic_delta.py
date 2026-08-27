@@ -61,6 +61,22 @@ class SemanticDeltaTests(unittest.TestCase):
         self.assertIn("src/compute/execution_image", groups)
         self.assertIn("bench/architecture_evidence", groups)
 
+    def test_workflow_changes_are_categorized_and_pulses_coalesced(self) -> None:
+        snapshot = cellerator_snapshot()
+        snapshot.todo_tables["events"].extend([
+            {"revision": 453, "event_type": "workflow_message.question", "entity_id": "M1", "timestamp": "2026-08-26T01:00:00Z"},
+            {"revision": 454, "event_type": "workspace.created", "entity_id": "W1", "timestamp": "2026-08-26T02:00:00Z"},
+            {"revision": 455, "event_type": "workflow.interface.published", "entity_id": "I1", "timestamp": "2026-08-26T03:00:00Z"},
+            {"revision": 456, "event_type": "workflow_context_fragment_published", "entity_id": "CTX1", "timestamp": "2026-08-26T04:00:00Z"},
+        ])
+        snapshot.todo_revision = 456
+        result = project_delta(snapshot, DeltaSince(todo_revision=452), {})
+        self.assertEqual(set(result.data["workflow_changes"]), {"messages", "workspaces", "interfaces", "context_fragments"})
+        self.assertEqual(result.data["workflow_changes"]["interfaces"][0]["category"], "architecture")
+        self.assertTrue(result.data["workflow_changed"])
+        self.assertNotIn("claim.pulsed", str(result.data["workflow_changes"]))
+        self.assertIn("observation_preconditions", result.data)
+
 
 if __name__ == "__main__":
     unittest.main()

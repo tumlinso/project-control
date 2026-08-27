@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-from project_control.models import PlanPreviewInput, ProjectSnapshot, RepositoryIdentity
+from project_control.models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, RepositoryIdentity
 from project_control.services.planning import plan_preview
 
 
@@ -88,6 +88,22 @@ class PlanPreviewTests(unittest.TestCase):
         self.assertFalse(result.data["valid"])
         self.assertIn("proposal_invalid", result.warnings)
         self.assertNotEqual(result.status.value, "internal_error")
+
+    def test_inert_proposal_envelope_is_recognized_without_apply_authority(self) -> None:
+        proposal = ProposalEnvelope.create(
+            intent="Validate a v2 plan",
+            proposed_change=self.proposal,
+            observation_preconditions=self.snapshot.observation_preconditions(),
+            created_at=self.snapshot.observed_at,
+        )
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.cache)}):
+            result = plan_preview(self.config, self.snapshot, PlanPreviewInput(
+                project="demo", mode="validate", proposal=proposal.model_dump(mode="json"),
+            ))
+        self.assertTrue(result.data["proposal_envelope"]["recognized"])
+        self.assertFalse(result.data["proposal_envelope"]["authority_to_apply"])
+        self.assertEqual(result.data["proposal_envelope"]["precondition_mismatches"], [])
+        self.assertEqual(result.data["accepted_plan_schema_versions"], [2, 3])
 
 
 if __name__ == "__main__":
