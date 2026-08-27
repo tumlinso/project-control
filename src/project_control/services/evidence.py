@@ -9,6 +9,7 @@ from ..normalize import bounded_payload
 from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
+from ..workflow import workflow_summary
 
 
 def _linked(subject: str, item: dict[str, Any], fields: tuple[str, ...]) -> bool:
@@ -123,6 +124,51 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
                 support.append({"kind": "git_identity", "repository": alias, "commit": identity.commit, "dirty": identity.dirty})
                 provenance.append(f"git:{alias}:{identity.commit}")
 
+    durable_kinds = {
+        "architecture": (("interfaces", "invariants"), "architecture"),
+        "decision": (("decisions",), "decision"),
+        "message": (("workflow_messages", "messages"), "message"),
+        "context": (("context_fragments", "run_context_fragments"), "context"),
+        "workspace": (("workflow_workspaces", "workspaces", "workflow_patch_artifacts"), "workspace"),
+        "integration": (("workflow_integration_queue", "integration_requests"), "integration"),
+    }
+    for requested_kind in sorted(kinds & durable_kinds.keys()):
+        tables, label = durable_kinds[requested_kind]
+        for table in tables:
+            for record in snapshot.todo_tables.get(table, []):
+                if not _linked(request.subject, record, (
+                    "id", "task_id", "owner_task_id", "interface_id", "run_id", "lane_id",
+                    "workspace_id", "integration_task_id", "fragment_id",
+                )) and str(record.get("summary") or "").casefold() != request.subject.casefold():
+                    continue
+                state = str(record.get("state") or record.get("status") or "")
+                entry = {
+                    "kind": label, "id": record.get("id") or record.get("fragment_id"),
+                    "state": state or None, "summary": record.get("summary"),
+                    "task_id": record.get("task_id"), "authority_label": "durable_authority_fact",
+                    "evidence_state": "stale" if state in {"invalidated", "superseded", "stale"} else "current_support",
+                }
+                (stale if entry["evidence_state"] == "stale" else support).append(entry)
+                provenance.append(f"todo-{table}:{entry['id']}")
+
+    workflow = workflow_summary(snapshot, max_items=request.max_items)
+    if workflow.get("available"):
+        workflow_collections = {
+            "message": ("blocking_messages", "unresolved_questions"),
+            "workspace": ("patch_artifacts", "pending_patches"),
+            "integration": ("integration_queue",),
+        }
+        for requested_kind in sorted(kinds & workflow_collections.keys()):
+            for collection in workflow_collections[requested_kind]:
+                for record in workflow.get(collection, []):
+                    if not _linked(request.subject, record, ("id", "task_id", "run_id", "lane_id", "workspace_id", "integration_task_id")):
+                        continue
+                    support.append({
+                        "kind": requested_kind, **record,
+                        "authority_label": "authoritative_fact", "evidence_state": "current_support",
+                    })
+                    provenance.append(f"todo-semantic-workflow:{collection}:{record.get('id')}")
+
     confidence = "high" if support and not contradictions else "mixed" if support else "insufficient"
     caveats = list(dict.fromkeys(warnings))
     if not support and not stale:
@@ -137,6 +183,11 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "resolution": resolution,
         "caveats": list(dict.fromkeys(caveats)),
         "provenance_ids": list(dict.fromkeys(provenance))[: request.max_items],
+        "evidence_state_counts": {
+            "current_support": len(support), "contradiction": len(contradictions),
+            "stale": len(stale), "inference": 0, "absence": int(not support and not stale),
+        },
+        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
     response_warnings = warnings if warnings else ([] if support or stale else ["evidence_unavailable"])
     return envelope("evidence", snapshot, bounded_payload(data, 18000), warnings=list(dict.fromkeys(response_warnings)))

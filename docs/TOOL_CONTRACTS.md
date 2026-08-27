@@ -27,7 +27,9 @@ frozen and remain valid:
    interfaces, registered artifacts, paths, tests, and performance links before
    source fallback. The existing `subsystem` kind also resolves run, lane,
    dispatch, message, rendezvous, workspace, patch, integration, and subordinate
-   child identities without changing the public input schema.
+   child identities. Schema v2 exposes those as explicit additive kinds and adds
+   optional line range, worktree, source-selector, continuation, and larger
+   explicit-budget inputs while preserving every v1 call.
 5. `evidence` resolves its subject first, then synthesizes relevant current
    support, contradiction, stale/historical evidence, unmeasured assumptions,
    freshness-sensitive confidence, and bounded provenance.

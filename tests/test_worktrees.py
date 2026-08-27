@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from project_control.snapshot import SnapshotBuilder
 from project_control.worktrees import WorktreeCatalog, WorktreeSelectionError
 
 
@@ -58,6 +60,18 @@ class WorktreeCatalogTests(unittest.TestCase):
         path.write_text("VALUE = 3\n", encoding="utf-8")
         second = WorktreeCatalog("source", self.root).select().selected.working_tree_fingerprint
         self.assertNotEqual(first, second)
+
+    def test_snapshot_exposes_verified_worktrees_without_private_paths(self) -> None:
+        branch = Path(self.temp.name) / "branch"
+        git(self.root, "worktree", "add", "-b", "feature", str(branch))
+        config = ProjectControlConfig(workspaces={
+            "demo": WorkspaceConfig(repositories={"source": RepositoryConfig(root=self.root)})
+        })
+        snapshot = SnapshotBuilder(config).build("demo")
+        identity = snapshot.repositories["source"]
+        self.assertEqual(2, len(identity.worktrees))
+        self.assertTrue(identity.git_common_id.startswith("git-common-"))
+        self.assertNotIn(str(self.root), identity.model_dump_json())
 
 
 if __name__ == "__main__":

@@ -10,7 +10,8 @@ It is the observation plane for the unified workflow product:
 transactional kernel. Project-control consumes todo's additive normalized
 workflow read and never becomes a second orchestration authority.
 
-The v1 MCP surface is frozen to eight tools:
+Project Control 0.2.0 preserves the eight v1 tools and adds six richer reads.
+The discovered surface is exactly fourteen tools:
 
 - `project_overview`
 - `project_delta`
@@ -20,6 +21,12 @@ The v1 MCP surface is frozen to eight tools:
 - `plan_preview`
 - `agent_status`
 - `performance_status`
+- `architecture_context`
+- `coordination_view`
+- `source_context`
+- `history_trace`
+- `impact_preview`
+- `program_context`
 
 The service binds only to loopback and is intended to be connected to ChatGPT
 through OpenAI Secure MCP Tunnel. It never accepts arbitrary repository paths,
@@ -36,6 +43,9 @@ Python 3.11 or newer and `uv` are required for the locked workflow:
 uv sync --frozen
 uv run python -m unittest discover -s tests -v
 uv run project-control config init
+uv run project-control config migrate --dry-run
+# Apply only when explicitly intended:
+uv run project-control config migrate --apply
 uv run project-control doctor --json
 uv run project-control serve
 ```
@@ -45,7 +55,21 @@ Configuration lives at `$XDG_CONFIG_HOME/project-control/config.toml` or
 only through `project-control workspace add`; MCP tools accept stable workspace
 and repository IDs, never filesystem roots.
 
-Workflow data is additive output on the existing eight tools. It includes the
+Schema v2 can add query-only program groups without changing workspace authority:
+
+```toml
+[programs.biological-stack]
+display_name = "Biological computation stack"
+workspaces = ["baseplane", "cellerator", "cellshard", "glasshelix"]
+```
+
+`project-control doctor --json` is the local-only provider diagnostic. It may
+show selected executable and filesystem paths; ordinary MCP output replaces
+private locations with stable IDs and bounded error classifications.
+
+Workflow data is additive output on the existing tools. Operational state comes
+only from `todo semantic workflow`; the official durable export enriches records
+anchored by that read and is never independently interpreted as worker activity. It includes the
 active run, first-class Codex lane tree and serial queues, authoritative
 dispatches, typed blockers, rendezvous, managed workspaces, pending patches,
 integration conflicts, context cursors, safe parallel groups, and recovery
@@ -57,6 +81,17 @@ An older todo kernel without `semantic workflow` produces an explicit partial
 result while legacy task reads remain available. Project-control does not infer
 missing workflow semantics from raw tables or repair project state.
 
+Registered repositories are worktree-aware. The configured checkout remains the
+security anchor while verified same-Git-common worktrees receive stable public
+IDs. Reads use pre/post identities and return partial or racy results if active
+source changes; they never lock or modify a worktree. Derived lexical context is
+disposable and stored only below `$XDG_CACHE_HOME/project-control/`.
+
+Configuration schema v2 optionally defines query-only programs. Membership does
+not imply dependency, ownership, or architectural authority, and cross-project
+observations report per-project cursors and skew rather than claiming one global
+transaction. Schema v1 remains readable and is never rewritten automatically.
+
 The service provides `/healthz`, `/readyz`, `/version`, and the loopback MCP URL
 `http://127.0.0.1:8767/mcp`. See `docs/SECURITY.md` for the enforced capability
-boundary and `docs/TOOL_CONTRACTS.md` for the frozen v1 schemas.
+boundary and `docs/TOOL_CONTRACTS.md` for v1 compatibility and v2 contracts.

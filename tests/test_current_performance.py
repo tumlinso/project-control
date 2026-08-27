@@ -38,6 +38,21 @@ class CurrentPerformanceTests(unittest.TestCase):
         overview = project_overview(snapshot)
         self.assertEqual(overview.data["performance_attention"][0]["id"], "current-ce-result")
 
+    def test_performance_links_current_source_and_authoritative_lane(self) -> None:
+        snapshot = cellerator_snapshot()
+        snapshot.cuda["results"][1]["source"] = {"commit": "a" * 40}
+        snapshot.todo_workflow = {
+            "available": True, "revision": 452, "active_run_id": "RUN-1", "runs": [],
+            "first_class_agents": [{"run_id": "RUN-1", "lane_id": "L-1", "task_id": "CE-ARCH-92", "context_version": 7}],
+            "local_children": [], "blocking_messages": [], "unresolved_questions": [], "rendezvous": [],
+            "patch_artifacts": [], "pending_patches": [], "integration_queue": [], "recovery_needed": [], "safe_parallel_groups": [],
+        }
+        result = performance_status(snapshot, PerformanceStatusInput(project="cellerator"))
+        context = result.data["source_and_workflow_context"]["current-ce-result"]
+        self.assertEqual(context["source_commit"], "a" * 40)
+        self.assertEqual(context["workflow_links"][0]["lane_id"], "L-1")
+        self.assertFalse(result.data["execution_performed"])
+
     def test_registered_ce_arch_92_schema_is_read_from_committed_git_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

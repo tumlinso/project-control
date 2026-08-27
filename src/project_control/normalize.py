@@ -60,7 +60,11 @@ def bounded_payload(value: dict[str, Any], budget_bytes: int) -> dict[str, Any]:
         "historical_items_omitted": int(clean.get("ranking", {}).get("historical_items_omitted", 0)) if isinstance(clean.get("ranking"), dict) else 0,
     }
 
+    iterations = 0
     while len(encoded(clean)) > budget_bytes:
+        iterations += 1
+        if iterations > 10_000:
+            break
         lists, strings, dictionaries = collections(clean, root=True)
         list_candidates = [item for item in lists if len(item) > 1]
         if list_candidates:
@@ -70,7 +74,10 @@ def bounded_payload(value: dict[str, Any], budget_bytes: int) -> dict[str, Any]:
         string_candidates = [item for item in strings if len(item[2]) > 64]
         if string_candidates:
             parent, key, item = max(string_candidates, key=lambda candidate: len(candidate[2]))
-            parent[key] = item[: max(64, len(item) // 2)] + "…"
+            # Always shorten. A 64-character floor used to turn a 65-character
+            # string into 64 characters plus an ellipsis forever.
+            shortened = max(32, min(len(item) - 2, len(item) // 2))
+            parent[key] = item[:shortened] + "…"
             continue
         dict_candidates = [item for item in dictionaries if len(item) > 1 and "truncation" not in item]
         if dict_candidates:

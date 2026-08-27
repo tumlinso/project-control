@@ -15,8 +15,9 @@ from .adapters.local_worker import LocalWorkerReadAdapter
 from .adapters.todo import TodoReadAdapter
 from .cache import RevisionCache
 from .config import ProjectControlConfig
-from .models import ProjectSnapshot, RepositoryIdentity, utc_now
+from .models import ProjectSnapshot, RepositoryIdentity, WorktreeIdentity, utc_now
 from .registry import WorkspaceRegistry
+from .security import stable_public_id
 from .subprocesses import CommandError, FixedCommandRunner
 
 
@@ -180,10 +181,26 @@ class SnapshotBuilder:
             try:
                 git = GitReadAdapter(registered.root)
                 identity = git.identity()
+                worktree_values = git.worktrees()
                 repositories[alias] = RepositoryIdentity(
                     commit=identity.commit,
                     dirty=identity.dirty,
                     working_tree_fingerprint=identity.status_fingerprint,
+                    git_common_id=stable_public_id("git-common", git.common_dir()),
+                    worktrees={
+                        item.worktree_id: WorktreeIdentity(
+                            id=item.worktree_id,
+                            repository=alias,
+                            branch=item.branch,
+                            head=item.head,
+                            detached=item.detached,
+                            dirty=item.dirty,
+                            working_tree_fingerprint=item.working_tree_fingerprint,
+                            dirty_paths=list(item.dirty_paths),
+                            observed_at=item.observed_at,
+                        )
+                        for item in worktree_values
+                    },
                 )
                 fingerprints[alias] = identity.status_fingerprint
                 git_adapters[alias] = git
@@ -239,7 +256,10 @@ class SnapshotBuilder:
             provider_warnings["host"] = list(host.get("warnings", []))
         cache_key = (
             workspace_id,
-            tuple((key, item.commit, item.dirty, fingerprints.get(key)) for key, item in repositories.items()),
+            tuple((
+                key, item.commit, item.dirty, fingerprints.get(key),
+                tuple((worktree_id, value.head, value.working_tree_fingerprint) for worktree_id, value in item.worktrees.items()),
+            ) for key, item in repositories.items()),
             todo_revision,
             include_host,
             campaign,

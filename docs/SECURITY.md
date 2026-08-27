@@ -13,16 +13,20 @@ elicitation, UI, generic file tool, arbitrary shell, or URL fetcher.
 Canonical reads resolve symlinks and require containment beneath a registered
 root. Default deny patterns cover Git internals, environment and credential
 files, private keys, model weights, dependency trees, and Python caches without
-blocking ordinary source identifiers containing `key`. Files must be UTF-8
-text, binary-free, and no larger than 2 MiB. Subprocesses use fixed argument
-vectors, no shell, bounded output, short timeouts, and a minimal environment.
+blocking ordinary source identifiers containing `key`. Files must be allowlisted
+UTF-8 text and binary-free. Narrow line-range reads stream bounded content and
+therefore work for larger files without loading the whole file. Subprocesses use
+fixed argument vectors, no shell, bounded output, operation-specific bounded
+timeouts, and a minimal environment.
 Read-only todo CLI calls additionally preserve only the state-location variables
 required by its public resolver (`TODO_ORCHESTRATOR_STATE_DIR`, `XDG_STATE_HOME`,
 and `HOME` when present) and use the server's running Python interpreter.
 
-Todo is read only through public status/export/ready/explain/changes and plan
-validate/diff behavior covered by non-mutation tests. Ctxpp never scans or
-refreshes a registered repository. Worker status reads an existing state file
+Todo operational truth is read through `semantic workflow`; task semantics and
+history use `semantic state`, `semantic anchor`, and `semantic delta`. The
+official read-only export only enriches semantic anchors. No observation calls
+message sync, updates receipts/cursors, takes a claim, or invokes recovery.
+Ctxpp never scans or refreshes a registered repository. Worker status reads an existing state file
 without starting a supervisor. CUDA status reads existing artifacts and never
 discovers with auto-queue, arms, enqueues, runs, profiles, reserves, or preempts.
 Host inspection is limited to `/proc/meminfo` and a bounded `nvidia-smi` query.
@@ -31,6 +35,9 @@ Results redact secrets and omit raw tokens, database paths, GPU UUIDs, topology,
 endpoints, environments, command lines, raw logs, profiler exports, and worker
 transcripts. App-private cache, logs, configuration, and temporary files use XDG
 directories with owner-only permissions and are never project authority.
+The derived lexical cache is disposable and lives only under
+`$XDG_CACHE_HOME/project-control/`; no cache is written into a repository,
+Git-common directory, todo state, or `.ctxpp`.
 
 Tunnel credentials belong only in the official client's supported secret store
 or owner-only local configuration. They must never be committed or pasted into
