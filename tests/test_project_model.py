@@ -3,7 +3,21 @@ from __future__ import annotations
 import json
 import unittest
 
-from project_control.models import DeltaSince, PerformanceStatusInput, ProjectSnapshot, RepositoryIdentity
+from project_control.models import (
+    ArchitectureContextInput,
+    AuthorityComponent,
+    CoordinationViewInput,
+    DeltaSince,
+    HistoryTraceInput,
+    ImpactPreviewInput,
+    PerformanceStatusInput,
+    ProgramContextInput,
+    ProjectSnapshot,
+    ProposalEnvelope,
+    RepositoryIdentity,
+    SourceContextInput,
+    WorktreeIdentity,
+)
 from project_control.normalize import bounded_payload
 from project_control.services.delta import project_delta
 from project_control.services.frontier import project_frontier
@@ -38,6 +52,78 @@ def fixture_snapshot() -> ProjectSnapshot:
 
 
 class ProjectModelTests(unittest.TestCase):
+    def test_v2_high_level_input_contracts_are_bounded_and_additive(self) -> None:
+        self.assertEqual(ArchitectureContextInput(project="demo", question="architecture").detail, "standard")
+        self.assertEqual(CoordinationViewInput(project="demo").max_items, 100)
+        self.assertEqual(HistoryTraceInput(project="demo", subject="T1").max_events, 100)
+        self.assertTrue(ImpactPreviewInput(project="demo", hypothesis="change interface").include_proposal_envelope)
+        self.assertEqual(ProgramContextInput(program_id="stack", question="boundaries").program_id, "stack")
+        source = SourceContextInput(
+            project="demo", repository="source",
+            targets=[{"kind": "path", "value": "src/a.cpp", "line_start": 10, "line_end": 20}],
+        )
+        self.assertEqual(source.budget_bytes, 48 * 1024)
+        with self.assertRaises(ValueError):
+            SourceContextInput(
+                project="demo", repository="source",
+                targets=[{"kind": "symbol", "value": "f", "line_start": 1}],
+            )
+        schemas = {
+            "architecture_context": ArchitectureContextInput.model_json_schema(),
+            "coordination_view": CoordinationViewInput.model_json_schema(),
+            "source_context": SourceContextInput.model_json_schema(),
+            "history_trace": HistoryTraceInput.model_json_schema(),
+            "impact_preview": ImpactPreviewInput.model_json_schema(),
+            "program_context": ProgramContextInput.model_json_schema(),
+        }
+        self.assertEqual(set(schemas), {
+            "architecture_context", "coordination_view", "source_context",
+            "history_trace", "impact_preview", "program_context",
+        })
+        serialized = json.dumps(schemas, sort_keys=True)
+        for forbidden in ('"apply"', '"mutate"', '"write_enabled"', '"recovery"'):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_observation_preconditions_and_inert_proposal_digest_are_deterministic(self) -> None:
+        snapshot = fixture_snapshot().model_copy(update={
+            "repositories": {"source": RepositoryIdentity(
+                commit="abc", dirty=True, working_tree_fingerprint="dirty",
+                worktrees={"wt-1": WorktreeIdentity(
+                    id="wt-1", repository="source", branch="feature", head="abc", dirty=True,
+                    working_tree_fingerprint="dirty", dirty_paths=["src/a.py"], observed_at="2026-08-25T00:00:00Z",
+                )},
+            )},
+            "component_authority": {
+                "todo_semantic_state": AuthorityComponent(
+                    status="available", operation="semantic_state", revision=8,
+                    read_authority_fingerprint="state-fp", project_uuid="uuid",
+                    observed_at="2026-08-25T00:00:00Z", source_identity="todo-a",
+                ),
+                "todo_workflow": AuthorityComponent(
+                    status="raced", operation="workflow", revision=9,
+                    read_authority_fingerprint="workflow-fp", project_uuid="uuid",
+                    observed_at="2026-08-25T00:00:01Z", source_identity="todo-a", revision_skew=1,
+                ),
+            },
+            "todo_workflow": {"available": True, "active_run_id": "RUN", "revision": 9},
+        })
+        preconditions = snapshot.observation_preconditions()
+        self.assertEqual(preconditions.todo_semantic_authority_fingerprint, "state-fp")
+        self.assertEqual(preconditions.workflow_authority_fingerprint, "workflow-fp")
+        self.assertEqual(preconditions.worktrees["wt-1"].working_tree_fingerprint, "dirty")
+        first = ProposalEnvelope.create(
+            intent="revise interface", proposed_change={"interface": "I1"},
+            observation_preconditions=preconditions, created_at="2026-08-25T00:00:02Z",
+        )
+        second = ProposalEnvelope.create(
+            intent="revise interface", proposed_change={"interface": "I1"},
+            observation_preconditions=preconditions, created_at="2026-08-25T00:00:03Z",
+        )
+        self.assertEqual(first.deterministic_digest, second.deterministic_digest)
+        self.assertFalse(first.authority_to_apply)
+        with self.assertRaises(ValueError):
+            ProposalEnvelope.model_validate({**first.model_dump(mode="json"), "deterministic_digest": "0" * 64})
+
     def test_overview_is_synthesized_and_budgeted(self) -> None:
         result = project_overview(fixture_snapshot(), detail="compact", max_items=3)
         self.assertEqual(result.tool, "project_overview")

@@ -14,7 +14,7 @@ from project_control.config import (
     save_config,
 )
 from project_control.registry import RegistryError, WorkspaceRegistry
-from project_control.security import SecurityError, read_bounded_text, redact, resolve_registered_path
+from project_control.security import SecurityError, read_bounded_text, redact, redact_output, resolve_registered_path, stable_public_id
 
 
 class ConfigSecurityTests(unittest.TestCase):
@@ -77,6 +77,15 @@ class ConfigSecurityTests(unittest.TestCase):
     def test_redaction_preserves_identifiers_and_redacts_standalone_tokens(self) -> None:
         self.assertEqual(redact("task_dependencies"), "task_dependencies")
         self.assertEqual(redact("value sk_abcdefghijklmnop value"), "value [REDACTED] value")
+
+    def test_mcp_output_suppresses_private_paths_but_stable_ids_remain(self) -> None:
+        private = "/home/example/private/worktree"
+        internal = redact({"worktree_path": private, "safe": "value"})
+        self.assertEqual(internal["worktree_path"], private)
+        public = redact_output(internal)
+        self.assertEqual(public["worktree_path"], "[REDACTED]")
+        self.assertEqual(stable_public_id("wt", private), stable_public_id("wt", private))
+        self.assertNotIn("home", stable_public_id("wt", private))
 
     def test_world_readable_config_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

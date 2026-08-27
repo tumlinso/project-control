@@ -6,7 +6,9 @@ import unittest
 from pathlib import Path
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from project_control.graph import ProjectGraph
 from project_control.models import EvidenceInput, InspectInput
+from project_control.reconcile import ProjectReconciler
 from project_control.services.evidence import evidence_for
 from project_control.services.inspect import inspect_subject
 
@@ -49,6 +51,19 @@ class ProjectGraphTests(unittest.TestCase):
         self.assertNotIn("no_matching_evidence", result.data["caveats"])
         self.assertIn("current-ce-result", {item.get("id") for item in result.data["support"]})
         self.assertNotIn("old-regression", {item.get("id") for item in result.data["support"]})
+
+    def test_multi_seed_contract_preserves_themes_and_is_deterministic(self) -> None:
+        snapshot = cellerator_snapshot()
+        graph = ProjectGraph(snapshot, ProjectReconciler(snapshot).reconcile())
+        question = "current execution image interface tasks source artifacts and performance evidence"
+        first = graph.seed_candidates(question, max_items=12)
+        second = graph.seed_candidates(question, max_items=12)
+        self.assertEqual(first, second)
+        self.assertGreaterEqual(len({item["theme"] for item in first}), 3)
+        self.assertIn("heuristic_relevance", {item["authority_label"] for item in first})
+        expanded = graph.expand_seeds(first, max_items=20)
+        self.assertTrue(all(item["authority_label"] == "derived_relationship" for item in expanded))
+        self.assertTrue(all(item.get("basis") for item in expanded))
 
 
 if __name__ == "__main__":

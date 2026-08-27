@@ -17,6 +17,16 @@ STOP_WORDS = {
     "performance", "project", "relevant", "the", "to", "work",
 }
 
+THEME_BY_TYPE = {
+    "run": "workflow", "lane": "workflow", "workflow_dispatch": "workflow",
+    "run_message": "workflow", "rendezvous": "workflow", "workspace": "workflow",
+    "patch_artifact": "workflow", "integration": "workflow", "local_child": "workflow",
+    "task": "planning", "program": "planning", "checkpoint": "validation", "gate": "validation",
+    "interface": "architecture", "decision": "architecture", "invariant": "architecture",
+    "path": "source", "symbol": "source", "git_commit": "source", "artifact": "source",
+    "cuda_campaign": "performance", "cuda_result": "performance", "evidence": "evidence",
+}
+
 
 def normalize(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", value.casefold()))
@@ -262,6 +272,81 @@ class ProjectGraph:
         if len(leaders) != 1:
             return {"status": "ambiguous", "entity": None, "reason": "equal_bounded_token_overlap", "candidates": candidates}
         return {"status": "resolved", "entity": scored[0][1], "reason": "bounded_normalized_token_overlap", "candidates": candidates[1:]}
+
+    def seed_candidates(
+        self,
+        question: str,
+        *,
+        expected_types: set[str] | None = None,
+        max_items: int = 24,
+    ) -> list[dict[str, Any]]:
+        """Return several deterministic exact/lexical seeds; never collapse a broad question to one entity."""
+        pool = [item for item in self.entities.values() if not expected_types or item["type"] in expected_types]
+        wanted = normalize(question)
+        wanted_tokens = tokens(question)
+        ranked: list[tuple[tuple[float, float, float, str, str], dict[str, Any]]] = []
+        for item in pool:
+            aliases = [normalize(alias) for alias in item["aliases"]]
+            exact = float(normalize(item["id"]) == wanted or wanted in aliases)
+            item_tokens = set().union(*(tokens(alias) for alias in item["aliases"]))
+            common = wanted_tokens & item_tokens
+            coverage = len(common) / len(wanted_tokens) if wanted_tokens else 0.0
+            precision = len(common) / len(item_tokens) if item_tokens else 0.0
+            if not exact and not common:
+                continue
+            relevance = 1.0 if item.get("relevance") in {"current", "current_attention"} else 0.5
+            key = (-exact, -coverage, -precision, -relevance, item["type"], item["id"])
+            ranked.append((key, {
+                "type": item["type"],
+                "id": item["id"],
+                "title": item["title"],
+                "key": item["key"],
+                "theme": THEME_BY_TYPE.get(item["type"], "other"),
+                "authority_label": "authoritative_fact" if exact else "heuristic_relevance",
+                "match_basis": "exact_entity_or_alias" if exact else "bounded_lexical_overlap",
+                "query_coverage": round(coverage, 4),
+                "matched_terms": sorted(common),
+                "relevance": item.get("relevance", "unknown"),
+                "record": item["record"],
+            }))
+        ranked.sort(key=lambda pair: pair[0])
+        selected: list[dict[str, Any]] = []
+        theme_counts: dict[str, int] = defaultdict(int)
+        # Preserve thematic breadth first, then fill by deterministic score.
+        for _, candidate in ranked:
+            if theme_counts[candidate["theme"]] == 0:
+                selected.append(candidate)
+                theme_counts[candidate["theme"]] += 1
+                if len(selected) >= max_items:
+                    return selected
+        selected_keys = {item["key"] for item in selected}
+        for _, candidate in ranked:
+            if candidate["key"] in selected_keys:
+                continue
+            selected.append(candidate)
+            selected_keys.add(candidate["key"])
+            if len(selected) >= max_items:
+                break
+        return selected
+
+    def expand_seeds(self, seeds: list[dict[str, Any]], *, max_items: int = 80) -> list[dict[str, Any]]:
+        """Expand attributed graph edges from several seeds while retaining relationship provenance."""
+        expanded: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for seed in seeds:
+            for related in self.related(str(seed["key"]), max_hops=1, max_items=max_items):
+                identity = (str(seed["key"]), str(related["type"]), str(related["id"]))
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                expanded.append({
+                    "seed": {"type": seed["type"], "id": seed["id"], "theme": seed["theme"]},
+                    **related,
+                    "authority_label": "derived_relationship",
+                })
+                if len(expanded) >= max_items:
+                    return expanded
+        return expanded
 
     @staticmethod
     def _candidate(item: dict[str, Any], score: float) -> dict[str, Any]:

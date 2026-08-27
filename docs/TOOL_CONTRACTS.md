@@ -1,7 +1,9 @@
 # Tool contracts
 
-Version 1 exposes exactly these eight tools and no resources, prompts, sampling,
-elicitation, UI, arbitrary file access, shell, or write operations.
+Tool schema version 2 exposes exactly fourteen tools and no resources, prompts,
+sampling, elicitation, UI, arbitrary file access, shell, or write operations.
+The original eight version-1 names, accepted calls, defaults, and meanings are
+frozen and remain valid:
 
 1. `project_overview` synthesizes the current program, work, blockers,
    architecture/validation/performance attention, material completion,
@@ -52,10 +54,79 @@ unavailable; null is not revision zero. Every emitted cursor is legal input to
 `project_delta`, including nullable revisions and optional working-tree
 fingerprints.
 
-The exact eight tool names and all version-1 input schemas remain frozen.
-Workflow support is output-only. If `todo semantic workflow` is unavailable,
+The exact eight original tool names and their version-1 calls remain frozen;
+their schemas receive additive optional fields only. If `todo semantic workflow` is unavailable,
 responses carry `todo_workflow_semantic_unavailable`; project-control does not
 query raw workflow tables or invoke recovery.
+
+The six version-2 tools are:
+
+9. `architecture_context` accepts a workspace, architectural question, optional
+   repository/worktree, compact/standard/expanded detail, current/reference/all
+   scope, inclusion categories, item bound, and continuation cursor. It returns
+   several thematic seed clusters, attributed graph expansion, commitments,
+   boundaries, decisions, interfaces/consumers, realization, tests/evidence,
+   active coordination, assumptions, contradictions, risks, next inspections,
+   retrieval basis, provenance, and observation preconditions. Serialized data
+   budgets are 16/48/128 KiB.
+10. `coordination_view` accepts optional run/lane/task filters, since revision,
+   detail, resolved-message and historical-arrival flags, item bound, and
+   continuation. It reports authoritative runs, lane hierarchy/roles/queues,
+   observable dispatches, stable worktree identities, fragment manifests,
+   messages/answers/references, decisions, interfaces, rendezvous/arrivals,
+   workspaces, patches, integration/conflicts, recovery, safe parallel groups,
+   and subordinate children separately. Expanded data is bounded to 96 KiB and
+   reads never update receipts or cursors.
+11. `source_context` accepts one registered repository, optional stable worktree
+   ID, one to 32 structured path/symbol/subsystem/text targets, working-tree/HEAD
+   or explicit-commit selector, intent, requested relations, detail, explicit
+   byte budget, and continuation. It supports bounded line ranges, including
+   ranges within files larger than 2 MiB, with pre/post source identity and one
+   retry or `racy_source_read`. Maximum data is 128 KiB.
+12. `history_trace` accepts a subject, at most one starting revision/time/task/
+   checkpoint/interface/commit anchor, optional ending revision/commit, detail,
+   event bound, and continuation. It coalesces administrative noise and labels
+   supported causation separately from temporal adjacency or inference. Maximum
+   data is 96 KiB.
+13. `impact_preview` accepts a hypothesis, optional inert structured change set,
+   optional target entities, detail, item bound, and proposal-envelope flag. It
+   separates proven, possible, unknown, stale-context, integration, performance,
+   and unaffected impacts. It never applies or stores a proposal. Maximum data
+   is 96 KiB.
+14. `program_context` accepts exactly one configured program ID or explicit list
+   of up to 16 registered workspaces, plus question, detail, item bound, and
+   continuation. Program membership is query grouping only and never implies
+   dependency, ownership, or architectural authority. Each project retains its
+   own observation time and skew; no global transaction is claimed. Maximum data
+   is 160 KiB.
+
+All fourteen tools carry `readOnlyHint=true`, `destructiveHint=false`,
+`idempotentHint=true`, and `openWorldHint=false`.
+
+## Component authority and provenance
+
+High-level responses expose an authority map whose members independently report
+`available`, `unavailable`, `partial`, or `raced`; operation; revision;
+authority fingerprint; project UUID; observation time; stable source identity;
+bounded error code; and revision skew. A valid workflow observation is retained
+when status/export fails or races. A valid Git observation remains useful when
+todo is unavailable. Cross-project and cross-component reads are never labeled
+atomic unless their actual authorities match.
+
+Normal MCP output never includes database/state/worktree/model paths, service
+endpoints, process command lines, environment values, raw logs, transcripts, or
+secrets. Local-only `project-control doctor --json` may show resolved executable
+and filesystem paths so provider selection can be diagnosed.
+
+Every new high-level tool returns `ObservationPreconditions`. An optional inert
+`ProposalEnvelope` has proposal version, intent, structured proposed change,
+those preconditions, deterministic digest, creation time, and
+`authority_to_apply=false`. No read-server path accepts it for application.
+
+Continuation cursors are opaque, bounded, tied to the request and observation
+identities, and do not create server-side authority. Ranking and section budgets
+precede continuation; critical safety and provenance state is never silently
+removed.
 
 For compatibility, cursors retain the original `fingerprints` map and also
 emit the explicit `working_tree_fingerprints` name. Each repository identity

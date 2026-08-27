@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .security import redact
+from .security import redact_output
 
 
 def stable_unique(items: list[dict[str, Any]], key: str = "id") -> list[dict[str, Any]]:
@@ -19,7 +19,7 @@ def stable_unique(items: list[dict[str, Any]], key: str = "id") -> list[dict[str
 
 def bounded_payload(value: dict[str, Any], budget_bytes: int) -> dict[str, Any]:
     """Deterministically truncate lists/strings until JSON fits the byte budget."""
-    clean = redact(value)
+    clean = redact_output(value)
     encoded = lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"), default=str).encode()
     if len(encoded(clean)) <= budget_bytes:
         return clean

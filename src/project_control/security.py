@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import re
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -9,6 +10,16 @@ from .config import DEFAULT_DENY_PATTERNS
 
 
 MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
+SOURCE_TEXT_SUFFIXES = frozenset({
+    ".md", ".markdown", ".rst", ".toml", ".yaml", ".yml", ".json", ".cmake",
+    ".sh", ".bash", ".zsh", ".py", ".c", ".cc", ".cpp", ".cxx", ".cu", ".cuh",
+    ".h", ".hh", ".hpp", ".hxx", ".txt",
+})
+SOURCE_TEXT_NAMES = frozenset({"CMakeLists.txt", "Makefile", "Dockerfile", "AGENTS.md"})
+PRIVATE_OUTPUT_KEYS = frozenset({
+    "database_path", "state_root", "worktree_path", "model_path", "service_endpoint",
+    "raw_log", "transcript", "stdout", "stderr", "environment", "command_line",
+})
 SENSITIVE_KEY = re.compile(
     r"(^|[_-])(token|secret|credential|password|api[_-]?key|private[_-]?key)($|[_-])",
     re.IGNORECASE,
@@ -20,6 +31,18 @@ SENSITIVE_VALUE = re.compile(
 
 class SecurityError(ValueError):
     pass
+
+
+def stable_public_id(kind: str, *private_values: object) -> str:
+    """Return a stable non-secret identifier without disclosing private path material."""
+    if not kind or not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", kind):
+        raise ValueError("invalid public ID kind")
+    material = "\0".join(str(value) for value in private_values).encode()
+    return f"{kind}-" + hashlib.sha256(material).hexdigest()[:16]
+
+
+def is_allowlisted_text_path(relative_path: Path) -> bool:
+    return relative_path.name in SOURCE_TEXT_NAMES or relative_path.suffix.casefold() in SOURCE_TEXT_SUFFIXES
 
 
 def _matches(path: str, pattern: str) -> bool:
@@ -94,6 +117,22 @@ def redact(value: Any) -> Any:
         return [redact(item) for item in value]
     if isinstance(value, tuple):
         return tuple(redact(item) for item in value)
+    if isinstance(value, str):
+        return redact_text(value)
+    return value
+
+
+def redact_output(value: Any) -> Any:
+    """Apply secret redaction plus MCP-only private provenance suppression."""
+    if isinstance(value, dict):
+        return {
+            key: "[REDACTED]" if str(key) in PRIVATE_OUTPUT_KEYS or SENSITIVE_KEY.search(str(key)) else redact_output(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact_output(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_output(item) for item in value)
     if isinstance(value, str):
         return redact_text(value)
     return value
