@@ -129,6 +129,13 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
                 key: {"status": value.get("status"), "error_code": value.get("error_code"), "revision": value.get("revision")}
                 for key, value in data["provider_health"].items()
             },
+            "worktree_summary": {
+                alias: {
+                    "count": len(identity.worktrees),
+                    "dirty": sum(1 for item in identity.worktrees.values() if item.dirty),
+                }
+                for alias, identity in snapshot.repositories.items()
+            },
             "current_project_state": [
                 {key: item.get(key) for key in ("id", "complete", "has_current_work", "effective_state_counts") if item.get(key) is not None}
                 for item in data["current_project_state"][:3]
@@ -150,4 +157,15 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             "ranking": {"items_considered": data["ranking"]["items_considered"], "historical_items_omitted": data["ranking"]["historical_items_omitted"]},
         }
     warnings = [*snapshot.warnings_for("todo", "cuda"), *reconciled.warnings, *workflow_warnings(snapshot)]
-    return envelope("project_overview", snapshot, bounded_payload(data, BUDGETS[detail]), warnings=list(dict.fromkeys(warnings)))
+    result = envelope("project_overview", snapshot, bounded_payload(data, BUDGETS[detail]), warnings=list(dict.fromkeys(warnings)))
+    if detail == "compact":
+        # Compact overview returns bounded IDs/counts in its data while standard
+        # and expanded detail carry every worktree record. Avoid duplicating
+        # every HEAD/fingerprint in both identity and the compact delta cursor;
+        # project_delta retains the full per-worktree cursor contract.
+        result.project.repositories = {
+            alias: identity.model_copy(update={"worktrees": {}})
+            for alias, identity in result.project.repositories.items()
+        }
+        result.cursor.worktrees = {}
+    return result
