@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import time
+import os
 from collections import OrderedDict
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Generic, Hashable, TypeVar
 
 
@@ -40,3 +42,23 @@ class RevisionCache(Generic[T]):
 
     def clear(self) -> None:
         self._items.clear()
+
+
+def project_control_cache_root() -> Path:
+    """Return the private, disposable cache root without creating it."""
+    configured = os.environ.get("XDG_CACHE_HOME")
+    base = Path(configured).expanduser() if configured else Path.home() / ".cache"
+    return base / "project-control"
+
+
+def ensure_private_cache_dir(*parts: str) -> Path:
+    """Create an owner-only directory below project-control's cache root."""
+    if any(not part or part in {".", ".."} or "/" in part for part in parts):
+        raise ValueError("invalid cache path component")
+    target = project_control_cache_root().joinpath(*parts)
+    target.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        target.chmod(0o700)
+    except OSError:
+        pass
+    return target
