@@ -4,14 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "project-control"
-version = "0.2.0"
-description = "Read-only architectural control plane for ChatGPT"
+version = "0.3.0"
+description = "Architectural observatory with bounded terminal capture for ChatGPT"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
 dependencies = [
   "mcp[cli]>=1.0,<2",
   "pydantic>=2.10,<3",
+  "pyte>=0.8.2,<1",
   "starlette>=0.41,<1",
   "uvicorn>=0.32,<1",
 ]

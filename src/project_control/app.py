@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Callable, Literal
 
@@ -33,6 +34,7 @@ from .models import (
     RepositoryIdentity,
     SourceContextInput,
     SourceTarget,
+    TerminalCaptureInput,
     ToolEnvelope,
     ToolStatus,
     utc_now,
@@ -54,16 +56,18 @@ from .services.program import program_context as program_context_service
 from .services.source_context import source_context as source_context_service
 from .snapshot import SnapshotBuilder, resolve_skills_root
 from .security import redact_output
+from .terminal import TerminalSessionRegistry
 
 
 SERVER_INSTRUCTIONS = (
-    "Use project-control to inspect live engineering projects as ChatGPT's read-only architectural, source, "
+    "Use project-control to inspect live engineering projects through its read-only architectural, source, "
     "history, planning, and coordination "
     "observatory. Start with architecture_context for broad questions, project_overview for status, or "
     "project_delta for change. Use source_context for bounded multi-target source reads and coordination_view for "
     "todo-authoritative workflow state. Todo semantic workflow owns operational truth; durable export only enriches "
-    "anchored records. All tools are strictly read-only: they never claim tasks, mark messages read, advance cursors, "
-    "edit files, run workers or benchmarks, reserve resources, or mutate Git/todo state. Cross-project observations "
+    "anchored records. The fourteen project query tools never claim tasks, mark messages read, advance cursors, "
+    "edit files, run workers or benchmarks, reserve resources, or mutate Git/todo state. terminal_capture is the one "
+    "bounded, sandboxed PTY observation capability; it has no shell or project mutation authority. Cross-project observations "
     "are independent, and program membership is not architectural authority. Send any proposed mutation to Codex "
     "through coding-workflow; proposal envelopes are inert and confer no authority."
 )
@@ -72,6 +76,13 @@ READ_ONLY = ToolAnnotations(
     readOnlyHint=True,
     destructiveHint=False,
     idempotentHint=True,
+    openWorldHint=False,
+)
+
+TERMINAL_OBSERVATION = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
     openWorldHint=False,
 )
 
@@ -104,6 +115,7 @@ class Runtime:
     def __init__(self, config: ProjectControlConfig):
         self.config = config
         self.builder = SnapshotBuilder(config)
+        self.terminals = TerminalSessionRegistry(config)
 
     def snapshot(self, project: str, *, host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
         return self.builder.build(project, include_host=host, campaign=campaign)
@@ -136,6 +148,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
     active_config = config or load_config()
     runtime = Runtime(active_config)
     server = active_config.server
+
     mcp = FastMCP(
         "project-control",
         instructions=SERVER_INSTRUCTIONS,
@@ -292,6 +305,73 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
         except Exception:
             return runtime.failure("program_context", project, ToolStatus.INTERNAL_ERROR, "bounded_read_failed")
 
+    @mcp.tool(
+        description="Launch one registered repository executable in a bounded sandboxed PTY, render its visible screen, or recapture the same live bonded terminal session.",
+        annotations=TERMINAL_OBSERVATION,
+        structured_output=True,
+    )
+    def terminal_capture(
+        project: str,
+        executable: Annotated[str | None, Field(min_length=1, max_length=512)] = None,
+        session: Annotated[str | None, Field(min_length=1, max_length=128)] = None,
+        repository: Annotated[str | None, Field(max_length=64)] = None,
+        argv: Annotated[list[Annotated[str, Field(max_length=1024)]], Field(max_length=64)] = [],
+        cwd: Annotated[str, Field(min_length=1, max_length=512)] = ".",
+        label: Annotated[str | None, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")] = None,
+        wait_ms: Annotated[int, Field(ge=0, le=30_000)] = 250,
+        rows: Annotated[int | None, Field(ge=5, le=200)] = None,
+        cols: Annotated[int | None, Field(ge=20, le=400)] = None,
+        kill_after_capture: bool = True,
+    ) -> dict[str, Any]:
+        request = TerminalCaptureInput(
+            project=project,
+            executable=executable,
+            session=session,
+            repository=repository,
+            argv=argv,
+            cwd=cwd,
+            label=label,
+            wait_ms=wait_ms,
+            rows=rows,
+            cols=cols,
+            kill_after_capture=kill_after_capture,
+        )
+
+        def operation() -> ToolEnvelope:
+            snapshot = runtime.snapshot(project)
+            if request.executable is not None:
+                result = runtime.terminals.launch(
+                    workspace_id=project,
+                    repository=request.repository,
+                    executable=request.executable,
+                    argv=request.argv,
+                    cwd=request.cwd,
+                    label=request.label,
+                    wait_ms=request.wait_ms,
+                    rows=request.rows,
+                    cols=request.cols,
+                    kill_after_capture=request.kill_after_capture,
+                )
+            else:
+                result = runtime.terminals.recapture(
+                    workspace_id=project,
+                    session_identity=request.session or "",
+                    wait_ms=request.wait_ms,
+                    rows=request.rows,
+                    cols=request.cols,
+                    kill_after_capture=request.kill_after_capture,
+                )
+            return ToolEnvelope(
+                tool="terminal_capture",
+                status=ToolStatus.OK,
+                project=snapshot.identity(),
+                data=result.as_dict(),
+                warnings=[],
+                cursor=snapshot.cursor(),
+            )
+
+        return runtime.invoke("terminal_capture", project, operation)
+
     @mcp.custom_route("/healthz", methods=["GET"])
     async def health(_: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "config": "parseable"})
@@ -305,13 +385,28 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request) -> JSONResponse:
-        return JSONResponse({"name": "project-control", "version": "0.2.0", "tool_schema_version": 2})
+        return JSONResponse({"name": "project-control", "version": "0.3.0", "tool_schema_version": 3})
 
+    setattr(mcp, "_project_control_runtime", runtime)
     return mcp
 
 
 def create_asgi_app(config: ProjectControlConfig | None = None):
-    return create_mcp(config).streamable_http_app()
+    mcp = create_mcp(config)
+    app = mcp.streamable_http_app()
+    original_lifespan = app.router.lifespan_context
+    runtime = getattr(mcp, "_project_control_runtime")
+
+    @asynccontextmanager
+    async def application_lifespan(asgi_app):
+        async with original_lifespan(asgi_app) as state:
+            try:
+                yield state
+            finally:
+                runtime.terminals.shutdown()
+
+    app.router.lifespan_context = application_lifespan
+    return app
 
 
 def serve(*, host: str | None = None, port: int | None = None) -> int:

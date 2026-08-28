@@ -1,9 +1,10 @@
 # Tool contracts
 
-Tool schema version 2 exposes exactly fourteen tools and no resources, prompts,
-sampling, elicitation, UI, arbitrary file access, shell, or write operations.
-The original eight version-1 names, accepted calls, defaults, and meanings are
-frozen and remain valid:
+Tool schema version 3 exposes exactly fifteen tools and no resources, prompts,
+sampling, elicitation, UI, arbitrary file access, shell, or project write
+operations. Project Control v2 is the compatibility authority: its fourteen
+names, accepted calls, defaults, meanings, and input schemas are frozen. The
+original eight version-1 calls remain valid:
 
 1. `project_overview` synthesizes the current program, work, blockers,
    architecture/validation/performance attention, material completion,
@@ -47,8 +48,9 @@ frozen and remain valid:
    architecture-evidence parser in this pass recognizes the observed stable
    `CE-ARCH-92-SUMMARY/1` schema from an explicitly registered todo artifact.
 
-Every tool is annotated `readOnlyHint=true`, `destructiveHint=false`,
-`idempotentHint=true`, and `openWorldHint=false`. Inputs use a registered
+The fourteen v2 query tools are annotated `readOnlyHint=true`,
+`destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
+Inputs use a registered
 workspace ID. Results share a schema-versioned envelope with status, observed
 todo revision, repository commits and dirty states, synthesized data, warnings,
 and a reusable explicit cursor. The todo revision is nullable when authority is
@@ -102,8 +104,55 @@ The six version-2 tools are:
    own observation time and skew; no global transaction is claimed. Maximum data
    is 160 KiB.
 
-All fourteen tools carry `readOnlyHint=true`, `destructiveHint=false`,
+All fourteen v2 tools carry `readOnlyHint=true`, `destructiveHint=false`,
 `idempotentHint=true`, and `openWorldHint=false`.
+
+## Additive version-3 terminal capability
+
+15. `terminal_capture` accepts `project` and exactly one of `executable` or
+   `session`. A launch may also provide a registered `repository`, literal
+   `argv`, repository-relative `cwd`, active-session `label`, `wait_ms`, bounded
+   `rows`/`cols`, and `kill_after_capture` (default `true`). Recapture accepts an
+   opaque session ID or active unique label; optional rows and columns together
+   resize the existing PTY. It never reruns the executable.
+
+`executable` and `cwd` resolve beneath the registered root with symlink and deny
+pattern enforcement. No host path, command string, caller environment, URL, or
+shell is accepted. Bubblewrap provides a read-only repository, read-only runtime
+libraries, isolated HOME/tmp, no network, no inherited secrets, and fail-closed
+availability. The child sees a real PTY with `TERM=xterm-256color`; `pyte`
+incrementally interprets the VT stream, including split UTF-8 and escape
+sequences, cursor/erase/scroll behavior, and the alternate screen.
+
+The result uses the normal envelope and terminal data fields: `operation`,
+rendered `screen`, `rows`, `cols`, opaque `session_id`, optional `label`,
+`active`, lifecycle `state`, `returncode` when known, wait/capture/elapsed
+timing, `stream_limited`, and `screen_truncated`. It never returns stdout/stderr, a raw transcript,
+escape stream, command line, environment, PID, or absolute path. The rendered
+screen passes through normal secret and private-path redaction.
+
+With `kill_after_capture=true`, Project Control terminates the entire owned
+process group, escalates after a short grace interval, closes the PTY, reaps the
+child, and removes registry state. With `false`, a live session remains bonded
+to the in-memory registry and its emulator state continues across MCP requests.
+Natural exit drains the final PTY bytes and retires the label. Bonded sessions
+do not survive service restart; shutdown terminates and reaps them.
+
+Bounds are: 30 seconds wait, 5-200 rows, 20-400 columns, 64 arguments and 8 KiB
+aggregate argument data, 1 MiB per capture interval, 4 MiB per session, a
+512 KiB serialized screen with an explicit truncation flag, four
+active sessions per workspace, and eight per service. Same-session captures
+serialize; independent sessions may proceed concurrently. Retained sessions
+expire after 30 minutes without capture or four hours total; expiry terminates
+and reaps the owned group and releases its label. There is no stdin,
+keystroke, arbitrary signal, transcript, SSH, environment, or generic process
+manager API.
+
+Because launch, retention, and termination change app-private runtime state,
+`terminal_capture` honestly carries `readOnlyHint=false`,
+`destructiveHint=false`, `idempotentHint=false`, and `openWorldHint=false`.
+This does not grant project, Git, todo, workflow, worker, or performance mutation
+authority and does not weaken the fourteen query tools.
 
 ## Component authority and provenance
 

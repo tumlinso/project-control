@@ -9,6 +9,7 @@ from typing import Sequence
 from .config import apply_config_migration, config_path, config_summary, init_config, load_config, migrate_config_dry_run, save_config
 from .registry import RegistryError, WorkspaceRegistry
 from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
+from .terminal import BubblewrapSandbox
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -46,7 +47,15 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
-    checks: dict[str, object] = {"config_path": str(config_path())}
+    terminal_sandbox = BubblewrapSandbox()
+    checks: dict[str, object] = {
+        "config_path": str(config_path()),
+        "terminal_capture": {
+            "backend": "bubblewrap",
+            "installed": terminal_sandbox.available,
+            "ready": terminal_sandbox.probe(),
+        },
+    }
     try:
         config = load_config()
         registry = WorkspaceRegistry(config)

@@ -1,6 +1,6 @@
 # Architecture
 
-`project-control` is a read-only architectural control plane between ChatGPT
+`project-control` is an architectural observatory between ChatGPT
 and registered engineering workspaces. The server resolves a stable workspace
 ID through its owner-only local registry, gathers bounded facts through explicit
 read adapters, normalizes one project snapshot per request, and synthesizes a
@@ -11,7 +11,7 @@ interfaces, and decisions. Git and canonical source control source identity.
 The local-worker and CUDA systems control their own lifecycle and resources.
 Project-control never repairs or initializes those authorities.
 
-The v2 data path is:
+The v2 query data path remains the compatibility authority:
 
 ```text
 ChatGPT -> fourteen read-only MCP tools -> synthesis services -> ProjectSnapshot
@@ -20,6 +20,23 @@ ChatGPT -> fourteen read-only MCP tools -> synthesis services -> ProjectSnapshot
                                       -> disposable lexical source index
                                       -> read-only authority adapters
 ```
+
+Tool schema v3 adds a separate, narrow path which does not enter
+`ProjectSnapshot` as authority:
+
+```text
+terminal_capture -> registered-root/path validation -> bubblewrap sandbox
+                 -> owned PTY/process group -> pyte framebuffer
+                 -> app-private live TerminalSessionRegistry -> redacted screen
+```
+
+The registry owns opaque IDs, active labels, PTY descriptors, process groups,
+emulator state, geometry, timing, and bounded byte accounting. It is
+thread-safe, survives MCP request boundaries, and is deliberately non-durable.
+Natural exit and service shutdown close/reap the owned resources. Serialized
+metadata cannot preserve PTY ownership, so sessions never claim to survive a
+daemon restart. Terminal state is not todo/Git/project history, a lane, claim,
+worker child, artifact, decision, checkpoint, or interface.
 
 Todo computes todo-native lifecycle, supersession, checkpoint/gate relevance,
 program membership, semantic anchors, and coalesced history once through its
@@ -96,6 +113,10 @@ Security is enforced structurally: workspace IDs replace arbitrary roots,
 subprocess argument vectors are fixed, paths are resolved beneath allowlisted
 roots, deny patterns and text limits are applied, and every unavailable source
 degrades to an explicit partial result instead of causing a repair mutation.
+The terminal path is the sole execution exception: it uses a distinct PTY runner,
+never the pipe-oriented read adapters, and bubblewrap fails closed while exposing
+only a read-only selected repository, system runtime, isolated temporary storage,
+isolated HOME, and no network.
 
 No filesystem monitor, project-control history database, shadow Git history,
 vector index, agent-attribution service, or background observer is part of this
@@ -115,7 +136,9 @@ fragments and interfaces, observation time, and provider skew. An inert
 `ProposalEnvelope` may bind a proposed change to those observations with a
 deterministic digest. It always states `authority_to_apply=false`.
 
-The read server has no mutation handler, write-capability negotiation, dormant
+The authoritative query plane has no mutation handler, write-capability negotiation, dormant
 write flag, or hidden apply path. Any future write-capable profile is a separate
 application or explicit capability profile and must revalidate every
-precondition against live authorities before doing anything.
+precondition against live authorities before doing anything. App-private bonded
+terminal lifecycle is not a project write path and cannot apply proposal
+envelopes.

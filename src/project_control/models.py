@@ -153,6 +153,36 @@ class ToolEnvelope(BaseModel):
     cursor: Cursor
 
 
+class TerminalCaptureInput(BaseModel):
+    project: str
+    executable: str | None = Field(default=None, min_length=1, max_length=512)
+    session: str | None = Field(default=None, min_length=1, max_length=128)
+    repository: str | None = Field(default=None, max_length=64)
+    argv: list[str] = Field(default_factory=list, max_length=64)
+    cwd: str = Field(default=".", min_length=1, max_length=512)
+    label: str | None = Field(default=None, min_length=1, max_length=64)
+    wait_ms: int = Field(default=250, ge=0, le=30_000)
+    rows: int | None = Field(default=None, ge=5, le=200)
+    cols: int | None = Field(default=None, ge=20, le=400)
+    kill_after_capture: bool = True
+
+    @model_validator(mode="after")
+    def select_one_operation(self) -> "TerminalCaptureInput":
+        if (self.executable is None) == (self.session is None):
+            raise ValueError("select exactly one executable or terminal session")
+        if self.session is not None:
+            if self.repository is not None or self.argv or self.cwd != "." or self.label is not None:
+                raise ValueError("launch-only arguments are unavailable during recapture")
+            if (self.rows is None) != (self.cols is None):
+                raise ValueError("terminal resize requires rows and cols")
+        for item in self.argv:
+            if "\x00" in item or len(item.encode("utf-8")) > 1024:
+                raise ValueError("terminal argv item is invalid")
+        if sum(len(item.encode("utf-8")) for item in self.argv) > 8 * 1024:
+            raise ValueError("terminal argv exceeds 8 KiB")
+        return self
+
+
 class ProjectOverviewInput(BaseModel):
     project: str
     detail: Literal["compact", "standard", "expanded"] = "standard"

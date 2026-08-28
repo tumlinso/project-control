@@ -17,7 +17,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from starlette.testclient import TestClient
 
-from project_control.app import READ_ONLY, SERVER_INSTRUCTIONS, create_asgi_app, create_mcp
+from project_control.app import READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 
 
@@ -26,6 +26,7 @@ EXPECTED = {
     "evidence", "plan_preview", "agent_status", "performance_status",
     "architecture_context", "coordination_view", "source_context", "history_trace",
     "impact_preview", "program_context",
+    "terminal_capture",
 }
 
 INPUT_SCHEMA_SHA256 = {
@@ -44,6 +45,7 @@ INPUT_SCHEMA_SHA256 = {
     "impact_preview": "fb7581b9cf10d63090eefe5bbbf2d152fc74beb085c81fcf501fb7ee4a095d71",
     "program_context": "8dffbb402cec796026659a94db8e550df00c4baeb6e87050f1aabda84e246263",
 }
+TERMINAL_INPUT_SCHEMA_SHA256 = "ea82a2b87a65912655f5bcc9c418db4088d8c5b6da4ff586bb4b9246e684bbd4"
 
 
 class MCPServerTests(unittest.TestCase):
@@ -55,7 +57,17 @@ class MCPServerTests(unittest.TestCase):
         subprocess.run(["git", "config", "user.email", "tests@example.invalid"], cwd=self.root, check=True)
         subprocess.run(["git", "config", "user.name", "Tests"], cwd=self.root, check=True)
         (self.root / "README.md").write_text("fixture\n", encoding="utf-8")
-        subprocess.run(["git", "add", "README.md"], cwd=self.root, check=True)
+        terminal = self.root / "screen-demo"
+        terminal.write_text(
+            "#!/usr/bin/python3\nimport os,time\n"
+            "print('MCP-TTY=' + str(os.isatty(1)) + ' sk_abcdefghijklmnopqrstuv', flush=True)\n"
+            "for i in range(200):\n"
+            " os.write(1, ('\\r\\x1b[2KSCREEN=' + ('A' if i < 5 else 'B')).encode())\n"
+            " time.sleep(.05)\n",
+            encoding="utf-8",
+        )
+        terminal.chmod(0o755)
+        subprocess.run(["git", "add", "README.md", "screen-demo"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-m", "fixture"], cwd=self.root, check=True, capture_output=True)
         self.skills = Path(self.temporary.name) / "skills"
         fake_todo = self.skills / "todo-orchestrator" / "scripts" / "todo.py"
@@ -73,20 +85,30 @@ class MCPServerTests(unittest.TestCase):
         tools = asyncio.run(mcp.list_tools())
         self.assertEqual({tool.name for tool in tools}, EXPECTED)
         for tool in tools:
-            self.assertTrue(tool.annotations.readOnlyHint)
+            self.assertEqual(tool.annotations.readOnlyHint, tool.name != "terminal_capture")
             self.assertFalse(tool.annotations.destructiveHint)
-            self.assertTrue(tool.annotations.idempotentHint)
+            self.assertEqual(tool.annotations.idempotentHint, tool.name != "terminal_capture")
             self.assertFalse(tool.annotations.openWorldHint)
         schema_bytes = len(json.dumps([tool.model_dump(mode="json") for tool in tools], sort_keys=True).encode())
-        self.assertLess(schema_bytes, 32000)
+        self.assertLess(schema_bytes, 38000)
         self.assertLess(len(SERVER_INSTRUCTIONS), 1500)
-        required_prefix = "Use project-control to inspect live engineering projects"
+        required_prefix = "Use project-control to inspect live engineering projects through its read-only"
         self.assertTrue(SERVER_INSTRUCTIONS.startswith(required_prefix))
         schemas = {tool.name: tool.inputSchema for tool in tools}
         self.assertEqual({
             name: hashlib.sha256(json.dumps(schema, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-            for name, schema in schemas.items()
+            for name, schema in schemas.items() if name in INPUT_SCHEMA_SHA256
         }, INPUT_SCHEMA_SHA256)
+        terminal_schema = schemas["terminal_capture"]
+        self.assertEqual(
+            hashlib.sha256(json.dumps(terminal_schema, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            TERMINAL_INPUT_SCHEMA_SHA256,
+        )
+        self.assertTrue(terminal_schema["properties"]["kill_after_capture"]["default"])
+        self.assertEqual(terminal_schema["properties"]["wait_ms"]["maximum"], 30_000)
+        self.assertEqual(terminal_schema["properties"]["argv"]["maxItems"], 64)
+        self.assertFalse(TERMINAL_OBSERVATION.readOnlyHint)
+        self.assertFalse(TERMINAL_OBSERVATION.idempotentHint)
         self.assertEqual(schemas["project_overview"]["properties"]["detail"]["enum"], ["compact", "standard", "expanded"])
         self.assertEqual(schemas["project_overview"]["properties"]["max_items"]["maximum"], 100)
         self.assertIn("worktree", schemas["inspect"]["properties"]["kind"]["enum"])
@@ -97,7 +119,7 @@ class MCPServerTests(unittest.TestCase):
         with TestClient(create_asgi_app(self.config)) as client:
             self.assertEqual(client.get("/healthz").status_code, 200)
             self.assertEqual(client.get("/readyz").status_code, 200)
-            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.2.0", "tool_schema_version": 2})
+            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.0", "tool_schema_version": 3})
         with self.assertRaises(ValueError):
             from project_control.config import ServerConfig
             ServerConfig(host="0.0.0.0")
@@ -141,6 +163,33 @@ class MCPServerTests(unittest.TestCase):
                     for name, arguments in new_calls.items():
                         result = await session.call_tool(name, arguments)
                         self.assertFalse(result.isError, name)
+                    terminal = await session.call_tool("terminal_capture", {
+                        "project": "demo", "repository": "source", "executable": "screen-demo", "wait_ms": 500,
+                    })
+                    self.assertFalse(terminal.isError)
+                    payload = json.loads(terminal.content[0].text)
+                    self.assertIn("MCP-TTY=True", payload["data"]["screen"])
+                    self.assertIn("[REDACTED]", payload["data"]["screen"])
+                    self.assertNotIn("sk_abcdefghijklmnopqrstuv", terminal.content[0].text)
+                    self.assertFalse(payload["data"]["active"])
+                    bonded = await session.call_tool("terminal_capture", {
+                        "project": "demo", "repository": "source", "executable": "screen-demo",
+                        "label": "mcp-bond", "wait_ms": 50, "kill_after_capture": False,
+                    })
+                    bonded_payload = json.loads(bonded.content[0].text)
+                    self.assertTrue(bonded_payload["data"]["active"])
+                    recaptured = await session.call_tool("terminal_capture", {
+                        "project": "demo", "session": "mcp-bond", "wait_ms": 350,
+                        "kill_after_capture": False,
+                    })
+                    recaptured_payload = json.loads(recaptured.content[0].text)
+                    self.assertEqual(bonded_payload["data"]["session_id"], recaptured_payload["data"]["session_id"])
+                    self.assertIn("SCREEN=B", recaptured_payload["data"]["screen"])
+                    killed = await session.call_tool("terminal_capture", {
+                        "project": "demo", "session": "mcp-bond", "wait_ms": 0,
+                        "kill_after_capture": True,
+                    })
+                    self.assertFalse(json.loads(killed.content[0].text)["data"]["active"])
         try:
             asyncio.run(protocol())
         finally:

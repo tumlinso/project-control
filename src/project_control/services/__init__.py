@@ -1,1 +1,1 @@
-"""Bounded read-only synthesis services for the fourteen MCP tools."""
+"""Bounded read-only synthesis services for the fourteen v2 query tools."""

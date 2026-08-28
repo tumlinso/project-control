@@ -1,17 +1,22 @@
 # project-control
 
-`project-control` is a standalone, strictly read-only MCP server that gives
+`project-control` is a standalone architectural observatory that gives
 ChatGPT a compact live view of registered engineering workspaces. It synthesizes
 architecture, planning, coordination, evidence, source identity, and performance
-state while leaving every mutation with Codex and the existing coding skills.
+state while leaving project and workflow mutation with Codex and the existing
+coding skills. Its one execution aperture, `terminal_capture`, runs only a
+repository-contained executable in a fail-closed observation sandbox and returns
+the rendered PTY screen.
 
 It is the observation plane for the unified workflow product:
 `coding-workflow` is the model-facing protocol and `todo-orchestrator` is its
 transactional kernel. Project-control consumes todo's additive normalized
 workflow read and never becomes a second orchestration authority.
 
-Project Control 0.2.0 preserves the eight v1 tools and adds six richer reads.
-The discovered surface is exactly fourteen tools:
+Project Control v2 is the compatibility authority: it preserves the eight v1
+tools and makes six richer reads first-class. Project Control 0.3.0/tool schema
+v3 freezes those fourteen input contracts and adds one tool. The discovered
+surface is exactly fifteen tools:
 
 - `project_overview`
 - `project_delta`
@@ -27,11 +32,15 @@ The discovered surface is exactly fourteen tools:
 - `history_trace`
 - `impact_preview`
 - `program_context`
+- `terminal_capture`
 
 The service binds only to loopback and is intended to be connected to ChatGPT
-through OpenAI Secure MCP Tunnel. It never accepts arbitrary repository paths,
-runs workers or benchmarks, claims tasks, edits registered projects, or mutates
-Git/todo state.
+through OpenAI Secure MCP Tunnel. The fourteen query tools never accept arbitrary
+repository paths, run workers or benchmarks, claim tasks, edit registered
+projects, or mutate Git/todo state. `terminal_capture` accepts no shell or host
+path and gives the child a read-only repository, isolated HOME/tmp, and no
+network through bubblewrap. Bubblewrap is required; the capability fails closed
+when it is unavailable. `pyte` supplies the VT state machine.
 
 Local setup and connection instructions are in `docs/CHATGPT_SETUP.md`.
 
@@ -67,6 +76,13 @@ workspaces = ["baseplane", "cellerator", "cellshard", "glasshelix"]
 show selected executable and filesystem paths; ordinary MCP output replaces
 private locations with stable IDs and bounded error classifications.
 
+Bonded terminal sessions are app-private live runtime objects. Launch with
+`kill_after_capture=false` to receive an opaque session ID and optional unique
+active label, then recapture the same PTY by either identity. They survive MCP
+request boundaries but intentionally do not survive a Project Control service
+restart; shutdown terminates and reaps them. Default capture kills the owned
+process group after rendering.
+
 Workflow data is additive output on the existing tools. Operational state comes
 only from `todo semantic workflow`; the official durable export enriches records
 anchored by that read and is never independently interpreted as worker activity. It includes the
@@ -94,4 +110,5 @@ transaction. Schema v1 remains readable and is never rewritten automatically.
 
 The service provides `/healthz`, `/readyz`, `/version`, and the loopback MCP URL
 `http://127.0.0.1:8767/mcp`. See `docs/SECURITY.md` for the enforced capability
-boundary and `docs/TOOL_CONTRACTS.md` for v1 compatibility and v2 contracts.
+boundary and `docs/TOOL_CONTRACTS.md` for the frozen v2 contracts and additive
+v3 terminal contract.

@@ -1,5 +1,5 @@
 [Unit]
-Description=Project Control read-only MCP server
+Description=Project Control architectural observatory
 After=network.target
 
 [Service]
