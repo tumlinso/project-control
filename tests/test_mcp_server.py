@@ -119,7 +119,7 @@ class MCPServerTests(unittest.TestCase):
         with TestClient(create_asgi_app(self.config)) as client:
             self.assertEqual(client.get("/healthz").status_code, 200)
             self.assertEqual(client.get("/readyz").status_code, 200)
-            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.0", "tool_schema_version": 3})
+            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.1", "tool_schema_version": 3})
         with self.assertRaises(ValueError):
             from project_control.config import ServerConfig
             ServerConfig(host="0.0.0.0")

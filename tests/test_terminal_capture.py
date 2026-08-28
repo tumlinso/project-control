@@ -336,6 +336,28 @@ class TerminalCaptureTests(unittest.TestCase):
         finally:
             unavailable.shutdown()
 
+    def test_probe_diagnostics_classify_failures_without_relaxing_fail_closed(self) -> None:
+        missing = BubblewrapSandbox("/definitely/missing/bwrap").probe_diagnostics()
+        self.assertEqual((missing["status"], missing["error_code"]), ("missing", "bwrap_missing"))
+        cases = {
+            "bwrap: loopback: Failed to create NETLINK_ROUTE socket: Address family not supported by protocol":
+                ("bwrap_service_address_family_restricted", "service_sandbox"),
+            "bwrap: Creating new namespace failed: Operation not permitted":
+                ("bwrap_namespace_unavailable", "namespace"),
+            "bwrap: ro-bind /usr: mount failed: Operation not permitted":
+                ("bwrap_mount_unavailable", "mount"),
+            "bwrap: Permission denied": ("bwrap_permission_denied", "permission"),
+            "bwrap: unexpected failure": ("bwrap_probe_failed", "probe"),
+        }
+        for stderr, expected in cases.items():
+            with self.subTest(stderr=stderr), patch("project_control.terminal.subprocess.run") as run:
+                run.return_value = subprocess.CompletedProcess(["bwrap"], 1, stderr=stderr)
+                result = BubblewrapSandbox("/usr/bin/bwrap").probe_diagnostics()
+                self.assertEqual((result["error_code"], result["failure_class"]), expected)
+        with patch("project_control.terminal.subprocess.run", side_effect=subprocess.TimeoutExpired(["bwrap"], 2)):
+            timed_out = BubblewrapSandbox("/usr/bin/bwrap").probe_diagnostics()
+            self.assertEqual((timed_out["status"], timed_out["error_code"]), ("timeout", "bwrap_probe_timeout"))
+
     def test_idle_expiry_is_deterministic_and_releases_label(self) -> None:
         with patch("project_control.terminal.MAX_IDLE_SECONDS", 0.1):
             retained = self.launch("counter", label="expires", wait_ms=10, kill_after_capture=False)

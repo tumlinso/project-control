@@ -24,7 +24,15 @@ and minimal `/dev`, an isolated writable `/tmp`, an isolated empty HOME, cleared
 environment with fixed PATH/TERM, dropped capabilities, and no network. Denied
 repository paths and Git/todo/ctxpp internals are masked inside the read-only
 mount. If bubblewrap is absent, doctor reports it unavailable and the tool does
-not execute unsandboxed. The service's systemd isolation is not weakened.
+not execute unsandboxed. The remaining service isolation controls stay in
+force.
+The service address-family allowlist includes `AF_NETLINK` because bubblewrap
+uses `NETLINK_ROUTE` to initialize loopback inside the newly isolated network
+namespace. This is kernel namespace setup, not external network access; the
+child remains inside `--unshare-all` with no host network. Doctor reports the
+probe and installed-service policy separately, using bounded codes for missing,
+timeout, namespace, mount, permission, generic probe, and service-policy
+failures. MCP execution remains fail-closed as `terminal_sandbox_unavailable`.
 
 Each launch owns a new session/process group and real PTY. Default capture sends
 graceful termination to the whole group, escalates to forced termination,

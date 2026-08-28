@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -10,6 +11,53 @@ from .config import apply_config_migration, config_path, config_summary, init_co
 from .registry import RegistryError, WorkspaceRegistry
 from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
 from .terminal import BubblewrapSandbox
+
+
+def _terminal_service_constraints() -> dict[str, object]:
+    """Inspect only bounded systemd policy fields relevant to bubblewrap."""
+
+    try:
+        completed = subprocess.run(
+            [
+                "systemctl", "--user", "show", "project-control.service",
+                "--property=LoadState", "--property=ActiveState",
+                "--property=RestrictAddressFamilies", "--property=RestrictNamespaces",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {
+            "status": "unavailable", "compatible": None,
+            "error_code": "project_control_service_policy_unavailable",
+        }
+    fields = dict(
+        line.split("=", 1) for line in completed.stdout.splitlines() if "=" in line
+    )
+    if completed.returncode != 0 or fields.get("LoadState") != "loaded":
+        return {"status": "not_installed", "compatible": None, "error_code": None}
+    address_families = fields.get("RestrictAddressFamilies", "").split()
+    if address_families and "AF_NETLINK" not in address_families:
+        return {
+            "status": "incompatible", "compatible": False,
+            "error_code": "bwrap_service_address_family_restricted",
+            "required_address_family": "AF_NETLINK",
+            "active": fields.get("ActiveState") == "active",
+        }
+    if fields.get("RestrictNamespaces") in {"yes", "true"}:
+        return {
+            "status": "incompatible", "compatible": False,
+            "error_code": "bwrap_service_namespaces_restricted",
+            "active": fields.get("ActiveState") == "active",
+        }
+    return {
+        "status": "compatible", "compatible": True, "error_code": None,
+        "active": fields.get("ActiveState") == "active",
+    }
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -48,12 +96,17 @@ def _parser() -> argparse.ArgumentParser:
 
 def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
     terminal_sandbox = BubblewrapSandbox()
+    probe = terminal_sandbox.probe_diagnostics()
+    service_constraints = _terminal_service_constraints()
+    service_compatible = service_constraints.get("compatible")
     checks: dict[str, object] = {
         "config_path": str(config_path()),
         "terminal_capture": {
             "backend": "bubblewrap",
-            "installed": terminal_sandbox.available,
-            "ready": terminal_sandbox.probe(),
+            "installed": probe["installed"],
+            "ready": bool(probe["ready"] and service_compatible is not False),
+            "probe": probe,
+            "service_constraints": service_constraints,
         },
     }
     try:

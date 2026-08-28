@@ -53,6 +53,21 @@ class TerminalError(ValueError):
     """A bounded, caller-safe terminal capability error."""
 
 
+@dataclass(frozen=True)
+class SandboxProbeResult:
+    installed: bool
+    ready: bool
+    status: str
+    error_code: str | None = None
+    failure_class: str | None = None
+    returncode: int | None = None
+    timeout_seconds: int = 2
+    message: str | None = None
+
+    def as_dict(self) -> dict[str, object]:
+        return self.__dict__.copy()
+
+
 class _AlternateScreen(pyte.Screen):
     """Add xterm alternate-buffer behavior to pyte's VT state machine."""
 
@@ -157,19 +172,59 @@ class BubblewrapSandbox:
     def __init__(self, executable: str | None = None) -> None:
         self.executable = executable or shutil.which("bwrap")
         self._probe_lock = threading.Lock()
-        self._probe_result: bool | None = None
+        self._probe_result: SandboxProbeResult | None = None
 
     @property
     def available(self) -> bool:
         return bool(self.executable and Path(self.executable).is_file() and os.access(self.executable, os.X_OK))
 
-    def probe(self) -> bool:
+    @staticmethod
+    def _failed_probe(returncode: int, stderr: str) -> SandboxProbeResult:
+        normalized = " ".join(stderr.casefold().split())
+        if "netlink_route" in normalized and "address family not supported" in normalized:
+            return SandboxProbeResult(
+                installed=True, ready=False, status="failed",
+                error_code="bwrap_service_address_family_restricted",
+                failure_class="service_sandbox", returncode=returncode,
+                message="service address-family policy blocks NETLINK_ROUTE required for network namespace setup",
+            )
+        if any(item in normalized for item in (
+            "creating new namespace failed", "no permissions to create new namespace", "unshare",
+        )):
+            return SandboxProbeResult(
+                installed=True, ready=False, status="failed",
+                error_code="bwrap_namespace_unavailable", failure_class="namespace",
+                returncode=returncode, message="bubblewrap could not create a required namespace",
+            )
+        if any(item in normalized for item in ("ro-bind", "bind mount", "mounting", "mount ")):
+            return SandboxProbeResult(
+                installed=True, ready=False, status="failed",
+                error_code="bwrap_mount_unavailable", failure_class="mount",
+                returncode=returncode, message="bubblewrap could not establish a required read-only mount",
+            )
+        if any(item in normalized for item in ("permission denied", "operation not permitted", "not permitted")):
+            return SandboxProbeResult(
+                installed=True, ready=False, status="failed",
+                error_code="bwrap_permission_denied", failure_class="permission",
+                returncode=returncode, message="bubblewrap was denied by the execution environment",
+            )
+        return SandboxProbeResult(
+            installed=True, ready=False, status="failed",
+            error_code="bwrap_probe_failed", failure_class="probe",
+            returncode=returncode, message="bubblewrap probe exited unsuccessfully",
+        )
+
+    def probe_result(self) -> SandboxProbeResult:
         with self._probe_lock:
             if self._probe_result is not None:
                 return self._probe_result
             if not self.available:
-                self._probe_result = False
-                return False
+                self._probe_result = SandboxProbeResult(
+                    installed=False, ready=False, status="missing",
+                    error_code="bwrap_missing", failure_class="installation",
+                    message="bubblewrap executable is missing or not executable",
+                )
+                return self._probe_result
             command = [
                 str(self.executable), "--die-with-parent", "--unshare-all", "--new-session",
                 "--cap-drop", "ALL", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
@@ -187,15 +242,42 @@ class BubblewrapSandbox:
                     command,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
                     env={"PATH": "/usr/bin:/bin"},
                     timeout=2,
                     check=False,
+                    text=True,
                 )
-                self._probe_result = completed.returncode == 0
-            except (OSError, subprocess.TimeoutExpired):
-                self._probe_result = False
+                self._probe_result = (
+                    SandboxProbeResult(installed=True, ready=True, status="available")
+                    if completed.returncode == 0
+                    else self._failed_probe(completed.returncode, completed.stderr or "")
+                )
+            except subprocess.TimeoutExpired:
+                self._probe_result = SandboxProbeResult(
+                    installed=True, ready=False, status="timeout",
+                    error_code="bwrap_probe_timeout", failure_class="timeout",
+                    message="bubblewrap probe exceeded its two-second bound",
+                )
+            except PermissionError:
+                self._probe_result = SandboxProbeResult(
+                    installed=True, ready=False, status="failed",
+                    error_code="bwrap_exec_permission_denied", failure_class="permission",
+                    message="bubblewrap executable could not be started due to permissions",
+                )
+            except OSError:
+                self._probe_result = SandboxProbeResult(
+                    installed=True, ready=False, status="failed",
+                    error_code="bwrap_exec_failed", failure_class="execution",
+                    message="bubblewrap executable could not be started",
+                )
             return self._probe_result
+
+    def probe(self) -> bool:
+        return self.probe_result().ready
+
+    def probe_diagnostics(self) -> dict[str, object]:
+        return self.probe_result().as_dict()
 
     def command(
         self,

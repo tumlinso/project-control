@@ -385,7 +385,7 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request) -> JSONResponse:
-        return JSONResponse({"name": "project-control", "version": "0.3.0", "tool_schema_version": 3})
+        return JSONResponse({"name": "project-control", "version": "0.3.1", "tool_schema_version": 3})
 
     setattr(mcp, "_project_control_runtime", runtime)
     return mcp

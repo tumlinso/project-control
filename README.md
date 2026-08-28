@@ -14,7 +14,7 @@ transactional kernel. Project-control consumes todo's additive normalized
 workflow read and never becomes a second orchestration authority.
 
 Project Control v2 is the compatibility authority: it preserves the eight v1
-tools and makes six richer reads first-class. Project Control 0.3.0/tool schema
+tools and makes six richer reads first-class. Project Control 0.3.1/tool schema
 v3 freezes those fourteen input contracts and adds one tool. The discovered
 surface is exactly fifteen tools:
 
@@ -75,6 +75,10 @@ workspaces = ["baseplane", "cellerator", "cellshard", "glasshelix"]
 `project-control doctor --json` is the local-only provider diagnostic. It may
 show selected executable and filesystem paths; ordinary MCP output replaces
 private locations with stable IDs and bounded error classifications.
+Terminal diagnostics separate installation, timeout, namespace, mount,
+permission, and service-policy failures. The hardened systemd unit permits
+`AF_NETLINK` only because bubblewrap needs `NETLINK_ROUTE` while constructing
+the isolated network namespace; the sandbox still has no external network.
 
 Bonded terminal sessions are app-private live runtime objects. Launch with
 `kill_after_capture=false` to receive an opaque session ID and optional unique

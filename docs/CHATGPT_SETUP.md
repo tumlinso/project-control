@@ -68,7 +68,9 @@ calls remain compatible and unchanged within the frozen fourteen-tool v2
 contract.
 
 `project-control doctor --json` reports whether the required bubblewrap backend
-is available. A typical bonded call launches with `kill_after_capture=false`
+is installed, whether its bounded namespace/mount probe succeeds, and whether
+the installed systemd address-family/namespace policy is compatible. A typical
+bonded call launches with `kill_after_capture=false`
 and a short unique label; later calls supply that label as `session` to capture
 the same emulator/process. The default `kill_after_capture=true` cleans up the
 whole owned process group. Bonded sessions end when Project Control restarts and
