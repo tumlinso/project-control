@@ -1,0 +1,136 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "Project Control PCU-V1 Read Port Remediation"
+  },
+  "invariants": [
+    {"id": "PCU-PC-ONE-AUTHORITY", "severity": "error", "rule": "Todo Orchestrator SQLite and WorkflowKernel are the sole workflow mutation authority."},
+    {"id": "PCU-PC-NO-MCP-RECURSION", "severity": "error", "rule": "No Project Control component may invoke another MCP server to implement a Project Control tool."},
+    {"id": "PCU-PC-OBSERVER-READONLY", "severity": "error", "rule": "The observer profile exposes no workflow mutation tool and cannot dispatch one by name."},
+    {"id": "PCU-PC-RUNTIME-IDENTITY", "severity": "error", "rule": "Project Control fails closed on missing, skewed, or rebound Todo runtime identity."},
+    {"id": "PCU-PC-DOWNSTREAM-ISOLATION", "severity": "error", "rule": "No downstream engineering repository is modified by Project Control tasks."}
+  ],
+  "tasks": [
+    {
+      "id": "PCU-PC-40",
+      "kind": "task",
+      "tags": [
+        "implementation_task",
+        "validation_resolution"
+      ],
+      "title": "Wire the canonical Todo read port into the live server",
+      "objective": "Make the observer and Codex rich-read surfaces use the verified in-process Todo read port as their normal provider, retain the bounded subprocess fallback only when no port is supplied, and prove large authorities do not fail because of subprocess capture limits.",
+      "priority": 500,
+      "parallel_policy": "integration_exclusive",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control/app.py",
+          "src/project_control/workflow_binding.py",
+          "tests/test_todo_authority.py",
+          "tests/test_mcp_server.py"
+        ],
+        "read_paths": [
+          "src/project_control/runtime_identity.py",
+          "src/project_control/snapshot.py",
+          "src/project_control/todo_authority.py",
+          "unification/pcu-v1/contracts/kernel-binding.md",
+          "unification/pcu-v1/contracts/product-boundary.md"
+        ]
+      },
+      "invariants": [
+        "PCU-PC-ONE-AUTHORITY",
+        "PCU-PC-NO-MCP-RECURSION",
+        "PCU-PC-OBSERVER-READONLY",
+        "PCU-PC-RUNTIME-IDENTITY",
+        "PCU-PC-DOWNSTREAM-ISOLATION"
+      ],
+      "gates": [
+        {
+          "id": "PCU-PC-40-READ-PORT",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.test_todo_authority",
+            "tests.test_mcp_server",
+            "-v"
+          ],
+          "env": {
+            "PROJECT_CONTROL_SKILLS_ROOT": "",
+            "CODING_WORKFLOW_SKILLS_ROOT": ""
+          },
+          "required": true
+        },
+        {
+          "id": "PCU-PC-40-FULL",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-v"
+          ],
+          "env": {
+            "PROJECT_CONTROL_SKILLS_ROOT": "",
+            "CODING_WORKFLOW_SKILLS_ROOT": ""
+          },
+          "required": true
+        },
+        {
+          "id": "PCU-PC-40-DIFF",
+          "type": "command",
+          "argv": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "required": true
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "PCU-PC-READ-PORT-REMEDIATION-V1",
+      "root_task_id": "PCU-PC-40",
+      "charter": {
+        "objective": "Close the PCU-V1 live read-provider wiring gap without changing product boundaries or downstream authorities.",
+        "boundaries": [
+          "No direct downstream repository access.",
+          "No MCP recursion or copied Todo semantics.",
+          "Observer remains read-only.",
+          "No live cutover in the Project Control task."
+        ],
+        "invariants": [
+          "PCU-PC-ONE-AUTHORITY",
+          "PCU-PC-NO-MCP-RECURSION",
+          "PCU-PC-OBSERVER-READONLY",
+          "PCU-PC-RUNTIME-IDENTITY",
+          "PCU-PC-DOWNSTREAM-ISOLATION"
+        ],
+        "acceptance_conditions": [
+          "The live server composition supplies the canonical in-process Todo read port.",
+          "Runtime identity remains fail-closed and immutable.",
+          "The full Project Control suite passes.",
+          "The standalone repository has one ordinary forward remediation commit."
+        ]
+      },
+      "lanes": [
+        {
+          "id": "PCU-PC-READ-PORT-REMEDIATION-LANE",
+          "role": "implementer",
+          "tasks": [
+            "PCU-PC-40"
+          ],
+          "workspace": {
+            "mode": "exclusive"
+          }
+        }
+      ]
+    }
+  ]
+}
