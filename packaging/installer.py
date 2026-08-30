@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -90,6 +91,67 @@ def _refuse_unsafe_destination(destination: Path, roots: Iterable[Path]) -> None
         raise InstallError(f"candidate destination already exists: {destination}")
 
 
+def _relocate_candidate_scripts(temporary: Path, destination: Path) -> None:
+    """Bind generated scripts to the final candidate path before publication.
+
+    Standard virtual-environment console scripts embed the interpreter's
+    absolute path in their shebang.  Renaming the environment without updating
+    those scripts leaves an otherwise valid candidate with an executable that
+    points back to the removed staging directory.  Use distlib's portable
+    shell/Python launcher form for direct shebangs and update other generated
+    activation scripts before the one atomic rename.
+    """
+
+    bin_dir = temporary / "bin"
+    temporary_bytes = os.fsencode(temporary)
+    destination_bytes = os.fsencode(destination)
+    temporary_python = os.fsencode(temporary / "bin" / "python")
+    destination_python = str(destination / "bin" / "python")
+    launcher = (
+        "#!/bin/sh\n"
+        f"'''exec' {shlex.quote(destination_python)} \"$0\" \"$@\"\n"
+        "' '''\n"
+    ).encode("utf-8")
+
+    for script in bin_dir.iterdir():
+        if not script.is_file() or script.is_symlink():
+            continue
+        data = script.read_bytes()
+        newline = data.find(b"\n")
+        first_line = data if newline < 0 else data[:newline]
+        if first_line == b"#!" + temporary_python:
+            body = b"" if newline < 0 else data[newline + 1 :]
+            rewritten = launcher + body
+        else:
+            rewritten = data.replace(temporary_bytes, destination_bytes)
+        if rewritten != data:
+            script.write_bytes(rewritten)
+
+    stale = [
+        script.name
+        for script in bin_dir.iterdir()
+        if script.is_file()
+        and not script.is_symlink()
+        and temporary_bytes in script.read_bytes()
+    ]
+    if stale:
+        raise InstallError(f"candidate scripts retain staging paths: {sorted(stale)!r}")
+
+
+def _verify_promoted_entrypoints(destination: Path, *, runner: Runner) -> None:
+    commands = (
+        (str(destination / "bin" / "project-control"), "--help"),
+        (str(destination / "bin" / "python"), "-m", "project_control", "--help"),
+    )
+    for command in commands:
+        completed = runner(command)
+        if completed.returncode:
+            raise InstallError(
+                f"promoted candidate entry point failed ({command[0]}): "
+                f"{completed.stderr.strip()}"
+            )
+
+
 def build_candidate(
     *,
     project_control_root: Path,
@@ -110,6 +172,7 @@ def build_candidate(
     identity = source_identity(project_control_root, skills_root, runner=runner)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.building-", dir=destination.parent))
+    published = False
     try:
         commands = (
             (sys.executable, "-m", "venv", str(temporary)),
@@ -133,9 +196,12 @@ def build_candidate(
             json.dumps(asdict(identity), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        _relocate_candidate_scripts(temporary, destination)
         os.replace(temporary, destination)
+        published = True
+        _verify_promoted_entrypoints(destination, runner=runner)
     except BaseException:
-        shutil.rmtree(temporary, ignore_errors=True)
+        shutil.rmtree(destination if published else temporary, ignore_errors=True)
         raise
     return identity
 

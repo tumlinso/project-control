@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import os
 import subprocess
 import sys
 import tempfile
@@ -17,6 +19,7 @@ AtomicCutover = MODULE.AtomicCutover
 CutoverStep = MODULE.CutoverStep
 InstallError = MODULE.InstallError
 build_candidate = MODULE.build_candidate
+candidate_manifest_digest = MODULE.candidate_manifest_digest
 
 
 def completed(command, code=0, stdout="", stderr=""):
@@ -54,9 +57,79 @@ class InstallerTests(unittest.TestCase):
             )
             self.assertTrue((destination / "pcu-candidate.json").is_file())
             self.assertEqual(identity.project_control_commit, "pc")
-            install = commands[-1]
+            install = next(command for command in commands if "pip" in command)
             self.assertIn(str(project), install)
             self.assertIn(str(skills / "todo-orchestrator"), install)
+
+    def test_promoted_console_and_module_entrypoints_use_final_path(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            project = root / "project"
+            skills = root / "skills"
+            destination = root / "candidate final"
+            project.mkdir()
+            (project / "pyproject.toml").write_text("", encoding="utf-8")
+            (skills / "todo-orchestrator").mkdir(parents=True)
+            (skills / "todo-orchestrator" / "pyproject.toml").write_text("", encoding="utf-8")
+            staging_paths = []
+            executed = []
+
+            def runner(command):
+                command = tuple(command)
+                if command[:2] == ("git", "-C"):
+                    return completed(command, stdout="hash\n")
+                if "venv" in command:
+                    staging = Path(command[-1])
+                    staging_paths.append(staging)
+                    bin_dir = staging / "bin"
+                    bin_dir.mkdir(parents=True)
+                    python = bin_dir / "python"
+                    python.write_text(
+                        f"#!{sys.executable}\nimport sys\nraise SystemExit(0)\n",
+                        encoding="utf-8",
+                    )
+                    python.chmod(0o755)
+                    console = bin_dir / "project-control"
+                    console.write_text(
+                        f"#!{python}\nimport sys\nraise SystemExit(0)\n",
+                        encoding="utf-8",
+                    )
+                    console.chmod(0o755)
+                    return completed(command)
+                if "pip" in command:
+                    return completed(command)
+                executed.append(command)
+                return subprocess.run(
+                    command,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+
+            build_candidate(
+                project_control_root=project,
+                skills_root=skills,
+                destination=destination,
+                runner=runner,
+            )
+
+            self.assertEqual(
+                executed,
+                [
+                    (str(destination / "bin" / "project-control"), "--help"),
+                    (str(destination / "bin" / "python"), "-m", "project_control", "--help"),
+                ],
+            )
+            console = (destination / "bin" / "project-control").read_bytes()
+            for staging in staging_paths:
+                self.assertNotIn(os.fsencode(staging), console)
+            self.assertIn(os.fsencode(destination / "bin" / "python"), console)
+            expected_digest = hashlib.sha256(
+                (destination / "pcu-candidate.json").read_bytes()
+            ).hexdigest()
+            self.assertEqual(candidate_manifest_digest(destination), expected_digest)
 
     def test_failed_candidate_leaves_no_destination(self) -> None:
         with tempfile.TemporaryDirectory() as root:
@@ -79,6 +152,47 @@ class InstallerTests(unittest.TestCase):
 
             with self.assertRaises(InstallError):
                 build_candidate(project_control_root=project, skills_root=skills, destination=destination, runner=runner)
+            self.assertFalse(destination.exists())
+
+    def test_failed_promoted_entrypoint_removes_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            project = root / "project"
+            skills = root / "skills"
+            destination = root / "candidate"
+            project.mkdir()
+            (project / "pyproject.toml").write_text("", encoding="utf-8")
+            (skills / "todo-orchestrator").mkdir(parents=True)
+            (skills / "todo-orchestrator" / "pyproject.toml").write_text("", encoding="utf-8")
+
+            def runner(command):
+                command = tuple(command)
+                if command[:2] == ("git", "-C"):
+                    return completed(command, stdout="hash\n")
+                if "venv" in command:
+                    bin_dir = Path(command[-1]) / "bin"
+                    bin_dir.mkdir(parents=True)
+                    python = bin_dir / "python"
+                    python.write_text(
+                        f"#!{sys.executable}\nraise SystemExit(0)\n",
+                        encoding="utf-8",
+                    )
+                    python.chmod(0o755)
+                    console = bin_dir / "project-control"
+                    console.write_text(f"#!{python}\nraise SystemExit(0)\n", encoding="utf-8")
+                    console.chmod(0o755)
+                    return completed(command)
+                if "pip" in command:
+                    return completed(command)
+                return completed(command, code=127, stderr="entry point unavailable")
+
+            with self.assertRaisesRegex(InstallError, "promoted candidate entry point failed"):
+                build_candidate(
+                    project_control_root=project,
+                    skills_root=skills,
+                    destination=destination,
+                    runner=runner,
+                )
             self.assertFalse(destination.exists())
 
     def test_cutover_requires_authority_and_rolls_back_in_reverse(self) -> None:
