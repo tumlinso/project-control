@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..security import redact
 from ..subprocesses import (
@@ -18,6 +18,9 @@ from ..subprocesses import (
     CommandUnavailableError,
     FixedCommandRunner,
 )
+
+if TYPE_CHECKING:
+    from ..todo_authority import TodoReadPort
 
 
 TODO_TIMEOUTS = {
@@ -82,12 +85,22 @@ class TodoReadError(CommandError):
 
 
 class TodoReadAdapter:
-    """Read todo authority only through public non-mutating CLI operations."""
+    """Normalize Todo reads from a verified port or the bounded CLI fallback."""
 
-    def __init__(self, root: Path, todo_script: Path, runner: FixedCommandRunner | None = None):
+    def __init__(
+        self,
+        root: Path,
+        todo_script: Path | None = None,
+        runner: FixedCommandRunner | None = None,
+        *,
+        read_port: TodoReadPort | None = None,
+    ):
         self.root = root.resolve(strict=True)
-        self.todo_script = todo_script.resolve(strict=True)
+        if todo_script is None and read_port is None:
+            raise ValueError("todo_script or read_port is required")
+        self.todo_script = todo_script.resolve(strict=True) if todo_script is not None else None
         self.runner = runner or FixedCommandRunner(max_capture_bytes=8 * 1024 * 1024)
+        self.read_port = read_port
 
     @staticmethod
     def safe_environment() -> dict[str, str]:
@@ -150,10 +163,26 @@ class TodoReadAdapter:
             raise TodoReadError(code)
         return result
 
+    def _invoke_port(self, operation: str, *, root: Path, arguments: tuple[str, ...] = ()) -> dict[str, Any]:
+        if self.read_port is None:
+            raise TodoReadError("todo_read_port_unavailable")
+        try:
+            result = redact(dict(self.read_port.invoke(operation, repo_root=root, arguments=arguments)))
+        except TodoReadError:
+            raise
+        except Exception as exc:
+            raise TodoReadError(f"todo_{operation.replace('.', '_')}_unavailable") from exc
+        if not result.get("ok"):
+            raise TodoReadError(self._error_code(operation, result.get("code")))
+        return result
+
     def _call_at(self, root: Path, operation: str, *arguments: str, timeout: float | None = None) -> dict[str, Any]:
         allowed = {"status", "ready", "export", "explain", "changes"}
         if operation not in allowed:
             raise ValueError("todo operation is not read-only allowlisted")
+        if self.read_port is not None:
+            return self._invoke_port(operation, root=root, arguments=tuple(arguments))
+        assert self.todo_script is not None
         argv = [sys.executable, str(self.todo_script), operation, "--repo-root", str(root), *arguments, "--json"]
         return self._run_json(
             argv, root=root, operation=operation,
@@ -166,6 +195,9 @@ class TodoReadAdapter:
     def _semantic_call_at(self, root: Path, action: str, *arguments: str, timeout: float | None = None) -> dict[str, Any]:
         if action not in {"state", "anchor", "delta", "workflow"}:
             raise ValueError("todo semantic operation is not read-only allowlisted")
+        if self.read_port is not None:
+            return self._invoke_port(f"semantic.{action}", root=root, arguments=tuple(arguments))
+        assert self.todo_script is not None
         argv = [
             sys.executable, str(self.todo_script), "semantic", action,
             "--repo-root", str(root), *arguments, "--json",
@@ -209,6 +241,9 @@ class TodoReadAdapter:
     def plan_read(self, operation: str, proposal_file: Path, *, timeout: float = 15.0) -> dict[str, Any]:
         if operation not in {"validate", "diff"}:
             raise ValueError("todo plan operation is not read-only allowlisted")
+        if self.read_port is not None:
+            return self._invoke_port(f"plan.{operation}", root=self.root, arguments=(str(proposal_file),))
+        assert self.todo_script is not None
         command = self.runner.run(
             [sys.executable, str(self.todo_script), "plan", operation, "--file", str(proposal_file), "--repo-root", str(self.root), "--json"],
             cwd=self.root, timeout=timeout, env=self.safe_environment(), check=False,
@@ -322,6 +357,9 @@ class TodoReadAdapter:
         inline_state = data.get("state") if isinstance(data, dict) else None
         if isinstance(inline_state, dict):
             return redact(inline_state)
+        if self.read_port is not None and isinstance(data, dict):
+            if isinstance(data.get("project"), dict) and isinstance(data.get("tables"), dict):
+                return redact(data)
         snapshot_value = data.get("snapshot") if isinstance(data, dict) else None
         if not isinstance(snapshot_value, str):
             raise TodoReadError("todo_export_unavailable")
