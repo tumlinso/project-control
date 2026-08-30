@@ -158,6 +158,47 @@ class TodoAuthorityTests(unittest.TestCase):
         self.assertEqual(resolution.error_code, "todo_read_port_contract_mismatch")
         self.assertIsNone(resolution.todo_script)
 
+    def test_read_port_requires_canonical_dotted_operation_capabilities(self) -> None:
+        port = FakeReadPort(self.skills_root)
+        identity = port.identity()
+        self.assertIn("semantic.workflow", identity["capabilities"])
+        self.assertNotIn("semantic_workflow", identity["capabilities"])
+
+        resolution = resolve_todo_provider(
+            self.config, "fixture", read_port_factory=lambda _root: port,
+        )
+        self.assertTrue(resolution.compatible)
+        self.assertEqual(resolution.capabilities, tuple(REQUIRED_TODO_READ_CAPABILITIES))
+
+        port.identity = lambda: {
+            **identity,
+            "capabilities": [item.replace(".", "_") for item in identity["capabilities"]],
+        }
+        incompatible = resolve_todo_provider(
+            self.config, "fixture", read_port_factory=lambda _root: port,
+        )
+        self.assertFalse(incompatible.compatible)
+        self.assertEqual(incompatible.error_code, "todo_read_port_schema_incompatible")
+        self.assertIsNone(incompatible.todo_script)
+
+    def test_subprocess_probe_labels_remain_cli_compatible(self) -> None:
+        script = self.skills_root / "todo-orchestrator" / "scripts" / "todo.py"
+        script.parent.mkdir(parents=True)
+        script.write_text("raise SystemExit(0)\n", encoding="utf-8")
+        cli_capabilities = (
+            "semantic_state", "semantic_anchor", "semantic_delta",
+            "semantic_workflow", "export",
+        )
+        with patch(
+            "project_control.todo_authority._probe_todo_entrypoint",
+            return_value=("fixture", "cli-fixture-identity", cli_capabilities, True),
+        ):
+            resolution = resolve_todo_provider(self.config, "fixture")
+        self.assertTrue(resolution.compatible)
+        self.assertEqual(resolution.mode, "subprocess")
+        self.assertEqual(resolution.capabilities, cli_capabilities)
+        self.assertEqual(resolution.todo_script, script.resolve())
+
     def test_adapter_routes_only_allowlisted_operations_through_port(self) -> None:
         port = FakeReadPort(self.skills_root)
         adapter = TodoReadAdapter(self.repo, read_port=port)

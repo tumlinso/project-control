@@ -15,6 +15,18 @@ from .subprocesses import CommandError, FixedCommandRunner
 
 TODO_READ_PORT_CONTRACT = "PCU-TODO-READ-PORT/1"
 REQUIRED_TODO_READ_CAPABILITIES = (
+    "semantic.state",
+    "semantic.anchor",
+    "semantic.delta",
+    "semantic.workflow",
+    "export",
+)
+
+# The CLI probe reports internal compatibility labels, while the canonical
+# in-process port advertises the exact operation names accepted by ``invoke``.
+# Keep these sets separate so validating one transport cannot accidentally
+# weaken or rename the other.
+_REQUIRED_TODO_ENTRYPOINT_CAPABILITIES = (
     "semantic_state",
     "semantic_anchor",
     "semantic_delta",
@@ -129,7 +141,7 @@ def _probe_todo_entrypoint(script: Path) -> tuple[str | None, str, tuple[str, ..
             supported.append(capability)
     value = (
         _provider_version(script), digest, tuple(supported),
-        set(supported) == set(REQUIRED_TODO_READ_CAPABILITIES),
+        set(supported) == set(_REQUIRED_TODO_ENTRYPOINT_CAPABILITIES),
     )
     _PROVIDER_CACHE[cache_key] = value
     return value
