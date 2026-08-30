@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import os
-import hashlib
-import sys
-import tomllib
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,156 +13,30 @@ from .config import ProjectControlConfig
 from .models import ProjectSnapshot, RepositoryIdentity, WorktreeIdentity, utc_now
 from .registry import WorkspaceRegistry
 from .security import stable_public_id
-from .subprocesses import CommandError, FixedCommandRunner
-
-
-REQUIRED_TODO_READ_CAPABILITIES = (
-    "semantic_state",
-    "semantic_anchor",
-    "semantic_delta",
-    "semantic_workflow",
-    "export",
+from .todo_authority import (
+    TodoProviderResolution,
+    TodoReadPortFactory,
+    resolve_skills_root,
+    resolve_todo_provider,
 )
 
 
-@dataclass(frozen=True)
-class TodoProviderResolution:
-    skills_root: Path | None
-    todo_script: Path | None
-    compatible: bool
-    selection_source: str | None
-    version: str | None
-    file_identity: str | None
-    capabilities: tuple[str, ...]
-    warnings: tuple[str, ...]
-    error_code: str | None = None
-
-    def local_diagnostics(self) -> dict[str, Any]:
-        return {
-            "status": "available" if self.compatible else "unavailable",
-            "selection_source": self.selection_source,
-            "skills_root": str(self.skills_root) if self.skills_root else None,
-            "todo_entrypoint": str(self.todo_script) if self.todo_script else None,
-            "version": self.version,
-            "file_identity": self.file_identity,
-            "capabilities": list(self.capabilities),
-            "warnings": list(self.warnings),
-            "error_code": self.error_code,
-        }
-
-
-_PROVIDER_CACHE: dict[tuple[str, int, int], tuple[str | None, str, tuple[str, ...], bool]] = {}
-
-
-def _provider_version(script: Path) -> str | None:
-    pyproject = script.parent.parent / "pyproject.toml"
-    try:
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        data = {}
-    value = data.get("project", {}).get("version") if isinstance(data.get("project"), dict) else None
-    if value is not None:
-        return str(value)
-    try:
-        commit = FixedCommandRunner(max_capture_bytes=4096).run(
-            ["git", "rev-parse", "--verify", "HEAD"], cwd=script.parent,
-            timeout=5.0, check=True,
-        ).stdout.strip()
-    except CommandError:
-        return None
-    return commit or None
-
-
-def _probe_todo_entrypoint(script: Path) -> tuple[str | None, str, tuple[str, ...], bool]:
-    stat = script.stat()
-    cache_key = (str(script), stat.st_mtime_ns, stat.st_size)
-    if cache_key in _PROVIDER_CACHE:
-        return _PROVIDER_CACHE[cache_key]
-    digest = hashlib.sha256(
-        f"{script.resolve()}\0{stat.st_dev}\0{stat.st_ino}\0{stat.st_size}\0{stat.st_mtime_ns}".encode()
-    ).hexdigest()
-    runner = FixedCommandRunner(max_capture_bytes=512 * 1024)
-    probes = {
-        "semantic_state": ["semantic", "state", "--help"],
-        "semantic_anchor": ["semantic", "anchor", "--help"],
-        "semantic_delta": ["semantic", "delta", "--help"],
-        "semantic_workflow": ["semantic", "workflow", "--help"],
-        "export": ["export", "--help"],
-    }
-    supported: list[str] = []
-    for capability, arguments in probes.items():
-        try:
-            result = runner.run(
-                [sys.executable, str(script), *arguments],
-                cwd=script.parent,
-                timeout=5.0,
-                env={"TODO_ORCHESTRATOR_READ_ONLY": "1"},
-                check=False,
-            )
-        except CommandError:
-            continue
-        if result.returncode == 0:
-            supported.append(capability)
-    value = (_provider_version(script), digest, tuple(supported), set(supported) == set(REQUIRED_TODO_READ_CAPABILITIES))
-    _PROVIDER_CACHE[cache_key] = value
-    return value
-
-
-def resolve_todo_provider(config: ProjectControlConfig, workspace_id: str) -> TodoProviderResolution:
-    workspace = config.workspaces[workspace_id]
-    raw_candidates = [
-        ("workspace_config", workspace.skills_root, False),
-        ("global_config", config.skills_root, False),
-        (
-            "service_environment",
-            Path(os.environ["PROJECT_CONTROL_SKILLS_ROOT"]) if os.environ.get("PROJECT_CONTROL_SKILLS_ROOT") else None,
-            False,
-        ),
-        ("legacy_agents_fallback", Path("/home/tumlinson/.agents/skills"), True),
-        ("legacy_codex_fallback", Path("/home/tumlinson/.codex/skills"), True),
-    ]
-    seen: set[Path] = set()
-    incompatible: TodoProviderResolution | None = None
-    for source, candidate, legacy in raw_candidates:
-        if legacy and incompatible is not None:
-            return incompatible
-        if candidate is None:
-            continue
-        root = candidate.expanduser().resolve()
-        if root in seen:
-            continue
-        seen.add(root)
-        script = root / "todo-orchestrator" / "scripts" / "todo.py"
-        if not script.is_file():
-            continue
-        try:
-            version, identity, capabilities, compatible = _probe_todo_entrypoint(script.resolve())
-        except OSError:
-            continue
-        warnings = ("legacy_skills_root_fallback",) if legacy else ()
-        result = TodoProviderResolution(
-            root, script.resolve(), compatible, source, version, identity, capabilities, warnings,
-            None if compatible else "todo_entrypoint_incompatible",
-        )
-        if compatible:
-            return result
-        if incompatible is None:
-            incompatible = result
-    return incompatible or TodoProviderResolution(
-        None, None, False, None, None, None, (), (), "skills_root_unavailable"
-    )
-
-
-def resolve_skills_root(config: ProjectControlConfig, workspace_id: str) -> Path | None:
-    provider = resolve_todo_provider(config, workspace_id)
-    return provider.skills_root if provider.compatible else None
-
-
 class SnapshotBuilder:
-    def __init__(self, config: ProjectControlConfig):
+    def __init__(self, config: ProjectControlConfig, *, todo_read_port_factory: TodoReadPortFactory | None = None):
         self.config = config
         self.registry = WorkspaceRegistry(config)
         self.cache: RevisionCache[ProjectSnapshot] = RevisionCache()
+        self.todo_read_port_factory = todo_read_port_factory
+        self._todo_providers: dict[str, TodoProviderResolution] = {}
+
+    def _todo_provider(self, workspace_id: str) -> TodoProviderResolution:
+        provider = self._todo_providers.get(workspace_id)
+        if provider is None:
+            provider = resolve_todo_provider(
+                self.config, workspace_id, read_port_factory=self.todo_read_port_factory,
+            )
+            self._todo_providers[workspace_id] = provider
+        return provider
 
     def build(self, workspace_id: str, *, include_host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
         workspace = self.registry.workspace(workspace_id)
@@ -214,13 +83,14 @@ class SnapshotBuilder:
         todo_workflow: dict[str, Any] = {}
         component_authority: dict[str, Any] = {}
         authority = workspace.authority_repository
-        provider = resolve_todo_provider(self.config, workspace_id)
+        provider = self._todo_provider(workspace_id)
         skills_root = provider.skills_root if provider.compatible else None
-        if authority and authority in git_adapters and skills_root and provider.todo_script:
+        if authority and authority in git_adapters and skills_root and (provider.todo_script or provider.read_port):
             try:
                 todo = TodoReadAdapter(
                     self.registry.repository(workspace_id, authority).root,
                     provider.todo_script,
+                    read_port=provider.read_port,
                 ).observe()
                 todo_revision = todo.revision
                 project_uuid = todo.project_uuid
