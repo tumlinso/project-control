@@ -162,6 +162,65 @@
           "required": true
         }
       ]
+    },
+    {
+      "id": "PCU-PC-42",
+      "kind": "task",
+      "tags": ["implementation_task", "release_task", "validation_resolution"],
+      "title": "Align Todo read-port capability validation and republish",
+      "objective": "Accept the canonical dotted Todo read-port capability vocabulary while preserving subprocess probe compatibility, validate real candidate composition, refresh the release manifest/evidence, and publish ordinary forward local commits for Skills to repin.",
+      "priority": 480,
+      "parallel_policy": "integration_exclusive",
+      "depends_on": [{"type": "task", "task_id": "PCU-PC-41"}],
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control/todo_authority.py",
+          "tests/test_todo_authority.py",
+          "unification/pcu-v1/PCU_RELEASE.json",
+          "unification/pcu-v1/evidence/release"
+        ],
+        "read_paths": [
+          "src/project_control/adapters/todo.py",
+          "src/project_control/workflow_binding.py",
+          "unification/pcu-v1/contracts/kernel-binding.md",
+          "unification/pcu-v1/contracts/product-boundary.md"
+        ]
+      },
+      "invariants": [
+        "PCU-PC-HISTORY",
+        "PCU-PC-ONE-AUTHORITY",
+        "PCU-PC-NO-MCP-RECURSION",
+        "PCU-PC-RUNTIME-IDENTITY",
+        "PCU-PC-DOWNSTREAM-ISOLATION"
+      ],
+      "gates": [
+        {
+          "id": "PCU-PC-42-CAPABILITIES",
+          "type": "command",
+          "argv": ["python", "-m", "unittest", "tests.test_todo_authority", "-v"],
+          "env": {"PROJECT_CONTROL_SKILLS_ROOT": "", "CODING_WORKFLOW_SKILLS_ROOT": ""},
+          "required": true
+        },
+        {
+          "id": "PCU-PC-42-SUITE",
+          "type": "command",
+          "argv": ["python", "-m", "unittest", "discover", "-s", "tests", "-v"],
+          "env": {"PROJECT_CONTROL_SKILLS_ROOT": "", "CODING_WORKFLOW_SKILLS_ROOT": ""},
+          "required": true
+        },
+        {
+          "id": "PCU-PC-42-MANIFEST",
+          "type": "command",
+          "argv": ["python", "-c", "from pathlib import Path; import json,subprocess; d=json.loads(Path('unification/pcu-v1/PCU_RELEASE.json').read_text()); assert d['authority_to_install'] is False and len(d['observer_tool_names'])==15 and len(d['codex_tool_names'])==20; assert d['source_parent_commit']==subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip(); assert Path('unification/pcu-v1/evidence/release/read-port-capability-remediation.json').is_file()"],
+          "required": true
+        },
+        {
+          "id": "PCU-PC-42-DIFF",
+          "type": "command",
+          "argv": ["git", "diff", "--check"],
+          "required": true
+        }
+      ]
     }
   ],
   "runs": [
@@ -211,6 +270,13 @@
           "workspace": {
             "mode": "exclusive"
           }
+        },
+        {
+          "id": "PCU-PC-READ-PORT-CAPABILITY-LANE",
+          "parent_lane_id": "PCU-PC-READ-PORT-RELEASE-LANE",
+          "role": "integrator",
+          "tasks": ["PCU-PC-42"],
+          "workspace": {"mode": "exclusive"}
         }
       ]
     }
