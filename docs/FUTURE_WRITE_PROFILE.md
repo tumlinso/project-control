@@ -1,17 +1,23 @@
-# Future write profile
+# Future mutation profiles
 
-The fourteen-tool Project Control query plane is permanently read-only. Tool
+The Project Control **observer** profile is permanently project-read-only. Tool
 schema v3's `terminal_capture` is a bounded observational execution aperture
 whose only mutable state is an app-private live PTY registry; it has no project,
-Git, todo, workflow, source, worker, or performance mutation authority. If the user's ChatGPT
-plan later permits write actions, they must ship as a separate, explicit
-capability profile or app release with its own authorization, threat model,
-tool discovery, auditing, and user consent.
+Git, Todo, workflow, source, worker, or performance mutation authority.
 
-That future profile may reuse the normalized read backend. It must not silently
-add mutation tools to this app, reinterpret `plan_preview` as authority, or
-bypass Codex, todo-orchestrator, Git, local-worker, CUDA, or resource ownership.
-No dormant write tools or hidden project-mutation switches exist in the current server.
+The **codex** profile already exposes one deliberately bounded mutation surface:
+the exact six canonical Todo workflow tools. Those tools do not turn Project
+Control into a second authority. They bind in-process to Todo Orchestrator's
+`WorkflowProtocol`, where all transactions, scheduling, claims, capabilities,
+completion, recovery, and SQLite semantics remain. They are never registered on
+the observer.
+
+Any future mutation beyond that workflow protocol must ship as a separate, explicit
+capability profile or app release with its own authorization, threat
+model, tool discovery, auditing, and user consent. It must not silently add
+mutation tools to the observer, reinterpret `plan_preview` as authority, or
+bypass Todo Orchestrator, Git, local-worker, CUDA, or resource ownership.
+No dormant write tools or hidden project-mutation switches exist in the observer.
 
 Project Control can emit an inert `ProposalEnvelope` containing intent, a
 structured proposed change, observation preconditions, a deterministic digest,
@@ -22,6 +28,7 @@ task/lane, context-fragment version/hash, and interface state/version/hash.
 Staleness is a rejection condition, not permission to guess or recover.
 
 No project mutation handler, placeholder endpoint, discoverable project-write
-tool, feature flag, or dormant application path exists in the query server.
+tool, feature flag, or dormant application path exists in the observer query
+server.
 `terminal_capture` cannot consume or apply a proposal envelope and does not
 alter these future-write preconditions.

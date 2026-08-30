@@ -1,15 +1,53 @@
 # Architecture
 
-`project-control` is an architectural observatory between ChatGPT
-and registered engineering workspaces. The server resolves a stable workspace
-ID through its owner-only local registry, gathers bounded facts through explicit
-read adapters, normalizes one project snapshot per request, and synthesizes a
-compact typed result.
+`project-control` is the only model-facing product for registered engineering
+workspaces. One package exposes two separately enforced MCP profiles. The
+observer profile is the existing ChatGPT architectural observatory. The Codex
+profile composes the canonical Todo workflow protocol with Project Control's
+rich reads.
 
-Authority remains external. Todo controls plans, claims, gates, checkpoints,
-interfaces, and decisions. Git and canonical source control source identity.
-The local-worker and CUDA systems control their own lifecycle and resources.
-Project-control never repairs or initializes those authorities.
+Workflow authority remains external to Project Control. Todo controls plans,
+claims, gates, checkpoints, interfaces, and decisions. Git and canonical source
+control source identity. The local-worker and CUDA systems control their own
+lifecycle and resources. Project Control never repairs or initializes those
+authorities.
+
+```text
+ChatGPT -> observer / Streamable HTTP -> 14 rich reads + terminal_capture
+                                      -> invocation allowlist
+
+Codex   -> codex / stdio -> 6 workflow tools -> canonical WorkflowProtocol
+                       \-> 14 rich reads
+                                      -> invocation allowlist
+
+Project Control -> verified in-process Todo runtime -> WorkflowKernel/read port
+                                                   -> one Todo SQLite authority
+```
+
+Profile selection comes only from trusted startup configuration, an explicit
+entry point, or a separately configured endpoint. Registration is
+profile-specific and dispatch applies a second server-side allowlist. Client
+`clientInfo`, user-agent strings, model identity claims, annotations, and tool
+arguments cannot select or broaden a profile. Hidden workflow invocation on the
+observer is rejected before Todo is reached; `terminal_capture` is absent from
+Codex discovery and dispatch.
+
+Project Control binds once to the canonical Todo Orchestrator distribution in a
+candidate environment containing both local packages. Runtime initialization
+verifies package and Skills-root identity, fails closed on missing, skewed,
+ambiguous, or rebound identities, and does not mutate `sys.path` at request
+time. `PROJECT_CONTROL_SKILLS_ROOT` is canonical;
+`CODING_WORKFLOW_SKILLS_ROOT` is a bounded compatibility alias. There is no MCP
+recursion, workflow MCP subprocess, copied kernel logic, or independent join of
+workflow tables.
+
+Project Control remains independently cloneable, testable, and released from
+its standalone repository. Only after a standalone release is validated may
+Skills add that existing repository at the relative submodule path
+`project-control` and pin the validated commit. The parent records a gitlink and
+`.gitmodules` entry; it never copies Project Control history into Skills. The
+standalone checkout remains available as a rollback point until a later,
+explicit cleanup campaign.
 
 The v2 query data path remains the compatibility authority:
 
@@ -99,7 +137,7 @@ committed content. `working_tree_fingerprint` is separately the SHA-256 of the
 filtered porcelain status content; for a clean worktree it is therefore the
 SHA-256 of empty content, not a fingerprint of the committed repository.
 
-The ChatGPT-facing server uses stateless Streamable HTTP with JSON responses.
+The observer server uses stateless Streamable HTTP with JSON responses.
 It binds to loopback and is exposed only through a trusted Secure MCP Tunnel.
 Configuration, cache, logs, and temporary plan files live under the app's own
 XDG directories. The derived context/index cache lives under
@@ -127,7 +165,7 @@ Older kernels degrade explicitly to `todo_workflow_semantic_unavailable`.
 Existing task/evidence observation remains available, workflow-only collections
 remain empty, and no fallback invents activity or performs recovery.
 
-## Read-only future-write seam
+## Read-only observer and Codex workflow boundary
 
 Every new high-level response carries `ObservationPreconditions`: workspace and
 project identity, todo and workflow revisions/fingerprints, repository commits,
@@ -136,9 +174,11 @@ fragments and interfaces, observation time, and provider skew. An inert
 `ProposalEnvelope` may bind a proposed change to those observations with a
 deterministic digest. It always states `authority_to_apply=false`.
 
-The authoritative query plane has no mutation handler, write-capability negotiation, dormant
-write flag, or hidden apply path. Any future write-capable profile is a separate
-application or explicit capability profile and must revalidate every
-precondition against live authorities before doing anything. App-private bonded
-terminal lifecycle is not a project write path and cannot apply proposal
-envelopes.
+The observer has no workflow mutation handler, write-capability negotiation,
+dormant write flag, or hidden apply path. The Codex profile's six workflow tools
+are not an observer write seam: they adapt directly to Todo's canonical protocol
+and all authorization, transactions, claims, capabilities, completion, and
+recovery remain in Todo. Any future mutation beyond that bounded workflow
+protocol requires a separately specified profile and must revalidate every
+precondition against live authorities. App-private bonded terminal lifecycle is
+not a project write path and cannot apply proposal envelopes.
