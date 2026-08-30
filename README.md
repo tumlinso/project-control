@@ -1,17 +1,26 @@
 # project-control
 
-`project-control` is a standalone architectural observatory that gives
-ChatGPT a compact live view of registered engineering workspaces. It synthesizes
-architecture, planning, coordination, evidence, source identity, and performance
-state while leaving project and workflow mutation with Codex and the existing
-coding skills. Its one execution aperture, `terminal_capture`, runs only a
-repository-contained executable in a fail-closed observation sandbox and returns
-the rendered PTY screen.
+`project-control` is the sole model-facing product for observing and coordinating
+registered engineering workspaces. It composes two separately enforced MCP
+profiles over one implementation:
 
-It is the observation plane for the unified workflow product:
-`coding-workflow` is the model-facing protocol and `todo-orchestrator` is its
-transactional kernel. Project-control consumes todo's additive normalized
-workflow read and never becomes a second orchestration authority.
+- **observer** is the existing loopback Streamable HTTP service for ChatGPT. It
+  retains the exact 15-tool surface and is permanently project-read-only.
+- **codex** is a stdio server registered as `project-control`. It exposes the
+  canonical six Todo workflow tools plus the fourteen rich Project Control read
+  tools. It does not expose `terminal_capture`.
+
+Todo Orchestrator remains the sole transactional workflow kernel and SQLite
+semantic authority. Project Control verifies and imports that canonical runtime
+in-process; it neither calls another MCP server nor copies scheduling, claim,
+capability, transaction, completion, or recovery logic. The old
+`coding-workflow` name is a temporary forwarding compatibility alias, not a
+second product, backend, or live registration.
+
+The observer's one execution aperture, `terminal_capture`, runs only a
+repository-contained executable in a fail-closed observation sandbox and
+returns the rendered PTY screen. Its mutable state is confined to an app-private
+PTY registry and grants no Todo, Git, repository, or workflow authority.
 
 Project Control v2 is the compatibility authority: it preserves the eight v1
 tools and makes six richer reads first-class. Project Control 0.3.1/tool schema
@@ -34,15 +43,33 @@ surface is exactly fifteen tools:
 - `program_context`
 - `terminal_capture`
 
-The service binds only to loopback and is intended to be connected to ChatGPT
-through OpenAI Secure MCP Tunnel. The fourteen query tools never accept arbitrary
-repository paths, run workers or benchmarks, claim tasks, edit registered
-projects, or mutate Git/todo state. `terminal_capture` accepts no shell or host
-path and gives the child a read-only repository, isolated HOME/tmp, and no
-network through bubblewrap. Bubblewrap is required; the capability fails closed
-when it is unavailable. `pyte` supplies the VT state machine.
+The observer service binds only to loopback and is intended to be connected to
+ChatGPT through OpenAI Secure MCP Tunnel. The fourteen query tools never accept
+arbitrary repository paths, run workers or benchmarks, claim tasks, edit
+registered projects, or mutate Git/todo state. `terminal_capture` accepts no
+shell or host path and gives the child a read-only repository, isolated
+HOME/tmp, and no network through bubblewrap. Bubblewrap is required; the
+capability fails closed when it is unavailable. `pyte` supplies the VT state
+machine.
 
 Local setup and connection instructions are in `docs/CHATGPT_SETUP.md`.
+Codex setup, compatibility, and cheap-first usage are in `docs/CODEX_SETUP.md`;
+repository guidance migration is in `docs/MIGRATION.md`.
+
+## Codex usage policy
+
+Normal Codex work starts with the bounded workflow protocol:
+
+1. `next_task` acquires or resumes the current first-class lane task.
+2. `inspect_task` retrieves bounded current-task context.
+3. `coordinate_task` handles typed synchronization, gates, interfaces,
+   rendezvous, and integration requests.
+
+`delegate_task`, `collect_delegation`, and `finish_task` complete that canonical
+six-tool protocol. The fourteen rich reads remain available as secondary
+escalation tools when current-task context is insufficient or source,
+architecture, history, impact, performance, or cross-project context is
+genuinely needed.
 
 ## Local development
 

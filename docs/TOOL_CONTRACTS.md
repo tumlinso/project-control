@@ -1,10 +1,25 @@
 # Tool contracts
 
-Tool schema version 3 exposes exactly fifteen tools and no resources, prompts,
-sampling, elicitation, UI, arbitrary file access, shell, or project write
-operations. Project Control v2 is the compatibility authority: its fourteen
-names, accepted calls, defaults, meanings, and input schemas are frozen. The
-original eight version-1 calls remain valid:
+Project Control exposes two exact profile-specific tool sets. Neither profile
+publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
+or a generic shell.
+
+The **observer** profile exposes exactly 15 tools over loopback Streamable HTTP:
+the fourteen rich reads described below plus `terminal_capture`. It registers no
+workflow mutation tool. The **codex** profile exposes exactly 20 tools over
+stdio: the same fourteen rich reads, excluding `terminal_capture`, plus the six
+canonical workflow tools `next_task`, `inspect_task`, `coordinate_task`,
+`delegate_task`, `collect_delegation`, and `finish_task`.
+
+Both registration and invocation are allowlisted. A name hidden from a profile
+cannot be invoked directly. Trusted startup configuration selects the profile;
+MCP `clientInfo`, user-agent, model claims, annotations, and model-supplied
+arguments do not.
+
+Tool schema version 3 remains the observer compatibility authority: its
+fourteen rich-read names, accepted calls, defaults, meanings, and input schemas
+are frozen, and `terminal_capture` is the additive fifteenth tool. The original
+eight version-1 calls remain valid:
 
 1. `project_overview` synthesizes the current program, work, blockers,
    architecture/validation/performance attention, material completion,
@@ -154,6 +169,26 @@ Because launch, retention, and termination change app-private runtime state,
 This does not grant project, Git, todo, workflow, worker, or performance mutation
 authority and does not weaken the fourteen query tools.
 
+## Codex workflow protocol
+
+The Codex profile preserves the exact existing names, accepted input schemas,
+bounded responses, annotations, statuses, and opaque capability handling of the
+canonical Todo `WorkflowProtocol`:
+
+1. `next_task` atomically resumes or claims the current first-class run lane.
+2. `inspect_task` returns bounded, scope-aware current-task context.
+3. `coordinate_task` performs role- and scope-validated typed coordination.
+4. `delegate_task` optionally starts one bounded subordinate local child.
+5. `collect_delegation` nonblockingly collects only the returned opaque handle.
+6. `finish_task` completes, hands off, blocks, or releases the parent task.
+
+The adapter contains no scheduler, claim, recovery, capability, transaction, or
+completion business logic. It calls the in-process canonical protocol, never an
+MCP client or MCP subprocess. Normal instructions are cheap-first: begin with
+`next_task`, use `inspect_task` and `coordinate_task`, and escalate to rich reads
+only when bounded task context cannot answer a source, architecture, history,
+impact, performance, or cross-project question.
+
 ## Component authority and provenance
 
 High-level responses expose an authority map whose members independently report
@@ -203,7 +238,8 @@ normal current-attention budgets.
 proposal in a registered project, and never implies that validation changed
 todo or Git state.
 
-The MCP transport is stateless Streamable HTTP with JSON responses at `/mcp`.
-The server publishes no MCP resources or prompts. Operational liveness,
+The observer transport is stateless Streamable HTTP with JSON responses at
+`/mcp`; the Codex transport is stdio. Neither server publishes MCP resources or
+prompts. Operational liveness,
 readiness, and immutable release identity are available outside the MCP tool
 surface at `/healthz`, `/readyz`, and `/version`.

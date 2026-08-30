@@ -1,15 +1,31 @@
 # Security
 
-Project-control's authoritative project/workflow/source query plane is a
-structural read-only boundary, not a prompt convention.
+Project Control enforces two capability profiles structurally, not by prompt
+convention. The observer's project/workflow/source query plane is permanently
+project-read-only. The Codex profile exposes only the six canonical Todo
+workflow tools and fourteen rich reads.
 It accepts registered workspace and repository aliases only. The local operator
 may add absolute paths through the admin CLI; MCP callers cannot provide roots,
 commands, URLs, credentials, or service endpoints.
 
-The server accepts only literal loopback hosts and exposes Streamable HTTP at
+The observer accepts only literal loopback hosts and exposes Streamable HTTP at
 `/mcp`. Remote access is through OpenAI Secure MCP Tunnel. There is no public
 listener, OAuth implementation, resource endpoint, prompt endpoint, sampling,
 elicitation, UI, generic file tool, arbitrary shell, or URL fetcher.
+
+Profile choice is trusted startup configuration, an explicit entry point, or a
+separately configured endpoint. Each server registers only its own tools and
+applies a second invocation allowlist. It never trusts `clientInfo`, user-agent,
+model identity, annotations, or a request argument to select a profile. Thus an
+observer request naming `next_task` is denied before Todo, and a Codex request
+naming `terminal_capture` is denied before PTY handling.
+
+The Codex workflow tools bind directly to one verified in-process Todo runtime.
+Project Control rejects missing, skewed, ambiguous, or rebound runtime identity.
+It does not call another MCP server, launch an MCP subprocess, join workflow
+tables, or hold a second capability or authority database. Opaque capability,
+claim, and approval material remains inside Todo and is never logged or emitted
+as ordinary Project Control evidence.
 
 Tool schema v3 adds one explicit non-idempotent observational execution
 capability, `terminal_capture`. It accepts only a contained executable and cwd

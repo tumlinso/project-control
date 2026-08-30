@@ -1,7 +1,7 @@
-# ChatGPT setup
+# ChatGPT observer setup
 
-The local server is complete before this connection procedure. Keep it bound to
-`127.0.0.1`; do not expose port 8767 publicly.
+This procedure connects only the Project Control **observer** profile. Keep it
+bound to `127.0.0.1`; do not expose port 8767 publicly.
 
 ## Local service
 
@@ -27,7 +27,9 @@ The local server is complete before this connection procedure. Keep it bound to
    ```
 
 The MCP endpoint is `http://127.0.0.1:8767/mcp` and uses stateless Streamable
-HTTP with JSON responses.
+HTTP with JSON responses. Trusted service startup selects the observer profile;
+client metadata cannot change it. The server registers no Todo workflow tool,
+and direct hidden-name invocation is denied before Todo is reached.
 
 ## OpenAI account connection gate
 
@@ -76,5 +78,6 @@ the same emulator/process. The default `kill_after_capture=true` cleans up the
 whole owned process group. Bonded sessions end when Project Control restarts and
 must then be launched again.
 
-Agent mode does not use custom apps. Deep research may use this app only for its
-read/fetch behavior.
+Codex does not use this custom app or tunnel; it uses the separately configured
+stdio profile described in `CODEX_SETUP.md`. Deep research may use this app only
+for its read/fetch behavior.
