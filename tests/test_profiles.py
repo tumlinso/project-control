@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import unittest
+from pathlib import Path
 
 from mcp.server.fastmcp.exceptions import ToolError
+
+# Managed workflow worktrees coexist with an editable installation of the main
+# checkout. Put this test's adjacent source tree first so the gate always tests
+# the immutable lane artifact rather than the integration destination.
+SOURCE_ROOT = Path(__file__).resolve().parents[1] / "src"
+sys.path.insert(0, str(SOURCE_ROOT))
+import project_control  # noqa: E402
+
+project_control.__path__.insert(0, str(SOURCE_ROOT / "project_control"))
 
 from project_control.profiles import (
     CODEX_RICH_READ_DESCRIPTION_PREFIX,
