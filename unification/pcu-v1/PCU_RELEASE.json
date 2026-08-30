@@ -2,8 +2,8 @@
   "schema_version": 1,
   "product_name": "project-control",
   "package_version": "0.3.1",
-  "source_parent_commit": "40697b26972322f6c0d85ec3a3b81343b0919417",
-  "source_tree_hash": "2423a243c0de4f9c96f2d2aa07ff0fc829cce6dc94c7d678728a553ae7937b3d",
+  "source_parent_commit": "934235d4f337fe88cb7b672a94f1e9949440fbcd",
+  "source_tree_hash": "8f6f8af7bc7234629cb0b97cdaec3410ccd8b587dc6e2ef36e48381147439189",
   "project_control_tool_schema_version": 3,
   "observer_tool_names": [
     "project_overview",
@@ -87,7 +87,7 @@
   "profile_contract_hash": "6d190adc74b1dd3cd8b9ec768fb2f0920523ebea051a452752854cc5da3556c9",
   "migration_contract_hash": "62d48c99f22fab9681a0227b1a8c700613448c97316fc512ab8a8cf06062b84b",
   "installer_contract_hash": "02a42b52aa3108cee16ee1a3a8d9d738753087553415c6d8391b40208f5b5608",
-  "test_evidence_digest": "03065aa350e0c84b1f32370b0c3eeffee43b95d28833676333fc371c449db073",
+  "test_evidence_digest": "ba3f44d72e058cb1f5efb2763e00ecaf96b946723b61cdb6f0e68f939608d45a",
   "supported_todo_schema_versions": [
     2
   ],
@@ -99,6 +99,6 @@
     "coding-workflow",
     "CODING_WORKFLOW_SKILLS_ROOT"
   ],
-  "created_at": "2026-08-30T15:26:44Z",
+  "created_at": "2026-08-30T17:06:01Z",
   "authority_to_install": false
 }
