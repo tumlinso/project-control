@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -95,6 +94,8 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--host")
     serve.add_argument("--port", type=int)
 
+    commands.add_parser("codex")
+
     migrate_repo = commands.add_parser("migrate-repository")
     migrate_repo.add_argument("--repo", type=Path, required=True)
     mode = migrate_repo.add_mutually_exclusive_group(required=True)
@@ -115,7 +116,6 @@ def _parser() -> argparse.ArgumentParser:
 def _serve_profile(profile: str, *, host: str | None, port: int | None) -> int:
     """Start only a profile chosen by trusted process startup arguments."""
 
-    os.environ["PROJECT_CONTROL_PROFILE"] = profile
     if profile == "observer":
         from .app import serve
 
@@ -218,6 +218,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0 if ok else 1
         if args.command == "serve":
             return _serve_profile(args.profile, host=args.host, port=args.port)
+        if args.command == "codex":
+            return _serve_profile("codex", host=None, port=None)
         if args.command == "migrate-repository":
             from .migration import migrate
 

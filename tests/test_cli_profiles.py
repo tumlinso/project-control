@@ -21,6 +21,11 @@ class ProfileCliTests(unittest.TestCase):
             self.assertEqual(main(["serve", "codex"]), 0)
             serve.assert_called_once_with("codex", host=None, port=None)
 
+    def test_top_level_codex_entry_point_uses_stdio_profile(self) -> None:
+        with patch("project_control.cli._serve_profile", return_value=0) as serve:
+            self.assertEqual(main(["codex"]), 0)
+            serve.assert_called_once_with("codex", host=None, port=None)
+
     def test_codex_rejects_network_options_before_importing_server(self) -> None:
         with self.assertRaisesRegex(ValueError, "stdio"):
             _serve_profile("codex", host="127.0.0.1", port=None)

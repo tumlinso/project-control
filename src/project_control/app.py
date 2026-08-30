@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Callable, Literal
 
-from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 from starlette.requests import Request
@@ -57,6 +56,9 @@ from .services.source_context import source_context as source_context_service
 from .snapshot import SnapshotBuilder, resolve_skills_root
 from .security import redact_output
 from .terminal import TerminalSessionRegistry
+from .profiles import MCPProfile, ProfiledFastMCP
+from .workflow_binding import workflow_protocol
+from .workflow_tools import WORKFLOW_INSTRUCTIONS, register_workflow_tools
 
 
 SERVER_INSTRUCTIONS = (
@@ -144,14 +146,23 @@ class Runtime:
             return self.failure(tool, project, ToolStatus.INTERNAL_ERROR, "bounded_read_failed")
 
 
-def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
+def create_mcp(
+    config: ProjectControlConfig | None = None,
+    *,
+    profile: MCPProfile | str = MCPProfile.OBSERVER,
+) -> ProfiledFastMCP:
     active_config = config or load_config()
     runtime = Runtime(active_config)
     server = active_config.server
+    selected_profile = MCPProfile(profile)
+    instructions = SERVER_INSTRUCTIONS
+    if selected_profile is MCPProfile.CODEX:
+        instructions = WORKFLOW_INSTRUCTIONS + " " + SERVER_INSTRUCTIONS
 
-    mcp = FastMCP(
+    mcp = ProfiledFastMCP(
         "project-control",
-        instructions=SERVER_INSTRUCTIONS,
+        profile=selected_profile,
+        instructions=instructions,
         host=server.host,
         port=server.port,
         streamable_http_path="/mcp",
@@ -387,6 +398,9 @@ def create_mcp(config: ProjectControlConfig | None = None) -> FastMCP:
     async def version(_: Request) -> JSONResponse:
         return JSONResponse({"name": "project-control", "version": "0.3.1", "tool_schema_version": 3})
 
+    if selected_profile is MCPProfile.CODEX:
+        register_workflow_tools(mcp, protocol_factory=workflow_protocol)
+
     setattr(mcp, "_project_control_runtime", runtime)
     return mcp
 
@@ -420,4 +434,11 @@ def serve(*, host: str | None = None, port: int | None = None) -> int:
     import uvicorn
 
     uvicorn.run(create_asgi_app(config), host=selected.host, port=selected.port, log_level="info")
+    return 0
+
+
+def serve_codex() -> int:
+    """Run the explicitly selected Codex profile over stdio."""
+
+    create_mcp(profile=MCPProfile.CODEX).run(transport="stdio")
     return 0
