@@ -4,6 +4,7 @@
     "name": "Project Control PCU-V1 Read Port Remediation"
   },
   "invariants": [
+    {"id": "PCU-PC-HISTORY", "severity": "error", "rule": "Existing Git and todo history is immutable except through new ordinary forward commits and ordinary todo events."},
     {"id": "PCU-PC-ONE-AUTHORITY", "severity": "error", "rule": "Todo Orchestrator SQLite and WorkflowKernel are the sole workflow mutation authority."},
     {"id": "PCU-PC-NO-MCP-RECURSION", "severity": "error", "rule": "No Project Control component may invoke another MCP server to implement a Project Control tool."},
     {"id": "PCU-PC-OBSERVER-READONLY", "severity": "error", "rule": "The observer profile exposes no workflow mutation tool and cannot dispatch one by name."},
@@ -91,6 +92,76 @@
           "required": true
         }
       ]
+    },
+    {
+      "id": "PCU-PC-41",
+      "kind": "task",
+      "tags": [
+        "release_task",
+        "validation_resolution"
+      ],
+      "title": "Refresh the standalone release manifest for the read-port remediation",
+      "objective": "Validate the completed PCU-PC-40 source tree, refresh the PCU release manifest and bounded release evidence without self-referential commit metadata, and commit an ordinary forward standalone release for Skills to pin.",
+      "priority": 490,
+      "parallel_policy": "integration_exclusive",
+      "depends_on": [
+        {"type": "task", "task_id": "PCU-PC-40"}
+      ],
+      "scope": {
+        "exclusive_paths": [
+          "unification/pcu-v1/PCU_RELEASE.json",
+          "unification/pcu-v1/evidence/release"
+        ],
+        "read_paths": [
+          "src/project_control",
+          "tests",
+          "pyproject.toml",
+          "unification/pcu-v1/contracts/release-manifest.schema.json",
+          "pcu-v1-read-port-remediation.plan.json"
+        ]
+      },
+      "invariants": [
+        "PCU-PC-HISTORY",
+        "PCU-PC-ONE-AUTHORITY",
+        "PCU-PC-RUNTIME-IDENTITY",
+        "PCU-PC-DOWNSTREAM-ISOLATION"
+      ],
+      "gates": [
+        {
+          "id": "PCU-PC-41-MANIFEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-c",
+            "from pathlib import Path; import json,subprocess; p=Path('unification/pcu-v1/PCU_RELEASE.json'); d=json.loads(p.read_text()); assert d['authority_to_install'] is False; assert d['product_name']=='project-control'; assert len(d['observer_tool_names'])==15 and len(d['codex_tool_names'])==20; assert d['source_parent_commit']==subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip(); assert Path('unification/pcu-v1/evidence/release/read-port-remediation.json').is_file()"
+          ],
+          "required": true
+        },
+        {
+          "id": "PCU-PC-41-SUITE",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-v"
+          ],
+          "env": {
+            "PROJECT_CONTROL_SKILLS_ROOT": "",
+            "CODING_WORKFLOW_SKILLS_ROOT": ""
+          },
+          "required": true
+        },
+        {
+          "id": "PCU-PC-41-DIFF",
+          "type": "command",
+          "argv": ["git", "diff", "--check"],
+          "required": true
+        }
+      ]
     }
   ],
   "runs": [
@@ -125,6 +196,17 @@
           "role": "implementer",
           "tasks": [
             "PCU-PC-40"
+          ],
+          "workspace": {
+            "mode": "exclusive"
+          }
+        },
+        {
+          "id": "PCU-PC-READ-PORT-RELEASE-LANE",
+          "parent_lane_id": "PCU-PC-READ-PORT-REMEDIATION-LANE",
+          "role": "integrator",
+          "tasks": [
+            "PCU-PC-41"
           ],
           "workspace": {
             "mode": "exclusive"
