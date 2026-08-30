@@ -11,14 +11,17 @@ import time
 import unittest
 import urllib.request
 from pathlib import Path
+from unittest.mock import ANY, patch
 
 import uvicorn
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.server.fastmcp.exceptions import ToolError
 from starlette.testclient import TestClient
 
-from project_control.app import READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp
+from project_control.app import READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp, serve_codex
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from project_control.profiles import CODEX_RICH_READ_DESCRIPTION_PREFIX, CODEX_TOOL_NAMES
 
 
 EXPECTED = {
@@ -114,6 +117,26 @@ class MCPServerTests(unittest.TestCase):
         self.assertIn("worktree", schemas["inspect"]["properties"]["kind"]["enum"])
         self.assertEqual(schemas["inspect"]["properties"]["budget_tokens"]["maximum"], 32768)
         self.assertEqual(schemas["source_context"]["properties"]["targets"]["maxItems"], 32)
+
+    def test_codex_composes_exact_six_and_fourteen_rich_reads(self) -> None:
+        mcp = create_mcp(self.config, profile="codex")
+        tools = asyncio.run(mcp.list_tools())
+        self.assertEqual(set(CODEX_TOOL_NAMES), {tool.name for tool in tools})
+        self.assertNotIn("terminal_capture", {tool.name for tool in tools})
+        descriptions = {tool.name: tool.description for tool in tools}
+        for name in EXPECTED - {"terminal_capture"}:
+            self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
+
+    def test_observer_rejects_hidden_workflow_invocation_before_binding(self) -> None:
+        mcp = create_mcp(self.config)
+        with self.assertRaisesRegex(ToolError, "unavailable in the observer profile"):
+            asyncio.run(mcp.call_tool("next_task", {"repo_root": str(self.root)}))
+
+    def test_codex_server_uses_stdio_transport(self) -> None:
+        with patch("project_control.app.create_mcp") as create:
+            self.assertEqual(serve_codex(), 0)
+        create.assert_called_once_with(profile=ANY)
+        create.return_value.run.assert_called_once_with(transport="stdio")
 
     def test_health_ready_version_and_nonloopback_refusal(self) -> None:
         with TestClient(create_asgi_app(self.config)) as client:
