@@ -2,8 +2,8 @@
   "schema_version": 1,
   "product_name": "project-control",
   "package_version": "0.3.1",
-  "source_parent_commit": "12cce58ba960297d49083f74c41b54de978a029c",
-  "source_tree_hash": "ae09c6b3b2311cf70d5624299b22b2138a26b7f84e20f14fd23f5a3f37032ff6",
+  "source_parent_commit": "40697b26972322f6c0d85ec3a3b81343b0919417",
+  "source_tree_hash": "2423a243c0de4f9c96f2d2aa07ff0fc829cce6dc94c7d678728a553ae7937b3d",
   "project_control_tool_schema_version": 3,
   "observer_tool_names": [
     "project_overview",
@@ -99,6 +99,6 @@
     "coding-workflow",
     "CODING_WORKFLOW_SKILLS_ROOT"
   ],
-  "created_at": "2026-08-30T15:11:36Z",
+  "created_at": "2026-08-30T15:26:44Z",
   "authority_to_install": false
 }
