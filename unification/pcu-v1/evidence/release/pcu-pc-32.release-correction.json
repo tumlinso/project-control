@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "task_id": "PCU-PC-32",
+  "observed_at": "2026-08-30T15:11:36Z",
+  "release_commit_self_reference": false,
+  "source_parent_commit": "12cce58ba960297d49083f74c41b54de978a029c",
+  "source_parent_git_tree": "c930b275f0c13ce7d63df939a964333134870e4f",
+  "source_tree_hash": "ae09c6b3b2311cf70d5624299b22b2138a26b7f84e20f14fd23f5a3f37032ff6",
+  "source_tree_hash_algorithm": "sha256 of exact newline-delimited git ls-tree -r --full-tree output for source_parent_commit",
+  "manifest_path": "unification/pcu-v1/PCU_RELEASE.json",
+  "schema_path": "unification/pcu-v1/contracts/release-manifest.schema.json",
+  "schema_sha256": "cf98791317226138a7a86bc54c8c63338e4a031a5002c61b9c5772c80e27c247",
+  "schema_validation": "passed",
+  "contract_hashes": {
+    "todo_kernel_contract_hash": "51ca97ca0cf3db2b80637d6505be9d5578c6508b98b2902cf760bc2b2b998c32",
+    "profile_contract_hash": "6d190adc74b1dd3cd8b9ec768fb2f0920523ebea051a452752854cc5da3556c9",
+    "migration_contract_hash": "62d48c99f22fab9681a0227b1a8c700613448c97316fc512ab8a8cf06062b84b",
+    "installer_contract_hash": "02a42b52aa3108cee16ee1a3a8d9d738753087553415c6d8391b40208f5b5608"
+  },
+  "test_evidence_digest": "03065aa350e0c84b1f32370b0c3eeffee43b95d28833676333fc371c449db073",
+  "tests_run": 197,
+  "tests_result": "passed",
+  "test_command": "PYTHONPATH=src:[CANDIDATE_TODO_PACKAGE] .venv/bin/python -m unittest discover -s tests -v",
+  "git_diff_check": "passed",
+  "tool_contracts": {
+    "project_control_tool_schema_version": 3,
+    "observer_tool_count": 15,
+    "codex_tool_count": 20,
+    "observer_names_exact": true,
+    "codex_names_exact": true,
+    "observer_schema_hashes_exact": true,
+    "codex_schema_hashes_exact": true
+  },
+  "authority_to_install": false,
+  "live_runtime_changed": false,
+  "live_runtime": {
+    "project_control_service_unit_sha256": "ab4a5c371803698fdcbcf0e32282df481c6dc86478212d5a219d72adedcd6fd5",
+    "codex_registration_names": [
+      "coding-workflow"
+    ],
+    "project_control_codex_registered": false
+  },
+  "safety": {
+    "service_restarted": false,
+    "registration_changed": false,
+    "venv_changed": false,
+    "tunnel_changed": false,
+    "skills_repository_changed_by_this_task": false,
+    "c4q_changed_by_this_task": false,
+    "downstream_repository_changed_by_this_task": false,
+    "credentials_or_capability_handles_recorded": false
+  }
+}
