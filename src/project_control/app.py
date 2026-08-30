@@ -70,8 +70,15 @@ SERVER_INSTRUCTIONS = (
     "anchored records. The fourteen project query tools never claim tasks, mark messages read, advance cursors, "
     "edit files, run workers or benchmarks, reserve resources, or mutate Git/todo state. terminal_capture is the one "
     "bounded, sandboxed PTY observation capability; it has no shell or project mutation authority. Cross-project observations "
-    "are independent, and program membership is not architectural authority. Send any proposed mutation to Codex "
-    "through coding-workflow; proposal envelopes are inert and confer no authority."
+    "are independent, and program membership is not architectural authority. Proposal envelopes are inert and "
+    "confer no authority."
+)
+
+CODEX_INSTRUCTIONS = (
+    WORKFLOW_INSTRUCTIONS
+    + " "
+    + SERVER_INSTRUCTIONS
+    + " Use the workflow tools exposed by the current Project Control Codex profile for mutations."
 )
 
 READ_ONLY = ToolAnnotations(
@@ -172,9 +179,7 @@ def create_mcp(
     runtime = Runtime(active_config)
     server = active_config.server
     selected_profile = MCPProfile(profile)
-    instructions = SERVER_INSTRUCTIONS
-    if selected_profile is MCPProfile.CODEX:
-        instructions = WORKFLOW_INSTRUCTIONS + " " + SERVER_INSTRUCTIONS
+    instructions = CODEX_INSTRUCTIONS if selected_profile is MCPProfile.CODEX else SERVER_INSTRUCTIONS
 
     mcp = ProfiledFastMCP(
         "project-control",

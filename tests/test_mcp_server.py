@@ -19,7 +19,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp.exceptions import ToolError
 from starlette.testclient import TestClient
 
-from project_control.app import READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp, serve_codex
+from project_control.app import CODEX_INSTRUCTIONS, READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp, serve_codex
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.profiles import CODEX_RICH_READ_DESCRIPTION_PREFIX, CODEX_TOOL_NAMES
 
@@ -123,6 +123,8 @@ class MCPServerTests(unittest.TestCase):
         tools = asyncio.run(mcp.list_tools())
         self.assertEqual(set(CODEX_TOOL_NAMES), {tool.name for tool in tools})
         self.assertNotIn("terminal_capture", {tool.name for tool in tools})
+        self.assertNotIn("coding-workflow", CODEX_INSTRUCTIONS)
+        self.assertIn("workflow tools exposed by the current Project Control Codex profile", CODEX_INSTRUCTIONS)
         descriptions = {tool.name: tool.description for tool in tools}
         for name in EXPECTED - {"terminal_capture"}:
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
