@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "campaign_id": "PCU-V1",
+  "product_name": "project-control",
+  "mission": "Unify Coding Workflow into Project Control without destroying history or creating a second workflow authority.",
+  "authority": {
+    "transactional_kernel": "todo-orchestrator",
+    "semantic_database": "todo-orchestrator-sqlite",
+    "model_facing_product": "project-control",
+    "mcp_recursion": false,
+    "copied_workflow_logic": false
+  },
+  "profiles": {
+    "observer": {
+      "transport": "streamable-http",
+      "tool_count": 15,
+      "workflow_mutation_tools": [],
+      "tools": ["project_overview", "project_delta", "project_frontier", "inspect", "evidence", "plan_preview", "agent_status", "performance_status", "architecture_context", "coordination_view", "source_context", "history_trace", "impact_preview", "program_context", "terminal_capture"]
+    },
+    "codex": {
+      "transport": "stdio",
+      "registration_name": "project-control",
+      "tool_count": 20,
+      "workflow_tools": ["next_task", "inspect_task", "coordinate_task", "delegate_task", "collect_delegation", "finish_task"],
+      "rich_read_tools": ["project_overview", "project_delta", "project_frontier", "inspect", "evidence", "plan_preview", "agent_status", "performance_status", "architecture_context", "coordination_view", "source_context", "history_trace", "impact_preview", "program_context"]
+    }
+  },
+  "runtime": {
+    "binding": "verified-in-process",
+    "canonical_root_variable": "PROJECT_CONTROL_SKILLS_ROOT",
+    "compatibility_root_variable": "CODING_WORKFLOW_SKILLS_ROOT",
+    "runtime_rebinding": false,
+    "normal_read_provider": "todo-read-port",
+    "temporary_observer_fallback": "fail-closed-subprocess-read-adapter"
+  },
+  "compatibility": {
+    "canonical_owner_system": "project-control",
+    "accepted_historical_owner_systems": ["project-control", "coding-workflow"],
+    "compatibility_alias": "coding-workflow",
+    "second_live_registration": false
+  },
+  "installation": {
+    "mode": "candidate-then-atomic-swap",
+    "live_change_during_bootstrap": false,
+    "automatic_rollback": true
+  },
+  "submodule": {
+    "parent": "skills",
+    "path": "project-control",
+    "history_mode": "gitlink-to-existing-project-control-history",
+    "add_during_bootstrap": false
+  },
+  "downstream_migration": {
+    "default": "dry-run",
+    "idempotent": true,
+    "reversible": true,
+    "real_repositories_in_pcu_v1": false,
+    "cellerator_policy": "read-only-sentinel; rehearsal-only-in-independent-clone"
+  },
+  "history_policy": "ordinary-forward-commits-and-events-only",
+  "secrets_policy": "no-credentials-tunnel-secrets-capabilities-or-approval-tokens-in-artifacts"
+}

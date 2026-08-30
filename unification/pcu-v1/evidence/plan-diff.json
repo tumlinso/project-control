@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "plan": "pcu-v1.project-control.plan.json",
+  "validated": true,
+  "semantic_review": "accepted",
+  "task_diff": {"add": ["PCU-PC-00","PCU-PC-01","PCU-PC-10","PCU-PC-11","PCU-PC-12","PCU-PC-13","PCU-PC-14","PCU-PC-15","PCU-PC-16","PCU-PC-20","PCU-PC-30","PCU-PC-31"], "update": [], "omitted_existing_entities_are_untouched": true},
+  "added": {"run":["PCU-PC-RUN-V1"],"lanes":["PCU-PC-FOUNDATION-LANE","PCU-PC-PROFILE-LANE","PCU-PC-BINDING-LANE","PCU-PC-READ-LANE","PCU-PC-WORKFLOW-LANE","PCU-PC-ADMIN-LANE","PCU-PC-DEPLOY-LANE","PCU-PC-DOCS-LANE","PCU-PC-INTEGRATION-LANE","PCU-PC-VALIDATION-LANE","PCU-PC-RELEASE-LANE"],"barriers":["PCU-PC-CORE-BARRIER"],"rendezvous":["PCU-PC-CORE-RENDEZVOUS"],"interfaces":["PCU-PROFILES/1","PCU-KERNEL-BINDING/1","PCU-INSTALL-CUTOVER/1","PCU-DOWNSTREAM-MIGRATION/1","PCU-RELEASE-MANIFEST/1"],"decisions":["PCU-PRODUCT-NAME","PCU-OBSERVER-TRANSPORT","PCU-CODEX-TRANSPORT","PCU-CODEX-RICH-READ-POLICY","PCU-KERNEL-LOCATION","PCU-COMPATIBILITY-WINDOW","PCU-SUBMODULE-PATH","PCU-CUTOVER-MODE"],"invariant_count":12,"checkpoint":["PCU-PC-CONTRACTS-FROZEN"],"gate_count":11},
+  "proof": {"all_added_ids_pcu_prefixed": true, "existing_tasks_updated": [], "existing_interfaces_updated": [], "existing_runs_or_lanes_updated": [], "project_uuid_change": false, "historical_projection_deletion": false, "c4q_change": false}
+}

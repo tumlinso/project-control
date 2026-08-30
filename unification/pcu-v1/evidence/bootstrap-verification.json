@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "plan_sha256": "322bdc945e1b4d6deab5c7af3bb700db264ab62dce5625c48b77e4693ed405f0",
+  "plan_validation": {"valid":true,"tasks":12,"checkpoints":1,"gates":11,"barriers":1,"interfaces":5},
+  "apply": {"revision_before":143,"revision_after":144,"project_uuid_before":"76dc6bf0-1223-4dda-bf8b-c306fb7721a7","project_uuid_after":"76dc6bf0-1223-4dda-bf8b-c306fb7721a7","tasks_added":12,"tasks_updated":0},
+  "semantic_after": {"workflow_fingerprint":"500f4098b515be9749e3b60cc1cbf66ad8de4023e49b97f6c2b2bb1e8508940f","run":"PCU-PC-RUN-V1","lane_count":11,"ready_core_tasks":["PCU-PC-10","PCU-PC-11","PCU-PC-12","PCU-PC-13","PCU-PC-14","PCU-PC-15","PCU-PC-16"],"blocked_downstream_tasks":["PCU-PC-20","PCU-PC-30","PCU-PC-31"],"active_claims":0,"active_dispatches":0,"first_class_agents":0,"local_children":0,"integration_queue":0},
+  "preservation": {"non_pcu_tasks_updated":0,"non_pcu_interfaces_updated":0,"historical_tasks_removed":0,"implementation_worktrees_created":0,"workers_launched":0,"live_runtime_changed":false,"submodule_added":false},
+  "cellerator_after": {"head":"12a495f3dc3e3376728b160121086408be5f30f5","working_tree_fingerprint":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","project_uuid":"0ccaac37-dbbf-448e-a5f8-def197a70aba","revision":3016,"authority_fingerprint":"c15eb156aec331173cbb553948cccca8c99830acd1deafa64e532672b3c0cda5","first_class_agents":0,"claims":0,"dispatches":0,"local_children":0,"integration_queue":0,"unchanged":true},
+  "planner_limitations": {"foundation_queue_completed":true,"foundation_lane_persisted_state":"ready","explanation":"Schema-v3 additive plan application marks terminal queue items completed but exposes no supported declarative lane-close field; no claiming or administrative mutation was used.","new_audit_notices":["code_inspection_required:PCU-PC-00","code_inspection_required:PCU-PC-01"],"explanation_audit":"The live audit requires structured execution evidence for every terminal non-epic task, while bootstrap was forbidden to claim work or execute gates. These are inspection notices, not projection, authority, interface, or gate-integrity discrepancies."}
+}
