@@ -231,4 +231,3 @@ def candidate_manifest_digest(candidate: Path) -> str:
     if not manifest.is_file():
         raise InstallError("candidate identity manifest is missing")
     return _sha256_file(manifest)
-
