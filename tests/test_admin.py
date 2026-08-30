@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+import io
+import json
+import unittest
+from unittest.mock import patch
+
+from project_control import admin
+
+
+class AdminCliTests(unittest.TestCase):
+    def test_inspect_only_forwards_without_recovery(self) -> None:
+        with patch.object(admin, "inspect_recovery", return_value={"status": "safe"}) as inspect, \
+             patch.object(admin, "recover") as recover, patch("sys.stdout", new_callable=io.StringIO) as output:
+            result = admin.main(["recover", "--repo", "/repo", "--task", "T-1", "--reason", "owner", "--inspect-only"])
+        self.assertEqual(result, 0)
+        inspect.assert_called_once_with("/repo", "T-1")
+        recover.assert_not_called()
+        self.assertEqual(json.loads(output.getvalue()), {"status": "safe"})
+
+    def test_recovery_forwards_explicit_owner_reason(self) -> None:
+        with patch.object(admin, "recover") as recover:
+            result = admin.main(["recover", "--repo", "/repo", "--reason", "owner approved"])
+        self.assertEqual(result, 0)
+        recover.assert_called_once_with("/repo", reason="owner approved", task_id=None)
+
+
+if __name__ == "__main__":
+    unittest.main()

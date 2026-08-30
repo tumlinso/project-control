@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
 
 from .config import apply_config_migration, config_path, config_summary, init_config, load_config, migrate_config_dry_run, save_config
+from .migration import MigrationError
 from .registry import RegistryError, WorkspaceRegistry
 from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
 from .terminal import BubblewrapSandbox
@@ -89,9 +91,40 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--tunnel", action="store_true")
 
     serve = commands.add_parser("serve")
+    serve.add_argument("profile", nargs="?", choices=("observer", "codex"), default="observer")
     serve.add_argument("--host")
     serve.add_argument("--port", type=int)
+
+    migrate_repo = commands.add_parser("migrate-repository")
+    migrate_repo.add_argument("--repo", type=Path, required=True)
+    mode = migrate_repo.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--apply", action="store_true")
+    mode.add_argument("--remove", action="store_true")
+
+    admin = commands.add_parser("admin")
+    admin_commands = admin.add_subparsers(dest="admin_command", required=True)
+    recover = admin_commands.add_parser("recover")
+    recover.add_argument("--repo", required=True)
+    recover.add_argument("--task")
+    recover.add_argument("--reason", required=True)
+    recover.add_argument("--inspect-only", action="store_true")
     return parser
+
+
+def _serve_profile(profile: str, *, host: str | None, port: int | None) -> int:
+    """Start only a profile chosen by trusted process startup arguments."""
+
+    os.environ["PROJECT_CONTROL_PROFILE"] = profile
+    if profile == "observer":
+        from .app import serve
+
+        return serve(host=host, port=port)
+    if host is not None or port is not None:
+        raise ValueError("Codex stdio profile does not accept --host or --port")
+    from .app import serve_codex
+
+    return serve_codex()
 
 
 def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
@@ -184,10 +217,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result, sort_keys=True) if args.as_json else result)
             return 0 if ok else 1
         if args.command == "serve":
-            from .app import serve
+            return _serve_profile(args.profile, host=args.host, port=args.port)
+        if args.command == "migrate-repository":
+            from .migration import migrate
 
-            return serve(host=args.host, port=args.port)
-    except (FileNotFoundError, PermissionError, RegistryError, ValueError) as exc:
+            result = migrate(args.repo, apply=args.apply or args.remove, remove=args.remove)
+            print(json.dumps(result, sort_keys=True))
+            return 0
+        if args.command == "admin":
+            from .admin import inspect_recovery, recover
+
+            if args.inspect_only:
+                print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
+            else:
+                recover(args.repo, reason=args.reason, task_id=args.task)
+            return 0
+    except (FileNotFoundError, PermissionError, RegistryError, MigrationError, ValueError) as exc:
         print(f"project-control: {exc}", file=sys.stderr)
         return 2
     return 2

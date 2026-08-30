@@ -5,8 +5,9 @@ import hashlib
 import os
 import stat
 import tomllib
+import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -25,6 +26,9 @@ DEFAULT_DENY_PATTERNS = (
     "**/node_modules/**",
     "**/__pycache__/**",
 )
+
+CANONICAL_SKILLS_ROOT_ENV = "PROJECT_CONTROL_SKILLS_ROOT"
+LEGACY_SKILLS_ROOT_ENV = "CODING_WORKFLOW_SKILLS_ROOT"
 
 
 class RepositoryConfig(BaseModel):
@@ -131,6 +135,31 @@ class ProjectControlConfig(BaseModel):
 def config_path() -> Path:
     base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     return base / "project-control" / "config.toml"
+
+
+def configured_skills_root(
+    config: ProjectControlConfig,
+    environment: Mapping[str, str] = os.environ,
+) -> Path | None:
+    """Resolve the explicit Skills root with a bounded legacy alias.
+
+    This is configuration parsing only; runtime identity verification is owned
+    by ``workflow_binding``.  The canonical variable always wins and the
+    compatibility alias is never copied into persistent configuration.
+    """
+
+    canonical = environment.get(CANONICAL_SKILLS_ROOT_ENV)
+    legacy = environment.get(LEGACY_SKILLS_ROOT_ENV)
+    if canonical:
+        return Path(canonical).expanduser().resolve()
+    if legacy:
+        warnings.warn(
+            f"{LEGACY_SKILLS_ROOT_ENV} is deprecated; use {CANONICAL_SKILLS_ROOT_ENV}",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return Path(legacy).expanduser().resolve()
+    return config.skills_root
 
 
 def ensure_private_directory(path: Path) -> None:
