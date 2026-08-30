@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "task_id": "PCU-PC-31",
+  "observed_at": "2026-08-30T14:30:52Z",
+  "source": {
+    "integration_candidate_commit": "e687ca837d2a0db66e738a47dbdb83e9d6d62b5d",
+    "integration_candidate_tree": "86b18905cea9f0d447d5871fcada9f6e31c3c288",
+    "source_parent_commit": "3ad1a8bd4e1837fb98802b2bbf9cf4fb3c9b9dbb",
+    "source_parent_git_tree": "58252cb2b6d2ee9749295809edffab5963a7ccf5",
+    "source_tree_hash": "22381c2ac3ab4f5f4a8f2c63b44a3e0d588690c26f633f06e4206bd2c55d6240",
+    "source_tree_hash_algorithm": "sha256 of exact git ls-tree -r --full-tree output for source_parent_commit",
+    "history_mode": "ordinary forward commits with a no-ff candidate merge",
+    "release_commit_self_reference": false
+  },
+  "manifest": {
+    "path": "unification/pcu-v1/PCU_RELEASE.json",
+    "schema_path": "unification/pcu-v1/contracts/release-manifest.schema.json",
+    "schema_sha256": "cf98791317226138a7a86bc54c8c63338e4a031a5002c61b9c5772c80e27c247",
+    "schema_validation": "passed",
+    "source_tree_hash_validation": "passed",
+    "contract_hash_validation": "passed",
+    "test_evidence_digest_validation": "passed",
+    "authority_to_install": false
+  },
+  "tests": {
+    "command": "PYTHONPATH=src:[CANDIDATE_TODO_PACKAGE] python -m unittest discover -s tests",
+    "result": "passed",
+    "tests_run": 197,
+    "duration_seconds": 45.977,
+    "validated_candidate_evidence": "unification/pcu-v1/evidence/pcu-pc-30.validation.json",
+    "validated_candidate_evidence_sha256": "03065aa350e0c84b1f32370b0c3eeffee43b95d28833676333fc371c449db073",
+    "git_diff_check": "passed"
+  },
+  "tool_contracts": {
+    "tool_schema_version": 3,
+    "observer_tool_count": 15,
+    "codex_tool_count": 20,
+    "observer_schema_hashes_match_validated_candidate": true,
+    "codex_schema_hashes_match_validated_candidate": true
+  },
+  "live_runtime": {
+    "project_control_service_active": true,
+    "project_control_service_substate": "running",
+    "project_control_service_unit_sha256": "ab4a5c371803698fdcbcf0e32282df481c6dc86478212d5a219d72adedcd6fd5",
+    "project_control_service_executable": "[PRE_PCU_PROJECT_CONTROL_VENV]/bin/project-control",
+    "codex_registration_names": [
+      "coding-workflow"
+    ],
+    "coding_workflow_transport": "stdio",
+    "coding_workflow_executable": "[CODING_WORKFLOW_VENV]/bin/python",
+    "coding_workflow_module": "coding_workflow_mcp",
+    "coding_workflow_environment_keys": [
+      "CODING_WORKFLOW_SKILLS_ROOT"
+    ],
+    "project_control_codex_registered": false,
+    "changed": false
+  },
+  "safety": {
+    "service_restarted": false,
+    "registration_changed": false,
+    "venv_changed": false,
+    "tunnel_changed": false,
+    "skills_repository_changed_by_this_task": false,
+    "downstream_repository_changed_by_this_task": false,
+    "credentials_or_capability_handles_recorded": false
+  },
+  "gate": {
+    "release_validation": "passed",
+    "manual_gate_accepted": false,
+    "recommended_command_gate": "Validate PCU_RELEASE.json against the frozen schema; recompute the source tree hash from source_parent_commit; verify all contract and evidence digests; enumerate exact 15/20 tool schemas; run 197 tests; run git diff --check; assert the live service unit hash and sole coding-workflow registration remain unchanged."
+  }
+}
