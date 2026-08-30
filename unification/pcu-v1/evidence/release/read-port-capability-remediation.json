@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "task_id": "PCU-PC-42",
+  "observed_at": "2026-08-30T17:21:21Z",
+  "source": {
+    "source_parent_commit": "7a4a3448f16950fa1a912fc8470fb5158bb8380a",
+    "source_parent_git_tree": "88c6697dfe4681cf3fe6c196db16574e9a937ecf",
+    "source_tree_hash": "56b562ae8c10987487b99cbfef2b11b6b070c1426ef71d91f89087b4c02fd2f4",
+    "source_tree_hash_algorithm": "sha256 of exact newline-terminated git ls-tree -r --full-tree output for source_parent_commit",
+    "release_commit_self_reference": false
+  },
+  "remediation": {
+    "canonical_read_port_capabilities": [
+      "semantic.state",
+      "semantic.anchor",
+      "semantic.delta",
+      "semantic.workflow",
+      "export"
+    ],
+    "subprocess_probe_labels": [
+      "semantic_state",
+      "semantic_anchor",
+      "semantic_delta",
+      "semantic_workflow",
+      "export"
+    ],
+    "capability_sets_validated_separately": true,
+    "port_schema_validation_fail_closed": true,
+    "subprocess_fallback_compatible": true,
+    "adapter_invocation_names_unchanged": true,
+    "frozen_contracts_changed": false
+  },
+  "tests": {
+    "focused_command": "env -u PROJECT_CONTROL_SKILLS_ROOT -u CODING_WORKFLOW_SKILLS_ROOT PYTHONPATH=src .venv/bin/python -m unittest tests.test_todo_authority -v",
+    "focused_result": "passed",
+    "focused_tests_run": 8,
+    "full_command": "env -u PROJECT_CONTROL_SKILLS_ROOT -u CODING_WORKFLOW_SKILLS_ROOT PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v",
+    "full_result": "passed",
+    "full_tests_run": 203,
+    "full_duration_seconds": 43.642,
+    "git_diff_check": "passed"
+  },
+  "tool_contracts": {
+    "project_control_tool_schema_version": 3,
+    "observer_tool_count": 15,
+    "codex_tool_count": 20,
+    "observer_names_exact": true,
+    "codex_names_exact": true,
+    "observer_schema_hashes_unchanged": true,
+    "codex_schema_hashes_unchanged": true,
+    "terminal_capture_observer_only": true
+  },
+  "contracts": {
+    "release_manifest_schema_sha256": "cf98791317226138a7a86bc54c8c63338e4a031a5002c61b9c5772c80e27c247",
+    "todo_kernel_contract_sha256": "51ca97ca0cf3db2b80637d6505be9d5578c6508b98b2902cf760bc2b2b998c32",
+    "profile_contract_sha256": "6d190adc74b1dd3cd8b9ec768fb2f0920523ebea051a452752854cc5da3556c9",
+    "migration_contract_sha256": "62d48c99f22fab9681a0227b1a8c700613448c97316fc512ab8a8cf06062b84b",
+    "installer_contract_sha256": "02a42b52aa3108cee16ee1a3a8d9d738753087553415c6d8391b40208f5b5608"
+  },
+  "authority_to_install": false,
+  "safety": {
+    "service_restarted": false,
+    "registration_changed": false,
+    "venv_changed": false,
+    "tunnel_changed": false,
+    "skills_repository_changed_by_this_task": false,
+    "downstream_repository_changed_by_this_task": false,
+    "credentials_or_capability_handles_recorded": false
+  }
+}
