@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from project_control.adapters.todo import TodoReadAdapter
+from project_control.app import Runtime
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.snapshot import SnapshotBuilder
 from project_control.todo_authority import (
@@ -18,9 +19,16 @@ from project_control.todo_authority import (
 
 
 class FakeReadPort:
-    def __init__(self, skills_root: Path, *, contract: str = TODO_READ_PORT_CONTRACT):
+    def __init__(
+        self,
+        skills_root: Path,
+        *,
+        contract: str = TODO_READ_PORT_CONTRACT,
+        large_export_bytes: int = 0,
+    ):
         self.skills_root = skills_root
         self.contract = contract
+        self.large_export_bytes = large_export_bytes
         self.calls: list[tuple[str, Path, tuple[str, ...]]] = []
 
     def identity(self):
@@ -50,7 +58,7 @@ class FakeReadPort:
             "status": {"project_revision": 7, "project_uuid": project_uuid},
             "export": {
                 "project_revision": 7, "project": {"project_uuid": project_uuid},
-                "tables": {"tasks": []},
+                "tables": {"tasks": []}, "large_fixture": "x" * self.large_export_bytes,
             },
             "ready": {"tasks": []},
         }
@@ -121,6 +129,21 @@ class TodoAuthorityTests(unittest.TestCase):
         builder.build("fixture")
         builder.build("fixture")
         self.assertEqual(calls, 1)
+
+    def test_runtime_supplies_verified_port_and_large_reads_avoid_subprocess_capture(self) -> None:
+        port = FakeReadPort(self.skills_root, large_export_bytes=9 * 1024 * 1024)
+        factory = lambda _root: port
+        with patch("project_control.app.todo_read_port_factory", return_value=factory) as configured:
+            runtime = Runtime(self.config)
+        configured.assert_called_once_with()
+        self.assertIs(runtime.builder.todo_read_port_factory, factory)
+        snapshot = runtime.snapshot("fixture")
+        adapter = runtime.todo_adapter("fixture")
+        self.assertEqual(snapshot.todo_revision, 7)
+        self.assertIsNotNone(adapter)
+        self.assertIs(adapter.read_port, port)
+        self.assertIsNone(adapter.todo_script)
+        self.assertIn("export", [item[0] for item in port.calls])
 
     def test_read_port_contract_mismatch_fails_closed_without_subprocess_fallback(self) -> None:
         script = self.skills_root / "todo-orchestrator" / "scripts" / "todo.py"

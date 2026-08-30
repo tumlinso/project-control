@@ -53,11 +53,11 @@ from .services.performance import performance_status as performance_status_servi
 from .services.planning import MutationDetected, plan_preview as plan_preview_service
 from .services.program import program_context as program_context_service
 from .services.source_context import source_context as source_context_service
-from .snapshot import SnapshotBuilder, resolve_skills_root
+from .snapshot import SnapshotBuilder
 from .security import redact_output
 from .terminal import TerminalSessionRegistry
 from .profiles import MCPProfile, ProfiledFastMCP
-from .workflow_binding import workflow_protocol
+from .workflow_binding import todo_read_port_factory, workflow_protocol
 from .workflow_tools import WORKFLOW_INSTRUCTIONS, register_workflow_tools
 
 
@@ -116,8 +116,25 @@ SourceRelation = Literal[
 class Runtime:
     def __init__(self, config: ProjectControlConfig):
         self.config = config
-        self.builder = SnapshotBuilder(config)
+        self.todo_read_port_factory = todo_read_port_factory()
+        self.builder = SnapshotBuilder(
+            config, todo_read_port_factory=self.todo_read_port_factory,
+        )
         self.terminals = TerminalSessionRegistry(config)
+
+    def todo_adapter(self, project: str) -> TodoReadAdapter | None:
+        workspace = self.builder.registry.workspace(project)
+        if not workspace.authority_repository:
+            return None
+        provider = self.builder._todo_provider(project)
+        if not provider.compatible or not (provider.read_port or provider.todo_script):
+            return None
+        repository = self.builder.registry.repository(project, workspace.authority_repository)
+        return TodoReadAdapter(
+            repository.root,
+            provider.todo_script,
+            read_port=provider.read_port,
+        )
 
     def snapshot(self, project: str, *, host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
         return self.builder.build(project, include_host=host, campaign=campaign)
@@ -191,14 +208,7 @@ def create_mcp(
             snapshot = runtime.snapshot(project)
             registry = WorkspaceRegistry(active_config)
             adapters = {alias: GitReadAdapter(registry.repository(project, alias).root) for alias in snapshot.repositories}
-            workspace = registry.workspace(project)
-            skills_root = resolve_skills_root(active_config, project)
-            todo_adapter = None
-            if workspace.authority_repository and skills_root:
-                todo_adapter = TodoReadAdapter(
-                    registry.repository(project, workspace.authority_repository).root,
-                    skills_root / "todo-orchestrator" / "scripts" / "todo.py",
-                )
+            todo_adapter = runtime.todo_adapter(project)
             return project_delta_service(snapshot, request.since, adapters, detail=request.detail, max_items=request.max_items, todo_adapter=todo_adapter)
         return runtime.invoke("project_delta", project, operation)
 
@@ -390,7 +400,9 @@ def create_mcp(
     @mcp.custom_route("/readyz", methods=["GET"])
     async def ready(_: Request) -> JSONResponse:
         workspaces = sorted(active_config.workspaces)
-        adapters_available = any(resolve_skills_root(active_config, item) is not None for item in workspaces)
+        adapters_available = any(
+            runtime.builder._todo_provider(item).compatible for item in workspaces
+        )
         ok = bool(workspaces and adapters_available)
         return JSONResponse({"status": "ready" if ok else "unavailable", "workspaces": len(workspaces)}, status_code=200 if ok else 503)
 

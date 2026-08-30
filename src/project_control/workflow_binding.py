@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
-from typing import Mapping
+from typing import Callable, Mapping
 
 from .runtime_identity import RuntimeIdentity, bind_runtime, validate_runtime
 
@@ -100,6 +100,45 @@ def workflow_kernel(environment: Mapping[str, str] = os.environ):
 
 def workflow_protocol(environment: Mapping[str, str] = os.environ):
     return initialize_workflow_binding(environment).protocol
+
+
+def todo_read_port_factory(
+    environment: Mapping[str, str] = os.environ,
+) -> Callable[[Path], object] | None:
+    """Return the verified Todo read-port factory for live composition.
+
+    The compatibility subprocess provider remains available only when no
+    explicit Todo runtime root was supplied.  Once either supported root
+    variable is present, initialization and every requested authority must
+    match the immutable process-wide workflow binding or fail closed.
+    """
+
+    if not (
+        environment.get("PROJECT_CONTROL_SKILLS_ROOT")
+        or environment.get("CODING_WORKFLOW_SKILLS_ROOT")
+    ):
+        return None
+
+    binding = initialize_workflow_binding(environment)
+    identity = binding.identity
+    from todo_orchestrator.read_port import create_todo_read_port
+
+    def create(skills_root: Path) -> object:
+        binding.validate()
+        requested = Path(skills_root).expanduser().resolve()
+        if requested != identity.skills_root:
+            from .runtime_identity import RuntimeIdentityError
+
+            raise RuntimeIdentityError(
+                "Todo read authority does not match the bound runtime",
+                expected=str(identity.skills_root),
+                observed=str(requested),
+            )
+        port = create_todo_read_port(identity.skills_root)
+        binding.validate()
+        return port
+
+    return create
 
 
 def reset_runtime_for_testing() -> None:

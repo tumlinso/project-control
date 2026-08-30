@@ -127,6 +127,15 @@ class MCPServerTests(unittest.TestCase):
         for name in EXPECTED - {"terminal_capture"}:
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
 
+    def test_server_runtime_receives_configured_in_process_read_port_factory(self) -> None:
+        factory = lambda _root: None
+        with patch("project_control.app.todo_read_port_factory", return_value=factory) as configured:
+            mcp = create_mcp(self.config)
+        configured.assert_called_once_with()
+        runtime = getattr(mcp, "_project_control_runtime")
+        self.assertIs(runtime.todo_read_port_factory, factory)
+        self.assertIs(runtime.builder.todo_read_port_factory, factory)
+
     def test_observer_rejects_hidden_workflow_invocation_before_binding(self) -> None:
         mcp = create_mcp(self.config)
         with self.assertRaisesRegex(ToolError, "unavailable in the observer profile"):
