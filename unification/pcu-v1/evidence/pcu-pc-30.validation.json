@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "task_id": "PCU-PC-30",
+  "observed_at": "2026-08-30T14:23:09Z",
+  "candidate": {
+    "commit": "e687ca837d2a0db66e738a47dbdb83e9d6d62b5d",
+    "tree": "86b18905cea9f0d447d5871fcada9f6e31c3c288",
+    "workspace": "[PCU-PC-22_INTEGRATION_DESTINATION]",
+    "clean": true,
+    "git_diff_check": "passed"
+  },
+  "matrix": {
+    "observer": {
+      "official_client": "mcp streamable HTTP client passed",
+      "tool_count": 15,
+      "exact_names": true,
+      "schema_hashes": "all baseline hashes exact except reviewed malformed coordination_view value in bootstrap preflight",
+      "coordination_view_actual_sha256": "470dae037b5460bec0b8c1d8450525be878b04385d235c8cb3cb7e6cb20b39bb",
+      "coordination_view_preflight_value": "470dae037b5460bec0b8c1d8450525be878b04385d235c8cb7e6cb20b39bb",
+      "coordination_view_preflight_length": 61,
+      "coordination_view_actual_matches_frozen_test": true,
+      "hidden_workflow_invocation_rejected": true,
+      "client_info_codex_spoof_resistant": true,
+      "git_and_todo_sentinels_unchanged": true,
+      "concurrent_reads": 4
+    },
+    "codex": {
+      "official_client": "mcp stdio client passed",
+      "tool_count": 20,
+      "exact_workflow_names": true,
+      "exact_rich_read_names": true,
+      "workflow_schema_hashes_exact": true,
+      "rich_read_schema_hashes_equal_observer": true,
+      "terminal_capture_absent": true,
+      "client_info_observer_spoof_resistant": true
+    },
+    "workflow_smoke": {
+      "repository": "independent disposable temporary Git repository with independent Todo authority",
+      "operations": [
+        "next_task",
+        "inspect_task",
+        "coordinate_task:sync",
+        "finish_task:complete"
+      ],
+      "task_terminal_state": "done",
+      "active_claims_after": 0,
+      "authority_revision_before": 2,
+      "authority_revision_after": 4,
+      "observer_revision_after": 4,
+      "one_authority_visibility": true,
+      "capability_values_persisted_or_reported": false
+    },
+    "safety": {
+      "no_mcp_client_or_coding_workflow_recursion_in_runtime_paths": true,
+      "runtime_identity_mismatch_rejected": true,
+      "runtime_rebind_rejected": true,
+      "database_busy_classified_fail_closed": true,
+      "read_only_concurrency_nonmutating": true
+    },
+    "tests": {
+      "full_suite": "197 passed",
+      "full_suite_log_sha256": "ae2b0d86a7c1fe4638125abef419ddcd0f0af436ba4008627a5005456e5a31d6",
+      "focused_matrix": "32 passed",
+      "focused_log_sha256": "deb0342efc1c689a3d425237df2bcefeb608b72895c2f3be1054dcd656fb6c96",
+      "runtime_probe_sha256": "d848614c957f778590a29371e72ea78b1cbb22884641bf74ec9056dfe8e19b1c"
+    }
+  },
+  "live_runtime": {
+    "project_control_service": "active and running on captured pre-PCU executable",
+    "codex_registration": "coding-workflow only",
+    "changed": false
+  },
+  "gate": {
+    "candidate_validation": "passed",
+    "manual_gate_accepted": false,
+    "remaining_condition": "manual_validation_gate_requires_authoritative_command_contract",
+    "recommended_command_contract": "Run the 197-test suite with integration src on PYTHONPATH; run the official HTTP/stdio disposable probe and verify its sanitized digest; assert the integration commit/tree and clean diff; assert unchanged live service and registration; accept only when every boolean matrix result is true and schema hash counts are 15 and 20."
+  }
+}
