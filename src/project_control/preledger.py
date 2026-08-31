@@ -20,7 +20,7 @@ from typing import Any, Iterable, Mapping, Sequence
 PRELEDGER_FORMAT = "project-control-preledger"
 PRELEDGER_SCHEMA_VERSION = 1
 NATIVE_TODO_PLAN_SCHEMA_VERSION = 2
-COMPILER_VERSION = 1
+COMPILER_VERSION = 2
 
 _TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
 _TASK_KINDS = {
@@ -173,7 +173,31 @@ def _scope_paths(value: Any, keys: Sequence[str]) -> list[str]:
 
 
 def _clean_paths(values: Iterable[str]) -> list[str]:
-    return sorted({value.strip() for value in values if isinstance(value, str) and value.strip()})
+    cleaned: set[str] = set()
+    for value in values:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        normalized = value.strip()
+        if normalized.startswith("[proposed] "):
+            normalized = normalized[len("[proposed] "):].strip()
+        if normalized:
+            cleaned.add(normalized)
+    return sorted(cleaned)
+
+
+def _explicit_source_paths(values: Iterable[str]) -> list[str]:
+    """Select path-shaped entries from fields that may also name concepts.
+
+    The authoritative JBC package intentionally mixes exact source paths and
+    architectural concepts in ``permitted_read_scope``.  Whitespace-free
+    repository-relative values are paths in that format; prose remains in the
+    provenance notes instead of becoming false Todo ownership scope.
+    """
+
+    return _clean_paths(
+        value for value in values
+        if isinstance(value, str) and value.strip() and not any(character.isspace() for character in value.replace("[proposed] ", "", 1))
+    )
 
 
 def _dependency_ids(value: Any) -> list[str]:
@@ -200,7 +224,7 @@ def _produced_checkpoints(task: Mapping[str, Any]) -> list[str]:
     return _dependency_ids(value)
 
 
-def _csv_dependencies(path: Path) -> list[tuple[str, str]]:
+def _csv_dependencies(path: Path) -> tuple[list[tuple[str, str]], bool]:
     try:
         with path.open("r", encoding="utf-8", newline="") as stream:
             reader = csv.DictReader(stream)
@@ -208,8 +232,8 @@ def _csv_dependencies(path: Path) -> list[tuple[str, str]]:
                 raise PreledgerError(f"dependency index has no header: {path.name}")
             fields = set(reader.fieldnames)
             pairs = (
-                (("task_id", "dependent_task_id", "consumer_task_id"),
-                 ("prerequisite_task_id", "dependency_id", "depends_on")),
+                (("task_id", "dependent_task_id", "consumer_task_id", "consumer_task"),
+                 ("prerequisite_task_id", "dependency_id", "depends_on", "producer_task")),
                 (("to_task_id", "target_task_id", "to_id"),
                  ("from_task_id", "source_task_id", "from_id")),
             )
@@ -230,9 +254,31 @@ def _csv_dependencies(path: Path) -> list[tuple[str, str]]:
                 if not dependent or not prerequisite:
                     raise PreledgerError(f"empty dependency at {path.name}:{line_number}")
                 result.append((dependent, prerequisite))
-            return result
+            complete_compatibility_index = (
+                dependent_column == "consumer_task" and prerequisite_column == "producer_task"
+            )
+            return result, complete_compatibility_index
     except OSError as exc:
         raise PreledgerError(f"cannot read dependency index: {path.name}: {exc}") from exc
+
+
+def _csv_external_dependencies(path: Path) -> list[tuple[str, str]]:
+    try:
+        with path.open("r", encoding="utf-8", newline="") as stream:
+            reader = csv.DictReader(stream)
+            expected = {"checkpoint_interface_or_receipt", "consumer_task"}
+            if not reader.fieldnames or not expected.issubset(reader.fieldnames):
+                raise PreledgerError(f"unsupported external dependency columns in {path.name}")
+            result: list[tuple[str, str]] = []
+            for line_number, row in enumerate(reader, 2):
+                dependent = (row.get("consumer_task") or "").strip()
+                prerequisite = (row.get("checkpoint_interface_or_receipt") or "").strip()
+                if not dependent or not prerequisite:
+                    raise PreledgerError(f"empty external dependency at {path.name}:{line_number}")
+                result.append((dependent, prerequisite))
+            return result
+    except OSError as exc:
+        raise PreledgerError(f"cannot read external dependency index: {path.name}: {exc}") from exc
 
 
 def _lower_interface(record: Mapping[str, Any], selected_ids: set[str]) -> dict[str, Any] | None:
@@ -295,13 +341,14 @@ def compile_preledger(
         tasks_path = _package_file(root, loaded.get("tasks"), "tasks file")
         optional = {
             key: (_package_file(root, loaded[key], f"{key} file") if loaded.get(key) else None)
-            for key in ("interfaces", "dependency_index", "summary", "manifest")
+            for key in ("interfaces", "dependency_index", "external_dependencies", "summary", "manifest")
         }
     else:
         tasks_path = _package_file(root, "proposed_todos.json", "tasks file")
         optional = {
             "interfaces": root / "interface_catalog.json" if (root / "interface_catalog.json").is_file() else None,
             "dependency_index": root / "dependency_edges.csv" if (root / "dependency_edges.csv").is_file() else None,
+            "external_dependencies": root / "external_dependency_receipts.csv" if (root / "external_dependency_receipts.csv").is_file() else None,
             "summary": root / "plan_summary.json" if (root / "plan_summary.json").is_file() else None,
             "manifest": root / "MANIFEST.sha256" if (root / "MANIFEST.sha256").is_file() else None,
         }
@@ -311,7 +358,7 @@ def compile_preledger(
     for key, path in optional.items():
         if path is not None:
             source_files.add(path)
-            if key in {"interfaces", "dependency_index"}:
+            if key in {"interfaces", "dependency_index", "external_dependencies"}:
                 semantic_files.add(path)
     if optional["manifest"] is not None:
         _validate_manifest(root, optional["manifest"])
@@ -342,21 +389,52 @@ def compile_preledger(
     warnings: list[str] = []
     dependency_pairs: dict[tuple[str, str], set[str]] = {}
     for task_id, task in by_id.items():
-        for field in ("builds_on", "prerequisite_tasks_or_checkpoints"):
+        for field in ("builds_on", "prerequisite_tasks_or_checkpoints", "prerequisites"):
             for prerequisite in _dependency_ids(task.get(field)):
                 dependency_pairs.setdefault((task_id, prerequisite), set()).add(field)
     if optional["dependency_index"] is not None:
-        for dependent, prerequisite in _csv_dependencies(optional["dependency_index"]):
+        indexed_dependencies, complete_compatibility_index = _csv_dependencies(optional["dependency_index"])
+        task_local_dependencies = {
+            pair for pair in dependency_pairs
+            if pair[0] in by_id and pair[1] in by_id
+        }
+        if complete_compatibility_index and set(indexed_dependencies) != task_local_dependencies:
+            missing = sorted(task_local_dependencies - set(indexed_dependencies))
+            extra = sorted(set(indexed_dependencies) - task_local_dependencies)
+            raise PreledgerError(
+                "dependency index disagrees with task-local prerequisites: "
+                f"missing={missing[:8]!r}, extra={extra[:8]!r}"
+            )
+        for dependent, prerequisite in indexed_dependencies:
             pair = (dependent, prerequisite)
             if pair not in dependency_pairs:
                 warnings.append(f"dependency index supplemented task-local dependencies: {dependent} -> {prerequisite}")
             dependency_pairs.setdefault(pair, set()).add("dependency_edges.csv")
+    if optional["external_dependencies"] is not None:
+        indexed_external = _csv_external_dependencies(optional["external_dependencies"])
+        task_local_receipts = {
+            pair for pair in dependency_pairs if pair[1].startswith("receipt:")
+        }
+        if set(indexed_external) != task_local_receipts:
+            missing = sorted(task_local_receipts - set(indexed_external))
+            extra = sorted(set(indexed_external) - task_local_receipts)
+            raise PreledgerError(
+                "external dependency index disagrees with task-local receipts: "
+                f"missing={missing[:8]!r}, extra={extra[:8]!r}"
+            )
+        for dependent, prerequisite in indexed_external:
+            pair = (dependent, prerequisite)
+            if pair not in dependency_pairs:
+                warnings.append(f"external dependency index supplemented task-local dependencies: {dependent} -> {prerequisite}")
+            dependency_pairs.setdefault(pair, set()).add("external_dependency_receipts.csv")
 
     native_tasks: list[dict[str, Any]] = []
     external_dependencies: list[dict[str, Any]] = []
     internal_dependency_count = 0
     native_dependencies: dict[str, list[dict[str, str]]] = {task_id: [] for task_id in selected_ids}
     for (dependent, prerequisite), sources in sorted(dependency_pairs.items()):
+        if dependent not in by_id:
+            raise PreledgerError(f"dependency names unknown consumer task: {dependent}")
         if dependent not in selected_ids:
             continue
         if prerequisite in selected_ids:
@@ -366,7 +444,7 @@ def compile_preledger(
             native_dependencies[dependent].append({"type": "checkpoint", "checkpoint_id": prerequisite})
             internal_dependency_count += 1
         else:
-            owner = checkpoint_owner.get(prerequisite, prerequisite)
+            owner = checkpoint_owner.get(prerequisite, prerequisite.removeprefix("receipt:"))
             external_dependencies.append({
                 "task_id": dependent,
                 "dependency_id": prerequisite,
@@ -391,7 +469,22 @@ def compile_preledger(
         for field in _PROVENANCE_FIELDS:
             if field in source and source[field] not in (None, "", [], {}):
                 provenance[field] = source[field]
-        for field in ("category", "classification", "data_flow_and_ownership", "hot_vs_cold_path", "complexity_expectation"):
+        aliases = {
+            "mechanism": "implementation_mechanism",
+            "cold_vs_hot_path": "hot_vs_cold_path",
+            "complexity_expectations": "complexity_expectation",
+            "failure_cases_and_fallback": "failure_cases",
+            "expected_inputs": "inputs",
+            "expected_outputs": "outputs",
+        }
+        for source_field, provenance_field in aliases.items():
+            if source_field in source and source[source_field] not in (None, "", [], {}):
+                provenance[provenance_field] = source[source_field]
+        for field in (
+            "category", "classification", "subsystem", "suggested_lane", "parallelism",
+            "integration_point", "explicit_out_of_scope", "permitted_read_scope",
+            "data_flow_and_ownership", "hot_vs_cold_path", "complexity_expectation",
+        ):
             if field in source and source[field] not in (None, "", [], {}):
                 provenance[field] = source[field]
         native: dict[str, Any] = {
@@ -402,9 +495,11 @@ def compile_preledger(
             "notes": "preledger_provenance=" + json.dumps(provenance, sort_keys=True, separators=(",", ":"), ensure_ascii=False),
         }
         exclusive = _clean_paths(_scope_paths(source.get("write_scope"), ("exclusive_paths", "write_paths", "paths")))
-        read_paths = _clean_paths(
+        read_paths = _explicit_source_paths(
             _flatten_strings(source.get("existing_source_paths"))
             + _flatten_strings(source.get("source_paths"))
+            + _flatten_strings(source.get("permitted_read_scope"))
+            + _flatten_strings(source.get("existing_code_extended"))
         )
         if exclusive or read_paths:
             native["scope"] = {}

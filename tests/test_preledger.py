@@ -182,6 +182,83 @@ class PreledgerCompilerTests(unittest.TestCase):
         self.assertEqual(lowered["depends_on"], [{"type": "task", "task_id": "CE-1"}])
         self.assertIn("dependency index supplemented task-local dependencies: CE-2 -> CE-1", result.warnings)
 
+    def test_authoritative_producer_consumer_index_and_prerequisites(self) -> None:
+        self.package.write_tasks([
+            task("CE-1"),
+            task("CE-2", prerequisites=["CE-1"]),
+        ])
+        (self.package.root / "dependency_edges.csv").write_text(
+            "producer_task,consumer_task\nCE-1,CE-2\n", encoding="utf-8"
+        )
+
+        result = compile_preledger(self.package.root, target_repository="Cellerator")
+
+        lowered = {item["id"]: item for item in result.native_todo_plan["tasks"]}["CE-2"]
+        self.assertEqual(lowered["depends_on"], [{"type": "task", "task_id": "CE-1"}])
+        self.assertEqual(result.internal_dependency_count, 1)
+        self.assertFalse(any("supplemented" in warning for warning in result.warnings))
+
+    def test_authoritative_producer_consumer_index_mismatch_is_rejected(self) -> None:
+        self.package.write_tasks([
+            task("CE-1"),
+            task("CE-2", prerequisites=["CE-1"]),
+        ])
+        (self.package.root / "dependency_edges.csv").write_text(
+            "producer_task,consumer_task\n", encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(PreledgerError, "dependency index disagrees"):
+            compile_preledger(self.package.root, target_repository="Cellerator")
+
+    def test_authoritative_external_receipts_are_reported_not_lowered(self) -> None:
+        self.package.write_tasks([
+            task("CE-1"),
+            task("CS-1", "CellShard", prerequisites=["receipt:CE-1"]),
+        ])
+        (self.package.root / "external_dependency_receipts.csv").write_text(
+            "checkpoint_interface_or_receipt,consumer_task\nreceipt:CE-1,CS-1\n",
+            encoding="utf-8",
+        )
+
+        result = compile_preledger(self.package.root, target_repository="CellShard")
+
+        self.assertNotIn("depends_on", result.native_todo_plan["tasks"][0])
+        self.assertEqual(result.external_dependencies, ({
+            "task_id": "CS-1",
+            "dependency_id": "receipt:CE-1",
+            "dependency_repository": "Cellerator",
+            "source": ["external_dependency_receipts.csv", "prerequisites"],
+        },))
+        self.assertIn("external_dependency_receipts.csv", result.source_files)
+
+    def test_authoritative_external_receipt_mismatch_is_rejected(self) -> None:
+        self.package.write_tasks([
+            task("CE-1"),
+            task("CS-1", "CellShard", prerequisites=["receipt:CE-1"]),
+        ])
+        (self.package.root / "external_dependency_receipts.csv").write_text(
+            "checkpoint_interface_or_receipt,consumer_task\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(PreledgerError, "external dependency index disagrees"):
+            compile_preledger(self.package.root, target_repository="CellShard")
+
+    def test_authoritative_path_markers_and_mixed_read_scope(self) -> None:
+        self.package.write_tasks([task(
+            "CE-1",
+            write_scope=["[proposed] include/Cellerator/new.hh", "CMakeLists.txt"],
+            permitted_read_scope=["include/Cellerator/existing.hh", "Cellerator partial-result algebra"],
+            existing_code_extended=["src/existing.cc", "CellShard atom core"],
+        )])
+
+        result = compile_preledger(self.package.root, target_repository="Cellerator")
+
+        self.assertEqual(result.native_todo_plan["tasks"][0]["scope"], {
+            "exclusive_paths": ["CMakeLists.txt", "include/Cellerator/new.hh"],
+            "read_paths": ["include/Cellerator/existing.hh", "src/existing.cc"],
+        })
+
     def test_produced_checkpoint_dependency_is_native(self) -> None:
         self.package.write_tasks([
             task("CE-1", produces_checkpoint="CE-READY"),

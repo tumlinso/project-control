@@ -12,12 +12,15 @@ compiler is only a deterministic frontend producing that canonical plan.
 
 A versioned package contains `preledger.json` with format
 `project-control-preledger`, schema version 1, and a required `tasks` reference.
-It may additionally reference `interfaces`, `dependency_index`, `summary`, and
-`manifest` files. The conventional names are `proposed_todos.json`,
-`interface_catalog.json`, `dependency_edges.csv`, `plan_summary.json`, and
-`MANIFEST.sha256`; only the task source is mandatory. If `preledger.json` is
-absent, a directory containing `proposed_todos.json` is accepted as the current
-compatibility package.
+It may additionally reference `interfaces`, `dependency_index`,
+`external_dependencies`, `summary`, and `manifest` files. The conventional
+names are `proposed_todos.json`, `interface_catalog.json`,
+`dependency_edges.csv`, `external_dependency_receipts.csv`,
+`plan_summary.json`, and `MANIFEST.sha256`; only the task source is mandatory.
+If `preledger.json` is absent, a directory containing `proposed_todos.json` is
+accepted as the current compatibility package. The compatibility dependency
+index accepts `producer_task,consumer_task`; producer is the prerequisite and
+consumer is the dependent task.
 
 `proposed_todos.json` is semantic task authority. Summary and CSV files never
 replace it. A manifest, when present, is validated before compilation. Without
@@ -35,6 +38,11 @@ Task `id`, `title`, and `purpose` lower to native task ID, title, and objective.
 Identity fields are required; other rich fields are optional. Explicit
 `write_scope` lowers to exclusive paths, and explicit existing/source paths
 lower to read paths. Repository membership never implies broad ownership.
+Task-local `prerequisites` is accepted alongside the canonical prerequisite
+aliases. A `[proposed] ` prefix is a documentation marker and is removed from
+native Todo paths. Mixed conceptual/source read-scope fields contribute only
+whitespace-free path-shaped values; concepts remain provenance rather than
+being misrepresented as ownership paths.
 Unsupported rich metadata is preserved compactly in native task notes,
 including the package digest, original ID, workstream, motivations,
 implementation mechanism, invariants, forbidden shortcuts, validation,
