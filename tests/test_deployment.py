@@ -57,10 +57,14 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("reconnect or recreate", setup)
         self.assertIn("Never paste credentials", setup)
 
-    def test_future_write_is_documentation_only(self) -> None:
+    def test_mutator_is_separate_and_local_while_observer_stays_read_only(self) -> None:
         future = (ROOT / "docs" / "FUTURE_WRITE_PROFILE.md").read_text(encoding="utf-8")
-        self.assertIn("separate, explicit", future)
-        self.assertIn("No dormant write tools", future)
+        self.assertIn("separate **mutator** profile", future)
+        self.assertIn("observer", future)
+        self.assertIn("permanently project-read-only", future)
+        self.assertIn("authority_to_apply=false", future)
+        self.assertIn("local stdio transport", future)
+        self.assertIn("Remote OpenAI read/write exposure", future)
 
 
 if __name__ == "__main__":

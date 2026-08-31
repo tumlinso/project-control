@@ -19,6 +19,8 @@ project_control.__path__.insert(0, str(SOURCE_ROOT / "project_control"))
 from project_control.profiles import (
     CODEX_RICH_READ_DESCRIPTION_PREFIX,
     CODEX_TOOL_NAMES,
+    MUTATION_TOOL_NAMES,
+    MUTATOR_TOOL_NAMES,
     OBSERVER_TOOL_NAMES,
     RICH_READ_TOOL_NAMES,
     WORKFLOW_TOOL_NAMES,
@@ -32,6 +34,8 @@ from project_control.profiles import (
     require_profile_transport,
     validate_profile_registration,
 )
+from project_control.config import ProjectControlConfig
+from project_control.mutation_tools import register_mutation_tools
 
 
 def _handler(value: str = "ok") -> dict[str, str]:
@@ -40,7 +44,7 @@ def _handler(value: str = "ok") -> dict[str, str]:
 
 def _server(profile: MCPProfile) -> ProfiledFastMCP:
     server = ProfiledFastMCP("project-control", profile=profile)
-    for name in OBSERVER_TOOL_NAMES + WORKFLOW_TOOL_NAMES:
+    for name in OBSERVER_TOOL_NAMES + WORKFLOW_TOOL_NAMES + MUTATION_TOOL_NAMES:
         server.add_tool(_handler, name=name, description=f"{name} description", structured_output=True)
     return server
 
@@ -49,16 +53,21 @@ class ProfilePolicyTests(unittest.TestCase):
     def test_contract_tool_sets_are_exact_and_distinct(self) -> None:
         self.assertEqual(15, len(OBSERVER_TOOL_NAMES))
         self.assertEqual(20, len(CODEX_TOOL_NAMES))
+        self.assertEqual(21, len(MUTATOR_TOOL_NAMES))
         self.assertEqual(14, len(RICH_READ_TOOL_NAMES))
         self.assertEqual(6, len(WORKFLOW_TOOL_NAMES))
         self.assertEqual(set(RICH_READ_TOOL_NAMES), set(OBSERVER_TOOL_NAMES) - {"terminal_capture"})
         self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES))
+        self.assertEqual(set(MUTATOR_TOOL_NAMES), set(CODEX_TOOL_NAMES) | {"apply_plan"})
+        self.assertNotIn("terminal_capture", MUTATOR_TOOL_NAMES)
 
     def test_profile_and_transport_are_explicit_startup_configuration(self) -> None:
         self.assertEqual("streamable-http", profile_policy("observer").transport)
         self.assertEqual("stdio", profile_policy("codex").transport)
+        self.assertEqual("stdio", profile_policy("mutator").transport)
         require_profile_transport("observer", "streamable-http")
         require_profile_transport("codex", "stdio")
+        require_profile_transport("mutator", "stdio")
         with self.assertRaises(ProfileConfigurationError):
             profile_policy("clientInfo:codex")
         with self.assertRaises(ProfileConfigurationError):
@@ -92,6 +101,33 @@ class ProfileRegistrationTests(unittest.TestCase):
         for name in WORKFLOW_TOOL_NAMES:
             self.assertEqual(f"{name} description", descriptions[name])
         asyncio.run(validate_profile_registration(server))
+
+    def test_mutator_registers_exact_codex_surface_plus_apply_plan(self) -> None:
+        server = _server(MCPProfile.MUTATOR)
+        tools = asyncio.run(server.list_tools())
+        self.assertEqual(set(MUTATOR_TOOL_NAMES), {tool.name for tool in tools})
+        descriptions = {tool.name: tool.description for tool in tools}
+        for name in RICH_READ_TOOL_NAMES:
+            self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
+        asyncio.run(validate_profile_registration(server))
+
+    def test_apply_plan_dispatch_is_mutator_only(self) -> None:
+        for profile in (MCPProfile.OBSERVER, MCPProfile.CODEX):
+            with self.subTest(profile=profile):
+                with self.assertRaisesRegex(ToolError, f"unavailable in the {profile.value} profile"):
+                    asyncio.run(_server(profile).call_tool("apply_plan", {"value": "ok"}))
+        result = asyncio.run(_server(MCPProfile.MUTATOR).call_tool("apply_plan", {"value": "ok"}))
+        self.assertTrue(result)
+
+    def test_apply_plan_schema_and_annotations_are_narrow(self) -> None:
+        server = ProfiledFastMCP("project-control", profile=MCPProfile.MUTATOR)
+        register_mutation_tools(server, ProjectControlConfig(), apply_service=lambda *_args: {"status": "applied"})
+        tool = next(item for item in asyncio.run(server.list_tools()) if item.name == "apply_plan")
+        self.assertEqual({"project", "proposal"}, set(tool.inputSchema["properties"]))
+        self.assertFalse(tool.annotations.readOnlyHint)
+        self.assertFalse(tool.annotations.destructiveHint)
+        self.assertFalse(tool.annotations.idempotentHint)
+        self.assertFalse(tool.annotations.openWorldHint)
 
     def test_hidden_invocation_is_denied_before_handler(self) -> None:
         called = False

@@ -5,6 +5,7 @@ import unittest
 from project_control.models import ObservationPreconditions, WorktreePrecondition
 from project_control.observer_analysis import DisabledObserverAnalysisProvider
 from project_control.proposals import create_proposal, stale_preconditions, validate_proposal_preconditions
+from project_control.profiles import MCPProfile, profile_policy
 
 
 def _preconditions(*, revision: int = 7, head: str = "a" * 40) -> ObservationPreconditions:
@@ -71,6 +72,18 @@ class FutureWriteSeamTests(unittest.TestCase):
         self.assertTrue(result["proposal_digest_valid"])
         self.assertFalse(result["authority_to_apply"])
         self.assertFalse(result["stale"])
+
+    def test_trusted_mutator_is_distinct_from_inert_proposal(self) -> None:
+        proposal = create_proposal(
+            intent="Apply native Todo plan",
+            proposed_change={"schema_version": 2, "tasks": []},
+            observation_preconditions=_preconditions(),
+        )
+        self.assertFalse(proposal.authority_to_apply)
+        self.assertEqual("stdio", profile_policy(MCPProfile.MUTATOR).transport)
+        self.assertIn("apply_plan", profile_policy(MCPProfile.MUTATOR).tool_names)
+        self.assertNotIn("apply_plan", profile_policy(MCPProfile.OBSERVER).tool_names)
+        self.assertNotIn("apply_plan", profile_policy(MCPProfile.CODEX).tool_names)
 
     def test_observer_analysis_is_explicitly_disabled(self) -> None:
         provider = DisabledObserverAnalysisProvider()

@@ -23,6 +23,7 @@ class ProfileRegistrationError(RuntimeError):
 class MCPProfile(StrEnum):
     OBSERVER = "observer"
     CODEX = "codex"
+    MUTATOR = "mutator"
 
 
 RICH_READ_TOOL_NAMES = (
@@ -52,8 +53,10 @@ WORKFLOW_TOOL_NAMES = (
 )
 
 TERMINAL_TOOL_NAME = "terminal_capture"
+MUTATION_TOOL_NAMES = ("apply_plan",)
 OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + (TERMINAL_TOOL_NAME,)
 CODEX_TOOL_NAMES = WORKFLOW_TOOL_NAMES + RICH_READ_TOOL_NAMES
+MUTATOR_TOOL_NAMES = WORKFLOW_TOOL_NAMES + RICH_READ_TOOL_NAMES + MUTATION_TOOL_NAMES
 
 CODEX_RICH_READ_DESCRIPTION_PREFIX = (
     "Secondary escalation read: use after the bounded workflow protocol when "
@@ -87,10 +90,15 @@ _PROFILE_POLICIES: Mapping[MCPProfile, ProfilePolicy] = MappingProxyType(
             transport="stdio",
             tool_names=CODEX_TOOL_NAMES,
         ),
+        MCPProfile.MUTATOR: ProfilePolicy(
+            profile=MCPProfile.MUTATOR,
+            transport="stdio",
+            tool_names=MUTATOR_TOOL_NAMES,
+        ),
     }
 )
 
-_KNOWN_TOOL_NAMES = frozenset(OBSERVER_TOOL_NAMES + CODEX_TOOL_NAMES)
+_KNOWN_TOOL_NAMES = frozenset(OBSERVER_TOOL_NAMES + CODEX_TOOL_NAMES + MUTATOR_TOOL_NAMES)
 
 
 def profile_policy(profile: MCPProfile | str) -> ProfilePolicy:
@@ -155,7 +163,7 @@ class ProfiledFastMCP(FastMCP):
         if not self._profile_policy.allows(tool_name):
             return
         effective_description = description
-        if self.profile is MCPProfile.CODEX and tool_name in RICH_READ_TOOL_NAMES:
+        if self.profile in {MCPProfile.CODEX, MCPProfile.MUTATOR} and tool_name in RICH_READ_TOOL_NAMES:
             effective_description = CODEX_RICH_READ_DESCRIPTION_PREFIX + (description or "")
         super().add_tool(
             fn,

@@ -1,34 +1,53 @@
-# Future mutation profiles
+# Mutation profile v1
 
-The Project Control **observer** profile is permanently project-read-only. Tool
-schema v3's `terminal_capture` is a bounded observational execution aperture
-whose only mutable state is an app-private live PTY registry; it has no project,
-Git, Todo, workflow, source, worker, or performance mutation authority.
+Project Control now implements a deliberately narrow general Todo plan write
+surface in a separate **mutator** profile. This does not change the existing
+profiles:
 
-The **codex** profile already exposes one deliberately bounded mutation surface:
-the exact six canonical Todo workflow tools. Those tools do not turn Project
-Control into a second authority. They bind in-process to Todo Orchestrator's
-`WorkflowProtocol`, where all transactions, scheduling, claims, capabilities,
-completion, recovery, and SQLite semantics remain. They are never registered on
-the observer.
+- **observer** remains permanently project-read-only with its frozen 15-tool
+  surface. It has no `apply_plan`, write flag, hidden switch, or dormant
+  mutator.
+- **codex** retains its exact six Todo workflow tools and fourteen rich reads.
+  The workflow protocol remains the ordinary path for claimed implementation
+  work.
+- **mutator** is an explicit trusted-startup stdio profile. It exposes the
+  Codex 20-tool surface plus `apply_plan`, and excludes `terminal_capture`.
 
-Any future mutation beyond that workflow protocol must ship as a separate, explicit
-capability profile or app release with its own authorization, threat
-model, tool discovery, auditing, and user consent. It must not silently add
-mutation tools to the observer, reinterpret `plan_preview` as authority, or
-bypass Todo Orchestrator, Git, local-worker, CUDA, or resource ownership.
-No dormant write tools or hidden project-mutation switches exist in the observer.
+Profile selection is process configuration. MCP `clientInfo`, user agents,
+annotations, model claims, and tool arguments cannot grant mutation authority.
+The current local stdio transport deliberately avoids a new unauthenticated
+network write service. Remote OpenAI read/write exposure, authentication, and
+consent are later deployment policy, not part of v1.
 
-Project Control can emit an inert `ProposalEnvelope` containing intent, a
-structured proposed change, observation preconditions, a deterministic digest,
-and `authority_to_apply=false`. A future separate write profile may consume one
-only after revalidating every todo semantic fingerprint and revision, workflow
-fingerprint and revision, repository commit, worktree HEAD/fingerprint, run,
-task/lane, context-fragment version/hash, and interface state/version/hash.
-Staleness is a rejection condition, not permission to guess or recover.
+## Proposal and authority
 
-No project mutation handler, placeholder endpoint, discoverable project-write
-tool, feature flag, or dormant application path exists in the observer query
-server.
-`terminal_capture` cannot consume or apply a proposal envelope and does not
-alter these future-write preconditions.
+`ProposalEnvelope` remains inert and `authority_to_apply=false`. A proposal
+contains intent, a native Todo plan in `proposed_change`, complete observation
+preconditions, a deterministic digest, and creation time. It grants no
+authority by itself.
+
+The trusted mutator profile grants authority to consume a proposal only after
+Project Control verifies the digest, re-observes the target, and compares the
+proposal's complete relevant preconditions. Stale Todo revisions or semantic
+fingerprints, workflow revisions or fingerprints, repository commits,
+worktrees, context fragments, interfaces, run, tasks, or lanes fail closed.
+Project Control does not guess, rebase, regenerate, or retry.
+
+Todo Orchestrator remains the sole plan validation, dependency, interface,
+scope, transaction, SQLite, event, and projection authority. Project Control
+uses the verified in-process Todo runtime for validation and diff, then enters
+Todo's own transaction exactly once through the canonical Project Control
+front door. An empty diff is a deterministic no-op and never calls apply.
+
+The returned mutation receipt is bounded response provenance, not a second
+audit database. Todo's event history remains authoritative. `plan_preview`
+remains nonmutating and is not reinterpreted as an apply endpoint.
+
+## Bulk ingestion
+
+The trusted local CLI compiles a versioned or compatibility pre-ledger package
+to native Todo plan schema v2, validates it, and applies it through the same
+mutation service used by MCP. V1 selects one repository authority at a time and
+reports cross-authority dependencies separately. MCP `apply_plan` accepts only
+proposal content: it has no local file path, shell, SQLite, force, or stale
+recovery input. Large local files remain a CLI concern in v1.

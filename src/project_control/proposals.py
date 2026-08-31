@@ -8,7 +8,35 @@ from __future__ import annotations
 
 from typing import Any
 
-from .models import ObservationPreconditions, ProposalEnvelope
+from .models import ObservationPreconditions, ProjectSnapshot, ProposalEnvelope, VersionedPrecondition
+
+
+def observation_preconditions(snapshot: ProjectSnapshot) -> ObservationPreconditions:
+    """Build the complete proposal freshness contract from one snapshot."""
+
+    value = snapshot.observation_preconditions()
+    for record in snapshot.todo_tables.get("context_fragments", []):
+        fragment_id = record.get("id") or record.get("fragment_id")
+        if fragment_id:
+            value.context_fragments[str(fragment_id)] = VersionedPrecondition(
+                version=record.get("version"),
+                content_hash=record.get("content_hash") or record.get("hash"),
+                state=record.get("state"),
+            )
+    for record in snapshot.todo_tables.get("interfaces", []):
+        interface_id = record.get("id") or record.get("interface_id")
+        if interface_id:
+            value.interfaces[str(interface_id)] = VersionedPrecondition(
+                version=record.get("version"),
+                content_hash=record.get("content_hash") or record.get("hash"),
+                state=record.get("state"),
+            )
+    from .workflow import workflow_view
+
+    workflow = workflow_view(snapshot)
+    value.task_ids = sorted({str(item.get("task_id")) for item in workflow.get("first_class_agents", []) if item.get("task_id")})
+    value.lane_ids = sorted({str(item.get("lane_id")) for item in workflow.get("first_class_agents", []) if item.get("lane_id")})
+    return value
 
 
 def create_proposal(

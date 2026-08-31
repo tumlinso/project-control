@@ -9,6 +9,8 @@ from typing import Sequence
 
 from .config import apply_config_migration, config_path, config_summary, init_config, load_config, migrate_config_dry_run, save_config
 from .migration import MigrationError
+from .mutation import MutationRejected
+from .preledger import PreledgerError
 from .registry import RegistryError, WorkspaceRegistry
 from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
 from .terminal import BubblewrapSandbox
@@ -90,11 +92,25 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--tunnel", action="store_true")
 
     serve = commands.add_parser("serve")
-    serve.add_argument("profile", nargs="?", choices=("observer", "codex"), default="observer")
+    serve.add_argument("profile", nargs="?", choices=("observer", "codex", "mutator"), default="observer")
     serve.add_argument("--host")
     serve.add_argument("--port", type=int)
 
     commands.add_parser("codex")
+    commands.add_parser("mutator")
+
+    plan = commands.add_parser("plan")
+    plan_commands = plan.add_subparsers(dest="plan_command", required=True)
+    compile_plan = plan_commands.add_parser("compile")
+    compile_plan.add_argument("--package", type=Path, required=True)
+    compile_plan.add_argument("--repository-label", required=True)
+    compile_plan.add_argument("--output", type=Path, required=True)
+    validate_plan = plan_commands.add_parser("validate")
+    validate_plan.add_argument("--project", required=True)
+    validate_plan.add_argument("--file", type=Path, required=True)
+    apply_plan = plan_commands.add_parser("apply")
+    apply_plan.add_argument("--project", required=True)
+    apply_plan.add_argument("--file", type=Path, required=True)
 
     migrate_repo = commands.add_parser("migrate-repository")
     migrate_repo.add_argument("--repo", type=Path, required=True)
@@ -121,10 +137,69 @@ def _serve_profile(profile: str, *, host: str | None, port: int | None) -> int:
 
         return serve(host=host, port=port)
     if host is not None or port is not None:
-        raise ValueError("Codex stdio profile does not accept --host or --port")
-    from .app import serve_codex
+        raise ValueError(f"{profile.capitalize()} stdio profile does not accept --host or --port")
+    if profile == "codex":
+        from .app import serve_codex
 
-    return serve_codex()
+        return serve_codex()
+    if profile == "mutator":
+        from .app import serve_mutator
+
+        return serve_mutator()
+    raise ValueError(f"unsupported MCP profile: {profile!r}")
+
+
+def _load_native_plan(path: Path) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid native Todo plan: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError("native Todo plan root must be an object")
+    return value
+
+
+def _plan_command(args: argparse.Namespace) -> int:
+    if args.plan_command == "compile":
+        from .preledger import compile_preledger
+
+        compiled = compile_preledger(args.package, target_repository=args.repository_label)
+        args.output.write_text(compiled.canonical_plan_json(), encoding="utf-8")
+        print(json.dumps({
+            "status": "compiled",
+            "output": str(args.output),
+            "package_digest": compiled.package_digest,
+            "plan_digest": compiled.plan_digest,
+            "selected_task_count": compiled.selected_task_count,
+            "excluded_task_count": compiled.excluded_task_count,
+            "internal_dependency_count": compiled.internal_dependency_count,
+            "external_dependencies": compiled.external_dependencies,
+            "interfaces_imported": compiled.interfaces_imported,
+            "warnings": compiled.warnings,
+            "source_files": compiled.source_files,
+        }, sort_keys=True, separators=(",", ":")))
+        return 0
+
+    from .mutation import apply_proposal, validate_native_plan
+
+    config = load_config()
+    native_plan = _load_native_plan(args.file)
+    if args.plan_command == "validate":
+        result = validate_native_plan(config, args.project, native_plan)
+    else:
+        from .models import ProposalEnvelope
+        from .proposals import observation_preconditions
+
+        snapshot = SnapshotBuilder(config).build(args.project)
+        proposal = ProposalEnvelope.create(
+            intent=f"Apply native Todo plan to {args.project}",
+            proposed_change=native_plan,
+            observation_preconditions=observation_preconditions(snapshot),
+            created_at=snapshot.observed_at,
+        )
+        result = apply_proposal(config, args.project, proposal)
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    return 0
 
 
 def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
@@ -220,6 +295,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _serve_profile(args.profile, host=args.host, port=args.port)
         if args.command == "codex":
             return _serve_profile("codex", host=None, port=None)
+        if args.command == "mutator":
+            return _serve_profile("mutator", host=None, port=None)
+        if args.command == "plan":
+            return _plan_command(args)
         if args.command == "migrate-repository":
             from .migration import migrate
 
@@ -234,7 +313,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 recover(args.repo, reason=args.reason, task_id=args.task)
             return 0
-    except (FileNotFoundError, PermissionError, RegistryError, MigrationError, ValueError) as exc:
+    except (FileNotFoundError, PermissionError, RegistryError, MigrationError, MutationRejected, PreledgerError, ValueError) as exc:
         print(f"project-control: {exc}", file=sys.stderr)
         return 2
     return 2

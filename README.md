@@ -9,6 +9,9 @@ profiles over one implementation:
 - **codex** is a stdio server registered as `project-control`. It exposes the
   canonical six Todo workflow tools plus the fourteen rich Project Control read
   tools. It does not expose `terminal_capture`.
+- **mutator** is a separately selected local stdio profile exposing the Codex
+  surface plus `apply_plan`. It is intended for ledger/bootstrap control
+  changes and does not replace ordinary task claims.
 
 Todo Orchestrator remains the sole transactional workflow kernel and SQLite
 semantic authority. Project Control verifies and imports that canonical runtime
@@ -70,6 +73,28 @@ six-tool protocol. The fourteen rich reads remain available as secondary
 escalation tools when current-task context is insufficient or source,
 architecture, history, impact, performance, or cross-project context is
 genuinely needed.
+
+## Bulk plan ingestion
+
+Project Control accepts either a versioned `project-control-preledger` directory
+or a compatibility directory containing `proposed_todos.json`. Compilation
+selects one repository authority and produces deterministic native Todo plan
+schema v2 JSON. Validation and application use Todo Orchestrator as the sole
+transaction authority:
+
+```bash
+project-control plan compile \
+  --package /path/to/preledger \
+  --repository-label Cellerator \
+  --output /tmp/cellerator.plan.json
+project-control plan validate --project cellerator --file /tmp/cellerator.plan.json
+project-control plan apply --project cellerator --file /tmp/cellerator.plan.json
+```
+
+The local apply command observes current state, constructs an inert
+`ProposalEnvelope`, and calls the same stale-fail-closed mutation service used
+by the mutator MCP profile. Cross-authority dependencies are reported and never
+translated into local Todo dependencies.
 
 ## Local development
 

@@ -5,34 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from ..graph import ProjectGraph
-from ..models import ImpactPreviewInput, ProjectSnapshot, ProposalEnvelope, ToolEnvelope, VersionedPrecondition, envelope
+from ..models import ImpactPreviewInput, ProjectSnapshot, ProposalEnvelope, ToolEnvelope, envelope
 from ..normalize import bounded_payload
 from ..reconcile import ProjectReconciler
 from ..retrieval import page, relevance_priority
 from ..workflow import workflow_view, workflow_warnings
+from ..proposals import observation_preconditions
 
 
 BUDGETS = {"compact": 16 * 1024, "standard": 48 * 1024, "expanded": 96 * 1024}
-
-
-def _preconditions(snapshot: ProjectSnapshot):
-    value = snapshot.observation_preconditions()
-    for record in snapshot.todo_tables.get("context_fragments", []):
-        fragment_id = record.get("id") or record.get("fragment_id")
-        if fragment_id:
-            value.context_fragments[str(fragment_id)] = VersionedPrecondition(
-                version=record.get("version"), content_hash=record.get("content_hash") or record.get("hash"), state=record.get("state"),
-            )
-    for record in snapshot.todo_tables.get("interfaces", []):
-        interface_id = record.get("id") or record.get("interface_id")
-        if interface_id:
-            value.interfaces[str(interface_id)] = VersionedPrecondition(
-                version=record.get("version"), content_hash=record.get("content_hash") or record.get("hash"), state=record.get("state"),
-            )
-    workflow = workflow_view(snapshot)
-    value.task_ids = sorted({str(item.get("task_id")) for item in workflow.get("first_class_agents", []) if item.get("task_id")})
-    value.lane_ids = sorted({str(item.get("lane_id")) for item in workflow.get("first_class_agents", []) if item.get("lane_id")})
-    return value
 
 
 def impact_preview(snapshot: ProjectSnapshot, request: ImpactPreviewInput) -> ToolEnvelope:
@@ -95,7 +76,7 @@ def impact_preview(snapshot: ProjectSnapshot, request: ImpactPreviewInput) -> To
     selected, pagination = page(ordered, operation="impact_preview", query=query, limit=request.max_items, cursor=None)
     selected_proven = [item for item in selected if item.get("impact_basis") == "explicit_target"]
     selected_possible = [item for item in selected if item.get("impact_basis") != "explicit_target"]
-    preconditions = _preconditions(snapshot)
+    preconditions = observation_preconditions(snapshot)
     change = request.proposed_change or {"hypothesis": request.hypothesis, "target_entities": request.target_entities}
     proposal = ProposalEnvelope.create(
         intent=request.hypothesis,

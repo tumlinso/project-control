@@ -57,6 +57,7 @@ from .snapshot import SnapshotBuilder
 from .security import redact_output
 from .terminal import TerminalSessionRegistry
 from .profiles import MCPProfile, ProfiledFastMCP
+from .mutation_tools import register_mutation_tools
 from .workflow_binding import todo_read_port_factory, workflow_protocol
 from .workflow_tools import WORKFLOW_INSTRUCTIONS, register_workflow_tools
 
@@ -86,6 +87,14 @@ TERMINAL_OBSERVATION = ToolAnnotations(
     destructiveHint=False,
     idempotentHint=False,
     openWorldHint=False,
+)
+
+MUTATOR_INSTRUCTIONS = (
+    "Use Todo Orchestrator as the sole Todo transaction authority. Preview plans and read current context before "
+    "broad mutation. Apply only fresh inert ProposalEnvelope values containing native Todo plans; stale proposals "
+    "fail closed without rebasing, regeneration, or retry. The six-tool workflow protocol remains preferred for "
+    "ordinary claimed implementation work. Plan mutation is for ledger, bootstrap, and control changes, not a "
+    "replacement for task claims."
 )
 
 OverviewDetail = Literal["compact", "standard", "expanded"]
@@ -175,6 +184,8 @@ def create_mcp(
     instructions = SERVER_INSTRUCTIONS
     if selected_profile is MCPProfile.CODEX:
         instructions = WORKFLOW_INSTRUCTIONS + " " + SERVER_INSTRUCTIONS
+    elif selected_profile is MCPProfile.MUTATOR:
+        instructions = WORKFLOW_INSTRUCTIONS + " " + SERVER_INSTRUCTIONS + " " + MUTATOR_INSTRUCTIONS
 
     mcp = ProfiledFastMCP(
         "project-control",
@@ -410,8 +421,10 @@ def create_mcp(
     async def version(_: Request) -> JSONResponse:
         return JSONResponse({"name": "project-control", "version": "0.3.1", "tool_schema_version": 3})
 
-    if selected_profile is MCPProfile.CODEX:
+    if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
         register_workflow_tools(mcp, protocol_factory=workflow_protocol)
+    if selected_profile is MCPProfile.MUTATOR:
+        register_mutation_tools(mcp, active_config)
 
     setattr(mcp, "_project_control_runtime", runtime)
     return mcp
@@ -453,4 +466,11 @@ def serve_codex() -> int:
     """Run the explicitly selected Codex profile over stdio."""
 
     create_mcp(profile=MCPProfile.CODEX).run(transport="stdio")
+    return 0
+
+
+def serve_mutator() -> int:
+    """Run the explicitly selected mutation-capable profile over local stdio."""
+
+    create_mcp(profile=MCPProfile.MUTATOR).run(transport="stdio")
     return 0

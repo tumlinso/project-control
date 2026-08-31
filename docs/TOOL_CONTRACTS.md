@@ -1,6 +1,6 @@
 # Tool contracts
 
-Project Control exposes two exact profile-specific tool sets. Neither profile
+Project Control exposes three exact profile-specific tool sets. No profile
 publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
 or a generic shell.
 
@@ -10,6 +10,8 @@ workflow mutation tool. The **codex** profile exposes exactly 20 tools over
 stdio: the same fourteen rich reads, excluding `terminal_capture`, plus the six
 canonical workflow tools `next_task`, `inspect_task`, `coordinate_task`,
 `delegate_task`, `collect_delegation`, and `finish_task`.
+The **mutator** profile exposes exactly 21 tools over local stdio: the Codex
+20-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
 
 Both registration and invocation are allowlisted. A name hidden from a profile
 cannot be invoked directly. Trusted startup configuration selects the profile;
@@ -189,6 +191,30 @@ MCP client or MCP subprocess. Normal instructions are cheap-first: begin with
 only when bounded task context cannot answer a source, architecture, history,
 impact, performance, or cross-project question.
 
+## Mutator plan application
+
+`apply_plan(project, proposal)` is registered only in the explicitly selected
+mutator profile. `proposal` is an inert `ProposalEnvelope` whose
+`proposed_change` is a native Todo plan; it accepts no file path, command,
+environment, raw SQLite operation, force flag, or stale-recovery option. The
+serialized proposal is bounded to 256 KiB.
+
+The handler verifies the proposal digest, rebuilds current Project Control
+observation preconditions, rejects any relevant mismatch, validates and diffs
+through the verified in-process Todo runtime, and applies at most once through
+Todo's own canonical transaction. Empty diffs return a no-op. Todo authority
+UUID continuity, coherent revision advance, and expected task presence are
+checked after application. Failures are bounded and never trigger automatic
+retry.
+
+`apply_plan` is annotated `readOnlyHint=false`, `destructiveHint=false`,
+`idempotentHint=false`, and `openWorldHint=false`. Todo native plan application
+is an additive/upsert transaction and does not remove omitted tasks, so v1 does
+not label the tool destructive; it remains non-idempotent because a successful
+apply advances Todo revision and records an event. The local `project-control
+plan apply --file ...` command constructs a fresh inert proposal and calls the
+same service. `plan_preview` and `project-control plan validate` never mutate.
+
 ## Component authority and provenance
 
 High-level responses expose an authority map whose members independently report
@@ -207,7 +233,8 @@ and filesystem paths so provider selection can be diagnosed.
 Every new high-level tool returns `ObservationPreconditions`. An optional inert
 `ProposalEnvelope` has proposal version, intent, structured proposed change,
 those preconditions, deterministic digest, creation time, and
-`authority_to_apply=false`. No read-server path accepts it for application.
+`authority_to_apply=false`. Read profiles do not accept it for application;
+only the explicit mutator's `apply_plan` consumes a fresh valid envelope.
 
 Continuation cursors are opaque, bounded, tied to the request and observation
 identities, and do not create server-side authority. Ranking and section budgets
@@ -239,7 +266,7 @@ proposal in a registered project, and never implies that validation changed
 todo or Git state.
 
 The observer transport is stateless Streamable HTTP with JSON responses at
-`/mcp`; the Codex transport is stdio. Neither server publishes MCP resources or
+`/mcp`; the Codex and mutator transports are stdio. No server publishes MCP resources or
 prompts. Operational liveness,
 readiness, and immutable release identity are available outside the MCP tool
 surface at `/healthz`, `/readyz`, and `/version`.

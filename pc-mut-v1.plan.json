@@ -1,0 +1,81 @@
+{
+  "schema_version": 3,
+  "project": {"name": "Project Control mutation ingestion v1"},
+  "invariants": [
+    {"id": "PC-MUT-TODO-AUTHORITY", "severity": "error", "rule": "Todo Orchestrator remains the sole Todo transaction authority; Project Control does not write SQLite or copy plan, dependency, lifecycle, or transaction semantics."},
+    {"id": "PC-MUT-OBSERVER-READONLY", "severity": "error", "rule": "The observer profile remains project-read-only with its existing tool names, schemas, accepted calls, and semantics and exposes no mutation switch or dormant mutator."},
+    {"id": "PC-MUT-CODEX-COMPAT", "severity": "error", "rule": "The Codex profile retains its established six workflow tools and existing rich reads without broad plan mutation."},
+    {"id": "PC-MUT-EXPLICIT-PROFILE", "severity": "error", "rule": "Broad plan mutation is available only through the explicit trusted startup-selected mutator profile and never through client metadata, tool arguments, model claims, or annotations."},
+    {"id": "PC-MUT-PROPOSAL-INERT", "severity": "error", "rule": "ProposalEnvelope remains inert with authority_to_apply false; only a fresh validated proposal consumed by the trusted mutator profile may reach Todo authority."},
+    {"id": "PC-MUT-STALE-FAIL-CLOSED", "severity": "error", "rule": "Plan application re-observes complete relevant preconditions and rejects staleness without guessing, rebasing, regeneration, or retry."},
+    {"id": "PC-MUT-SINGLE-AUTHORITY", "severity": "error", "rule": "V1 compiles and applies one explicit repository authority at a time and reports cross-authority dependencies without translating them into local Todo dependencies."},
+    {"id": "PC-MUT-NATIVE-PLAN", "severity": "error", "rule": "The native Todo Orchestrator plan is the canonical v1 mutation representation; pre-ledger input is only a deterministic frontend."},
+    {"id": "PC-MUT-NO-MCP-RECURSION", "severity": "error", "rule": "Project Control never invokes another MCP server to implement plan mutation."},
+    {"id": "PC-MUT-DOWNSTREAM-ISOLATION", "severity": "error", "rule": "No downstream project is mutated by this implementation or its large-package compile-only smoke test."}
+  ],
+  "tasks": [
+    {
+      "id": "PC-MUT-00", "kind": "task", "title": "Freeze live mutation-ingest contract and baseline",
+      "objective": "Record the live Project Control and Todo authority baseline and freeze the narrow v1 pre-ledger, native-plan, proposal, freshness, profile, and receipt contract.",
+      "priority": 600, "parallel_policy": "serial",
+      "scope": {"exclusive_paths": ["docs/mutation"], "read_paths": ["src/project_control", "tests", "docs", "README.md"]},
+      "invariants": ["PC-MUT-TODO-AUTHORITY", "PC-MUT-OBSERVER-READONLY", "PC-MUT-CODEX-COMPAT", "PC-MUT-PROPOSAL-INERT", "PC-MUT-STALE-FAIL-CLOSED", "PC-MUT-SINGLE-AUTHORITY", "PC-MUT-NATIVE-PLAN", "PC-MUT-DOWNSTREAM-ISOLATION"]
+    },
+    {
+      "id": "PC-MUT-01", "kind": "task", "title": "Implement pre-ledger package compiler",
+      "objective": "Compile versioned or compatibility pre-ledger packages deterministically into supported native Todo plans for one selected repository authority, preserving bounded provenance and reporting cross-authority dependencies.",
+      "priority": 590, "parallel_policy": "parallel_safe", "depends_on": [{"type": "task", "task_id": "PC-MUT-00"}],
+      "scope": {"exclusive_paths": ["src/project_control/preledger.py", "tests/test_preledger.py"], "read_paths": ["todo-orchestrator/todo_orchestrator/plan.py", "docs/mutation"]},
+      "invariants": ["PC-MUT-TODO-AUTHORITY", "PC-MUT-SINGLE-AUTHORITY", "PC-MUT-NATIVE-PLAN", "PC-MUT-DOWNSTREAM-ISOLATION"]
+    },
+    {
+      "id": "PC-MUT-02", "kind": "task", "title": "Implement validated Todo plan mutation service",
+      "objective": "Add one Project Control service that validates proposal digest and freshness, delegates native plan validate/diff/apply to the verified Todo runtime, applies once, verifies authority continuity, and returns a bounded receipt.",
+      "priority": 580, "parallel_policy": "parallel_safe", "depends_on": [{"type": "task", "task_id": "PC-MUT-00"}],
+      "scope": {"exclusive_paths": ["src/project_control/mutation.py", "src/project_control/mutation_tools.py", "tests/test_plan_apply.py"], "read_paths": ["src/project_control/proposals.py", "src/project_control/models.py", "src/project_control/snapshot.py", "src/project_control/workflow_binding.py", "todo-orchestrator/todo_orchestrator/plan.py", "todo-orchestrator/todo_orchestrator/service.py"]},
+      "invariants": ["PC-MUT-TODO-AUTHORITY", "PC-MUT-PROPOSAL-INERT", "PC-MUT-STALE-FAIL-CLOSED", "PC-MUT-NATIVE-PLAN", "PC-MUT-NO-MCP-RECURSION", "PC-MUT-DOWNSTREAM-ISOLATION"]
+    },
+    {
+      "id": "PC-MUT-03", "kind": "task", "title": "Add bulk plan CLI",
+      "objective": "Add plan compile, validate, and apply commands; compile never mutates and apply constructs an inert fresh proposal then uses the shared mutation service.",
+      "priority": 570, "parallel_policy": "serial", "depends_on": [{"type": "task", "task_id": "PC-MUT-01"}],
+      "scope": {"exclusive_paths": ["src/project_control/cli.py"], "read_paths": ["src/project_control/preledger.py", "src/project_control/mutation.py", "tests/test_cli_profiles.py"]},
+      "invariants": ["PC-MUT-TODO-AUTHORITY", "PC-MUT-PROPOSAL-INERT", "PC-MUT-STALE-FAIL-CLOSED", "PC-MUT-NATIVE-PLAN"]
+    },
+    {
+      "id": "PC-MUT-04", "kind": "task", "title": "Add explicit mutator MCP profile and apply_plan tool",
+      "objective": "Add a stdio-only trusted mutator profile with the existing Codex workflow and rich-read tools plus apply_plan, using the shared mutation service without filesystem, shell, force, or stale-recovery authority.",
+      "priority": 560, "parallel_policy": "serial", "depends_on": [{"type": "task", "task_id": "PC-MUT-02"}],
+      "scope": {"exclusive_paths": ["src/project_control/profiles.py", "src/project_control/app.py"], "read_paths": ["src/project_control/mutation_tools.py", "src/project_control/workflow_tools.py", "tests/test_profiles.py", "tests/test_cli_profiles.py"]},
+      "invariants": ["PC-MUT-OBSERVER-READONLY", "PC-MUT-CODEX-COMPAT", "PC-MUT-EXPLICIT-PROFILE", "PC-MUT-PROPOSAL-INERT", "PC-MUT-STALE-FAIL-CLOSED", "PC-MUT-NO-MCP-RECURSION"]
+    },
+    {
+      "id": "PC-MUT-05", "kind": "integration_task", "title": "Integrate tests, documentation, and release contract",
+      "objective": "Integrate the bounded compiler, mutation service, CLI, and mutator profile; prove observer and Codex compatibility, run the relevant and full unit suites, document v1, smoke compile any accessible large package, commit, and push.",
+      "priority": 550, "parallel_policy": "integration_exclusive",
+      "depends_on": [{"type": "task", "task_id": "PC-MUT-03"}, {"type": "task", "task_id": "PC-MUT-04"}],
+      "scope": {"exclusive_paths": ["README.md", "docs/FUTURE_WRITE_PROFILE.md", "docs/TOOL_CONTRACTS.md", "tests/test_profiles.py", "tests/test_cli_profiles.py", "tests/test_future_write_seam.py"], "read_paths": ["src/project_control", "tests", "docs", "pyproject.toml"]},
+      "invariants": ["PC-MUT-TODO-AUTHORITY", "PC-MUT-OBSERVER-READONLY", "PC-MUT-CODEX-COMPAT", "PC-MUT-EXPLICIT-PROFILE", "PC-MUT-PROPOSAL-INERT", "PC-MUT-STALE-FAIL-CLOSED", "PC-MUT-SINGLE-AUTHORITY", "PC-MUT-NATIVE-PLAN", "PC-MUT-NO-MCP-RECURSION", "PC-MUT-DOWNSTREAM-ISOLATION"],
+      "gates": [
+        {"id": "PC-MUT-05-FOCUSED", "type": "command", "argv": [".venv/bin/python", "-m", "unittest", "tests.test_preledger", "tests.test_plan_apply", "tests.test_future_write_seam", "tests.test_plan_preview", "tests.test_profiles", "tests.test_cli_profiles", "tests.test_workflow_binding", "tests.test_workflow_tools", "-v"], "required": true},
+        {"id": "PC-MUT-05-FULL", "type": "command", "argv": [".venv/bin/python", "-m", "unittest", "discover", "-s", "tests", "-v"], "env": {"PROJECT_CONTROL_SKILLS_ROOT": "", "CODING_WORKFLOW_SKILLS_ROOT": ""}, "required": true},
+        {"id": "PC-MUT-05-DIFF", "type": "command", "argv": ["git", "diff", "--check"], "required": true}
+      ]
+    }
+  ],
+  "runs": [{
+    "id": "PC-MUT-V1", "root_task_id": "PC-MUT-00",
+    "charter": {
+      "objective": "Deliver the first bounded Project Control bulk-ledger compiler and general native Todo plan write surface.",
+      "boundaries": ["No Project Control or Todo redesign.", "No cross-project atomic transaction.", "No remote write deployment.", "No downstream mutation."],
+      "invariants": ["PC-MUT-TODO-AUTHORITY", "PC-MUT-OBSERVER-READONLY", "PC-MUT-CODEX-COMPAT", "PC-MUT-EXPLICIT-PROFILE", "PC-MUT-PROPOSAL-INERT", "PC-MUT-STALE-FAIL-CLOSED", "PC-MUT-SINGLE-AUTHORITY", "PC-MUT-NATIVE-PLAN", "PC-MUT-NO-MCP-RECURSION", "PC-MUT-DOWNSTREAM-ISOLATION"],
+      "acceptance_conditions": ["Pre-ledger compilation is deterministic.", "Native plan mutation delegates to Todo authority.", "Local CLI compile, validate, and apply work.", "Mutator alone exposes apply_plan.", "Observer and Codex contracts remain compatible."]
+    },
+    "lanes": [
+      {"id": "PC-MUT-BASELINE-LANE", "role": "coordinator", "tasks": ["PC-MUT-00"], "workspace": {"mode": "exclusive"}},
+      {"id": "PC-MUT-COMPILER-LANE", "parent_lane_id": "PC-MUT-BASELINE-LANE", "role": "implementer", "tasks": ["PC-MUT-01", "PC-MUT-03"], "workspace": {"mode": "exclusive"}},
+      {"id": "PC-MUT-MUTATION-LANE", "parent_lane_id": "PC-MUT-BASELINE-LANE", "role": "implementer", "tasks": ["PC-MUT-02", "PC-MUT-04"], "workspace": {"mode": "exclusive"}},
+      {"id": "PC-MUT-INTEGRATION-LANE", "parent_lane_id": "PC-MUT-BASELINE-LANE", "role": "integrator", "tasks": ["PC-MUT-05"], "workspace": {"mode": "exclusive"}}
+    ]
+  }]
+}
