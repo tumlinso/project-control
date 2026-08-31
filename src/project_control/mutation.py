@@ -62,6 +62,19 @@ def _snapshot_builder(
     return SnapshotBuilder(config, todo_read_port_factory=todo_read_port_factory(environment))
 
 
+def build_mutation_snapshot(
+    config: ProjectControlConfig,
+    project: str,
+    *,
+    snapshot_builder: SnapshotBuilder | None = None,
+) -> ProjectSnapshot:
+    """Observe with the same verified Todo providers used by mutation."""
+
+    environment = _runtime_environment(config)
+    builder = _snapshot_builder(config, environment, snapshot_builder)
+    return builder.build(project)
+
+
 def _authority_root(config: ProjectControlConfig, project: str) -> Path:
     registry = WorkspaceRegistry(config)
     workspace = registry.workspace(project)

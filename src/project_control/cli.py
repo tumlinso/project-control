@@ -180,7 +180,7 @@ def _plan_command(args: argparse.Namespace) -> int:
         }, sort_keys=True, separators=(",", ":")))
         return 0
 
-    from .mutation import apply_proposal, validate_native_plan
+    from .mutation import apply_proposal, build_mutation_snapshot, validate_native_plan
 
     config = load_config()
     native_plan = _load_native_plan(args.file)
@@ -190,7 +190,7 @@ def _plan_command(args: argparse.Namespace) -> int:
         from .models import ProposalEnvelope
         from .proposals import observation_preconditions
 
-        snapshot = SnapshotBuilder(config).build(args.project)
+        snapshot = build_mutation_snapshot(config, args.project)
         proposal = ProposalEnvelope.create(
             intent=f"Apply native Todo plan to {args.project}",
             proposed_change=native_plan,

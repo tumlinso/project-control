@@ -56,12 +56,12 @@ class ProfileCliTests(unittest.TestCase):
             snapshot = unittest.mock.Mock(observed_at="2026-08-31T00:00:00Z")
             snapshot.observation_preconditions.return_value = _preconditions_fixture()
             with patch("project_control.cli.load_config", return_value="config"), \
-                 patch("project_control.cli.SnapshotBuilder") as builder, \
+                 patch("project_control.mutation.build_mutation_snapshot", return_value=snapshot) as observe, \
                  patch("project_control.proposals.observation_preconditions", return_value=_preconditions_fixture()), \
                  patch("project_control.mutation.apply_proposal", return_value={"status": "applied"}) as apply, \
                  patch("sys.stdout", new_callable=io.StringIO):
-                builder.return_value.build.return_value = snapshot
                 self.assertEqual(main(["plan", "apply", "--project", "demo", "--file", str(plan_file)]), 0)
+            observe.assert_called_once_with("config", "demo")
             self.assertEqual("config", apply.call_args.args[0])
             self.assertEqual("demo", apply.call_args.args[1])
             self.assertFalse(apply.call_args.args[2].authority_to_apply)
