@@ -126,6 +126,12 @@ def _parser() -> argparse.ArgumentParser:
     recover.add_argument("--task")
     recover.add_argument("--reason", required=True)
     recover.add_argument("--inspect-only", action="store_true")
+    prepare = admin_commands.add_parser("prepare-run-workspaces")
+    prepare.add_argument("--repo", required=True)
+    prepare.add_argument("--plan", required=True)
+    prepare.add_argument("--run", required=True)
+    prepare.add_argument("--apply", action="store_true")
+    prepare.add_argument("--confirm")
     return parser
 
 
@@ -306,9 +312,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result, sort_keys=True))
             return 0
         if args.command == "admin":
-            from .admin import inspect_recovery, recover
+            from .admin import inspect_recovery, prepare_run_workspaces, recover
 
-            if args.inspect_only:
+            if args.admin_command == "prepare-run-workspaces":
+                result = prepare_run_workspaces(
+                    args.repo, args.plan, args.run, apply=args.apply, confirmation=args.confirm,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.inspect_only:
                 print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
             else:
                 recover(args.repo, reason=args.reason, task_id=args.task)

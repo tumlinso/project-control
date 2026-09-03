@@ -24,6 +24,19 @@ class AdminCliTests(unittest.TestCase):
         self.assertEqual(result, 0)
         recover.assert_called_once_with("/repo", reason="owner approved", task_id=None)
 
+    def test_prepare_run_workspaces_cli_defaults_to_preview(self) -> None:
+        prepared = {"status": "ready", "pending": [{"lane_id": "L-A"}]}
+        with patch.object(admin, "prepare_run_workspaces", return_value=prepared) as prepare, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            result = admin.main([
+                "prepare-run-workspaces", "--repo", "/repo", "--plan", "/plan.json", "--run", "RUN",
+            ])
+        self.assertEqual(result, 0)
+        prepare.assert_called_once_with(
+            "/repo", "/plan.json", "RUN", apply=False, confirmation=None,
+        )
+        self.assertEqual(json.loads(output.getvalue()), prepared)
+
 
 if __name__ == "__main__":
     unittest.main()

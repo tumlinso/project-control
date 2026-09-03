@@ -116,6 +116,19 @@ class ProfileCliTests(unittest.TestCase):
         inspect.assert_called_once_with("/repo", None)
         self.assertEqual(json.loads(output.getvalue()), {"status": "safe"})
 
+    def test_admin_workspace_preparation_is_exposed_by_main_cli(self) -> None:
+        prepared = {"status": "prepared", "prepared": [{"lane_id": "L-A"}]}
+        with patch("project_control.admin.prepare_run_workspaces", return_value=prepared) as prepare, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "prepare-run-workspaces", "--repo", "/repo", "--plan", "/plan.json",
+                "--run", "RUN", "--apply", "--confirm", "PREPARE-RUN-WORKSPACES",
+            ]), 0)
+        prepare.assert_called_once_with(
+            "/repo", "/plan.json", "RUN", apply=True, confirmation="PREPARE-RUN-WORKSPACES",
+        )
+        self.assertEqual(json.loads(output.getvalue()), prepared)
+
     def test_canonical_root_wins_and_legacy_alias_warns(self) -> None:
         config = ProjectControlConfig()
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
