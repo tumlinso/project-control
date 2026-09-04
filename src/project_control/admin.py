@@ -101,8 +101,6 @@ def _exclusive_integrator_destinations(
             "AND w.state='artifact_ready' AND a.state='pending'",
             (run_id, task_id),
         ).fetchall()
-        if not artifact_bases:
-            continue
         participant_bases = {
             str(item["base_commit"])
             for item in conn.execute(
@@ -111,6 +109,8 @@ def _exclusive_integrator_destinations(
                 (run_id, task_id),
             ).fetchall()
         }
+        if not participant_bases and not artifact_bases:
+            continue
         observed_bases = participant_bases | {
             str(item["workspace_base"]) for item in artifact_bases
         } | {str(item["artifact_base"]) for item in artifact_bases}
