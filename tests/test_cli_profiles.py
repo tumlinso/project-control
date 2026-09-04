@@ -144,6 +144,22 @@ class ProfileCliTests(unittest.TestCase):
         )
         self.assertEqual(json.loads(output.getvalue()), reconciled)
 
+    def test_admin_workspace_cleanup_eligibility_is_exposed_by_main_cli(self) -> None:
+        marked = {"status": "marked", "marked": [{"workspace_id": "W-A"}]}
+        with patch(
+            "project_control.admin.mark_run_workspaces_cleanup_eligible", return_value=marked
+        ) as cleanup, patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "mark-run-workspaces-cleanup-eligible", "--repo", "/repo",
+                "--run", "RUN", "--apply", "--confirm",
+                "MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE",
+            ]), 0)
+        cleanup.assert_called_once_with(
+            "/repo", "RUN", apply=True,
+            confirmation="MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE",
+        )
+        self.assertEqual(json.loads(output.getvalue()), marked)
+
     def test_canonical_root_wins_and_legacy_alias_warns(self) -> None:
         config = ProjectControlConfig()
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:

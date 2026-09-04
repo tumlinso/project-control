@@ -16,6 +16,7 @@ from typing import Any, Sequence
 
 PREPARE_WORKSPACES_CONFIRMATION = "PREPARE-RUN-WORKSPACES"
 RECONCILE_WORKSPACE_BASE_CONFIRMATION = "RECONCILE-WORKSPACE-BASE"
+MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION = "MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE"
 
 
 def _runtime_identity() -> object:
@@ -359,6 +360,85 @@ def reconcile_workspace_base(
     return result
 
 
+def mark_run_workspaces_cleanup_eligible(
+    repo: str | Path,
+    run_id: str,
+    *,
+    apply: bool = False,
+    confirmation: str | None = None,
+) -> dict[str, object]:
+    """Mark every terminal workspace in a completed run safe for cleanup."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.service import repository_identity
+    from todo_orchestrator.workflow.workspaces import WorkspaceService, material_dirty_paths
+
+    repository = Path(repo).expanduser().resolve()
+    service = Service(repository, mutation_mode="self_debug")
+    project_uuid = str(service.project["project_uuid"])
+    with service.db.read() as conn:
+        run = conn.execute("SELECT status FROM workflow_runs WHERE id=?", (run_id,)).fetchone()
+        if run is None:
+            raise ValueError(f"workflow run does not exist: {run_id}")
+        if str(run["status"]) != "completed":
+            raise ValueError(f"workflow run is not completed: {run_id}")
+        nonclosed_lane = conn.execute(
+            "SELECT id FROM workflow_lanes WHERE run_id=? AND state!='closed' ORDER BY id LIMIT 1",
+            (run_id,),
+        ).fetchone()
+        if nonclosed_lane is not None:
+            raise ValueError(f"workflow run still has an open lane: {nonclosed_lane['id']}")
+        rows = [dict(row) for row in conn.execute(
+            "SELECT id,lane_id,state,worktree_path,branch,cleanup_eligible "
+            "FROM workflow_workspaces WHERE run_id=? ORDER BY lane_id,id",
+            (run_id,),
+        ).fetchall()]
+        active_dispatch = conn.execute(
+            "SELECT d.id FROM workflow_dispatches d JOIN workflow_workspaces w ON w.id=d.workspace_id "
+            "WHERE w.run_id=? AND d.state='active' ORDER BY d.id LIMIT 1",
+            (run_id,),
+        ).fetchone()
+    if active_dispatch is not None:
+        raise ValueError(f"workflow run still has an active workspace owner: {active_dispatch['id']}")
+    if not rows:
+        raise ValueError(f"workflow run has no managed workspaces: {run_id}")
+    for row in rows:
+        if str(row["state"]) not in {"integrated", "rejected"}:
+            raise ValueError(f"workspace is not terminal: {row['id']} ({row['state']})")
+        path = Path(str(row["worktree_path"])) if row.get("worktree_path") else None
+        if path is None or not path.exists():
+            raise ValueError(f"workspace path is unavailable: {row['id']}")
+        if material_dirty_paths(path):
+            raise ValueError(f"workspace is dirty and must be preserved: {row['id']}")
+
+    pending = [row for row in rows if not bool(row["cleanup_eligible"])]
+    result: dict[str, object] = {
+        "status": "ready" if pending else "noop",
+        "run_id": run_id,
+        "pending": [
+            {"workspace_id": row["id"], "lane_id": row["lane_id"], "branch": row["branch"]}
+            for row in pending
+        ],
+        "marked": [],
+    }
+    if not apply or not pending:
+        return result
+    if confirmation != MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION:
+        raise ValueError(
+            f"--confirm must equal {MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION}"
+        )
+    manager = WorkspaceService(
+        service.db,
+        managed_root=service.paths.state_dir / "workflow-workspaces",
+        repository_identity_resolver=lambda root: repository_identity(root, project_uuid),
+    )
+    result["marked"] = [
+        manager.mark_cleanup_eligible(workspace_id=str(row["id"])) for row in pending
+    ]
+    result["status"] = "marked"
+    return result
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="project-control-admin")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -383,6 +463,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     reconcile.add_argument("--reason", required=True)
     reconcile.add_argument("--apply", action="store_true")
     reconcile.add_argument("--confirm")
+    cleanup = commands.add_parser(
+        "mark-run-workspaces-cleanup-eligible",
+        help="mark clean terminal workspaces in a completed run safe for cleanup",
+    )
+    cleanup.add_argument("--repo", required=True)
+    cleanup.add_argument("--run", required=True)
+    cleanup.add_argument("--apply", action="store_true")
+    cleanup.add_argument("--confirm")
     args = parser.parse_args(argv)
     if args.command == "recover":
         if args.inspect_only:
@@ -394,10 +482,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.repo, args.plan, args.run, apply=args.apply, confirmation=args.confirm,
         )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-    else:
+    elif args.command == "reconcile-workspace-base":
         result = reconcile_workspace_base(
             args.repo, args.run, args.lane, args.base, reason=args.reason,
             apply=args.apply, confirmation=args.confirm,
+        )
+        print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    else:
+        result = mark_run_workspaces_cleanup_eligible(
+            args.repo, args.run, apply=args.apply, confirmation=args.confirm,
         )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0

@@ -140,6 +140,11 @@ def _parser() -> argparse.ArgumentParser:
     reconcile.add_argument("--reason", required=True)
     reconcile.add_argument("--apply", action="store_true")
     reconcile.add_argument("--confirm")
+    cleanup = admin_commands.add_parser("mark-run-workspaces-cleanup-eligible")
+    cleanup.add_argument("--repo", required=True)
+    cleanup.add_argument("--run", required=True)
+    cleanup.add_argument("--apply", action="store_true")
+    cleanup.add_argument("--confirm")
     return parser
 
 
@@ -320,7 +325,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result, sort_keys=True))
             return 0
         if args.command == "admin":
-            from .admin import inspect_recovery, prepare_run_workspaces, reconcile_workspace_base, recover
+            from .admin import (
+                inspect_recovery,
+                mark_run_workspaces_cleanup_eligible,
+                prepare_run_workspaces,
+                reconcile_workspace_base,
+                recover,
+            )
 
             if args.admin_command == "prepare-run-workspaces":
                 result = prepare_run_workspaces(
@@ -331,10 +342,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "recover":
                 recover(args.repo, reason=args.reason, task_id=args.task)
-            else:
+            elif args.admin_command == "reconcile-workspace-base":
                 result = reconcile_workspace_base(
                     args.repo, args.run, args.lane, args.base, reason=args.reason,
                     apply=args.apply, confirmation=args.confirm,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            else:
+                result = mark_run_workspaces_cleanup_eligible(
+                    args.repo, args.run, apply=args.apply, confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             return 0

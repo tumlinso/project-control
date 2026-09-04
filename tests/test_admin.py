@@ -284,6 +284,18 @@ class AdminCliTests(unittest.TestCase):
         )
         self.assertEqual(json.loads(output.getvalue()), preview)
 
+    def test_mark_run_workspaces_cleanup_eligible_cli_defaults_to_preview(self) -> None:
+        preview = {"status": "ready", "pending": [{"workspace_id": "W-A"}]}
+        with patch.object(
+            admin, "mark_run_workspaces_cleanup_eligible", return_value=preview
+        ) as cleanup, patch("sys.stdout", new_callable=io.StringIO) as output:
+            result = admin.main([
+                "mark-run-workspaces-cleanup-eligible", "--repo", "/repo", "--run", "RUN",
+            ])
+        self.assertEqual(result, 0)
+        cleanup.assert_called_once_with("/repo", "RUN", apply=False, confirmation=None)
+        self.assertEqual(json.loads(output.getvalue()), preview)
+
 
 if __name__ == "__main__":
     unittest.main()
