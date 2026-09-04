@@ -81,7 +81,8 @@ def _exclusive_integrator_destinations(
     rows = conn.execute(
         "SELECT l.id AS lane_id,lt.task_id FROM workflow_lanes l "
         "JOIN workflow_lane_tasks lt ON lt.lane_id=l.id "
-        "WHERE l.run_id=? AND l.role='integrator' AND l.workspace_mode='exclusive' "
+        "WHERE l.run_id=? AND l.role IN ('integrator','validator') "
+        "AND l.workspace_mode='exclusive' "
         "AND l.state IN ('ready','active') AND lt.state IN ('queued','active') "
         "AND lt.position=(SELECT MIN(head.position) FROM workflow_lane_tasks head "
         "WHERE head.lane_id=l.id AND head.state IN ('queued','active')) ORDER BY l.id",

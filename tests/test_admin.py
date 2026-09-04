@@ -149,6 +149,23 @@ class AdminCliTests(unittest.TestCase):
         self.assertEqual(result["pending"][0]["lane_id"], "L-INTEGRATE")
         self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
 
+    def test_prepare_validator_owned_exclusive_destination(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute(
+            "UPDATE workflow_lanes SET role='validator' WHERE id='L-INTEGRATE'"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            plan, service = self._prepare_fixture(connection, Path(directory))
+            manager = Mock()
+            with patch.object(admin, "_runtime_identity"), \
+                 patch.object(admin, "_git", side_effect=["", "canonical-head"]), \
+                 patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+                result = admin.prepare_run_workspaces("/repo", "/plan.json", "RUN")
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["pending"][0]["lane_id"], "L-INTEGRATE")
+
     def test_prepare_run_workspaces_rejects_mixed_producer_bases(self) -> None:
         connection = _workspace_database()
         self.addCleanup(connection.close)
