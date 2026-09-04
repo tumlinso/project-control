@@ -11,7 +11,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 
 PREPARE_WORKSPACES_CONFIRMATION = "PREPARE-RUN-WORKSPACES"
@@ -72,6 +72,60 @@ def _workspace_name(value: str) -> str:
     return name
 
 
+def _exclusive_integrator_destinations(
+    conn: Any,
+    run_id: str,
+    existing_lane_ids: set[str],
+) -> list[dict[str, str]]:
+    """Find missing exclusive destinations needed by pending producer artifacts."""
+    rows = conn.execute(
+        "SELECT l.id AS lane_id,lt.task_id FROM workflow_lanes l "
+        "JOIN workflow_lane_tasks lt ON lt.lane_id=l.id "
+        "WHERE l.run_id=? AND l.role='integrator' AND l.workspace_mode='exclusive' "
+        "AND l.state IN ('ready','active') AND lt.state IN ('queued','active') "
+        "AND lt.position=(SELECT MIN(head.position) FROM workflow_lane_tasks head "
+        "WHERE head.lane_id=l.id AND head.state IN ('queued','active')) ORDER BY l.id",
+        (run_id,),
+    ).fetchall()
+    destinations: list[dict[str, str]] = []
+    for row in rows:
+        lane_id = str(row["lane_id"])
+        if lane_id in existing_lane_ids:
+            continue
+        task_id = str(row["task_id"])
+        artifact_bases = conn.execute(
+            "SELECT DISTINCT w.base_commit AS workspace_base,a.base_commit AS artifact_base "
+            "FROM workflow_patch_artifacts a JOIN workflow_workspaces w ON w.id=a.workspace_id "
+            "WHERE w.run_id=? AND w.integration_task_id=? "
+            "AND w.mode IN ('isolated_merge','contract_split') "
+            "AND w.state='artifact_ready' AND a.state='pending'",
+            (run_id, task_id),
+        ).fetchall()
+        if not artifact_bases:
+            continue
+        participant_bases = {
+            str(item["base_commit"])
+            for item in conn.execute(
+                "SELECT DISTINCT base_commit FROM workflow_workspaces WHERE run_id=? "
+                "AND integration_task_id=? AND mode IN ('isolated_merge','contract_split')",
+                (run_id, task_id),
+            ).fetchall()
+        }
+        observed_bases = participant_bases | {
+            str(item["workspace_base"]) for item in artifact_bases
+        } | {str(item["artifact_base"]) for item in artifact_bases}
+        if len(observed_bases) != 1:
+            raise ValueError(
+                f"producer artifacts do not share the exact integration base: {task_id}"
+            )
+        destinations.append({
+            "lane_id": lane_id,
+            "task_id": task_id,
+            "base_commit": observed_bases.pop(),
+        })
+    return destinations
+
+
 def prepare_run_workspaces(
     repo: str | Path,
     plan_path: str | Path,
@@ -80,12 +134,14 @@ def prepare_run_workspaces(
     apply: bool = False,
     confirmation: str | None = None,
 ) -> dict[str, object]:
-    """Prepare only currently claimable managed lanes from an applied native plan.
+    """Prepare claimable managed lanes and required exclusive destinations.
 
     Native schema-v3 plans declare workspace intent but Todo deliberately keeps
-    Git materialization outside the plan transaction.  This owner-only Project
-    Control operation closes that boundary without exposing a model-facing
-    workspace mutation tool or bypassing Todo's WorkspaceService.
+    Git materialization outside the plan transaction.  An exclusive integrator
+    destination becomes preparable when its live queue head has a pending
+    producer artifact, even if the integration task is not claimable yet. This
+    owner-only Project Control operation closes that boundary without exposing
+    a model-facing workspace mutation tool or bypassing Todo's WorkspaceService.
     """
 
     _runtime_identity()
@@ -125,10 +181,19 @@ def prepare_run_workspaces(
                 (run_id,),
             )
         }
+        all_existing_lane_ids = {
+            str(row["lane_id"])
+            for row in conn.execute(
+                "SELECT lane_id FROM workflow_workspaces WHERE run_id=?", (run_id,)
+            )
+        }
         lane_modes = {
             str(row["id"]): str(row["workspace_mode"])
             for row in conn.execute("SELECT id,workspace_mode FROM workflow_lanes WHERE run_id=?", (run_id,))
         }
+        exclusive_destinations = _exclusive_integrator_destinations(
+            conn, run_id, all_existing_lane_ids
+        )
 
     pending: list[dict[str, object]] = []
     for candidate in candidates:
@@ -154,6 +219,27 @@ def prepare_run_workspaces(
             "mode": mode,
             "integration_task_id": str(integration_task_id) if integration_task_id else None,
             "base_commit": base_commit,
+            "worktree_path": str(service.paths.state_dir / "workflow-workspaces" / name),
+            "branch": f"codex/{name}",
+        })
+    for destination in exclusive_destinations:
+        lane_id = destination["lane_id"]
+        spec = lane_specs.get(lane_id)
+        if spec is None:
+            raise ValueError(f"active lane is absent from the supplied plan: {lane_id}")
+        workspace = dict(spec.get("workspace", {}))
+        mode = str(workspace.get("mode", "exclusive"))
+        if lane_modes.get(lane_id) != mode:
+            raise ValueError(f"workspace mode differs from live lane contract: {lane_id}")
+        if mode != "exclusive":
+            raise ValueError(f"integrator destination must be exclusive: {lane_id}")
+        name = _workspace_name(lane_id)
+        pending.append({
+            "lane_id": lane_id,
+            "task_id": destination["task_id"],
+            "mode": mode,
+            "integration_task_id": destination["task_id"],
+            "base_commit": destination["base_commit"],
             "worktree_path": str(service.paths.state_dir / "workflow-workspaces" / name),
             "branch": f"codex/{name}",
         })
@@ -183,7 +269,7 @@ def prepare_run_workspaces(
             run_id=run_id,
             lane_id=str(item["lane_id"]),
             mode=str(item["mode"]),
-            base_commit=base_commit,
+            base_commit=str(item["base_commit"]),
             worktree_path=Path(str(item["worktree_path"])),
             branch=str(item["branch"]),
             integration_task_id=(str(item["integration_task_id"]) if item["integration_task_id"] else None),
