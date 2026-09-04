@@ -37,6 +37,21 @@ class AdminCliTests(unittest.TestCase):
         )
         self.assertEqual(json.loads(output.getvalue()), prepared)
 
+    def test_reconcile_workspace_base_cli_defaults_to_preview(self) -> None:
+        preview = {"status": "ready", "lane_id": "L-A"}
+        with patch.object(admin, "reconcile_workspace_base", return_value=preview) as reconcile, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            result = admin.main([
+                "reconcile-workspace-base", "--repo", "/repo", "--run", "RUN",
+                "--lane", "L-A", "--base", "abc", "--reason", "prior wave",
+            ])
+        self.assertEqual(result, 0)
+        reconcile.assert_called_once_with(
+            "/repo", "RUN", "L-A", "abc", reason="prior wave",
+            apply=False, confirmation=None,
+        )
+        self.assertEqual(json.loads(output.getvalue()), preview)
+
 
 if __name__ == "__main__":
     unittest.main()

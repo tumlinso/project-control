@@ -129,6 +129,21 @@ class ProfileCliTests(unittest.TestCase):
         )
         self.assertEqual(json.loads(output.getvalue()), prepared)
 
+    def test_admin_workspace_base_reconciliation_is_exposed_by_main_cli(self) -> None:
+        reconciled = {"status": "reconciled", "lane_id": "L-A"}
+        with patch("project_control.admin.reconcile_workspace_base", return_value=reconciled) as reconcile, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "reconcile-workspace-base", "--repo", "/repo", "--run", "RUN",
+                "--lane", "L-A", "--base", "abc", "--reason", "prior wave",
+                "--apply", "--confirm", "RECONCILE-WORKSPACE-BASE",
+            ]), 0)
+        reconcile.assert_called_once_with(
+            "/repo", "RUN", "L-A", "abc", reason="prior wave",
+            apply=True, confirmation="RECONCILE-WORKSPACE-BASE",
+        )
+        self.assertEqual(json.loads(output.getvalue()), reconciled)
+
     def test_canonical_root_wins_and_legacy_alias_warns(self) -> None:
         config = ProjectControlConfig()
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:

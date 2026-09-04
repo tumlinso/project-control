@@ -15,6 +15,7 @@ from typing import Sequence
 
 
 PREPARE_WORKSPACES_CONFIRMATION = "PREPARE-RUN-WORKSPACES"
+RECONCILE_WORKSPACE_BASE_CONFIRMATION = "RECONCILE-WORKSPACE-BASE"
 
 
 def _runtime_identity() -> object:
@@ -192,6 +193,65 @@ def prepare_run_workspaces(
     return result
 
 
+def reconcile_workspace_base(
+    repo: str | Path,
+    run_id: str,
+    lane_id: str,
+    base_commit: str,
+    *,
+    reason: str,
+    apply: bool = False,
+    confirmation: str | None = None,
+) -> dict[str, object]:
+    """Reconcile a clean lane workspace after it incorporated a newer base."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.service import repository_identity
+    from todo_orchestrator.workflow.workspaces import WorkspaceService
+
+    repository = Path(repo).expanduser().resolve()
+    service = Service(repository, mutation_mode="self_debug")
+    project_uuid = str(service.project["project_uuid"])
+    canonical_base = _git(repository, "rev-parse", "--verify", f"{base_commit}^{{commit}}")
+    with service.db.read() as conn:
+        rows = conn.execute(
+            "SELECT id,base_commit,worktree_path,state FROM workflow_workspaces "
+            "WHERE run_id=? AND lane_id=? AND state IN "
+            "('active','artifact_ready','queued','conflict','awaiting_gates','gate_failed')",
+            (run_id, lane_id),
+        ).fetchall()
+    if len(rows) != 1:
+        raise ValueError("expected exactly one active workspace for the requested run lane")
+    current = dict(rows[0])
+    preview: dict[str, object] = {
+        "status": "ready",
+        "run_id": run_id,
+        "lane_id": lane_id,
+        "workspace_id": current["id"],
+        "old_base_commit": current["base_commit"],
+        "base_commit": canonical_base,
+        "worktree_path": current["worktree_path"],
+    }
+    if not apply:
+        return preview
+    if confirmation != RECONCILE_WORKSPACE_BASE_CONFIRMATION:
+        raise ValueError(f"--confirm must equal {RECONCILE_WORKSPACE_BASE_CONFIRMATION}")
+    manager = WorkspaceService(
+        service.db,
+        managed_root=service.paths.state_dir / "workflow-workspaces",
+        repository_identity_resolver=lambda root: repository_identity(root, project_uuid),
+    )
+    result = manager.reconcile_workspace_base(
+        repository_root=repository,
+        run_id=run_id,
+        lane_id=lane_id,
+        base_commit=canonical_base,
+        reason=reason,
+    )
+    result["status"] = "reconciled"
+    return result
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="project-control-admin")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -206,15 +266,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare.add_argument("--run", required=True)
     prepare.add_argument("--apply", action="store_true")
     prepare.add_argument("--confirm")
+    reconcile = commands.add_parser(
+        "reconcile-workspace-base", help="reconcile a clean workspace after an earlier integration"
+    )
+    reconcile.add_argument("--repo", required=True)
+    reconcile.add_argument("--run", required=True)
+    reconcile.add_argument("--lane", required=True)
+    reconcile.add_argument("--base", required=True)
+    reconcile.add_argument("--reason", required=True)
+    reconcile.add_argument("--apply", action="store_true")
+    reconcile.add_argument("--confirm")
     args = parser.parse_args(argv)
     if args.command == "recover":
         if args.inspect_only:
             print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
         else:
             recover(args.repo, reason=args.reason, task_id=args.task)
-    else:
+    elif args.command == "prepare-run-workspaces":
         result = prepare_run_workspaces(
             args.repo, args.plan, args.run, apply=args.apply, confirmation=args.confirm,
+        )
+        print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    else:
+        result = reconcile_workspace_base(
+            args.repo, args.run, args.lane, args.base, reason=args.reason,
+            apply=args.apply, confirmation=args.confirm,
         )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0

@@ -132,6 +132,14 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("--run", required=True)
     prepare.add_argument("--apply", action="store_true")
     prepare.add_argument("--confirm")
+    reconcile = admin_commands.add_parser("reconcile-workspace-base")
+    reconcile.add_argument("--repo", required=True)
+    reconcile.add_argument("--run", required=True)
+    reconcile.add_argument("--lane", required=True)
+    reconcile.add_argument("--base", required=True)
+    reconcile.add_argument("--reason", required=True)
+    reconcile.add_argument("--apply", action="store_true")
+    reconcile.add_argument("--confirm")
     return parser
 
 
@@ -312,17 +320,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result, sort_keys=True))
             return 0
         if args.command == "admin":
-            from .admin import inspect_recovery, prepare_run_workspaces, recover
+            from .admin import inspect_recovery, prepare_run_workspaces, reconcile_workspace_base, recover
 
             if args.admin_command == "prepare-run-workspaces":
                 result = prepare_run_workspaces(
                     args.repo, args.plan, args.run, apply=args.apply, confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.inspect_only:
+            elif args.admin_command == "recover" and args.inspect_only:
                 print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
-            else:
+            elif args.admin_command == "recover":
                 recover(args.repo, reason=args.reason, task_id=args.task)
+            else:
+                result = reconcile_workspace_base(
+                    args.repo, args.run, args.lane, args.base, reason=args.reason,
+                    apply=args.apply, confirmation=args.confirm,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             return 0
     except (FileNotFoundError, PermissionError, RegistryError, MigrationError, MutationRejected, PreledgerError, ValueError) as exc:
         print(f"project-control: {exc}", file=sys.stderr)
