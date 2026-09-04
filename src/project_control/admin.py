@@ -194,6 +194,16 @@ def prepare_run_workspaces(
         exclusive_destinations = _exclusive_integrator_destinations(
             conn, run_id, all_existing_lane_ids
         )
+        participant_integration_bases: dict[str, set[str]] = {}
+        for row in conn.execute(
+            "SELECT integration_task_id,base_commit FROM workflow_workspaces "
+            "WHERE run_id=? AND integration_task_id IS NOT NULL "
+            "AND mode IN ('isolated_merge','contract_split')",
+            (run_id,),
+        ).fetchall():
+            participant_integration_bases.setdefault(
+                str(row["integration_task_id"]), set()
+            ).add(str(row["base_commit"]))
 
     pending: list[dict[str, object]] = []
     for candidate in candidates:
@@ -212,13 +222,23 @@ def prepare_run_workspaces(
         integration_task_id = workspace.get("integration_task_id")
         if mode == "isolated_merge" and not integration_task_id:
             raise ValueError(f"isolated lane lacks integration_task_id: {lane_id}")
+        workspace_base = base_commit
+        if integration_task_id:
+            observed_bases = participant_integration_bases.get(str(integration_task_id), set())
+            if len(observed_bases) > 1:
+                raise ValueError(
+                    "existing participants do not share the exact integration base: "
+                    f"{integration_task_id}"
+                )
+            if observed_bases:
+                workspace_base = next(iter(observed_bases))
         name = _workspace_name(lane_id)
         pending.append({
             "lane_id": lane_id,
             "task_id": str(candidate["task_id"]),
             "mode": mode,
             "integration_task_id": str(integration_task_id) if integration_task_id else None,
-            "base_commit": base_commit,
+            "base_commit": workspace_base,
             "worktree_path": str(service.paths.state_dir / "workflow-workspaces" / name),
             "branch": f"codex/{name}",
         })

@@ -166,6 +166,48 @@ class AdminCliTests(unittest.TestCase):
         self.assertEqual(result["status"], "noop")
         self.assertEqual(result["pending"], [])
 
+    def test_prepare_missing_participant_uses_existing_integration_base(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute(
+            "INSERT INTO workflow_lanes VALUES(?,?,?,?,?)",
+            ("L-NEW", "RUN", "implementer", "isolated_merge", "ready"),
+        )
+        plan = {
+            "runs": [{
+                "id": "RUN",
+                "lanes": [{
+                    "id": "L-NEW",
+                    "role": "implementer",
+                    "workspace": {
+                        "mode": "isolated_merge",
+                        "integration_task_id": "M40",
+                    },
+                }, {
+                    "id": "L-INTEGRATE",
+                    "role": "integrator",
+                    "workspace": {"mode": "exclusive"},
+                }],
+            }],
+        }
+        service = SimpleNamespace(
+            db=_ReadDatabase(connection),
+            project={"project_uuid": "project-uuid"},
+            paths=SimpleNamespace(state_dir=Path("/state")),
+        )
+        manager = Mock()
+        modules = _todo_runtime_modules(plan, service, manager)
+        modules["todo_orchestrator.workflow.lanes"].lane_candidates.return_value = [
+            {"lane_id": "L-NEW", "task_id": "T-NEW"}
+        ]
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_git", side_effect=["", "canonical-head"]), \
+             patch.dict(sys.modules, modules):
+            result = admin.prepare_run_workspaces("/repo", "/plan.json", "RUN")
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
+
     def test_inspect_only_forwards_without_recovery(self) -> None:
         with patch.object(admin, "inspect_recovery", return_value={"status": "safe"}) as inspect, \
              patch.object(admin, "recover") as recover, patch("sys.stdout", new_callable=io.StringIO) as output:
