@@ -217,7 +217,7 @@ def reconcile_workspace_base(
         rows = conn.execute(
             "SELECT id,base_commit,worktree_path,state FROM workflow_workspaces "
             "WHERE run_id=? AND lane_id=? AND state IN "
-            "('active','artifact_ready','queued','conflict','awaiting_gates','gate_failed')",
+            "('active','artifact_ready','queued','conflict','awaiting_gates','gate_failed','quarantined')",
             (run_id, lane_id),
         ).fetchall()
     if len(rows) != 1:
