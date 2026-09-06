@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from ..security import SecurityError, read_bounded_text
 from ..subprocesses import CommandError, FixedCommandRunner
 
 
@@ -195,6 +196,7 @@ class GitReadAdapter:
         if not pattern or pattern.startswith("-") or len(pattern) > 512:
             raise ValueError("invalid Git grep pattern")
         limit = max(1, min(max_items, 200))
+        deny_patterns = tuple(deny_patterns)
         pathspecs = [
             "*.c", "*.cc", "*.cpp", "*.cxx", "*.cu", "*.cuh", "*.h", "*.hh", "*.hpp", "*.hxx", "*.py",
             "*.md", "*.markdown", "*.rst", "*.toml", "*.yaml", "*.yml", "*.json", "*.cmake",
@@ -205,7 +207,7 @@ class GitReadAdapter:
         ]
         pathspecs.extend(f":(exclude,glob){item}" for item in deny_patterns if item and not item.startswith("-"))
         result = self.runner.run(
-            ["git", "grep", "-n", "-I", "-F", "--", pattern, *pathspecs],
+            ["git", "grep", "-l", "-z", "-I", "-F", "--", pattern, *pathspecs],
             cwd=self.root,
             timeout=8.0,
             check=False,
@@ -215,11 +217,21 @@ class GitReadAdapter:
         if result.returncode != 0:
             raise CommandError("Git source search unavailable")
         matches: list[dict[str, object]] = []
-        for line in result.stdout.splitlines():
-            parts = line.split(":", 2)
-            if len(parts) != 3 or not parts[1].isdigit():
+        # Capture names only: generated evidence can contain megabytes of
+        # matches, even when the caller requests only a handful of results.
+        # Read candidates under the same containment and size policy as source
+        # excerpts, and stop as soon as the global match budget is satisfied.
+        needles = pattern.splitlines()
+        for relative in result.stdout.split("\0"):
+            if not relative:
                 continue
-            matches.append({"path": parts[0], "line": int(parts[1]), "excerpt": parts[2][:500]})
-            if len(matches) >= limit:
-                break
+            try:
+                content = read_bounded_text(self.root, relative, deny_patterns=list(deny_patterns))
+            except (SecurityError, OSError):
+                continue
+            for number, line in enumerate(content.splitlines(), 1):
+                if any(needle in line for needle in needles):
+                    matches.append({"path": relative, "line": number, "excerpt": line[:500]})
+                    if len(matches) >= limit:
+                        return matches
         return matches

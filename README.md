@@ -159,6 +159,12 @@ IDs. Reads use pre/post identities and return partial or racy results if active
 source changes; they never lock or modify a worktree. Derived lexical context is
 disposable and stored only below `$XDG_CACHE_HOME/project-control/`.
 
+Relation searches capture matching filenames before reading bounded text files,
+so repeated matches in generated evidence cannot exhaust the command output
+budget. Matches retain source line numbers and stop at the requested result
+limit; denied, binary, non-UTF-8, and oversized files are excluded under the
+source read policy.
+
 Configuration schema v2 optionally defines query-only programs. Membership does
 not imply dependency, ownership, or architectural authority, and cross-project
 observations report per-project cursors and skew rather than claiming one global

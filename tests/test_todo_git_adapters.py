@@ -187,6 +187,26 @@ class AdapterContractTests(unittest.TestCase):
     def test_git_grep_no_match_is_clean(self) -> None:
         self.assertEqual(GitReadAdapter(self.root).grep("DEFINITELY_NOT_PRESENT"), [])
 
+    def test_git_grep_bounds_capture_before_collecting_excerpts(self) -> None:
+        # Matching output exceeds the default 2 MiB capture budget in aggregate.
+        for index in range(3):
+            (self.root / f"matches{index}.txt").write_text("needle " + "x" * 900_000 + "\n")
+        run(["git", "add", "."], self.root)
+        matches = GitReadAdapter(self.root).grep("needle", max_items=2)
+        self.assertEqual([item["path"] for item in matches], ["matches0.txt", "matches1.txt"])
+        self.assertTrue(all(item["line"] == 1 and len(item["excerpt"]) == 500 for item in matches))
+
+    def test_git_grep_applies_source_read_policy_and_preserves_line_numbers(self) -> None:
+        (self.root / "large.txt").write_text("needle" * 400_000)
+        (self.root / "secret.txt").write_text("needle\n")
+        (self.root / "valid.txt").write_text("first\nneedle here\nneedle again\n")
+        run(["git", "add", "."], self.root)
+        matches = GitReadAdapter(self.root).grep("needle", deny_patterns=(x for x in ["secret.txt"]))
+        self.assertEqual(matches, [
+            {"path": "valid.txt", "line": 2, "excerpt": "needle here"},
+            {"path": "valid.txt", "line": 3, "excerpt": "needle again"},
+        ])
+
     def test_todo_uses_current_interpreter_and_safe_state_environment(self) -> None:
         runner = SequenceRunner([(0, {"ok": True, "code": "success", "data": {"project_revision": 1}})])
         adapter = TodoReadAdapter(self.root, TODO, runner=runner)
