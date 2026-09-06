@@ -48,3 +48,25 @@ Rollback restores the previously recorded registration and service executable
 without deleting the candidate or standalone checkout. Revert repository
 changes with new ordinary revert commits. Never reset, rebase, amend, squash,
 rewrite history, replace a Todo database, or change a project UUID.
+
+## 2026-09-06 maintenance release
+
+The SS1 incidents exposed a deployment coupling: live Project Control compared
+its installed kernel with a mutable development checkout. The new installer
+freezes the required Skills directories and emits a digest-pinned release
+manifest plus `bin/project-control-release`. Use that launcher for both HTTP and
+Codex; it supplies the candidate's exact environment. Development binding without
+a manifest retains strict source/package equivalence. Manifest, frozen Python
+source, and installed package changes still fail closed.
+
+The maintenance CLI now supports reviewed contract-split integration receipts;
+this does not reopen completed runs or bypass the kernel's transactional checks.
+New tests exercise actual parallel claims, integrator interface publication and
+producer completion through MCP. An opt-in real-GPU test exercises explicit gates
+and completion reruns, using `PROJECT_CONTROL_GPU_SMOKE_BINARY` and
+`PROJECT_CONTROL_GPU_TOOLKIT` to select a known built witness/toolkit.
+
+Rollback must retain the prior candidate, shared launcher, and service settings.
+After promotion, verify health/readiness/version, both discovery profiles, and
+unchanged authoritative project UUID/revision. Existing stdio clients must
+reconnect; an HTTP restart cannot replace a process they already launched.

@@ -439,6 +439,32 @@ def mark_run_workspaces_cleanup_eligible(
     return result
 
 
+def record_contract_split_integration(
+    repo: str | Path, workspace_id: str, integration_task_id: str, accepted_commit: str,
+    *, reason: str, apply: bool = False, confirmation: str | None = None,
+) -> dict[str, object]:
+    """Owner-only forwarding; Todo owns every validation and state transition."""
+    _runtime_identity()
+    if apply and confirmation != "RECORD-CONTRACT-SPLIT-INTEGRATION":
+        raise ValueError("--confirm must equal RECORD-CONTRACT-SPLIT-INTEGRATION")
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.service import repository_identity
+    from todo_orchestrator.workflow.workspaces import WorkspaceService
+
+    repository = Path(repo).expanduser().resolve()
+    service = Service(repository, mutation_mode="self_debug")
+    project_uuid = str(service.project["project_uuid"])
+    manager = WorkspaceService(
+        service.db, managed_root=service.paths.state_dir / "workflow-workspaces",
+        repository_identity_resolver=lambda root: repository_identity(root, project_uuid),
+    )
+    return manager.record_contract_split_integration(
+        repository_root=repository, workspace_id=workspace_id,
+        integration_task_id=integration_task_id, accepted_commit=accepted_commit,
+        reason=reason, apply=apply,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="project-control-admin")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -471,8 +497,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     cleanup.add_argument("--run", required=True)
     cleanup.add_argument("--apply", action="store_true")
     cleanup.add_argument("--confirm")
+    contract = commands.add_parser(
+        "record-contract-split-integration", help="record terminal contract work already merged into main"
+    )
+    contract.add_argument("--repo", required=True)
+    contract.add_argument("--workspace", required=True)
+    contract.add_argument("--integration-task", required=True)
+    contract.add_argument("--accepted-commit", required=True)
+    contract.add_argument("--reason", required=True)
+    contract.add_argument("--apply", action="store_true")
+    contract.add_argument("--confirm")
     args = parser.parse_args(argv)
-    if args.command == "recover":
+    if args.command == "record-contract-split-integration":
+        result = record_contract_split_integration(
+            args.repo, args.workspace, args.integration_task, args.accepted_commit,
+            reason=args.reason, apply=args.apply, confirmation=args.confirm,
+        )
+        print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    elif args.command == "recover":
         if args.inspect_only:
             print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
         else:

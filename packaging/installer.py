@@ -152,6 +152,29 @@ def _verify_promoted_entrypoints(destination: Path, *, runner: Runner) -> None:
             )
 
 
+def _source_fingerprint(root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*.py")):
+        if path.is_file():
+            digest.update(path.relative_to(root).as_posix().encode())
+            digest.update(b"\0")
+            digest.update(path.read_bytes())
+            digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _freeze_skills(skills: Path, temporary: Path, destination: Path) -> dict:
+    snapshot = temporary / "runtime-skills"
+    for name in ("todo-orchestrator", "cuda", "cpp-context-compiler", "local-coding-worker", "integrations/coding-workflow-mcp"):
+        source = skills / name
+        if source.is_dir():
+            shutil.copytree(source, snapshot / name, ignore=shutil.ignore_patterns(
+                "__pycache__", "*.pyc", ".git", ".venv", "build", "dist", "*.egg-info", ".ctxpp", ".todo"))
+    fingerprint = _source_fingerprint(snapshot / "todo-orchestrator" / "todo_orchestrator")
+    return {"schema_version": 2, "skills_root": str(destination / "runtime-skills"),
+            "todo_runtime_fingerprint": fingerprint, "tools_fingerprint": _source_fingerprint(snapshot)}
+
+
 def build_candidate(
     *,
     project_control_root: Path,
@@ -192,6 +215,21 @@ def build_candidate(
                 raise InstallError(
                     f"candidate command failed ({command[0]}): {completed.stderr.strip()}"
                 )
+        release = _freeze_skills(skills_root, temporary, destination)
+        release.update({"project_control_commit": identity.project_control_commit,
+                        "todo_commit": identity.todo_commit,
+                        "project_control_fingerprint": _source_fingerprint(project_control_root / "src" / "project_control")})
+        (temporary / "release-manifest.json").write_text(json.dumps(release, indent=2, sort_keys=True) + "\n")
+        release_digest = hashlib.sha256((temporary / "release-manifest.json").read_bytes()).hexdigest()
+        launcher = temporary / "bin" / "project-control-release"
+        launcher.parent.mkdir(parents=True, exist_ok=True)
+        launcher.write_text("#!/bin/sh\n" +
+            "unset CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT\n" +
+            "export PROJECT_CONTROL_SKILLS_ROOT=" + shlex.quote(str(destination / "runtime-skills")) + "\n" +
+            "export PROJECT_CONTROL_RELEASE_MANIFEST=" + shlex.quote(str(destination / "release-manifest.json")) + "\n" +
+            "export PROJECT_CONTROL_RELEASE_DIGEST=" + shlex.quote(release_digest) + "\n" +
+            "exec " + shlex.quote(str(destination / "bin" / "project-control")) + ' "$@"\n')
+        launcher.chmod(0o755)
         (temporary / "pcu-candidate.json").write_text(
             json.dumps(asdict(identity), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",

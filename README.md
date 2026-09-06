@@ -20,6 +20,23 @@ capability, transaction, completion, or recovery logic. The old
 `coding-workflow` name is a temporary forwarding compatibility alias, not a
 second product, backend, or live registration.
 
+For a completed run whose `contract_split` branches were merged into `main`,
+the owner can preview the missing workspace integration receipt with:
+
+```bash
+project-control admin record-contract-split-integration --repo /path/to/repo \
+  --workspace WORKSPACE_ID --integration-task FINAL_INTEGRATION_TASK \
+  --accepted-commit EXACT_MAIN_COMMIT --reason "Final accepted integration"
+```
+
+Apply the reviewed receipt with `--apply --confirm RECORD-CONTRACT-SPLIT-INTEGRATION`.
+Todo requires terminal tasks and lanes, inactive ownership, clean material
+source, producer ancestry in `main`, and current executable integration-gate
+evidence. Material source must have been committed before those gates ran.
+The command records integration only; the existing completed-run
+`mark-run-workspaces-cleanup-eligible` operation remains a separate prerequisite
+to removing worktrees. Neither operation merges or deletes Git work.
+
 The observer's one execution aperture, `terminal_capture`, runs only a
 repository-contained executable in a fail-closed observation sandbox and
 returns the rendered PTY screen. Its mutable state is confined to an app-private
@@ -174,3 +191,20 @@ The service provides `/healthz`, `/readyz`, `/version`, and the loopback MCP URL
 `http://127.0.0.1:8767/mcp`. See `docs/SECURITY.md` for the enforced capability
 boundary and `docs/TOOL_CONTRACTS.md` for the frozen v2 contracts and additive
 v3 terminal contract.
+
+## Runtime maintenance
+
+Deployment candidates now freeze the required Skills runtime alongside the two
+installed distributions. The release manifest and its configured SHA-256 bind
+that snapshot; mutable development checkouts are not live release dependencies.
+Installed package, frozen Python tools, and manifest mutation still fail closed.
+See [candidate setup](docs/CODEX_SETUP.md) before promotion. Preserve the previous
+candidate and launcher for rollback; switch the common launcher, restart HTTP,
+and establish a fresh stdio connection before declaring the cutover complete.
+
+Workflow completion records producer and authority commits separately. A declared
+artifact must exist in the dispatch workspace. Plans reject interface ownership
+assigned to roles unable to publish. Explicit task selection and the existing
+one-active-lane-per-session guard prevent an accidental cross-lane resume.
+GPU command gates can declare their CUDA controller contract so completion reruns
+acquire the same resources as explicit validation.

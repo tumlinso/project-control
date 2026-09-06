@@ -7,14 +7,20 @@ not use the ChatGPT tunnel.
 ## Candidate-first installation
 
 Build an isolated candidate environment containing both local distributions:
-`project-control` and the canonical `todo-orchestrator` from Skills. Set
-`PROJECT_CONTROL_SKILLS_ROOT` to the verified Skills checkout. The legacy
+`project-control` and the canonical `todo-orchestrator` from Skills. The installer also creates `runtime-skills/` and `release-manifest.json`.
+For deployment, set `PROJECT_CONTROL_SKILLS_ROOT` to that frozen snapshot,
+`PROJECT_CONTROL_RELEASE_MANIFEST` to the manifest's absolute path, and
+`PROJECT_CONTROL_RELEASE_DIGEST` to its SHA-256. Keep all three settings and the
+executable in one release launcher shared by HTTP and stdio. Editing the
+maintained Skills checkout then cannot invalidate the deployed release.
+Development mode without a release manifest still compares live source/package
+fingerprints. The legacy
 `CODING_WORKFLOW_SKILLS_ROOT` name is accepted only during the bounded
 compatibility window and emits a deprecation warning.
 
 Before registration, candidate validation must prove:
 
-- runtime source and package identity match the configured Skills root;
+- runtime package and frozen source match the digest-pinned manifest;
 - rebinding, skew, missing packages, and ambiguous packages fail closed;
 - stdio discovery returns exactly 20 tools;
 - the six workflow input schemas match the existing canonical protocol;

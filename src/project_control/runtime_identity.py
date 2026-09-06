@@ -1,14 +1,15 @@
 """Fail-closed identity checks for the in-process Todo runtime.
 
-The explicit Skills checkout is the source of truth.  The imported
-``todo_orchestrator`` package may be that checkout itself or an installed copy,
-but its Python sources must have the same deterministic fingerprint.
+Deployed runtimes bind to a digest-pinned release manifest and frozen Skills
+snapshot. Development mode retains strict live-source/package equivalence.
+Neither mode permits imported-package mutation or module rebinding.
 """
 
 from __future__ import annotations
 
 import hashlib
 import importlib
+import json
 import os
 import sys
 import warnings
@@ -18,6 +19,8 @@ from typing import Callable, Mapping, Protocol
 
 
 CANONICAL_ROOT_VARIABLE = "PROJECT_CONTROL_SKILLS_ROOT"
+RELEASE_MANIFEST_VARIABLE = "PROJECT_CONTROL_RELEASE_MANIFEST"
+RELEASE_DIGEST_VARIABLE = "PROJECT_CONTROL_RELEASE_DIGEST"
 LEGACY_ROOT_VARIABLE = "CODING_WORKFLOW_SKILLS_ROOT"
 CANONICAL_FINGERPRINT_VARIABLE = "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT"
 LEGACY_FINGERPRINT_VARIABLE = "CODING_WORKFLOW_RUNTIME_FINGERPRINT"
@@ -45,6 +48,8 @@ class RuntimeIdentity:
     package_root: Path
     module_file: Path
     fingerprint: str
+    release_manifest: Path | None = None
+    release_digest: str | None = None
 
     def public(self) -> dict[str, str]:
         return {
@@ -131,6 +136,35 @@ def _expected_fingerprint(environment: Mapping[str, str]) -> str | None:
     return canonical or legacy
 
 
+def _release(environment: Mapping[str, str]) -> tuple[Path, str, dict] | None:
+    value = environment.get(RELEASE_MANIFEST_VARIABLE)
+    digest = environment.get(RELEASE_DIGEST_VARIABLE)
+    if not value and not digest:
+        return None
+    if not value or not digest:
+        raise RuntimeIdentityError("Release manifest and digest must be configured together", expected="manifest and digest", observed="incomplete release binding")
+    path = Path(value).expanduser().resolve()
+    try:
+        raw = path.read_bytes()
+        observed = hashlib.sha256(raw).hexdigest()
+        data = json.loads(raw)
+        if observed != digest or data.get("schema_version") != 2 or len(data.get("todo_runtime_fingerprint", "")) != 64 or not isinstance(data.get("skills_root"), str) or not Path(data["skills_root"]).is_absolute():
+            raise ValueError("release identity mismatch")
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        raise RuntimeIdentityError("Invalid release manifest", expected=digest, observed=str(exc)) from exc
+    pc_fingerprint = data.get("project_control_fingerprint")
+    if pc_fingerprint:
+        observed = package_fingerprint(Path(__file__).parent)
+        if observed != pc_fingerprint:
+            raise RuntimeIdentityError("Installed Project Control changed", expected=pc_fingerprint, observed=observed)
+    tools_fingerprint = data.get("tools_fingerprint")
+    if tools_fingerprint:
+        observed = package_fingerprint(Path(data["skills_root"]))
+        if observed != tools_fingerprint:
+            raise RuntimeIdentityError("Frozen Skills tools changed", expected=tools_fingerprint, observed=observed)
+    return path, digest, data
+
+
 def bind_runtime(
     environment: Mapping[str, str] = os.environ,
     *,
@@ -143,9 +177,16 @@ def bind_runtime(
     wheel-installed candidate environments while rejecting ambient packages.
     """
 
-    skills_root = locate_skills_root(environment)
+    release = _release(environment)
+    release_environment = dict(environment)
+    if release:
+        release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+        release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+    skills_root = locate_skills_root(release_environment)
     source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
     source_fingerprint = package_fingerprint(source_root)
+    if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+        raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
     pinned_fingerprint = _expected_fingerprint(environment)
     if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
         raise RuntimeIdentityError(
@@ -180,7 +221,7 @@ def bind_runtime(
             expected=f"{source_root}:{source_fingerprint}",
             observed=f"{package_root}:{observed_fingerprint}",
         )
-    return RuntimeIdentity(skills_root, source_root, package_root, module_file, source_fingerprint)
+    return RuntimeIdentity(skills_root, source_root, package_root, module_file, source_fingerprint, release[0] if release else None, release[1] if release else None)
 
 
 def validate_runtime(identity: RuntimeIdentity) -> None:
@@ -189,6 +230,8 @@ def validate_runtime(identity: RuntimeIdentity) -> None:
     module = sys.modules.get("todo_orchestrator")
     value = getattr(module, "__file__", None) if module is not None else None
     observed_file = Path(value).resolve() if value else None
+    if identity.release_manifest:
+        _release({RELEASE_MANIFEST_VARIABLE: str(identity.release_manifest), RELEASE_DIGEST_VARIABLE: str(identity.release_digest)})
     source_fingerprint = package_fingerprint(identity.source_package_root)
     package_fingerprint_now = package_fingerprint(identity.package_root)
     if (
@@ -213,6 +256,9 @@ def runtime_environment(
     clean = dict(environment)
     clean.pop(LEGACY_ROOT_VARIABLE, None)
     clean.pop(LEGACY_FINGERPRINT_VARIABLE, None)
+    if identity.release_manifest:
+        clean[RELEASE_MANIFEST_VARIABLE] = str(identity.release_manifest)
+        clean[RELEASE_DIGEST_VARIABLE] = str(identity.release_digest)
     clean[CANONICAL_ROOT_VARIABLE] = str(identity.skills_root)
     clean[CANONICAL_FINGERPRINT_VARIABLE] = identity.fingerprint
     return clean
