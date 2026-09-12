@@ -61,3 +61,34 @@ or request a targeted follow-up.  It stops once the bounded question is
 answered.  A digest is evidence, not an authorization capability and not a
 completion record; workflow actions continue through the parent task's opaque
 handle and the authoritative workflow interface.
+
+## Research-session qualification
+
+Role files express a requested configuration. They do not prove what a spawned
+session actually received. Record the requested agent class, model, and
+reasoning effort separately from the actual model, effort, tool inventory,
+sandbox, and approval state observed in that child session. If any actual value
+is unavailable, say `unobserved`; do not infer it from a role name, a TOML
+setting, or the parent session.
+
+Researchers use a separately enforced observer-only MCP surface. Configure an
+explicit allowlist of read-only observer tools and exclude `terminal_capture`
+and every inherited workflow mutation tool (`next_task`, `coordinate_task`,
+`delegate_task`, `collect_delegation`, and `finish_task`). Do not pass an opaque
+parent workflow handle to a researcher. Before relying on the role, inspect the
+child's effective server and tool inventory and retain the observed result with
+the digest.
+
+Read-only instructions are behavior guidance, not a security boundary. The
+parent's live sandbox and approval overrides can be reapplied to children, so a
+role file claiming read-only access is insufficient. Use a session whose actual
+sandbox, approval policy, MCP server set, and filesystem permissions have been
+observed to enforce the required boundary; otherwise report the research path as
+unqualified.
+
+If the configured inexpensive model or observer-only surface is unavailable,
+fail that dispatch explicitly with the unavailable component and requested
+configuration. Do not silently retry using a more expensive model, inherit the
+parent's workflow tools, or broaden permissions. Escalation is a new,
+controller-authorized decision with its requested and actual configuration
+recorded separately.

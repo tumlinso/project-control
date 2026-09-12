@@ -60,6 +60,14 @@ workflow as the only creator of lanes and task claims. See
 for the required conclusion, evidence, uncertainty, contradictory-evidence, and
 coverage fields.
 
+The migration must not turn a role file into a security claim. Preserve the
+distinction between requested and actual child model/effort and retain effective
+tool, sandbox, and approval observations. Research roles require an explicit
+observer-only allowlist that excludes `terminal_capture` and inherited workflow
+mutation tools. If that observer or the configured low-cost model is unavailable,
+the migration guidance must fail explicitly rather than silently broaden tools,
+permissions, or model cost.
+
 ## 2026-09-06 maintenance release
 
 The SS1 incidents exposed a deployment coupling: live Project Control compared

@@ -87,3 +87,21 @@ grants authority, or creates a workflow lane. For one independent deep question,
 start with one bounded read-only researcher and use its compact digest rather
 than repeating exploration in the controller. A spawned helper remains a
 subordinate child, never a first-class lane.
+
+## Researcher profile qualification
+
+The Codex client observed during the D02 qualification was `codex-cli 0.153.4`.
+The [current official subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents)
+describes per-agent `model`, `model_reasoning_effort`, `sandbox_mode`, and MCP
+configuration, and also warns that parent-turn sandbox and approval overrides
+are reapplied to spawned children. Recheck both the installed version and the
+effective child session before changing a profile; this observation is not a
+permanent compatibility guarantee.
+
+For research, use an independently enforced observer-only MCP configuration.
+Allow only the needed read tools and exclude `terminal_capture` plus inherited
+workflow mutation tools. Record requested model/effort separately from actual
+child model/effort, tools, sandbox, and approval state. A role file or
+"read-only" instruction does not enforce permissions. If the configured
+inexpensive model or observer path is unavailable, return an explicit failed
+dispatch; do not silently use a costlier model or the parent's broader tools.
