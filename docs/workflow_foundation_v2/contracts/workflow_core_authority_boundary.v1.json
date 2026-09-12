@@ -1,0 +1,44 @@
+{
+  "format": "workflow-core-authority-boundary-v1",
+  "workflow_transaction_authority": {
+    "module": "project_control.workflow_core",
+    "scope": [
+      "workflow transaction validation and application",
+      "workflow state transitions and authoritative storage access"
+    ],
+    "exclusions": [
+      "observatory and presentation reads remain outside the write kernel",
+      "no second Todo transaction kernel may remain after qualified forwarding"
+    ]
+  },
+  "external_authorities": [
+    {
+      "name": "git",
+      "authority": "the Git repository and Git transport",
+      "boundary": "Git and worktree effects are external side effects, never SQLite-atomic workflow transitions."
+    },
+    {
+      "name": "host_resources",
+      "authority": "the host scheduler, operating system, and resource providers",
+      "boundary": "Workflow records intents and observed receipts; it does not claim host-resource authority."
+    },
+    {
+      "name": "compiler_artifacts",
+      "authority": "the compiler toolchain and its artifact store",
+      "boundary": "Compiler outputs and caches are external artifacts, not authoritative workflow state."
+    }
+  ],
+  "baseline_preservation": {
+    "storage_layout": "preserve_internal_todo_layout",
+    "lifecycle": "preserve_baseline_workflow_lifecycle",
+    "prohibited_changes": [
+      "No relocation of .todo-orchestrator state paths, UUIDs, history, caches, sessions, credentials, or compiled artifacts.",
+      "No schema, revision-event sequencing, graph, readiness, capability, workspace, integration, recovery, or lifecycle semantic change is a relocation exception.",
+      "A known baseline bug remains baseline behavior until a separately scoped feature change."
+    ]
+  },
+  "source_ledger": {
+    "path": "planning/workflow-foundation-v2/evidence/source_ledger.json",
+    "sha256": "ef5ee892c78d1510b4f26d3e4e2d6437d90e1c5135b356d1638c37935ae76bfb"
+  }
+}
