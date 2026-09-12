@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution-attempt-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "requested_role", "resolved_external_policy", "observed_model", "observed_reasoning_effort", "usage_evidence"],
+  "properties": {
+    "format": {"const": "execution-attempt-v1"},
+    "requested_role": {"type": "string"},
+    "resolved_external_policy": {"type": "string"},
+    "observed_model": {"type": ["string", "null"]},
+    "observed_reasoning_effort": {"type": ["string", "null"]},
+    "usage_evidence": {"type": "object"}
+  }
+}
