@@ -12,7 +12,17 @@ top-level `tests/test*.py` modules.  WF2 additionally registers
 `tests/wf2_acceptance/a/test_a02_environment_baseline.py`, which checks this
 document's ownership, fixture separation, and rollback requirements.  The
 test is deliberately runnable with the standard library so its registration
-does not require a candidate installation.
+does not require a candidate installation.  Before a WF2 milestone relies on
+this baseline, run its registered dedicated discovery command:
+
+```
+python -B -m unittest discover -s tests/wf2_acceptance/a -p 'test_a02*.py' -v
+```
+
+The historical repository-wide `discover -s tests` command remains a
+regression check, not the registration mechanism for this nested WF2 suite.
+The local registry at `tests/wf2_acceptance/a/README.md` is deliberately
+owned by this task; it avoids changing historical test-package topology.
 
 The fixture root is external to both authorities:
 
