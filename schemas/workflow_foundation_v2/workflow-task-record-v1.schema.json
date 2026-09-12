@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow-task-record-v1.schema.json",
+  "title": "Strict next-writer workflow task record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "task_id", "title"],
+  "properties": {
+    "format": {"const": "workflow-task-record-v1"},
+    "task_id": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "work_profile": {"$ref": "work-profile-v1.schema.json"}
+  }
+}

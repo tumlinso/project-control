@@ -8,7 +8,7 @@
     "format": {"const": "workflow-snapshot-v1"},
     "workflow_revision": {"type": "integer", "minimum": 0},
     "observed_at": {"type": "string", "format": "date-time"},
-    "tasks": {"type": "array", "items": {"type": "object"}},
-    "warnings": {"type": "array", "items": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}}
+    "tasks": {"type": "array", "items": {"$ref": "workflow-task-record-v1.schema.json"}},
+    "warnings": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}}
   }
 }
