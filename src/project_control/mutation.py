@@ -184,6 +184,10 @@ def apply_selective_replan(
     builder = _snapshot_builder(config, environment, snapshot_builder)
     before = builder.build(project)
     _fresh(ProposalEnvelope.create(intent="selective replan", proposed_change={}, observation_preconditions=expected), observation_preconditions(before))
+    authority = plan.get("authority")
+    expected_fingerprint = expected.todo_semantic_authority_fingerprint
+    if not isinstance(authority, Mapping) or authority.get("project_uuid") != before.project_uuid or authority.get("revision") != before.todo_revision or authority.get("fingerprint") != expected_fingerprint:
+        raise MutationRejected("selective_replan_authority_mismatch", "Selective replan authority UUID, revision, or semantic fingerprint is stale")
     _, service = _todo_service(config, project, environment, read_only=False)
     try:
         result = service.selective_replan(dict(plan), before.todo_revision)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -17,7 +18,7 @@ if str(TODO_PACKAGE) not in sys.path:
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import ProposalEnvelope, VersionedPrecondition
-from project_control.mutation import MutationRejected, apply_proposal, validate_native_plan
+from project_control.mutation import MutationRejected, apply_proposal, apply_selective_replan, validate_native_plan
 from project_control.snapshot import SnapshotBuilder
 from project_control.workflow_binding import reset_runtime_for_testing, todo_read_port_factory
 
@@ -135,6 +136,39 @@ class PlanApplyTests(unittest.TestCase):
         proposal = ProposalEnvelope.create(intent=proposal.intent, proposed_change=proposal.proposed_change, observation_preconditions=stale)
         with self.assertRaisesRegex(MutationRejected, "stale"):
             apply_proposal(self.config, "demo", proposal, snapshot_builder=self.builder)
+
+    def test_selective_replan_preserves_declared_replacement_and_rewrites_downstream(self) -> None:
+        from todo_orchestrator.semantic import SemanticReader
+        from todo_orchestrator.service import Service
+
+        source = self.plan("OLD")
+        source["tasks"].append({
+            "id": "DOWN", "title": "Downstream", "objective": "Consumes OLD",
+            "depends_on": [{"type": "task", "task_id": "OLD"}],
+        })
+        plan_file = self.root / "initial.json"
+        plan_file.write_text(json.dumps(source), encoding="utf-8")
+        Service(self.root).plan_apply(str(plan_file))
+        state = SemanticReader(self.root).state()
+        request = {
+            "observation_preconditions": self.builder.build("demo").observation_preconditions().model_dump(mode="json"),
+            "replan": {
+                "format": "selective-replan-v1",
+                "authority": {"project_uuid": state["project_uuid"], "revision": state["revision"], "fingerprint": state["read_authority_fingerprint"]},
+                "replacements": [{"task_id": "OLD", "replacement": {
+                    "id": "NEW", "title": "Replacement", "objective": "Full replacement",
+                    "scope": {"exclusive_paths": [], "read_paths": [], "forbidden_paths": []},
+                    "invariants": [], "produced_artifacts": [], "checkpoints": [], "gates": [],
+                }}],
+                "downstream_rewrites": [{"task_id": "DOWN", "old_task_id": "OLD", "new_task_id": "NEW"}],
+            },
+        }
+        result = apply_selective_replan(self.config, "demo", request, snapshot_builder=self.builder)
+        self.assertEqual(result["result"]["superseded"], ["OLD"])
+        latest = SemanticReader(self.root).state()
+        tasks = {task["id"]: task for task in latest["tasks"]}
+        self.assertEqual(tasks["OLD"]["effective_state"], "superseded")
+        self.assertEqual(tasks["DOWN"]["dependencies"], [{"type": "task", "prerequisite_task_id": "NEW"}])
 
     def test_stale_interface_and_context_preconditions_reject(self) -> None:
         proposal = self.proposal()

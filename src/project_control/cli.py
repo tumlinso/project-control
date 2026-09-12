@@ -193,6 +193,9 @@ def _parser() -> argparse.ArgumentParser:
     publish_interface.add_argument("--source-worktree", required=True)
     publish_interface.add_argument("--apply", action="store_true")
     publish_interface.add_argument("--confirm")
+    selective_replan = admin_commands.add_parser("selective-replan")
+    selective_replan.add_argument("--project", required=True)
+    selective_replan.add_argument("--file", type=Path, required=True)
     return parser
 
 
@@ -386,7 +389,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 recover,
             )
 
-            if args.admin_command == "publish-completed-interface":
+            if args.admin_command == "selective-replan":
+                from .mutation import apply_selective_replan
+
+                request = _load_native_plan(args.file)
+                result = apply_selective_replan(load_config(), args.project, request)
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "publish-completed-interface":
                 result = publish_completed_interface(
                     args.repo, args.plan, args.interface, args.source_worktree,
                     apply=args.apply, confirmation=args.confirm,
