@@ -167,6 +167,13 @@ def _parser() -> argparse.ArgumentParser:
     advance.add_argument("--reason", required=True)
     advance.add_argument("--apply", action="store_true")
     advance.add_argument("--confirm")
+    publish = admin_commands.add_parser("publish-producer-wave")
+    publish.add_argument("--repo", required=True)
+    publish.add_argument("--plan", required=True)
+    publish.add_argument("--run", required=True)
+    publish.add_argument("--lane", required=True)
+    publish.add_argument("--apply", action="store_true")
+    publish.add_argument("--confirm")
     return parser
 
 
@@ -353,6 +360,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 inspect_recovery,
                 mark_run_workspaces_cleanup_eligible,
                 prepare_run_workspaces,
+                publish_producer_wave,
                 reconcile_workspace_base,
                 recover,
             )
@@ -378,10 +386,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.repo, args.run, apply=args.apply, confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            else:
+            elif args.admin_command == "advance-producer-wave":
                 result = advance_producer_wave(
                     args.repo, args.plan, args.run, args.lane, args.base, args.integration_task,
                     reason=args.reason, apply=args.apply, confirmation=args.confirm,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            else:
+                result = publish_producer_wave(
+                    args.repo, args.plan, args.run, args.lane,
+                    apply=args.apply, confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             return 0

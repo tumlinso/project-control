@@ -29,6 +29,7 @@ def _workspace_database() -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.executescript("""
         CREATE TABLE workflow_runs(id TEXT PRIMARY KEY, status TEXT NOT NULL);
+        CREATE TABLE tasks(id TEXT PRIMARY KEY, status TEXT NOT NULL);
         CREATE TABLE workflow_lanes(
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL, role TEXT NOT NULL,
             workspace_mode TEXT NOT NULL, state TEXT NOT NULL
@@ -58,6 +59,7 @@ def _workspace_database() -> sqlite3.Connection:
         INSERT INTO workflow_patch_artifacts VALUES(
             'A-1', 'W-PRODUCER', 'T-PRODUCER', 'pending', 'producer-base'
         );
+        ALTER TABLE workflow_workspaces ADD COLUMN worktree_path TEXT DEFAULT '/worktree';
     """)
     return connection
 
@@ -241,8 +243,8 @@ class AdminCliTests(unittest.TestCase):
         connection = _workspace_database()
         self.addCleanup(connection.close)
         connection.execute(
-            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?)",
-            ("W-OTHER", "RUN", "L-OTHER", "active", "isolated_merge", "M40", "other-base"),
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-OTHER", "RUN", "L-OTHER", "active", "isolated_merge", "M40", "other-base", "/worktree"),
         )
         with tempfile.TemporaryDirectory() as directory:
             plan, service = self._prepare_fixture(connection, Path(directory))
@@ -257,8 +259,8 @@ class AdminCliTests(unittest.TestCase):
         connection = _workspace_database()
         self.addCleanup(connection.close)
         connection.execute(
-            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?)",
-            ("W-DEST", "RUN", "L-INTEGRATE", "quarantined", "exclusive", "M40", "producer-base"),
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "quarantined", "exclusive", "M40", "producer-base", "/worktree"),
         )
         with tempfile.TemporaryDirectory() as directory:
             plan, service = self._prepare_fixture(connection, Path(directory))
@@ -470,6 +472,64 @@ class AdminCliTests(unittest.TestCase):
             repository_root=Path("/repo"), workspace_id="W-PRODUCER",
             base_commit="next-base", integration_task_id="M50",
             reason="next serial phase",
+        )
+
+    def test_publish_producer_wave_forwards_sealed_completed_task(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute(
+            "UPDATE workflow_workspaces SET lane_id='L-PRODUCER',state='active'"
+        )
+        connection.execute(
+            "INSERT INTO workflow_lanes VALUES('L-PRODUCER','RUN','specialist','isolated_merge','ready')"
+        )
+        connection.execute("INSERT INTO tasks VALUES('T-DONE','done')")
+        connection.execute(
+            "INSERT INTO workflow_lane_tasks VALUES('L-PRODUCER','T-DONE',0,'completed')"
+        )
+        connection.execute(
+            "INSERT INTO workflow_lane_tasks VALUES('L-PRODUCER','T-NEXT',1,'queued')"
+        )
+        plan = {"runs": [{"id": "RUN", "lanes": [{
+            "id": "L-PRODUCER", "tasks": ["T-DONE", "T-DONE2", "T-NEXT"]
+        }]}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        manager.return_value.publish_completed_wave.return_value = {
+            "artifact_id": "A-WAVE", "queue_id": "Q-WAVE"
+        }
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_git", side_effect=[
+                 "", "", "wave-head", "", "", "wave-head", "", "", "wave-two-head"
+             ]), \
+             patch.object(admin, "_scheduled_integration_task", return_value="M40"), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            preview = admin.publish_producer_wave(
+                "/repo", "/plan.json", "RUN", "L-PRODUCER"
+            )
+            result = admin.publish_producer_wave(
+                "/repo", "/plan.json", "RUN", "L-PRODUCER", apply=True,
+                confirmation=admin.PUBLISH_PRODUCER_WAVE_CONFIRMATION,
+            )
+            connection.execute("UPDATE workflow_lane_tasks SET position=2 WHERE task_id='T-NEXT'")
+            connection.execute("INSERT INTO tasks VALUES('T-DONE2','done')")
+            connection.execute(
+                "INSERT INTO workflow_lane_tasks VALUES('L-PRODUCER','T-DONE2',1,'completed')"
+            )
+            connection.execute(
+                "INSERT INTO workflow_patch_artifacts VALUES('A-OLD','W-PRODUCER','T-DONE','integrated','producer-base')"
+            )
+            second = admin.publish_producer_wave(
+                "/repo", "/plan.json", "RUN", "L-PRODUCER"
+            )
+
+        self.assertEqual(preview["task_id"], "T-DONE")
+        self.assertEqual(result["status"], "published")
+        self.assertEqual(second["task_id"], "T-DONE2")
+        manager.return_value.publish_completed_wave.assert_called_once_with(
+            workspace_id="W-PRODUCER", task_id="T-DONE", artifact_ref="wave-head",
+            integrator_lane_id="L-INTEGRATE",
+            integration_task_id="M40",
         )
 
     def test_schedule_binding_rejects_unsealed_or_malformed_sidecar(self) -> None:

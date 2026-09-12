@@ -19,6 +19,7 @@ PREPARE_WORKSPACES_CONFIRMATION = "PREPARE-RUN-WORKSPACES"
 RECONCILE_WORKSPACE_BASE_CONFIRMATION = "RECONCILE-WORKSPACE-BASE"
 MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION = "MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE"
 ADVANCE_PRODUCER_WAVE_CONFIRMATION = "ADVANCE-PRODUCER-WAVE"
+PUBLISH_PRODUCER_WAVE_CONFIRMATION = "PUBLISH-PRODUCER-WAVE"
 
 
 def _runtime_identity() -> object:
@@ -587,6 +588,104 @@ def advance_producer_wave(
         raise ValueError(f"producer wave advancement rejected: {exc}") from exc
     result["status"] = "advanced"
     return result
+
+
+def publish_producer_wave(
+    repo: str | Path,
+    plan_path: str | Path,
+    run_id: str,
+    lane_id: str,
+    *,
+    apply: bool = False,
+    confirmation: str | None = None,
+) -> dict[str, object]:
+    """Publish one completed nonterminal producer task at a sealed wave boundary."""
+    _runtime_identity()
+    from todo_orchestrator.plan import load_plan
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.service import repository_identity
+    from todo_orchestrator.workflow.workspaces import WorkspaceService
+
+    repository = Path(repo).expanduser().resolve()
+    plan_file = Path(plan_path).expanduser().resolve()
+    plan = load_plan(plan_file)
+    runs = [item for item in plan.get("runs", []) if str(item.get("id")) == run_id]
+    if len(runs) != 1:
+        raise ValueError(f"native plan must contain exactly one run named {run_id}")
+    lanes = [item for item in runs[0].get("lanes", []) if str(item.get("id")) == lane_id]
+    if len(lanes) != 1:
+        raise ValueError(f"native plan must contain exactly one lane named {lane_id}")
+    lane_spec = lanes[0]
+    if _git(repository, "status", "--porcelain=v1", "-z"):
+        raise ValueError("repository must be clean before a producer wave is published")
+    service = Service(repository, mutation_mode="self_debug")
+    project_uuid = str(service.project["project_uuid"])
+    with service.db.read() as conn:
+        workspaces = conn.execute(
+            "SELECT * FROM workflow_workspaces WHERE run_id=? AND lane_id=?",
+            (run_id, lane_id),
+        ).fetchall()
+        completed = conn.execute(
+            "SELECT lt.task_id FROM workflow_lane_tasks lt JOIN tasks t ON t.id=lt.task_id "
+            "WHERE lt.lane_id=? AND lt.state='completed' AND t.status='done' "
+            "AND NOT EXISTS (SELECT 1 FROM workflow_patch_artifacts a "
+            "JOIN workflow_workspaces w ON w.id=a.workspace_id "
+            "WHERE w.run_id=? AND w.lane_id=? AND a.task_id=lt.task_id) "
+            "ORDER BY lt.position",
+            (lane_id, run_id, lane_id),
+        ).fetchall()
+        remaining = conn.execute(
+            "SELECT task_id FROM workflow_lane_tasks WHERE lane_id=? AND state='queued' "
+            "ORDER BY position LIMIT 1",
+            (lane_id,),
+        ).fetchall()
+        integrators = conn.execute(
+            "SELECT l.id FROM workflow_lanes l JOIN workflow_lane_tasks lt ON lt.lane_id=l.id "
+            "WHERE l.run_id=? AND l.role IN ('integrator','validator') AND lt.task_id=?",
+            (run_id, str(workspaces[0]["integration_task_id"]) if len(workspaces) == 1 else ""),
+        ).fetchall()
+    if len(workspaces) != 1 or str(workspaces[0]["mode"]) != "isolated_merge":
+        raise ValueError("expected exactly one isolated producer workspace")
+    if len(completed) != 1 or len(remaining) != 1:
+        raise ValueError("producer wave publication requires exactly one unpublished completed task and remaining serial work")
+    workspace = dict(workspaces[0])
+    task_id = str(completed[0]["task_id"])
+    if task_id not in {str(item) for item in lane_spec.get("tasks", [])}:
+        raise ValueError(f"completed task is absent from the sealed lane: {task_id}")
+    expected_target = _scheduled_integration_task(plan_file, lane_spec, task_id)
+    if expected_target != str(workspace.get("integration_task_id") or ""):
+        raise ValueError("producer workspace target differs from the sealed completed-task phase")
+    if len(integrators) != 1:
+        raise ValueError("expected exactly one integrator lane for the producer wave")
+    producer_root = Path(str(workspace["worktree_path"]))
+    if _git(producer_root, "status", "--porcelain=v1", "-z"):
+        raise ValueError("producer workspace must be clean before wave publication")
+    head = _git(producer_root, "rev-parse", "HEAD")
+    preview: dict[str, object] = {
+        "status": "ready",
+        "run_id": run_id,
+        "lane_id": lane_id,
+        "task_id": task_id,
+        "workspace_id": str(workspace["id"]),
+        "artifact_ref": head,
+        "integration_task_id": str(workspace["integration_task_id"]),
+        "integrator_lane_id": str(integrators[0]["id"]),
+    }
+    if not apply:
+        return preview
+    if confirmation != PUBLISH_PRODUCER_WAVE_CONFIRMATION:
+        raise ValueError(f"--confirm must equal {PUBLISH_PRODUCER_WAVE_CONFIRMATION}")
+    manager = WorkspaceService(
+        service.db,
+        managed_root=service.paths.state_dir / "workflow-workspaces",
+        repository_identity_resolver=lambda root: repository_identity(root, project_uuid),
+    )
+    published = manager.publish_completed_wave(
+        workspace_id=str(workspace["id"]), task_id=task_id, artifact_ref=head,
+        integrator_lane_id=str(integrators[0]["id"]),
+        integration_task_id=str(workspace["integration_task_id"]),
+    )
+    return {**preview, "status": "published", "publication": published}
 
 
 def mark_run_workspaces_cleanup_eligible(
