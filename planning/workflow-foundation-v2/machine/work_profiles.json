@@ -1,0 +1,416 @@
+{
+  "PC-WF2-COORD": {
+    "difficulty": "hard",
+    "risk": "critical",
+    "work_type": "architecture",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-0000": {
+    "difficulty": "routine",
+    "risk": "high",
+    "work_type": "review",
+    "context_depth": "focused"
+  },
+  "PC-WF2-A01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-A02": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-A03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "inspection",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-C01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "deep"
+  },
+  "PC-WF2-C02": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-C03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-K01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "deep"
+  },
+  "PC-WF2-K02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-K03": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-K04": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-K05": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-V01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-V02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-V03": {
+    "difficulty": "hard",
+    "risk": "critical",
+    "work_type": "review",
+    "context_depth": "focused"
+  },
+  "PC-WF2-V04": {
+    "difficulty": "hard",
+    "risk": "critical",
+    "work_type": "testing",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-B01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "deep"
+  },
+  "PC-WF2-B02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-B03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-B04": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-S01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-S02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-S03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-S04": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-S05": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "integration",
+    "context_depth": "focused"
+  },
+  "PC-WF2-S06": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-S07": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-L01": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-L02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-L03": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-L04": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-L05": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-R01": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-R02": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "deep"
+  },
+  "PC-WF2-R03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-R04": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "performance",
+    "context_depth": "focused"
+  },
+  "PC-WF2-R05": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-X01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "inspection",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-X02": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "inspection",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-X03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "inspection",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-X04": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "inspection",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-Q01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-Q02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-Q03": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-Q04": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-T01": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-T02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-T03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-T04": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-T05": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "performance",
+    "context_depth": "focused"
+  },
+  "PC-WF2-T06": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-G01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "deep"
+  },
+  "PC-WF2-G02": {
+    "difficulty": "hard",
+    "risk": "critical",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-G03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-E01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "deep"
+  },
+  "PC-WF2-E02": {
+    "difficulty": "hard",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-E03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "testing",
+    "context_depth": "focused"
+  },
+  "PC-WF2-D01": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-D02": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-D03": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-D04": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-I00": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "focused"
+  },
+  "PC-WF2-I10": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "integration",
+    "context_depth": "focused"
+  },
+  "PC-WF2-I20": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "integration",
+    "context_depth": "focused"
+  },
+  "PC-WF2-I30": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "integration",
+    "context_depth": "focused"
+  },
+  "PC-WF2-I40": {
+    "difficulty": "complex",
+    "risk": "critical",
+    "work_type": "integration",
+    "context_depth": "focused"
+  },
+  "PC-WF2-I50": {
+    "difficulty": "complex",
+    "risk": "critical",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  },
+  "PC-WF2-I90": {
+    "difficulty": "complex",
+    "risk": "high",
+    "work_type": "implementation",
+    "context_depth": "cross_project"
+  }
+}

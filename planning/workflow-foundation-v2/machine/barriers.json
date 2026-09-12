@@ -1,0 +1,79 @@
+[
+  {
+    "id": "PC-WF2-I00-B",
+    "title": "Integrate baseline test hooks and freeze developmental interfaces milestone",
+    "mode": "all",
+    "requirements": [
+      {
+        "type": "checkpoint",
+        "id": "PC-WF2-I00-CP"
+      }
+    ]
+  },
+  {
+    "id": "PC-WF2-I10-B",
+    "title": "Accept the behavior-preserving embedded-core milestone milestone",
+    "mode": "all",
+    "requirements": [
+      {
+        "type": "checkpoint",
+        "id": "PC-WF2-I10-CP"
+      }
+    ]
+  },
+  {
+    "id": "PC-WF2-I20-B",
+    "title": "Integrate direct bindings and publish a candidate runtime milestone",
+    "mode": "all",
+    "requirements": [
+      {
+        "type": "checkpoint",
+        "id": "PC-WF2-I20-CP"
+      }
+    ]
+  },
+  {
+    "id": "PC-WF2-I30-B",
+    "title": "Integrate schema, lifecycle, snapshots and efficient reads milestone",
+    "mode": "all",
+    "requirements": [
+      {
+        "type": "checkpoint",
+        "id": "PC-WF2-I30-CP"
+      }
+    ]
+  },
+  {
+    "id": "PC-WF2-I40-B",
+    "title": "Accept the candidate and deployment rehearsal milestone",
+    "mode": "all",
+    "requirements": [
+      {
+        "type": "checkpoint",
+        "id": "PC-WF2-I40-CP"
+      }
+    ]
+  },
+  {
+    "id": "PC-WF2-I50-B",
+    "title": "Promote the qualified release through an explicit cutover milestone",
+    "mode": "all",
+    "requirements": [
+      {
+        "type": "checkpoint",
+        "id": "PC-WF2-I50-CP"
+      }
+    ]
+  },
+  {
+    "id": "PC-WF2-I90-B",
+    "title": "Close the paired foundation and publish the qualified source pair milestone",
+    "mode": "all",
+    "requirements": [
+      {
+        "type": "checkpoint",
+        "id": "PC-WF2-I90-CP"
+      }
+    ]
+  }
+]

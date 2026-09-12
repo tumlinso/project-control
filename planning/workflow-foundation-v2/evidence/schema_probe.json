@@ -1,0 +1,40 @@
+{
+  "scope": "representative shapes only, not the full delivered plans",
+  "probes": [
+    {
+      "workspace": "project-control",
+      "time": "2026-09-12T14:33:05Z",
+      "valid": false,
+      "mutation_guard": "unchanged",
+      "description": "Earlier probe used root epic task dependencies on its own children. Native graph source includes parent edges; corrected before generation. Error detail was not surfaced by MCP preview."
+    },
+    {
+      "workspace": "skills",
+      "time": "2026-09-12T14:36:56Z",
+      "valid": true,
+      "mutation_guard": "unchanged",
+      "would_add": [
+        "SK-WF2-PROBE-MINIMAL"
+      ],
+      "would_modify": [],
+      "warnings": [],
+      "mcp_plan_digest": "46d3caa357831cda74d1bd02aac8853c6f702c2acc6b6245e18ac5a0328347d1"
+    },
+    {
+      "workspace": "project-control",
+      "time": "2026-09-12T14:47:29Z",
+      "valid": true,
+      "mutation_guard": "unchanged",
+      "would_add": [
+        "PC-WF2-PROBE-COORD",
+        "PC-WF2-PROBE-MERGE",
+        "PC-WF2-PROBE-ROOT",
+        "PC-WF2-PROBE-WORK"
+      ],
+      "would_modify": [],
+      "warnings": [],
+      "mcp_plan_digest": "15779fbc907a2e1bf189a9deec09766028267eafe9de58b0e913dd18a56c86ce"
+    }
+  ],
+  "note": "This is an accurately transcribed selected-field record of tool responses, not a raw response archive. MCP preview and mutation API currently use different JSON digest serialization; do not interchange those digests."
+}

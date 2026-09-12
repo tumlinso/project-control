@@ -1,0 +1,1813 @@
+{
+  "PC-WF2-COORD": {
+    "assertions": [
+      "The final local integration task and its checkpoint are successfully complete",
+      "Every required producer/consumer receipt is current and unresolved blockers are recorded",
+      "Owned work and explicit limitations are handed off before the aggregate epic closes"
+    ],
+    "assertion_ids": [
+      "PC-WF2-COORD-A01",
+      "PC-WF2-COORD-A02",
+      "PC-WF2-COORD-A03"
+    ],
+    "kind": "closure",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-COORD.json",
+    "requires_independent_review": false,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false,
+    "required_terminal_tasks": [
+      "PC-WF2-I90"
+    ],
+    "independent_review_source": "PC-WF2-I90"
+  },
+  "PC-WF2-0000": {
+    "assertions": [
+      "Every local child is successfully terminal",
+      "The final local milestone remains qualified and integrated",
+      "The paired program release identity and limitations are explicitly reported"
+    ],
+    "assertion_ids": [
+      "PC-WF2-0000-A01",
+      "PC-WF2-0000-A02",
+      "PC-WF2-0000-A03"
+    ],
+    "kind": "closure",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-0000.json",
+    "requires_independent_review": false,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false,
+    "required_terminal_tasks": [
+      "PC-WF2-COORD",
+      "PC-WF2-A01",
+      "PC-WF2-A02",
+      "PC-WF2-A03",
+      "PC-WF2-C01",
+      "PC-WF2-C02",
+      "PC-WF2-C03",
+      "PC-WF2-K01",
+      "PC-WF2-K02",
+      "PC-WF2-K03",
+      "PC-WF2-K04",
+      "PC-WF2-K05",
+      "PC-WF2-V01",
+      "PC-WF2-V02",
+      "PC-WF2-V03",
+      "PC-WF2-V04",
+      "PC-WF2-B01",
+      "PC-WF2-B02",
+      "PC-WF2-B03",
+      "PC-WF2-B04",
+      "PC-WF2-S01",
+      "PC-WF2-S02",
+      "PC-WF2-S03",
+      "PC-WF2-S04",
+      "PC-WF2-S05",
+      "PC-WF2-S06",
+      "PC-WF2-S07",
+      "PC-WF2-L01",
+      "PC-WF2-L02",
+      "PC-WF2-L03",
+      "PC-WF2-L04",
+      "PC-WF2-L05",
+      "PC-WF2-R01",
+      "PC-WF2-R02",
+      "PC-WF2-R03",
+      "PC-WF2-R04",
+      "PC-WF2-R05",
+      "PC-WF2-X01",
+      "PC-WF2-X02",
+      "PC-WF2-X03",
+      "PC-WF2-X04",
+      "PC-WF2-Q01",
+      "PC-WF2-Q02",
+      "PC-WF2-Q03",
+      "PC-WF2-Q04",
+      "PC-WF2-T01",
+      "PC-WF2-T02",
+      "PC-WF2-T03",
+      "PC-WF2-T04",
+      "PC-WF2-T05",
+      "PC-WF2-T06",
+      "PC-WF2-G01",
+      "PC-WF2-G02",
+      "PC-WF2-G03",
+      "PC-WF2-E01",
+      "PC-WF2-E02",
+      "PC-WF2-E03",
+      "PC-WF2-D01",
+      "PC-WF2-D02",
+      "PC-WF2-D03",
+      "PC-WF2-D04",
+      "PC-WF2-I00",
+      "PC-WF2-I10",
+      "PC-WF2-I20",
+      "PC-WF2-I30",
+      "PC-WF2-I40",
+      "PC-WF2-I50",
+      "PC-WF2-I90"
+    ],
+    "independent_review_source": "PC-WF2-I90"
+  },
+  "PC-WF2-A01": {
+    "assertions": [
+      "Both UUIDs and source heads recorded with observation provenance",
+      "Affected paths, live claims and unknown work dispositions are enumerated",
+      "No source or database is rewritten"
+    ],
+    "assertion_ids": [
+      "PC-WF2-A01-A01",
+      "PC-WF2-A01-A02",
+      "PC-WF2-A01-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-A01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-A02": {
+    "assertions": [
+      "Old runtime can still serve real authorities while candidates use disposable state",
+      "Rollback includes launcher, environment, DB backup policy and reconnect procedure",
+      "Test registration precedes any milestone that requires the tests"
+    ],
+    "assertion_ids": [
+      "PC-WF2-A02-A01",
+      "PC-WF2-A02-A02",
+      "PC-WF2-A02-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-A02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-A03": {
+    "assertions": [
+      "Actual child launch metadata confirms model and effort or routing remains unverified",
+      "Researcher queries Project Control directly and returns a bounded evidence digest",
+      "No claim or source write is performed by the read-only smoke test"
+    ],
+    "assertion_ids": [
+      "PC-WF2-A03-A01",
+      "PC-WF2-A03-A02",
+      "PC-WF2-A03-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-A03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-C01": {
+    "assertions": [
+      "One workflow transaction authority is named",
+      "Git, host resources and compiler artifacts remain independent authorities",
+      "No baseline storage relocation or lifecycle changes are hidden in the move"
+    ],
+    "assertion_ids": [
+      "PC-WF2-C01-A01",
+      "PC-WF2-C01-A02",
+      "PC-WF2-C01-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-C01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-C02": {
+    "assertions": [
+      "Unknown task keys are rejected only under the new explicit strict format",
+      "Legacy v2/v3 plans retain a documented compatible reader",
+      "Observation refs are not authorization capabilities and do not hide race/coverage warnings"
+    ],
+    "assertion_ids": [
+      "PC-WF2-C02-A01",
+      "PC-WF2-C02-A02",
+      "PC-WF2-C02-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-C02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-C03": {
+    "assertions": [
+      "Contract files and owner task are explicit",
+      "The source-under-test/receipt ordering has no self-reference",
+      "The joint release closure has no mutual final-acceptance dependency"
+    ],
+    "assertion_ids": [
+      "PC-WF2-C03-A01",
+      "PC-WF2-C03-A02",
+      "PC-WF2-C03-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-C03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-K01": {
+    "assertions": [
+      "Every moved module maps to donor commit/path/hash",
+      "No algorithm, status, DB schema or persistence location changes",
+      "New package imports do not bind the deployed authority"
+    ],
+    "assertion_ids": [
+      "PC-WF2-K01-A01",
+      "PC-WF2-K01-A02",
+      "PC-WF2-K01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/k/test_pc_wf2_k01.py",
+        "test_names": [
+          "WF2Acceptance.test_every_moved_module_maps_to_donor_commit_path_hash",
+          "WF2Acceptance.test_no_algorithm_status_db_schema_or_persistence_location_changes",
+          "WF2Acceptance.test_new_package_imports_do_not_bind_the_deployed_authority"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-K01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-K02": {
+    "assertions": [
+      "DB and export fixtures round-trip with UUID/event identity preserved",
+      "Read-only opens do not migrate or repair",
+      "The compatibility matrix documents preexisting limitations"
+    ],
+    "assertion_ids": [
+      "PC-WF2-K02-A01",
+      "PC-WF2-K02-A02",
+      "PC-WF2-K02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/k/test_pc_wf2_k02.py",
+        "test_names": [
+          "WF2Acceptance.test_db_and_export_fixtures_round_trip_with_uuid_event_identity_preserved",
+          "WF2Acceptance.test_read_only_opens_do_not_migrate_or_repair",
+          "WF2Acceptance.test_the_compatibility_matrix_documents_preexisting_limitations"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-K02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-K03": {
+    "assertions": [
+      "Protocol payloads and error codes match the old runtime on deterministic fixtures",
+      "Duplicate claim and wrong-scope capability requests still fail",
+      "No adapter writes core tables"
+    ],
+    "assertion_ids": [
+      "PC-WF2-K03-A01",
+      "PC-WF2-K03-A02",
+      "PC-WF2-K03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/k/test_pc_wf2_k03.py",
+        "test_names": [
+          "WF2Acceptance.test_protocol_payloads_and_error_codes_match_the_old_runtime_on_deterministic_fixtures",
+          "WF2Acceptance.test_duplicate_claim_and_wrong_scope_capability_requests_still_fail",
+          "WF2Acceptance.test_no_adapter_writes_core_tables"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-K03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-K04": {
+    "assertions": [
+      "Host resource leases are not duplicated by the move",
+      "Source-identity algorithm tags and wire output are unchanged at parity",
+      "External job and child failure paths retain evidence and cleanup ownership"
+    ],
+    "assertion_ids": [
+      "PC-WF2-K04-A01",
+      "PC-WF2-K04-A02",
+      "PC-WF2-K04-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/k/test_pc_wf2_k04.py",
+        "test_names": [
+          "WF2Acceptance.test_host_resource_leases_are_not_duplicated_by_the_move",
+          "WF2Acceptance.test_source_identity_algorithm_tags_and_wire_output_are_unchanged_at_parity",
+          "WF2Acceptance.test_external_job_and_child_failure_paths_retain_evidence_and_cleanup_ownership"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-K04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-K05": {
+    "assertions": [
+      "No unexplained behavioral differences or silently reduced test inventory",
+      "State fixtures and test logs identify both executable releases",
+      "The parity receipt is ready for independent review"
+    ],
+    "assertion_ids": [
+      "PC-WF2-K05-A01",
+      "PC-WF2-K05-A02",
+      "PC-WF2-K05-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/k/test_pc_wf2_k05.py",
+        "test_names": [
+          "WF2Acceptance.test_no_unexplained_behavioral_differences_or_silently_reduced_test_inventory",
+          "WF2Acceptance.test_state_fixtures_and_test_logs_identify_both_executable_releases",
+          "WF2Acceptance.test_the_parity_receipt_is_ready_for_independent_review"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-K05.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-V01": {
+    "assertions": [
+      "Harness catches a deliberately changed status and missing event",
+      "Fixtures never point to a registered live DB",
+      "Full original tests and new scenario inventory are reported separately"
+    ],
+    "assertion_ids": [
+      "PC-WF2-V01-A01",
+      "PC-WF2-V01-A02",
+      "PC-WF2-V01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/v/test_pc_wf2_v01.py",
+        "test_names": [
+          "WF2Acceptance.test_harness_catches_a_deliberately_changed_status_and_missing_event",
+          "WF2Acceptance.test_fixtures_never_point_to_a_registered_live_db",
+          "WF2Acceptance.test_full_original_tests_and_new_scenario_inventory_are_reported_separately"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-V01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-V02": {
+    "assertions": [
+      "Every required scenario has a nonempty execution result",
+      "No missing field is normalized away as irrelevant",
+      "Old/new state and protocol differences are zero outside the relocation allowlist"
+    ],
+    "assertion_ids": [
+      "PC-WF2-V02-A01",
+      "PC-WF2-V02-A02",
+      "PC-WF2-V02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/v/test_pc_wf2_v02.py",
+        "test_names": [
+          "WF2Acceptance.test_every_required_scenario_has_a_nonempty_execution_result",
+          "WF2Acceptance.test_no_missing_field_is_normalized_away_as_irrelevant",
+          "WF2Acceptance.test_old_new_state_and_protocol_differences_are_zero_outside_the_relocation_allowlist"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-V02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-V03": {
+    "assertions": [
+      "Observer remains project-read-only even with hostile arguments",
+      "Rejected proposals cause no semantic mutation",
+      "Legacy writer policy is enforced rather than merely documented"
+    ],
+    "assertion_ids": [
+      "PC-WF2-V03-A01",
+      "PC-WF2-V03-A02",
+      "PC-WF2-V03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/v/test_pc_wf2_v03.py",
+        "test_names": [
+          "WF2Acceptance.test_observer_remains_project_read_only_even_with_hostile_arguments",
+          "WF2Acceptance.test_rejected_proposals_cause_no_semantic_mutation",
+          "WF2Acceptance.test_legacy_writer_policy_is_enforced_rather_than_merely_documented"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-V03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-V04": {
+    "assertions": [
+      "No target fixture loses UUID, task history, event sequence or pending work",
+      "Rollback after schema change is either proven compatible or explicitly restore/migrate-forward only",
+      "Both MCP transports see the same runtime/authority after reconnect"
+    ],
+    "assertion_ids": [
+      "PC-WF2-V04-A01",
+      "PC-WF2-V04-A02",
+      "PC-WF2-V04-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/v/test_pc_wf2_v04.py",
+        "test_names": [
+          "WF2Acceptance.test_no_target_fixture_loses_uuid_task_history_event_sequence_or_pending_work",
+          "WF2Acceptance.test_rollback_after_schema_change_is_either_proven_compatible_or_explicitly_restore_migrate_forward_o",
+          "WF2Acceptance.test_both_mcp_transports_see_the_same_runtime_authority_after_reconnect"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-V04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-B01": {
+    "assertions": [
+      "No external todo package resolution is needed in the new product path",
+      "All mutations still enter the same core transaction API",
+      "Installed old runtime remains available until cutover"
+    ],
+    "assertion_ids": [
+      "PC-WF2-B01-A01",
+      "PC-WF2-B01-A02",
+      "PC-WF2-B01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/b/test_pc_wf2_b01.py",
+        "test_names": [
+          "WF2Acceptance.test_no_external_todo_package_resolution_is_needed_in_the_new_product_path",
+          "WF2Acceptance.test_all_mutations_still_enter_the_same_core_transaction_api",
+          "WF2Acceptance.test_installed_old_runtime_remains_available_until_cutover"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-B01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-B02": {
+    "assertions": [
+      "Exact same plan produces compatible validator/diff results through every front door",
+      "All entity namespaces are collision-checked, not only task IDs",
+      "Unknown or stale approved inputs fail closed without a retry"
+    ],
+    "assertion_ids": [
+      "PC-WF2-B02-A01",
+      "PC-WF2-B02-A02",
+      "PC-WF2-B02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/b/test_pc_wf2_b02.py",
+        "test_names": [
+          "WF2Acceptance.test_exact_same_plan_produces_compatible_validator_diff_results_through_every_front_door",
+          "WF2Acceptance.test_all_entity_namespaces_are_collision_checked_not_only_task_ids",
+          "WF2Acceptance.test_unknown_or_stale_approved_inputs_fail_closed_without_a_retry"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-B02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-B03": {
+    "assertions": [
+      "No duplicate scheduler/capability/claim implementations",
+      "Mixed old/new packages fail clearly when unsafe",
+      "Supported legacy symbols and retirement criteria are enumerated"
+    ],
+    "assertion_ids": [
+      "PC-WF2-B03-A01",
+      "PC-WF2-B03-A02",
+      "PC-WF2-B03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/b/test_pc_wf2_b03.py",
+        "test_names": [
+          "WF2Acceptance.test_no_duplicate_scheduler_capability_claim_implementations",
+          "WF2Acceptance.test_mixed_old_new_packages_fail_clearly_when_unsafe",
+          "WF2Acceptance.test_supported_legacy_symbols_and_retirement_criteria_are_enumerated"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-B03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-B04": {
+    "assertions": [
+      "Skills can import/use the new facade in an isolated candidate",
+      "New release identity binds the product and adapter contracts",
+      "Unqualified candidate never overwrites the common live launcher"
+    ],
+    "assertion_ids": [
+      "PC-WF2-B04-A01",
+      "PC-WF2-B04-A02",
+      "PC-WF2-B04-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-B04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-S01": {
+    "assertions": [
+      "Invalid enum, wrong type, boolean-as-integer and unknown nested keys fail",
+      "Missing profile is unspecified, never silently routine",
+      "Plan wire version, DB migration version and profile schema version are distinct"
+    ],
+    "assertion_ids": [
+      "PC-WF2-S01-A01",
+      "PC-WF2-S01-A02",
+      "PC-WF2-S01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/s/test_pc_wf2_s01.py",
+        "test_names": [
+          "WF2Acceptance.test_invalid_enum_wrong_type_boolean_as_integer_and_unknown_nested_keys_fail",
+          "WF2Acceptance.test_missing_profile_is_unspecified_never_silently_routine",
+          "WF2Acceptance.test_plan_wire_version_db_migration_version_and_profile_schema_version_are_distinct"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-S01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-S02": {
+    "assertions": [
+      "Round-trip through DB and export preserves profile exactly",
+      "Active affected task changes require explicit requalification or handoff",
+      "A profile change never grants authority or changes priority ordering"
+    ],
+    "assertion_ids": [
+      "PC-WF2-S02-A01",
+      "PC-WF2-S02-A02",
+      "PC-WF2-S02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/s/test_pc_wf2_s02.py",
+        "test_names": [
+          "WF2Acceptance.test_round_trip_through_db_and_export_preserves_profile_exactly",
+          "WF2Acceptance.test_active_affected_task_changes_require_explicit_requalification_or_handoff",
+          "WF2Acceptance.test_a_profile_change_never_grants_authority_or_changes_priority_ordering"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-S02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-S03": {
+    "assertions": [
+      "Old plans cannot erase profiles accidentally",
+      "Unsupported old writes to upgraded state are fenced",
+      "Unknown vNext fields are never accepted then silently dropped"
+    ],
+    "assertion_ids": [
+      "PC-WF2-S03-A01",
+      "PC-WF2-S03-A02",
+      "PC-WF2-S03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/s/test_pc_wf2_s03.py",
+        "test_names": [
+          "WF2Acceptance.test_old_plans_cannot_erase_profiles_accidentally",
+          "WF2Acceptance.test_unsupported_old_writes_to_upgraded_state_are_fenced",
+          "WF2Acceptance.test_unknown_vnext_fields_are_never_accepted_then_silently_dropped"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-S03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-S04": {
+    "assertions": [
+      "Every native current-task response carries its actual profile or explicit absence",
+      "No expensive model choice is stored as task difficulty",
+      "Reported executor configuration is labelled unverified until externally observed"
+    ],
+    "assertion_ids": [
+      "PC-WF2-S04-A01",
+      "PC-WF2-S04-A02",
+      "PC-WF2-S04-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/s/test_pc_wf2_s04.py",
+        "test_names": [
+          "WF2Acceptance.test_every_native_current_task_response_carries_its_actual_profile_or_explicit_absence",
+          "WF2Acceptance.test_no_expensive_model_choice_is_stored_as_task_difficulty",
+          "WF2Acceptance.test_reported_executor_configuration_is_labelled_unverified_until_externally_observed"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-S04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-S05": {
+    "assertions": [
+      "Every profile matches the sealed sidecar catalog by task ID",
+      "Unrelated tasks and lifecycle records remain unchanged",
+      "The currently held coordinator claim is deliberately refreshed or handed off"
+    ],
+    "assertion_ids": [
+      "PC-WF2-S05-A01",
+      "PC-WF2-S05-A02",
+      "PC-WF2-S05-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/s/test_pc_wf2_s05.py",
+        "test_names": [
+          "WF2Acceptance.test_every_profile_matches_the_sealed_sidecar_catalog_by_task_id",
+          "WF2Acceptance.test_unrelated_tasks_and_lifecycle_records_remain_unchanged",
+          "WF2Acceptance.test_the_currently_held_coordinator_claim_is_deliberately_refreshed_or_handed_off"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-S05.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-S06": {
+    "assertions": [
+      "Task mechanisms and extension data round-trip through declared channels",
+      "A v3 run is never silently emitted as schema 2",
+      "Generated views are never accepted as parallel live task authority"
+    ],
+    "assertion_ids": [
+      "PC-WF2-S06-A01",
+      "PC-WF2-S06-A02",
+      "PC-WF2-S06-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/s/test_pc_wf2_s06.py",
+        "test_names": [
+          "WF2Acceptance.test_task_mechanisms_and_extension_data_round_trip_through_declared_channels",
+          "WF2Acceptance.test_a_v3_run_is_never_silently_emitted_as_schema_2",
+          "WF2Acceptance.test_generated_views_are_never_accepted_as_parallel_live_task_authority"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-S06.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-S07": {
+    "assertions": [
+      "Exact reviewed catalog survives promotion and export",
+      "Model-agnostic schema remains independent of Codex versions",
+      "Authorization and scheduling regression suites pass"
+    ],
+    "assertion_ids": [
+      "PC-WF2-S07-A01",
+      "PC-WF2-S07-A02",
+      "PC-WF2-S07-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/s/test_pc_wf2_s07.py",
+        "test_names": [
+          "WF2Acceptance.test_exact_reviewed_catalog_survives_promotion_and_export",
+          "WF2Acceptance.test_model_agnostic_schema_remains_independent_of_codex_versions",
+          "WF2Acceptance.test_authorization_and_scheduling_regression_suites_pass"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-S07.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-L01": {
+    "assertions": [
+      "Plan-applied terminal tasks cannot leave misleading ready lanes",
+      "completed_at is populated once and preserved on no-op",
+      "A run with unresolved required obligations is not auto-completed"
+    ],
+    "assertion_ids": [
+      "PC-WF2-L01-A01",
+      "PC-WF2-L01-A02",
+      "PC-WF2-L01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/l/test_pc_wf2_l01.py",
+        "test_names": [
+          "WF2Acceptance.test_plan_applied_terminal_tasks_cannot_leave_misleading_ready_lanes",
+          "WF2Acceptance.test_completed_at_is_populated_once_and_preserved_on_no_op",
+          "WF2Acceptance.test_a_run_with_unresolved_required_obligations_is_not_auto_completed"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-L01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-L02": {
+    "assertions": [
+      "Closed lane does not imply deleted worktree",
+      "Unmerged/dirty/unknown work survives reconciliation",
+      "Old active workspaces receive an explicit reviewable disposition"
+    ],
+    "assertion_ids": [
+      "PC-WF2-L02-A01",
+      "PC-WF2-L02-A02",
+      "PC-WF2-L02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/l/test_pc_wf2_l02.py",
+        "test_names": [
+          "WF2Acceptance.test_closed_lane_does_not_imply_deleted_worktree",
+          "WF2Acceptance.test_unmerged_dirty_unknown_work_survives_reconciliation",
+          "WF2Acceptance.test_old_active_workspaces_receive_an_explicit_reviewable_disposition"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-L02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-L03": {
+    "assertions": [
+      "Ready-but-unclaimable examples are fixed or explicitly diagnosed",
+      "Scope and resource checks remain under transaction at acquisition",
+      "No lexical or heuristic read model grants a lease"
+    ],
+    "assertion_ids": [
+      "PC-WF2-L03-A01",
+      "PC-WF2-L03-A02",
+      "PC-WF2-L03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/l/test_pc_wf2_l03.py",
+        "test_names": [
+          "WF2Acceptance.test_ready_but_unclaimable_examples_are_fixed_or_explicitly_diagnosed",
+          "WF2Acceptance.test_scope_and_resource_checks_remain_under_transaction_at_acquisition",
+          "WF2Acceptance.test_no_lexical_or_heuristic_read_model_grants_a_lease"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-L03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-L04": {
+    "assertions": [
+      "Retries never produce duplicate accepted completion or lost provenance",
+      "Recovery refuses live foreign mutable work",
+      "Coordinator-epic circular acquisition cannot recur"
+    ],
+    "assertion_ids": [
+      "PC-WF2-L04-A01",
+      "PC-WF2-L04-A02",
+      "PC-WF2-L04-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/l/test_pc_wf2_l04.py",
+        "test_names": [
+          "WF2Acceptance.test_retries_never_produce_duplicate_accepted_completion_or_lost_provenance",
+          "WF2Acceptance.test_recovery_refuses_live_foreign_mutable_work",
+          "WF2Acceptance.test_coordinator_epic_circular_acquisition_cannot_recur"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-L04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-L05": {
+    "assertions": [
+      "Read views explain stale historical statuses without modifying them",
+      "Repair is explicit, bounded and audit logged",
+      "No automatic deletion is coupled to run completion"
+    ],
+    "assertion_ids": [
+      "PC-WF2-L05-A01",
+      "PC-WF2-L05-A02",
+      "PC-WF2-L05-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/l/test_pc_wf2_l05.py",
+        "test_names": [
+          "WF2Acceptance.test_read_views_explain_stale_historical_statuses_without_modifying_them",
+          "WF2Acceptance.test_repair_is_explicit_bounded_and_audit_logged",
+          "WF2Acceptance.test_no_automatic_deletion_is_coupled_to_run_completion"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-L05.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-R01": {
+    "assertions": [
+      "A writer racing the read yields one coherent revision or explicit failure",
+      "No read-time lifecycle mutation",
+      "Transient lease/clock validity has explicit observation time"
+    ],
+    "assertion_ids": [
+      "PC-WF2-R01-A01",
+      "PC-WF2-R01-A02",
+      "PC-WF2-R01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/r/test_pc_wf2_r01.py",
+        "test_names": [
+          "WF2Acceptance.test_a_writer_racing_the_read_yields_one_coherent_revision_or_explicit_failure",
+          "WF2Acceptance.test_no_read_time_lifecycle_mutation",
+          "WF2Acceptance.test_transient_lease_clock_validity_has_explicit_observation_time"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-R01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-R02": {
+    "assertions": [
+      "Four separate Todo read universes are removed from the new path",
+      "Existing observer compatibility projection remains available",
+      "External authority race is not hidden by workflow consistency"
+    ],
+    "assertion_ids": [
+      "PC-WF2-R02-A01",
+      "PC-WF2-R02-A02",
+      "PC-WF2-R02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/r/test_pc_wf2_r02.py",
+        "test_names": [
+          "WF2Acceptance.test_four_separate_todo_read_universes_are_removed_from_the_new_path",
+          "WF2Acceptance.test_existing_observer_compatibility_projection_remains_available",
+          "WF2Acceptance.test_external_authority_race_is_not_hidden_by_workflow_consistency"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-R02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-R03": {
+    "assertions": [
+      "Missing required fields fail at a precise boundary",
+      "Child executions cannot masquerade as first-class lanes",
+      "Dictionary serialization remains at transport edges"
+    ],
+    "assertion_ids": [
+      "PC-WF2-R03-A01",
+      "PC-WF2-R03-A02",
+      "PC-WF2-R03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/r/test_pc_wf2_r03.py",
+        "test_names": [
+          "WF2Acceptance.test_missing_required_fields_fail_at_a_precise_boundary",
+          "WF2Acceptance.test_child_executions_cannot_masquerade_as_first_class_lanes",
+          "WF2Acceptance.test_dictionary_serialization_remains_at_transport_edges"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-R03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-R04": {
+    "assertions": [
+      "Changed source or authorization policy cannot reuse an incompatible cache",
+      "Restart/eviction behavior is explicit",
+      "Cached heartbeat validity is not frozen indefinitely"
+    ],
+    "assertion_ids": [
+      "PC-WF2-R04-A01",
+      "PC-WF2-R04-A02",
+      "PC-WF2-R04-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/r/test_pc_wf2_r04.py",
+        "test_names": [
+          "WF2Acceptance.test_changed_source_or_authorization_policy_cannot_reuse_an_incompatible_cache",
+          "WF2Acceptance.test_restart_eviction_behavior_is_explicit",
+          "WF2Acceptance.test_cached_heartbeat_validity_is_not_frozen_indefinitely"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-R04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-R05": {
+    "assertions": [
+      "Full meaningful output parity is demonstrated",
+      "Legacy observer remains usable",
+      "Performance report retains cold/warm costs and qualifications"
+    ],
+    "assertion_ids": [
+      "PC-WF2-R05-A01",
+      "PC-WF2-R05-A02",
+      "PC-WF2-R05-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/r/test_pc_wf2_r05.py",
+        "test_names": [
+          "WF2Acceptance.test_full_meaningful_output_parity_is_demonstrated",
+          "WF2Acceptance.test_legacy_observer_remains_usable",
+          "WF2Acceptance.test_performance_report_retains_cold_warm_costs_and_qualifications"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-R05.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-X01": {
+    "assertions": [
+      "Producer SK-WF2-I10 is complete in the correct authority",
+      "Relevant source hashes and inventory agree",
+      "No foreign native dependency is invented"
+    ],
+    "assertion_ids": [
+      "PC-WF2-X01-A01",
+      "PC-WF2-X01-A02",
+      "PC-WF2-X01-A03"
+    ],
+    "kind": "cross_receipt",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-X01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false,
+    "external_edge": "WF2-DONOR"
+  },
+  "PC-WF2-X02": {
+    "assertions": [
+      "Producer SK-WF2-I20 is authoritatively complete",
+      "Contract and source dependency hashes are current",
+      "Read-only semantics and no silent scan/refresh are proven"
+    ],
+    "assertion_ids": [
+      "PC-WF2-X02-A01",
+      "PC-WF2-X02-A02",
+      "PC-WF2-X02-A03"
+    ],
+    "kind": "cross_receipt",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-X02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false,
+    "external_edge": "WF2-CTXPP"
+  },
+  "PC-WF2-X03": {
+    "assertions": [
+      "Producer SK-WF2-I60 is complete",
+      "Qualified candidate versions are compatible",
+      "No final-acceptance circular dependency"
+    ],
+    "assertion_ids": [
+      "PC-WF2-X03-A01",
+      "PC-WF2-X03-A02",
+      "PC-WF2-X03-A03"
+    ],
+    "kind": "cross_receipt",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-X03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false,
+    "external_edge": "WF2-CONSUMERS"
+  },
+  "PC-WF2-X04": {
+    "assertions": [
+      "Producer SK-WF2-I90 is complete",
+      "No obsolete duplicate kernel remains on the new runtime path",
+      "Legacy compatibility removal matches the agreed support window"
+    ],
+    "assertion_ids": [
+      "PC-WF2-X04-A01",
+      "PC-WF2-X04-A02",
+      "PC-WF2-X04-A03"
+    ],
+    "kind": "cross_receipt",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-X04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false,
+    "external_edge": "WF2-SK-FINAL"
+  },
+  "PC-WF2-Q01": {
+    "assertions": [
+      "Cold/hot readers never refresh .ctxpp in observer mode",
+      "Current/stale/partial/unsupported are distinct",
+      "Ctxpp remains independently installable and optional"
+    ],
+    "assertion_ids": [
+      "PC-WF2-Q01-A01",
+      "PC-WF2-Q01-A02",
+      "PC-WF2-Q01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/q/test_pc_wf2_q01.py",
+        "test_names": [
+          "WF2Acceptance.test_cold_hot_readers_never_refresh_ctxpp_in_observer_mode",
+          "WF2Acceptance.test_current_stale_partial_unsupported_are_distinct",
+          "WF2Acceptance.test_ctxpp_remains_independently_installable_and_optional"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-Q01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-Q02": {
+    "assertions": [
+      "A truncated 50-item retrieval neither skips undelivered items nor loops",
+      "Path reads have explicit continuation and no silent mid-entity truncation",
+      "Queries starting with dashes do not become Git options"
+    ],
+    "assertion_ids": [
+      "PC-WF2-Q02-A01",
+      "PC-WF2-Q02-A02",
+      "PC-WF2-Q02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/q/test_pc_wf2_q02.py",
+        "test_names": [
+          "WF2Acceptance.test_a_truncated_50_item_retrieval_neither_skips_undelivered_items_nor_loops",
+          "WF2Acceptance.test_path_reads_have_explicit_continuation_and_no_silent_mid_entity_truncation",
+          "WF2Acceptance.test_queries_starting_with_dashes_do_not_become_git_options"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-Q02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-Q03": {
+    "assertions": [
+      "Unchanged symlink blob cannot mask changed live target",
+      "Immutable-commit queries never silently use a working-tree semantic index",
+      "Raced or partially verified source is not reported as current proof"
+    ],
+    "assertion_ids": [
+      "PC-WF2-Q03-A01",
+      "PC-WF2-Q03-A02",
+      "PC-WF2-Q03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/q/test_pc_wf2_q03.py",
+        "test_names": [
+          "WF2Acceptance.test_unchanged_symlink_blob_cannot_mask_changed_live_target",
+          "WF2Acceptance.test_immutable_commit_queries_never_silently_use_a_working_tree_semantic_index",
+          "WF2Acceptance.test_raced_or_partially_verified_source_is_not_reported_as_current_proof"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-Q03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-Q04": {
+    "assertions": [
+      "Useful hits are not buried under generated history",
+      "Read costs and reply bytes are measured separately",
+      "Missing semantics is visible rather than replaced with false caller/callee evidence"
+    ],
+    "assertion_ids": [
+      "PC-WF2-Q04-A01",
+      "PC-WF2-Q04-A02",
+      "PC-WF2-Q04-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/q/test_pc_wf2_q04.py",
+        "test_names": [
+          "WF2Acceptance.test_useful_hits_are_not_buried_under_generated_history",
+          "WF2Acceptance.test_read_costs_and_reply_bytes_are_measured_separately",
+          "WF2Acceptance.test_missing_semantics_is_visible_rather_than_replaced_with_false_caller_callee_evidence"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-Q04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-T01": {
+    "assertions": [
+      "Ordinary reads carry selected scope plus compact identity",
+      "Mutation resolves full reviewed preconditions server-side",
+      "A ref cannot grant read or write authority"
+    ],
+    "assertion_ids": [
+      "PC-WF2-T01-A01",
+      "PC-WF2-T01-A02",
+      "PC-WF2-T01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/t/test_pc_wf2_t01.py",
+        "test_names": [
+          "WF2Acceptance.test_ordinary_reads_carry_selected_scope_plus_compact_identity",
+          "WF2Acceptance.test_mutation_resolves_full_reviewed_preconditions_server_side",
+          "WF2Acceptance.test_a_ref_cannot_grant_read_or_write_authority"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-T01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-T02": {
+    "assertions": [
+      "Two dozen irrelevant worktrees do not appear in each narrow read",
+      "Envelope bytes obey the negotiated cap or return an explicit required-minimum response",
+      "No arbitrary dictionary-key removal or misleading excerpt labels"
+    ],
+    "assertion_ids": [
+      "PC-WF2-T02-A01",
+      "PC-WF2-T02-A02",
+      "PC-WF2-T02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/t/test_pc_wf2_t02.py",
+        "test_names": [
+          "WF2Acceptance.test_two_dozen_irrelevant_worktrees_do_not_appear_in_each_narrow_read",
+          "WF2Acceptance.test_envelope_bytes_obey_the_negotiated_cap_or_return_an_explicit_required_minimum_response",
+          "WF2Acceptance.test_no_arbitrary_dictionary_key_removal_or_misleading_excerpt_labels"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-T02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-T03": {
+    "assertions": [
+      "Current-task/summary replies target 8 KiB and simple unchanged deltas 2 KiB",
+      "Source reads default to a tested compact budget with recoverable omissions",
+      "Original full observer response remains available through version negotiation"
+    ],
+    "assertion_ids": [
+      "PC-WF2-T03-A01",
+      "PC-WF2-T03-A02",
+      "PC-WF2-T03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/t/test_pc_wf2_t03.py",
+        "test_names": [
+          "WF2Acceptance.test_current_task_summary_replies_target_8_kib_and_simple_unchanged_deltas_2_kib",
+          "WF2Acceptance.test_source_reads_default_to_a_tested_compact_budget_with_recoverable_omissions",
+          "WF2Acceptance.test_original_full_observer_response_remains_available_through_version_negotiation"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-T03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-T04": {
+    "assertions": [
+      "A child receives bounded task scope rather than the controller transcript",
+      "No stale context cursor conceals changed contracts",
+      "Full reconstruction remains possible after cache eviction"
+    ],
+    "assertion_ids": [
+      "PC-WF2-T04-A01",
+      "PC-WF2-T04-A02",
+      "PC-WF2-T04-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/t/test_pc_wf2_t04.py",
+        "test_names": [
+          "WF2Acceptance.test_a_child_receives_bounded_task_scope_rather_than_the_controller_transcript",
+          "WF2Acceptance.test_no_stale_context_cursor_conceals_changed_contracts",
+          "WF2Acceptance.test_full_reconstruction_remains_possible_after_cache_eviction"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-T04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-T05": {
+    "assertions": [
+      "Compact narrow-read bytes improve by target 60 percent on the recorded corpus without dropping required facts",
+      "Root intake improves by target 70 percent for deep-research cases, or non-promotion is documented",
+      "Total model usage is reported where observable; no guaranteed subscription savings are fabricated"
+    ],
+    "assertion_ids": [
+      "PC-WF2-T05-A01",
+      "PC-WF2-T05-A02",
+      "PC-WF2-T05-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/t/test_pc_wf2_t05.py",
+        "test_names": [
+          "WF2Acceptance.test_compact_narrow_read_bytes_improve_by_target_60_percent_on_the_recorded_corpus_without_dropping_r",
+          "WF2Acceptance.test_root_intake_improves_by_target_70_percent_for_deep_research_cases_or_non_promotion_is_documented",
+          "WF2Acceptance.test_total_model_usage_is_reported_where_observable_no_guaranteed_subscription_savings_are_fabricated"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-T05.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-T06": {
+    "assertions": [
+      "All mandatory facts and negative findings survive",
+      "Expired refs do not become fresh approvals",
+      "Efficiency targets and semantic acceptance are independent gates"
+    ],
+    "assertion_ids": [
+      "PC-WF2-T06-A01",
+      "PC-WF2-T06-A02",
+      "PC-WF2-T06-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/t/test_pc_wf2_t06.py",
+        "test_names": [
+          "WF2Acceptance.test_all_mandatory_facts_and_negative_findings_survive",
+          "WF2Acceptance.test_expired_refs_do_not_become_fresh_approvals",
+          "WF2Acceptance.test_efficiency_targets_and_semantic_acceptance_are_independent_gates"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-T06.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-G01": {
+    "assertions": [
+      "Same subject receives consistent identity and authority labels",
+      "Current vs historical relevance is not guessed repeatedly in each service",
+      "Public tools remain small projections rather than independent query engines"
+    ],
+    "assertion_ids": [
+      "PC-WF2-G01-A01",
+      "PC-WF2-G01-A02",
+      "PC-WF2-G01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/g/test_pc_wf2_g01.py",
+        "test_names": [
+          "WF2Acceptance.test_same_subject_receives_consistent_identity_and_authority_labels",
+          "WF2Acceptance.test_current_vs_historical_relevance_is_not_guessed_repeatedly_in_each_service",
+          "WF2Acceptance.test_public_tools_remain_small_projections_rather_than_independent_query_engines"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-G01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-G02": {
+    "assertions": [
+      "Unrelated source change does not invalidate a pure ledger proposal unnecessarily",
+      "Relevant task/interface/source change still rejects stale apply",
+      "Missing read-set evidence cannot weaken the fail-closed default"
+    ],
+    "assertion_ids": [
+      "PC-WF2-G02-A01",
+      "PC-WF2-G02-A02",
+      "PC-WF2-G02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/g/test_pc_wf2_g02.py",
+        "test_names": [
+          "WF2Acceptance.test_unrelated_source_change_does_not_invalidate_a_pure_ledger_proposal_unnecessarily",
+          "WF2Acceptance.test_relevant_task_interface_source_change_still_rejects_stale_apply",
+          "WF2Acceptance.test_missing_read_set_evidence_cannot_weaken_the_fail_closed_default"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-G02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-G03": {
+    "assertions": [
+      "Known relevant changes are never accepted on stale evidence",
+      "Ranking improvements retain adverse and negative findings",
+      "All public views cite the same authoritative entity identity"
+    ],
+    "assertion_ids": [
+      "PC-WF2-G03-A01",
+      "PC-WF2-G03-A02",
+      "PC-WF2-G03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/g/test_pc_wf2_g03.py",
+        "test_names": [
+          "WF2Acceptance.test_known_relevant_changes_are_never_accepted_on_stale_evidence",
+          "WF2Acceptance.test_ranking_improvements_retain_adverse_and_negative_findings",
+          "WF2Acceptance.test_all_public_views_cite_the_same_authoritative_entity_identity"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-G03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-E01": {
+    "assertions": [
+      "Only core code knows workflow table structure",
+      "Admin operations do not widen a normal claim",
+      "Observer inspection remains read-only"
+    ],
+    "assertion_ids": [
+      "PC-WF2-E01-A01",
+      "PC-WF2-E01-A02",
+      "PC-WF2-E01-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/e/test_pc_wf2_e01.py",
+        "test_names": [
+          "WF2Acceptance.test_only_core_code_knows_workflow_table_structure",
+          "WF2Acceptance.test_admin_operations_do_not_widen_a_normal_claim",
+          "WF2Acceptance.test_observer_inspection_remains_read_only"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-E01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-E02": {
+    "assertions": [
+      "Crash before and after Git action can be distinguished/reconciled",
+      "Retry does not create duplicate or overwrite foreign worktrees",
+      "Filesystem/Git observations remain separate evidence"
+    ],
+    "assertion_ids": [
+      "PC-WF2-E02-A01",
+      "PC-WF2-E02-A02",
+      "PC-WF2-E02-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/e/test_pc_wf2_e02.py",
+        "test_names": [
+          "WF2Acceptance.test_crash_before_and_after_git_action_can_be_distinguished_reconciled",
+          "WF2Acceptance.test_retry_does_not_create_duplicate_or_overwrite_foreign_worktrees",
+          "WF2Acceptance.test_filesystem_git_observations_remain_separate_evidence"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-E02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-E03": {
+    "assertions": [
+      "Unknown outcome is not reported as rolled back",
+      "Recovery never deletes unpreserved source",
+      "Duplicate resume respects ownership and completed integration evidence"
+    ],
+    "assertion_ids": [
+      "PC-WF2-E03-A01",
+      "PC-WF2-E03-A02",
+      "PC-WF2-E03-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/e/test_pc_wf2_e03.py",
+        "test_names": [
+          "WF2Acceptance.test_unknown_outcome_is_not_reported_as_rolled_back",
+          "WF2Acceptance.test_recovery_never_deletes_unpreserved_source",
+          "WF2Acceptance.test_duplicate_resume_respects_ownership_and_completed_integration_evidence"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-E03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-D01": {
+    "assertions": [
+      "Difficulty and context depth are used independently",
+      "Digest includes contradictory evidence and exact re-fetch references",
+      "No helper is represented as a workflow lane merely because it was spawned"
+    ],
+    "assertion_ids": [
+      "PC-WF2-D01-A01",
+      "PC-WF2-D01-A02",
+      "PC-WF2-D01-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-D01.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-D02": {
+    "assertions": [
+      "Requested and actual agent model/effort are distinct observed facts",
+      "Read-only instruction is never treated as security enforcement",
+      "Unavailable cheap model or observer path fails explicitly without expensive silent fallback"
+    ],
+    "assertion_ids": [
+      "PC-WF2-D02-A01",
+      "PC-WF2-D02-A02",
+      "PC-WF2-D02-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-D02.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-D03": {
+    "assertions": [
+      "Changing model policy requires no rewrite of task semantics",
+      "Critical risk invokes independent review regardless of tiny code size",
+      "Helpers cannot inherit parent write capabilities accidentally"
+    ],
+    "assertion_ids": [
+      "PC-WF2-D03-A01",
+      "PC-WF2-D03-A02",
+      "PC-WF2-D03-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-D03.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-D04": {
+    "assertions": [
+      "Operator can distinguish install, import, launch and deploy",
+      "Measured total usage/coverage tradeoffs are reported",
+      "One concise launch handoff fits within 4000 characters"
+    ],
+    "assertion_ids": [
+      "PC-WF2-D04-A01",
+      "PC-WF2-D04-A02",
+      "PC-WF2-D04-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-D04.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-I00": {
+    "assertions": [
+      "Required tests are discoverable before producer completion",
+      "All interfaces are owned and published by a permitted role",
+      "Old production release is unchanged"
+    ],
+    "assertion_ids": [
+      "PC-WF2-I00-A01",
+      "PC-WF2-I00-A02",
+      "PC-WF2-I00-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-I00.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-I10": {
+    "assertions": [
+      "V02 passes against the donor baseline",
+      "No storage move, strict-schema change or lifecycle fix is included in parity",
+      "Independent reviewer records approved normalization differences"
+    ],
+    "assertion_ids": [
+      "PC-WF2-I10-A01",
+      "PC-WF2-I10-A02",
+      "PC-WF2-I10-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/i/test_pc_wf2_i10.py",
+        "test_names": [
+          "WF2Acceptance.test_v02_passes_against_the_donor_baseline",
+          "WF2Acceptance.test_no_storage_move_strict_schema_change_or_lifecycle_fix_is_included_in_parity",
+          "WF2Acceptance.test_independent_reviewer_records_approved_normalization_differences"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-I10.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-I20": {
+    "assertions": [
+      "Candidate starts without sibling discovery",
+      "Legacy old runtime remains available",
+      "Supported facade receipt is published with source/build identity"
+    ],
+    "assertion_ids": [
+      "PC-WF2-I20-A01",
+      "PC-WF2-I20-A02",
+      "PC-WF2-I20-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/i/test_pc_wf2_i20.py",
+        "test_names": [
+          "WF2Acceptance.test_candidate_starts_without_sibling_discovery",
+          "WF2Acceptance.test_legacy_old_runtime_remains_available",
+          "WF2Acceptance.test_supported_facade_receipt_is_published_with_source_build_identity"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-I20.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-I30": {
+    "assertions": [
+      "Every feature acceptance task passes with nonempty tests",
+      "Strict schema, compact responses and side-effect recovery cooperate",
+      "Legacy observer contract is explicitly negotiated, not silently replaced"
+    ],
+    "assertion_ids": [
+      "PC-WF2-I30-A01",
+      "PC-WF2-I30-A02",
+      "PC-WF2-I30-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/i/test_pc_wf2_i30.py",
+        "test_names": [
+          "WF2Acceptance.test_every_feature_acceptance_task_passes_with_nonempty_tests",
+          "WF2Acceptance.test_strict_schema_compact_responses_and_side_effect_recovery_cooperate",
+          "WF2Acceptance.test_legacy_observer_contract_is_explicitly_negotiated_not_silently_replaced"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-I30.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-I40": {
+    "assertions": [
+      "V04 and peer readiness pass",
+      "Rollback safety is qualified at the actual DB format",
+      "Candidate is deployable without editing the service currently executing the epic"
+    ],
+    "assertion_ids": [
+      "PC-WF2-I40-A01",
+      "PC-WF2-I40-A02",
+      "PC-WF2-I40-A03"
+    ],
+    "kind": "tests",
+    "tests": [
+      {
+        "path": "tests/wf2_acceptance/i/test_pc_wf2_i40.py",
+        "test_names": [
+          "WF2Acceptance.test_v04_and_peer_readiness_pass",
+          "WF2Acceptance.test_rollback_safety_is_qualified_at_the_actual_db_format",
+          "WF2Acceptance.test_candidate_is_deployable_without_editing_the_service_currently_executing_the_epic"
+        ],
+        "status": "to_be_implemented_not_a_shipped_pass"
+      }
+    ],
+    "review_record": "reviews/PC-WF2-I40.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-I50": {
+    "assertions": [
+      "Fresh transports report the same accepted artifact and authority UUIDs",
+      "No mixed old/new writers can corrupt upgraded state",
+      "WF2-DEPLOYED receipt distinguishes rehearsal from actual deployment"
+    ],
+    "assertion_ids": [
+      "PC-WF2-I50-A01",
+      "PC-WF2-I50-A02",
+      "PC-WF2-I50-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-I50.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  },
+  "PC-WF2-I90": {
+    "assertions": [
+      "All owned implementation has landed on the intended main branches",
+      "Final PC/Skills commits and Codex configuration hashes are recorded",
+      "Only owned merged worktrees become cleanup eligible; unrelated programs remain untouched"
+    ],
+    "assertion_ids": [
+      "PC-WF2-I90-A01",
+      "PC-WF2-I90-A02",
+      "PC-WF2-I90-A03"
+    ],
+    "kind": "governance",
+    "tests": [],
+    "review_record": "reviews/PC-WF2-I90.json",
+    "requires_independent_review": true,
+    "source_under_test": "committed_dispatch_worktree",
+    "full_program_acceptance": false
+  }
+}

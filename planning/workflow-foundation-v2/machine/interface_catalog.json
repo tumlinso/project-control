@@ -1,0 +1,38 @@
+[
+  {
+    "id": "PC-WF2-IF-AUTHORITY",
+    "owner_task_id": "PC-WF2-C03",
+    "state": "draft",
+    "version": "1",
+    "contract_paths": [
+      "docs/workflow_foundation_v2/contracts/authority.md"
+    ]
+  },
+  {
+    "id": "PC-WF2-IF-RUNTIME",
+    "owner_task_id": "PC-WF2-B04",
+    "state": "draft",
+    "version": "1",
+    "contract_paths": [
+      "docs/workflow_foundation_v2/contracts/runtime.md"
+    ]
+  },
+  {
+    "id": "PC-WF2-IF-PROFILE",
+    "owner_task_id": "PC-WF2-S07",
+    "state": "draft",
+    "version": "1",
+    "contract_paths": [
+      "schemas/work-profile-v1.schema.json"
+    ]
+  },
+  {
+    "id": "PC-WF2-IF-COMPACT",
+    "owner_task_id": "PC-WF2-T06",
+    "state": "draft",
+    "version": "1",
+    "contract_paths": [
+      "docs/workflow_foundation_v2/contracts/compact-reads.md"
+    ]
+  }
+]

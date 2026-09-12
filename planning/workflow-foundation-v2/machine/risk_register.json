@@ -1,0 +1,76 @@
+{
+  "risks": [
+    {
+      "id": "R01",
+      "risk": "Self-modifying live control runtime",
+      "mitigation": "Frozen old release, candidate-only development, qualified cutover",
+      "owners": [
+        "PC-WF2-A02",
+        "PC-WF2-I50"
+      ]
+    },
+    {
+      "id": "R02",
+      "risk": "Semantic change hidden inside parity",
+      "mitigation": "Separate relocation commits and differential allowlist",
+      "owners": [
+        "PC-WF2-K05",
+        "PC-WF2-V02"
+      ]
+    },
+    {
+      "id": "R03",
+      "risk": "Wrong/unknown native field silently lost",
+      "mitigation": "Native v3 bootstrap and sidecar profiles; strict later writer",
+      "owners": [
+        "PC-WF2-S01",
+        "PC-WF2-S05"
+      ]
+    },
+    {
+      "id": "R04",
+      "risk": "Cross-project closure deadlock",
+      "mitigation": "Joint execution DAG incl queue and receipt edges",
+      "owners": [
+        "PC-WF2-I90",
+        "SK-WF2-I90"
+      ]
+    },
+    {
+      "id": "R05",
+      "risk": "Researcher inherits write or expensive-model settings",
+      "mitigation": "Actual child metadata and observer tool inventory qualification",
+      "owners": [
+        "PC-WF2-A03",
+        "PC-WF2-D02"
+      ]
+    },
+    {
+      "id": "R06",
+      "risk": "Bytes saved by omitting decisive context",
+      "mitigation": "Mandatory coverage, exact re-fetch and adversarial query tests",
+      "owners": [
+        "PC-WF2-T06",
+        "PC-WF2-V03"
+      ]
+    },
+    {
+      "id": "R07",
+      "risk": "Unsafe old-code rollback after migration",
+      "mitigation": "Writer fencing and tested restore/migrate-forward",
+      "owners": [
+        "PC-WF2-V04",
+        "PC-WF2-I50"
+      ]
+    },
+    {
+      "id": "R08",
+      "risk": "Integration destination/base unavailable at producer finish",
+      "mitigation": "Preprovision and observe phase-specific bindings",
+      "owners": [
+        "PC-WF2-A02",
+        "PC-WF2-I00"
+      ]
+    }
+  ]
+}

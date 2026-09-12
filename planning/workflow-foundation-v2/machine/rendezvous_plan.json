@@ -1,0 +1,4 @@
+{
+  "rendezvous": [],
+  "reason": "Stage checkpoints plus explicit prerequisite edges express the initial joins. No blocking rendezvous requires the long-lived coordinator or a later-final lane arrival. Add one only through a validated plan revision if needed."
+}

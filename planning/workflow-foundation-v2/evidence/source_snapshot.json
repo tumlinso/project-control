@@ -1,0 +1,15 @@
+{
+  "basis": "read-only Project Control observations during construction; not current import preconditions",
+  "heads": {
+    "project-control": "70b863ab7972d6d722520d8ac2be2bb1d7d86d1c",
+    "skills": "3652874793401944e3cde30a3134aeb5615316ba",
+    "codex": "cfe4c610372faedfb44d0225c31d42b3132edc42",
+    "cellerator": "ff9d66121de9accde04166c7edd95544c24ca297",
+    "glasshelix": "139609465801a0407be056b27255c21d273df09e"
+  },
+  "project_control_revision": 599,
+  "skills_revision": 796,
+  "codex_has_todo_authority": false,
+  "user_supplied_codex_root": "/home/tumlinson/codex-workspace",
+  "live_config_exported": false
+}

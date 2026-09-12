@@ -1,0 +1,26 @@
+{
+  "source_ids": [
+    "P01",
+    "P02",
+    "P03",
+    "P04",
+    "P05",
+    "P06",
+    "P07",
+    "P08"
+  ],
+  "retained": [
+    "native v3 apply separation",
+    "sealed rich/native projections",
+    "first-class lane queues",
+    "peer receipts",
+    "one-shot reviewed import"
+  ],
+  "corrected": [
+    "ordinary coordinator before epic",
+    "no epic-to-child prerequisites",
+    "exclusive integration destination",
+    "exact source vs metadata hashes",
+    "no generic v2 compilation"
+  ]
+}

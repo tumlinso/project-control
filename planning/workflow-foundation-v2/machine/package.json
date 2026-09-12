@@ -1,0 +1,16 @@
+{
+  "program_id": "WF2-20260912-v1",
+  "workspace": "project-control",
+  "repository": "project-control",
+  "project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+  "baseline_commit": "70b863ab7972d6d722520d8ac2be2bb1d7d86d1c",
+  "baseline_revision": 599,
+  "package_path": "planning/workflow-foundation-v2",
+  "run_id": "PC-WF2-RUN-V1",
+  "root_task_id": "PC-WF2-0000",
+  "coordinator_task_id": "PC-WF2-COORD",
+  "coordinator_lane_id": "PC-WF2-L-COORD",
+  "native_plan_file": "project-control-workflow-foundation-v2.todo-plan.json",
+  "prefix": "PC-WF2",
+  "authority_to_apply": false
+}

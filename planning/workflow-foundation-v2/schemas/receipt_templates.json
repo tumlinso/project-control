@@ -1,0 +1,31 @@
+{
+  "warning": "Shapes only, not passing records. Real references/commit/observations must be produced during implementation.",
+  "task_review": {
+    "format": "wf2-task-review-v1",
+    "task_id": "EXAMPLE-NOT-A-REAL-TASK",
+    "source_commit": null,
+    "author": null,
+    "reviewer": null,
+    "status": "pending",
+    "unresolved_required": [
+      "Not executed or reviewed"
+    ],
+    "assertions": []
+  },
+  "cross_receipt": {
+    "format": "wf2-capability-receipt-v1",
+    "program_id": "WF2-20260912-v1",
+    "edge_id": null,
+    "producer_project_uuid": null,
+    "producer_task": null,
+    "producer_checkpoint": null,
+    "source_commit": null,
+    "qualification": null,
+    "status": "pending",
+    "author": null,
+    "reviewer": null,
+    "source_dependencies": [],
+    "evidence": [],
+    "test_reports": []
+  }
+}

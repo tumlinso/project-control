@@ -1,0 +1,313 @@
+[
+  {
+    "id": "A",
+    "title": "Baseline, ownership, and execution preparation",
+    "paths": [
+      "docs/workflow_foundation_v2/baseline",
+      "tests/wf2_acceptance/a"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-A01",
+      "PC-WF2-A02",
+      "PC-WF2-A03"
+    ],
+    "lane_id": "PC-WF2-L-A"
+  },
+  {
+    "id": "C",
+    "title": "Authority and versioned contracts",
+    "paths": [
+      "docs/workflow_foundation_v2/contracts",
+      "schemas/workflow_foundation_v2",
+      "tests/wf2_acceptance/c"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-C01",
+      "PC-WF2-C02",
+      "PC-WF2-C03"
+    ],
+    "lane_id": "PC-WF2-L-C"
+  },
+  {
+    "id": "K",
+    "title": "Behavior-preserving kernel absorption",
+    "paths": [
+      "src/project_control/workflow_core",
+      "tests/workflow_core_parity",
+      "tests/wf2_acceptance/k"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-K01",
+      "PC-WF2-K02",
+      "PC-WF2-K03",
+      "PC-WF2-K04",
+      "PC-WF2-K05"
+    ],
+    "lane_id": "PC-WF2-L-K"
+  },
+  {
+    "id": "V",
+    "title": "Independent parity and release qualification",
+    "paths": [
+      "tests/wf2_validation",
+      "docs/workflow_foundation_v2/validation",
+      "tests/wf2_acceptance/v"
+    ],
+    "role": "specialist",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-V01",
+      "PC-WF2-V02",
+      "PC-WF2-V03",
+      "PC-WF2-V04"
+    ],
+    "lane_id": "PC-WF2-L-V"
+  },
+  {
+    "id": "B",
+    "title": "Direct binding and supported internal facade",
+    "paths": [
+      "src/project_control/workflow_binding.py",
+      "src/project_control/todo_authority.py",
+      "src/project_control/adapters/todo.py",
+      "src/project_control/workflow_tools.py",
+      "src/project_control/mutation.py",
+      "src/project_control/runtime_identity.py",
+      "tests/wf2_acceptance/b"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-B01",
+      "PC-WF2-B02",
+      "PC-WF2-B03",
+      "PC-WF2-B04"
+    ],
+    "lane_id": "PC-WF2-L-B"
+  },
+  {
+    "id": "S",
+    "title": "Strict task schema and profile persistence",
+    "paths": [
+      "src/project_control/workflow_core/plan.py",
+      "src/project_control/workflow_core/models.py",
+      "src/project_control/workflow_core/migrations.py",
+      "src/project_control/workflow_core/task_profiles.py",
+      "src/project_control/workflow_core/profile_store.py",
+      "src/project_control/preledger.py",
+      "schemas/work-profile-v1.schema.json",
+      "tests/wf2_acceptance/s"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-S01",
+      "PC-WF2-S02",
+      "PC-WF2-S03",
+      "PC-WF2-S04",
+      "PC-WF2-S05",
+      "PC-WF2-S06",
+      "PC-WF2-S07"
+    ],
+    "lane_id": "PC-WF2-L-S"
+  },
+  {
+    "id": "L",
+    "title": "Lifecycle, readiness, and safe reconciliation",
+    "paths": [
+      "src/project_control/workflow_core/workflow/lanes.py",
+      "src/project_control/workflow_core/workflow/runs.py",
+      "src/project_control/workflow_core/workflow/recovery.py",
+      "src/project_control/workflow_core/workflow/workspaces.py",
+      "src/project_control/workflow_core/plan.py",
+      "src/project_control/workflow_core/readiness.py",
+      "tests/wf2_acceptance/l"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-L01",
+      "PC-WF2-L02",
+      "PC-WF2-L03",
+      "PC-WF2-L04",
+      "PC-WF2-L05"
+    ],
+    "lane_id": "PC-WF2-L-L"
+  },
+  {
+    "id": "R",
+    "title": "Coherent snapshots and typed read models",
+    "paths": [
+      "src/project_control/workflow_core/semantic",
+      "src/project_control/workflow_core/read_snapshot.py",
+      "src/project_control/snapshot.py",
+      "src/project_control/models.py",
+      "src/project_control/reconcile.py",
+      "src/project_control/workflow.py",
+      "tests/wf2_acceptance/r"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-R01",
+      "PC-WF2-R02",
+      "PC-WF2-R03",
+      "PC-WF2-R04",
+      "PC-WF2-R05"
+    ],
+    "lane_id": "PC-WF2-L-R"
+  },
+  {
+    "id": "X",
+    "title": "Cross-authority receipt imports",
+    "paths": [
+      "docs/workflow_foundation_v2/imports",
+      "tests/wf2_acceptance/x"
+    ],
+    "role": "specialist",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-X01",
+      "PC-WF2-X02",
+      "PC-WF2-X03",
+      "PC-WF2-X04"
+    ],
+    "lane_id": "PC-WF2-L-X"
+  },
+  {
+    "id": "Q",
+    "title": "Ctxpp consumption and source retrieval",
+    "paths": [
+      "src/project_control/adapters/ctxpp.py",
+      "src/project_control/source_index.py",
+      "src/project_control/services/source_context.py",
+      "tests/wf2_acceptance/q"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-Q01",
+      "PC-WF2-Q02",
+      "PC-WF2-Q03",
+      "PC-WF2-Q04"
+    ],
+    "lane_id": "PC-WF2-L-Q"
+  },
+  {
+    "id": "T",
+    "title": "Token-efficient response contracts",
+    "paths": [
+      "src/project_control/normalize.py",
+      "src/project_control/response_budget.py",
+      "src/project_control/observation_refs.py",
+      "src/project_control/services/source_context.py",
+      "src/project_control/services/overview.py",
+      "src/project_control/services/frontier.py",
+      "src/project_control/services/planning.py",
+      "tests/wf2_acceptance/t"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-T01",
+      "PC-WF2-T02",
+      "PC-WF2-T03",
+      "PC-WF2-T04",
+      "PC-WF2-T05",
+      "PC-WF2-T06"
+    ],
+    "lane_id": "PC-WF2-L-T"
+  },
+  {
+    "id": "G",
+    "title": "Common architectural retrieval and scoped freshness",
+    "paths": [
+      "src/project_control/retrieval.py",
+      "src/project_control/graph.py",
+      "src/project_control/proposals.py",
+      "src/project_control/services/architecture.py",
+      "src/project_control/services/history.py",
+      "src/project_control/services/program.py",
+      "src/project_control/query",
+      "tests/wf2_acceptance/g"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-G01",
+      "PC-WF2-G02",
+      "PC-WF2-G03"
+    ],
+    "lane_id": "PC-WF2-L-G"
+  },
+  {
+    "id": "E",
+    "title": "Recoverable external operations",
+    "paths": [
+      "src/project_control/admin.py",
+      "src/project_control/workflow_core/external_operations.py",
+      "src/project_control/workflow_core/workflow/workspaces.py",
+      "tests/wf2_acceptance/e"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-E01",
+      "PC-WF2-E02",
+      "PC-WF2-E03"
+    ],
+    "lane_id": "PC-WF2-L-E"
+  },
+  {
+    "id": "D",
+    "title": "Agent routing and operational guidance",
+    "paths": [
+      "docs/workflow_foundation_v2/agents",
+      "docs/CODEX_SETUP.md",
+      "docs/MIGRATION.md",
+      "tests/wf2_acceptance/d"
+    ],
+    "role": "implementer",
+    "workspace_mode": "isolated_merge",
+    "task_ids": [
+      "PC-WF2-D01",
+      "PC-WF2-D02",
+      "PC-WF2-D03",
+      "PC-WF2-D04"
+    ],
+    "lane_id": "PC-WF2-L-D"
+  },
+  {
+    "id": "I",
+    "title": "Integration, packaging, and release milestones",
+    "paths": [
+      "pyproject.toml",
+      "uv.lock",
+      "packaging",
+      "scripts",
+      "src/project_control/app.py",
+      "src/project_control/cli.py",
+      "docs/workflow_foundation_v2/integration",
+      "README.md",
+      "tests/wf2_acceptance/i"
+    ],
+    "role": "integrator",
+    "workspace_mode": "exclusive",
+    "task_ids": [
+      "PC-WF2-I00",
+      "PC-WF2-I10",
+      "PC-WF2-I20",
+      "PC-WF2-I30",
+      "PC-WF2-I40",
+      "PC-WF2-I50",
+      "PC-WF2-I90"
+    ],
+    "lane_id": "PC-WF2-L-I"
+  }
+]

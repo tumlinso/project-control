@@ -1,0 +1,18 @@
+[
+  {
+    "id": "W01",
+    "title": "Official Codex subagent configuration",
+    "url": "https://developers.openai.com/codex/subagents",
+    "resolved_url": "https://learn.chatgpt.com/docs/agent-configuration/subagents",
+    "checked": "2026-09-12",
+    "usage": "Standalone role files, per-role model/effort/MCP config, live parent permission override caveat."
+  },
+  {
+    "id": "W02",
+    "title": "Official Codex configuration reference",
+    "url": "https://developers.openai.com/codex/config-reference",
+    "resolved_url": "https://learn.chatgpt.com/docs/config-file/config-reference",
+    "checked": "2026-09-12",
+    "usage": "MCP enabled/disabled tool sets and subagent defaults. Installed client still needs qualification."
+  }
+]

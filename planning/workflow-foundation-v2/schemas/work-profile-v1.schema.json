@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WF2 proposed task work profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "difficulty",
+    "risk",
+    "work_type",
+    "context_depth"
+  ],
+  "properties": {
+    "difficulty": {
+      "enum": [
+        "trivial",
+        "routine",
+        "complex",
+        "hard",
+        "exceptional"
+      ]
+    },
+    "risk": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "work_type": {
+      "enum": [
+        "inspection",
+        "implementation",
+        "testing",
+        "review",
+        "architecture",
+        "integration",
+        "performance",
+        "research",
+        "documentation"
+      ]
+    },
+    "context_depth": {
+      "enum": [
+        "local",
+        "focused",
+        "deep",
+        "cross_project"
+      ]
+    }
+  }
+}

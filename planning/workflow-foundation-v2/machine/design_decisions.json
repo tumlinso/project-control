@@ -1,0 +1,36 @@
+{
+  "decisions": [
+    {
+      "id": "D01",
+      "decision": "workflow_core internal namespace; preserve donor layout for parity"
+    },
+    {
+      "id": "D02",
+      "decision": "Separate ctxpp and external engine authority"
+    },
+    {
+      "id": "D03",
+      "decision": "Optional four-axis work_profile, no models in task semantics"
+    },
+    {
+      "id": "D04",
+      "decision": "Native schema-3 bootstrap and deferred authoritative profile promotion"
+    },
+    {
+      "id": "D05",
+      "decision": "One program / two native authorities / no Codex Todo initialization"
+    },
+    {
+      "id": "D06",
+      "decision": "Observer-only researcher MCP, actual permission validation"
+    },
+    {
+      "id": "D07",
+      "decision": "Whole-envelope compact/delta/evidence-reference contracts with explicit expiry"
+    },
+    {
+      "id": "D08",
+      "decision": "Behavior-preserving move before lifecycle/schema corrections"
+    }
+  ]
+}

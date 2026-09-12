@@ -1,0 +1,20 @@
+{
+  "format": "wf2-execution-bindings-v1",
+  "status": "unconfigured_example_not_a_receipt",
+  "runtime_python": "/actual/configured/project-control/bin/python",
+  "test_python": "/actual/candidate-test/bin/python",
+  "evidence_root": "/actual/external/wf2-evidence",
+  "repositories": {
+    "project-control": "/actual/project-control",
+    "skills": "/actual/Skills"
+  },
+  "receipts": {
+    "WF2-DONOR": "receipts/WF2-DONOR.json",
+    "WF2-PARITY": "receipts/WF2-PARITY.json",
+    "WF2-RUNTIME": "receipts/WF2-RUNTIME.json",
+    "WF2-CTXPP": "receipts/WF2-CTXPP.json",
+    "WF2-CONSUMERS": "receipts/WF2-CONSUMERS.json",
+    "WF2-DEPLOYED": "receipts/WF2-DEPLOYED.json",
+    "WF2-SK-FINAL": "receipts/WF2-SK-FINAL.json"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "status": "pending_fresh_on_host_full_plan_preview",
+  "exact_final_plan_native_validated": false,
+  "representative_shape_probes": "schema_probe.json",
+  "offline_structure_validation": "package_validation.json",
+  "reason": "Full delivered plan must be validated/diffed using the actual selected installed runtime immediately before manual import. No construction probe authorizes apply.",
+  "applied": false,
+  "workers_started": false
+}

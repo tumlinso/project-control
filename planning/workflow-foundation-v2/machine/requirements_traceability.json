@@ -1,0 +1,1453 @@
+{
+  "requirements": [
+    {
+      "id": "PC-WF2-COORD-A01",
+      "requirement": "The final local integration task and its checkpoint are successfully complete",
+      "task_id": "PC-WF2-COORD",
+      "gate_id": "PC-WF2-COORD-G",
+      "evidence_kind": "closure"
+    },
+    {
+      "id": "PC-WF2-COORD-A02",
+      "requirement": "Every required producer/consumer receipt is current and unresolved blockers are recorded",
+      "task_id": "PC-WF2-COORD",
+      "gate_id": "PC-WF2-COORD-G",
+      "evidence_kind": "closure"
+    },
+    {
+      "id": "PC-WF2-COORD-A03",
+      "requirement": "Owned work and explicit limitations are handed off before the aggregate epic closes",
+      "task_id": "PC-WF2-COORD",
+      "gate_id": "PC-WF2-COORD-G",
+      "evidence_kind": "closure"
+    },
+    {
+      "id": "PC-WF2-0000-A01",
+      "requirement": "Every local child is successfully terminal",
+      "task_id": "PC-WF2-0000",
+      "gate_id": "PC-WF2-0000-G",
+      "evidence_kind": "closure"
+    },
+    {
+      "id": "PC-WF2-0000-A02",
+      "requirement": "The final local milestone remains qualified and integrated",
+      "task_id": "PC-WF2-0000",
+      "gate_id": "PC-WF2-0000-G",
+      "evidence_kind": "closure"
+    },
+    {
+      "id": "PC-WF2-0000-A03",
+      "requirement": "The paired program release identity and limitations are explicitly reported",
+      "task_id": "PC-WF2-0000",
+      "gate_id": "PC-WF2-0000-G",
+      "evidence_kind": "closure"
+    },
+    {
+      "id": "PC-WF2-A01-A01",
+      "requirement": "Both UUIDs and source heads recorded with observation provenance",
+      "task_id": "PC-WF2-A01",
+      "gate_id": "PC-WF2-A01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A01-A02",
+      "requirement": "Affected paths, live claims and unknown work dispositions are enumerated",
+      "task_id": "PC-WF2-A01",
+      "gate_id": "PC-WF2-A01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A01-A03",
+      "requirement": "No source or database is rewritten",
+      "task_id": "PC-WF2-A01",
+      "gate_id": "PC-WF2-A01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A02-A01",
+      "requirement": "Old runtime can still serve real authorities while candidates use disposable state",
+      "task_id": "PC-WF2-A02",
+      "gate_id": "PC-WF2-A02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A02-A02",
+      "requirement": "Rollback includes launcher, environment, DB backup policy and reconnect procedure",
+      "task_id": "PC-WF2-A02",
+      "gate_id": "PC-WF2-A02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A02-A03",
+      "requirement": "Test registration precedes any milestone that requires the tests",
+      "task_id": "PC-WF2-A02",
+      "gate_id": "PC-WF2-A02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A03-A01",
+      "requirement": "Actual child launch metadata confirms model and effort or routing remains unverified",
+      "task_id": "PC-WF2-A03",
+      "gate_id": "PC-WF2-A03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A03-A02",
+      "requirement": "Researcher queries Project Control directly and returns a bounded evidence digest",
+      "task_id": "PC-WF2-A03",
+      "gate_id": "PC-WF2-A03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-A03-A03",
+      "requirement": "No claim or source write is performed by the read-only smoke test",
+      "task_id": "PC-WF2-A03",
+      "gate_id": "PC-WF2-A03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C01-A01",
+      "requirement": "One workflow transaction authority is named",
+      "task_id": "PC-WF2-C01",
+      "gate_id": "PC-WF2-C01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C01-A02",
+      "requirement": "Git, host resources and compiler artifacts remain independent authorities",
+      "task_id": "PC-WF2-C01",
+      "gate_id": "PC-WF2-C01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C01-A03",
+      "requirement": "No baseline storage relocation or lifecycle changes are hidden in the move",
+      "task_id": "PC-WF2-C01",
+      "gate_id": "PC-WF2-C01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C02-A01",
+      "requirement": "Unknown task keys are rejected only under the new explicit strict format",
+      "task_id": "PC-WF2-C02",
+      "gate_id": "PC-WF2-C02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C02-A02",
+      "requirement": "Legacy v2/v3 plans retain a documented compatible reader",
+      "task_id": "PC-WF2-C02",
+      "gate_id": "PC-WF2-C02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C02-A03",
+      "requirement": "Observation refs are not authorization capabilities and do not hide race/coverage warnings",
+      "task_id": "PC-WF2-C02",
+      "gate_id": "PC-WF2-C02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C03-A01",
+      "requirement": "Contract files and owner task are explicit",
+      "task_id": "PC-WF2-C03",
+      "gate_id": "PC-WF2-C03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C03-A02",
+      "requirement": "The source-under-test/receipt ordering has no self-reference",
+      "task_id": "PC-WF2-C03",
+      "gate_id": "PC-WF2-C03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-C03-A03",
+      "requirement": "The joint release closure has no mutual final-acceptance dependency",
+      "task_id": "PC-WF2-C03",
+      "gate_id": "PC-WF2-C03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-K01-A01",
+      "requirement": "Every moved module maps to donor commit/path/hash",
+      "task_id": "PC-WF2-K01",
+      "gate_id": "PC-WF2-K01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K01-A02",
+      "requirement": "No algorithm, status, DB schema or persistence location changes",
+      "task_id": "PC-WF2-K01",
+      "gate_id": "PC-WF2-K01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K01-A03",
+      "requirement": "New package imports do not bind the deployed authority",
+      "task_id": "PC-WF2-K01",
+      "gate_id": "PC-WF2-K01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K02-A01",
+      "requirement": "DB and export fixtures round-trip with UUID/event identity preserved",
+      "task_id": "PC-WF2-K02",
+      "gate_id": "PC-WF2-K02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K02-A02",
+      "requirement": "Read-only opens do not migrate or repair",
+      "task_id": "PC-WF2-K02",
+      "gate_id": "PC-WF2-K02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K02-A03",
+      "requirement": "The compatibility matrix documents preexisting limitations",
+      "task_id": "PC-WF2-K02",
+      "gate_id": "PC-WF2-K02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K03-A01",
+      "requirement": "Protocol payloads and error codes match the old runtime on deterministic fixtures",
+      "task_id": "PC-WF2-K03",
+      "gate_id": "PC-WF2-K03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K03-A02",
+      "requirement": "Duplicate claim and wrong-scope capability requests still fail",
+      "task_id": "PC-WF2-K03",
+      "gate_id": "PC-WF2-K03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K03-A03",
+      "requirement": "No adapter writes core tables",
+      "task_id": "PC-WF2-K03",
+      "gate_id": "PC-WF2-K03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K04-A01",
+      "requirement": "Host resource leases are not duplicated by the move",
+      "task_id": "PC-WF2-K04",
+      "gate_id": "PC-WF2-K04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K04-A02",
+      "requirement": "Source-identity algorithm tags and wire output are unchanged at parity",
+      "task_id": "PC-WF2-K04",
+      "gate_id": "PC-WF2-K04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K04-A03",
+      "requirement": "External job and child failure paths retain evidence and cleanup ownership",
+      "task_id": "PC-WF2-K04",
+      "gate_id": "PC-WF2-K04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K05-A01",
+      "requirement": "No unexplained behavioral differences or silently reduced test inventory",
+      "task_id": "PC-WF2-K05",
+      "gate_id": "PC-WF2-K05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K05-A02",
+      "requirement": "State fixtures and test logs identify both executable releases",
+      "task_id": "PC-WF2-K05",
+      "gate_id": "PC-WF2-K05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-K05-A03",
+      "requirement": "The parity receipt is ready for independent review",
+      "task_id": "PC-WF2-K05",
+      "gate_id": "PC-WF2-K05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V01-A01",
+      "requirement": "Harness catches a deliberately changed status and missing event",
+      "task_id": "PC-WF2-V01",
+      "gate_id": "PC-WF2-V01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V01-A02",
+      "requirement": "Fixtures never point to a registered live DB",
+      "task_id": "PC-WF2-V01",
+      "gate_id": "PC-WF2-V01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V01-A03",
+      "requirement": "Full original tests and new scenario inventory are reported separately",
+      "task_id": "PC-WF2-V01",
+      "gate_id": "PC-WF2-V01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V02-A01",
+      "requirement": "Every required scenario has a nonempty execution result",
+      "task_id": "PC-WF2-V02",
+      "gate_id": "PC-WF2-V02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V02-A02",
+      "requirement": "No missing field is normalized away as irrelevant",
+      "task_id": "PC-WF2-V02",
+      "gate_id": "PC-WF2-V02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V02-A03",
+      "requirement": "Old/new state and protocol differences are zero outside the relocation allowlist",
+      "task_id": "PC-WF2-V02",
+      "gate_id": "PC-WF2-V02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V03-A01",
+      "requirement": "Observer remains project-read-only even with hostile arguments",
+      "task_id": "PC-WF2-V03",
+      "gate_id": "PC-WF2-V03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V03-A02",
+      "requirement": "Rejected proposals cause no semantic mutation",
+      "task_id": "PC-WF2-V03",
+      "gate_id": "PC-WF2-V03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V03-A03",
+      "requirement": "Legacy writer policy is enforced rather than merely documented",
+      "task_id": "PC-WF2-V03",
+      "gate_id": "PC-WF2-V03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V04-A01",
+      "requirement": "No target fixture loses UUID, task history, event sequence or pending work",
+      "task_id": "PC-WF2-V04",
+      "gate_id": "PC-WF2-V04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V04-A02",
+      "requirement": "Rollback after schema change is either proven compatible or explicitly restore/migrate-forward only",
+      "task_id": "PC-WF2-V04",
+      "gate_id": "PC-WF2-V04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-V04-A03",
+      "requirement": "Both MCP transports see the same runtime/authority after reconnect",
+      "task_id": "PC-WF2-V04",
+      "gate_id": "PC-WF2-V04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B01-A01",
+      "requirement": "No external todo package resolution is needed in the new product path",
+      "task_id": "PC-WF2-B01",
+      "gate_id": "PC-WF2-B01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B01-A02",
+      "requirement": "All mutations still enter the same core transaction API",
+      "task_id": "PC-WF2-B01",
+      "gate_id": "PC-WF2-B01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B01-A03",
+      "requirement": "Installed old runtime remains available until cutover",
+      "task_id": "PC-WF2-B01",
+      "gate_id": "PC-WF2-B01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B02-A01",
+      "requirement": "Exact same plan produces compatible validator/diff results through every front door",
+      "task_id": "PC-WF2-B02",
+      "gate_id": "PC-WF2-B02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B02-A02",
+      "requirement": "All entity namespaces are collision-checked, not only task IDs",
+      "task_id": "PC-WF2-B02",
+      "gate_id": "PC-WF2-B02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B02-A03",
+      "requirement": "Unknown or stale approved inputs fail closed without a retry",
+      "task_id": "PC-WF2-B02",
+      "gate_id": "PC-WF2-B02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B03-A01",
+      "requirement": "No duplicate scheduler/capability/claim implementations",
+      "task_id": "PC-WF2-B03",
+      "gate_id": "PC-WF2-B03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B03-A02",
+      "requirement": "Mixed old/new packages fail clearly when unsafe",
+      "task_id": "PC-WF2-B03",
+      "gate_id": "PC-WF2-B03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B03-A03",
+      "requirement": "Supported legacy symbols and retirement criteria are enumerated",
+      "task_id": "PC-WF2-B03",
+      "gate_id": "PC-WF2-B03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-B04-A01",
+      "requirement": "Skills can import/use the new facade in an isolated candidate",
+      "task_id": "PC-WF2-B04",
+      "gate_id": "PC-WF2-B04-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-B04-A02",
+      "requirement": "New release identity binds the product and adapter contracts",
+      "task_id": "PC-WF2-B04",
+      "gate_id": "PC-WF2-B04-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-B04-A03",
+      "requirement": "Unqualified candidate never overwrites the common live launcher",
+      "task_id": "PC-WF2-B04",
+      "gate_id": "PC-WF2-B04-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-S01-A01",
+      "requirement": "Invalid enum, wrong type, boolean-as-integer and unknown nested keys fail",
+      "task_id": "PC-WF2-S01",
+      "gate_id": "PC-WF2-S01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S01-A02",
+      "requirement": "Missing profile is unspecified, never silently routine",
+      "task_id": "PC-WF2-S01",
+      "gate_id": "PC-WF2-S01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S01-A03",
+      "requirement": "Plan wire version, DB migration version and profile schema version are distinct",
+      "task_id": "PC-WF2-S01",
+      "gate_id": "PC-WF2-S01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S02-A01",
+      "requirement": "Round-trip through DB and export preserves profile exactly",
+      "task_id": "PC-WF2-S02",
+      "gate_id": "PC-WF2-S02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S02-A02",
+      "requirement": "Active affected task changes require explicit requalification or handoff",
+      "task_id": "PC-WF2-S02",
+      "gate_id": "PC-WF2-S02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S02-A03",
+      "requirement": "A profile change never grants authority or changes priority ordering",
+      "task_id": "PC-WF2-S02",
+      "gate_id": "PC-WF2-S02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S03-A01",
+      "requirement": "Old plans cannot erase profiles accidentally",
+      "task_id": "PC-WF2-S03",
+      "gate_id": "PC-WF2-S03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S03-A02",
+      "requirement": "Unsupported old writes to upgraded state are fenced",
+      "task_id": "PC-WF2-S03",
+      "gate_id": "PC-WF2-S03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S03-A03",
+      "requirement": "Unknown vNext fields are never accepted then silently dropped",
+      "task_id": "PC-WF2-S03",
+      "gate_id": "PC-WF2-S03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S04-A01",
+      "requirement": "Every native current-task response carries its actual profile or explicit absence",
+      "task_id": "PC-WF2-S04",
+      "gate_id": "PC-WF2-S04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S04-A02",
+      "requirement": "No expensive model choice is stored as task difficulty",
+      "task_id": "PC-WF2-S04",
+      "gate_id": "PC-WF2-S04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S04-A03",
+      "requirement": "Reported executor configuration is labelled unverified until externally observed",
+      "task_id": "PC-WF2-S04",
+      "gate_id": "PC-WF2-S04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S05-A01",
+      "requirement": "Every profile matches the sealed sidecar catalog by task ID",
+      "task_id": "PC-WF2-S05",
+      "gate_id": "PC-WF2-S05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S05-A02",
+      "requirement": "Unrelated tasks and lifecycle records remain unchanged",
+      "task_id": "PC-WF2-S05",
+      "gate_id": "PC-WF2-S05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S05-A03",
+      "requirement": "The currently held coordinator claim is deliberately refreshed or handed off",
+      "task_id": "PC-WF2-S05",
+      "gate_id": "PC-WF2-S05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S06-A01",
+      "requirement": "Task mechanisms and extension data round-trip through declared channels",
+      "task_id": "PC-WF2-S06",
+      "gate_id": "PC-WF2-S06-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S06-A02",
+      "requirement": "A v3 run is never silently emitted as schema 2",
+      "task_id": "PC-WF2-S06",
+      "gate_id": "PC-WF2-S06-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S06-A03",
+      "requirement": "Generated views are never accepted as parallel live task authority",
+      "task_id": "PC-WF2-S06",
+      "gate_id": "PC-WF2-S06-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S07-A01",
+      "requirement": "Exact reviewed catalog survives promotion and export",
+      "task_id": "PC-WF2-S07",
+      "gate_id": "PC-WF2-S07-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S07-A02",
+      "requirement": "Model-agnostic schema remains independent of Codex versions",
+      "task_id": "PC-WF2-S07",
+      "gate_id": "PC-WF2-S07-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-S07-A03",
+      "requirement": "Authorization and scheduling regression suites pass",
+      "task_id": "PC-WF2-S07",
+      "gate_id": "PC-WF2-S07-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L01-A01",
+      "requirement": "Plan-applied terminal tasks cannot leave misleading ready lanes",
+      "task_id": "PC-WF2-L01",
+      "gate_id": "PC-WF2-L01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L01-A02",
+      "requirement": "completed_at is populated once and preserved on no-op",
+      "task_id": "PC-WF2-L01",
+      "gate_id": "PC-WF2-L01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L01-A03",
+      "requirement": "A run with unresolved required obligations is not auto-completed",
+      "task_id": "PC-WF2-L01",
+      "gate_id": "PC-WF2-L01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L02-A01",
+      "requirement": "Closed lane does not imply deleted worktree",
+      "task_id": "PC-WF2-L02",
+      "gate_id": "PC-WF2-L02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L02-A02",
+      "requirement": "Unmerged/dirty/unknown work survives reconciliation",
+      "task_id": "PC-WF2-L02",
+      "gate_id": "PC-WF2-L02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L02-A03",
+      "requirement": "Old active workspaces receive an explicit reviewable disposition",
+      "task_id": "PC-WF2-L02",
+      "gate_id": "PC-WF2-L02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L03-A01",
+      "requirement": "Ready-but-unclaimable examples are fixed or explicitly diagnosed",
+      "task_id": "PC-WF2-L03",
+      "gate_id": "PC-WF2-L03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L03-A02",
+      "requirement": "Scope and resource checks remain under transaction at acquisition",
+      "task_id": "PC-WF2-L03",
+      "gate_id": "PC-WF2-L03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L03-A03",
+      "requirement": "No lexical or heuristic read model grants a lease",
+      "task_id": "PC-WF2-L03",
+      "gate_id": "PC-WF2-L03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L04-A01",
+      "requirement": "Retries never produce duplicate accepted completion or lost provenance",
+      "task_id": "PC-WF2-L04",
+      "gate_id": "PC-WF2-L04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L04-A02",
+      "requirement": "Recovery refuses live foreign mutable work",
+      "task_id": "PC-WF2-L04",
+      "gate_id": "PC-WF2-L04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L04-A03",
+      "requirement": "Coordinator-epic circular acquisition cannot recur",
+      "task_id": "PC-WF2-L04",
+      "gate_id": "PC-WF2-L04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L05-A01",
+      "requirement": "Read views explain stale historical statuses without modifying them",
+      "task_id": "PC-WF2-L05",
+      "gate_id": "PC-WF2-L05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L05-A02",
+      "requirement": "Repair is explicit, bounded and audit logged",
+      "task_id": "PC-WF2-L05",
+      "gate_id": "PC-WF2-L05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-L05-A03",
+      "requirement": "No automatic deletion is coupled to run completion",
+      "task_id": "PC-WF2-L05",
+      "gate_id": "PC-WF2-L05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R01-A01",
+      "requirement": "A writer racing the read yields one coherent revision or explicit failure",
+      "task_id": "PC-WF2-R01",
+      "gate_id": "PC-WF2-R01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R01-A02",
+      "requirement": "No read-time lifecycle mutation",
+      "task_id": "PC-WF2-R01",
+      "gate_id": "PC-WF2-R01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R01-A03",
+      "requirement": "Transient lease/clock validity has explicit observation time",
+      "task_id": "PC-WF2-R01",
+      "gate_id": "PC-WF2-R01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R02-A01",
+      "requirement": "Four separate Todo read universes are removed from the new path",
+      "task_id": "PC-WF2-R02",
+      "gate_id": "PC-WF2-R02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R02-A02",
+      "requirement": "Existing observer compatibility projection remains available",
+      "task_id": "PC-WF2-R02",
+      "gate_id": "PC-WF2-R02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R02-A03",
+      "requirement": "External authority race is not hidden by workflow consistency",
+      "task_id": "PC-WF2-R02",
+      "gate_id": "PC-WF2-R02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R03-A01",
+      "requirement": "Missing required fields fail at a precise boundary",
+      "task_id": "PC-WF2-R03",
+      "gate_id": "PC-WF2-R03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R03-A02",
+      "requirement": "Child executions cannot masquerade as first-class lanes",
+      "task_id": "PC-WF2-R03",
+      "gate_id": "PC-WF2-R03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R03-A03",
+      "requirement": "Dictionary serialization remains at transport edges",
+      "task_id": "PC-WF2-R03",
+      "gate_id": "PC-WF2-R03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R04-A01",
+      "requirement": "Changed source or authorization policy cannot reuse an incompatible cache",
+      "task_id": "PC-WF2-R04",
+      "gate_id": "PC-WF2-R04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R04-A02",
+      "requirement": "Restart/eviction behavior is explicit",
+      "task_id": "PC-WF2-R04",
+      "gate_id": "PC-WF2-R04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R04-A03",
+      "requirement": "Cached heartbeat validity is not frozen indefinitely",
+      "task_id": "PC-WF2-R04",
+      "gate_id": "PC-WF2-R04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R05-A01",
+      "requirement": "Full meaningful output parity is demonstrated",
+      "task_id": "PC-WF2-R05",
+      "gate_id": "PC-WF2-R05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R05-A02",
+      "requirement": "Legacy observer remains usable",
+      "task_id": "PC-WF2-R05",
+      "gate_id": "PC-WF2-R05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-R05-A03",
+      "requirement": "Performance report retains cold/warm costs and qualifications",
+      "task_id": "PC-WF2-R05",
+      "gate_id": "PC-WF2-R05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-X01-A01",
+      "requirement": "Producer SK-WF2-I10 is complete in the correct authority",
+      "task_id": "PC-WF2-X01",
+      "gate_id": "PC-WF2-X01-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X01-A02",
+      "requirement": "Relevant source hashes and inventory agree",
+      "task_id": "PC-WF2-X01",
+      "gate_id": "PC-WF2-X01-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X01-A03",
+      "requirement": "No foreign native dependency is invented",
+      "task_id": "PC-WF2-X01",
+      "gate_id": "PC-WF2-X01-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X02-A01",
+      "requirement": "Producer SK-WF2-I20 is authoritatively complete",
+      "task_id": "PC-WF2-X02",
+      "gate_id": "PC-WF2-X02-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X02-A02",
+      "requirement": "Contract and source dependency hashes are current",
+      "task_id": "PC-WF2-X02",
+      "gate_id": "PC-WF2-X02-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X02-A03",
+      "requirement": "Read-only semantics and no silent scan/refresh are proven",
+      "task_id": "PC-WF2-X02",
+      "gate_id": "PC-WF2-X02-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X03-A01",
+      "requirement": "Producer SK-WF2-I60 is complete",
+      "task_id": "PC-WF2-X03",
+      "gate_id": "PC-WF2-X03-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X03-A02",
+      "requirement": "Qualified candidate versions are compatible",
+      "task_id": "PC-WF2-X03",
+      "gate_id": "PC-WF2-X03-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X03-A03",
+      "requirement": "No final-acceptance circular dependency",
+      "task_id": "PC-WF2-X03",
+      "gate_id": "PC-WF2-X03-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X04-A01",
+      "requirement": "Producer SK-WF2-I90 is complete",
+      "task_id": "PC-WF2-X04",
+      "gate_id": "PC-WF2-X04-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X04-A02",
+      "requirement": "No obsolete duplicate kernel remains on the new runtime path",
+      "task_id": "PC-WF2-X04",
+      "gate_id": "PC-WF2-X04-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-X04-A03",
+      "requirement": "Legacy compatibility removal matches the agreed support window",
+      "task_id": "PC-WF2-X04",
+      "gate_id": "PC-WF2-X04-G",
+      "evidence_kind": "cross_receipt"
+    },
+    {
+      "id": "PC-WF2-Q01-A01",
+      "requirement": "Cold/hot readers never refresh .ctxpp in observer mode",
+      "task_id": "PC-WF2-Q01",
+      "gate_id": "PC-WF2-Q01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q01-A02",
+      "requirement": "Current/stale/partial/unsupported are distinct",
+      "task_id": "PC-WF2-Q01",
+      "gate_id": "PC-WF2-Q01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q01-A03",
+      "requirement": "Ctxpp remains independently installable and optional",
+      "task_id": "PC-WF2-Q01",
+      "gate_id": "PC-WF2-Q01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q02-A01",
+      "requirement": "A truncated 50-item retrieval neither skips undelivered items nor loops",
+      "task_id": "PC-WF2-Q02",
+      "gate_id": "PC-WF2-Q02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q02-A02",
+      "requirement": "Path reads have explicit continuation and no silent mid-entity truncation",
+      "task_id": "PC-WF2-Q02",
+      "gate_id": "PC-WF2-Q02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q02-A03",
+      "requirement": "Queries starting with dashes do not become Git options",
+      "task_id": "PC-WF2-Q02",
+      "gate_id": "PC-WF2-Q02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q03-A01",
+      "requirement": "Unchanged symlink blob cannot mask changed live target",
+      "task_id": "PC-WF2-Q03",
+      "gate_id": "PC-WF2-Q03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q03-A02",
+      "requirement": "Immutable-commit queries never silently use a working-tree semantic index",
+      "task_id": "PC-WF2-Q03",
+      "gate_id": "PC-WF2-Q03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q03-A03",
+      "requirement": "Raced or partially verified source is not reported as current proof",
+      "task_id": "PC-WF2-Q03",
+      "gate_id": "PC-WF2-Q03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q04-A01",
+      "requirement": "Useful hits are not buried under generated history",
+      "task_id": "PC-WF2-Q04",
+      "gate_id": "PC-WF2-Q04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q04-A02",
+      "requirement": "Read costs and reply bytes are measured separately",
+      "task_id": "PC-WF2-Q04",
+      "gate_id": "PC-WF2-Q04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-Q04-A03",
+      "requirement": "Missing semantics is visible rather than replaced with false caller/callee evidence",
+      "task_id": "PC-WF2-Q04",
+      "gate_id": "PC-WF2-Q04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T01-A01",
+      "requirement": "Ordinary reads carry selected scope plus compact identity",
+      "task_id": "PC-WF2-T01",
+      "gate_id": "PC-WF2-T01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T01-A02",
+      "requirement": "Mutation resolves full reviewed preconditions server-side",
+      "task_id": "PC-WF2-T01",
+      "gate_id": "PC-WF2-T01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T01-A03",
+      "requirement": "A ref cannot grant read or write authority",
+      "task_id": "PC-WF2-T01",
+      "gate_id": "PC-WF2-T01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T02-A01",
+      "requirement": "Two dozen irrelevant worktrees do not appear in each narrow read",
+      "task_id": "PC-WF2-T02",
+      "gate_id": "PC-WF2-T02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T02-A02",
+      "requirement": "Envelope bytes obey the negotiated cap or return an explicit required-minimum response",
+      "task_id": "PC-WF2-T02",
+      "gate_id": "PC-WF2-T02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T02-A03",
+      "requirement": "No arbitrary dictionary-key removal or misleading excerpt labels",
+      "task_id": "PC-WF2-T02",
+      "gate_id": "PC-WF2-T02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T03-A01",
+      "requirement": "Current-task/summary replies target 8 KiB and simple unchanged deltas 2 KiB",
+      "task_id": "PC-WF2-T03",
+      "gate_id": "PC-WF2-T03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T03-A02",
+      "requirement": "Source reads default to a tested compact budget with recoverable omissions",
+      "task_id": "PC-WF2-T03",
+      "gate_id": "PC-WF2-T03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T03-A03",
+      "requirement": "Original full observer response remains available through version negotiation",
+      "task_id": "PC-WF2-T03",
+      "gate_id": "PC-WF2-T03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T04-A01",
+      "requirement": "A child receives bounded task scope rather than the controller transcript",
+      "task_id": "PC-WF2-T04",
+      "gate_id": "PC-WF2-T04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T04-A02",
+      "requirement": "No stale context cursor conceals changed contracts",
+      "task_id": "PC-WF2-T04",
+      "gate_id": "PC-WF2-T04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T04-A03",
+      "requirement": "Full reconstruction remains possible after cache eviction",
+      "task_id": "PC-WF2-T04",
+      "gate_id": "PC-WF2-T04-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T05-A01",
+      "requirement": "Compact narrow-read bytes improve by target 60 percent on the recorded corpus without dropping required facts",
+      "task_id": "PC-WF2-T05",
+      "gate_id": "PC-WF2-T05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T05-A02",
+      "requirement": "Root intake improves by target 70 percent for deep-research cases, or non-promotion is documented",
+      "task_id": "PC-WF2-T05",
+      "gate_id": "PC-WF2-T05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T05-A03",
+      "requirement": "Total model usage is reported where observable; no guaranteed subscription savings are fabricated",
+      "task_id": "PC-WF2-T05",
+      "gate_id": "PC-WF2-T05-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T06-A01",
+      "requirement": "All mandatory facts and negative findings survive",
+      "task_id": "PC-WF2-T06",
+      "gate_id": "PC-WF2-T06-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T06-A02",
+      "requirement": "Expired refs do not become fresh approvals",
+      "task_id": "PC-WF2-T06",
+      "gate_id": "PC-WF2-T06-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-T06-A03",
+      "requirement": "Efficiency targets and semantic acceptance are independent gates",
+      "task_id": "PC-WF2-T06",
+      "gate_id": "PC-WF2-T06-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G01-A01",
+      "requirement": "Same subject receives consistent identity and authority labels",
+      "task_id": "PC-WF2-G01",
+      "gate_id": "PC-WF2-G01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G01-A02",
+      "requirement": "Current vs historical relevance is not guessed repeatedly in each service",
+      "task_id": "PC-WF2-G01",
+      "gate_id": "PC-WF2-G01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G01-A03",
+      "requirement": "Public tools remain small projections rather than independent query engines",
+      "task_id": "PC-WF2-G01",
+      "gate_id": "PC-WF2-G01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G02-A01",
+      "requirement": "Unrelated source change does not invalidate a pure ledger proposal unnecessarily",
+      "task_id": "PC-WF2-G02",
+      "gate_id": "PC-WF2-G02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G02-A02",
+      "requirement": "Relevant task/interface/source change still rejects stale apply",
+      "task_id": "PC-WF2-G02",
+      "gate_id": "PC-WF2-G02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G02-A03",
+      "requirement": "Missing read-set evidence cannot weaken the fail-closed default",
+      "task_id": "PC-WF2-G02",
+      "gate_id": "PC-WF2-G02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G03-A01",
+      "requirement": "Known relevant changes are never accepted on stale evidence",
+      "task_id": "PC-WF2-G03",
+      "gate_id": "PC-WF2-G03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G03-A02",
+      "requirement": "Ranking improvements retain adverse and negative findings",
+      "task_id": "PC-WF2-G03",
+      "gate_id": "PC-WF2-G03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-G03-A03",
+      "requirement": "All public views cite the same authoritative entity identity",
+      "task_id": "PC-WF2-G03",
+      "gate_id": "PC-WF2-G03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E01-A01",
+      "requirement": "Only core code knows workflow table structure",
+      "task_id": "PC-WF2-E01",
+      "gate_id": "PC-WF2-E01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E01-A02",
+      "requirement": "Admin operations do not widen a normal claim",
+      "task_id": "PC-WF2-E01",
+      "gate_id": "PC-WF2-E01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E01-A03",
+      "requirement": "Observer inspection remains read-only",
+      "task_id": "PC-WF2-E01",
+      "gate_id": "PC-WF2-E01-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E02-A01",
+      "requirement": "Crash before and after Git action can be distinguished/reconciled",
+      "task_id": "PC-WF2-E02",
+      "gate_id": "PC-WF2-E02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E02-A02",
+      "requirement": "Retry does not create duplicate or overwrite foreign worktrees",
+      "task_id": "PC-WF2-E02",
+      "gate_id": "PC-WF2-E02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E02-A03",
+      "requirement": "Filesystem/Git observations remain separate evidence",
+      "task_id": "PC-WF2-E02",
+      "gate_id": "PC-WF2-E02-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E03-A01",
+      "requirement": "Unknown outcome is not reported as rolled back",
+      "task_id": "PC-WF2-E03",
+      "gate_id": "PC-WF2-E03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E03-A02",
+      "requirement": "Recovery never deletes unpreserved source",
+      "task_id": "PC-WF2-E03",
+      "gate_id": "PC-WF2-E03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-E03-A03",
+      "requirement": "Duplicate resume respects ownership and completed integration evidence",
+      "task_id": "PC-WF2-E03",
+      "gate_id": "PC-WF2-E03-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-D01-A01",
+      "requirement": "Difficulty and context depth are used independently",
+      "task_id": "PC-WF2-D01",
+      "gate_id": "PC-WF2-D01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D01-A02",
+      "requirement": "Digest includes contradictory evidence and exact re-fetch references",
+      "task_id": "PC-WF2-D01",
+      "gate_id": "PC-WF2-D01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D01-A03",
+      "requirement": "No helper is represented as a workflow lane merely because it was spawned",
+      "task_id": "PC-WF2-D01",
+      "gate_id": "PC-WF2-D01-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D02-A01",
+      "requirement": "Requested and actual agent model/effort are distinct observed facts",
+      "task_id": "PC-WF2-D02",
+      "gate_id": "PC-WF2-D02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D02-A02",
+      "requirement": "Read-only instruction is never treated as security enforcement",
+      "task_id": "PC-WF2-D02",
+      "gate_id": "PC-WF2-D02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D02-A03",
+      "requirement": "Unavailable cheap model or observer path fails explicitly without expensive silent fallback",
+      "task_id": "PC-WF2-D02",
+      "gate_id": "PC-WF2-D02-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D03-A01",
+      "requirement": "Changing model policy requires no rewrite of task semantics",
+      "task_id": "PC-WF2-D03",
+      "gate_id": "PC-WF2-D03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D03-A02",
+      "requirement": "Critical risk invokes independent review regardless of tiny code size",
+      "task_id": "PC-WF2-D03",
+      "gate_id": "PC-WF2-D03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D03-A03",
+      "requirement": "Helpers cannot inherit parent write capabilities accidentally",
+      "task_id": "PC-WF2-D03",
+      "gate_id": "PC-WF2-D03-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D04-A01",
+      "requirement": "Operator can distinguish install, import, launch and deploy",
+      "task_id": "PC-WF2-D04",
+      "gate_id": "PC-WF2-D04-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D04-A02",
+      "requirement": "Measured total usage/coverage tradeoffs are reported",
+      "task_id": "PC-WF2-D04",
+      "gate_id": "PC-WF2-D04-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-D04-A03",
+      "requirement": "One concise launch handoff fits within 4000 characters",
+      "task_id": "PC-WF2-D04",
+      "gate_id": "PC-WF2-D04-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I00-A01",
+      "requirement": "Required tests are discoverable before producer completion",
+      "task_id": "PC-WF2-I00",
+      "gate_id": "PC-WF2-I00-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I00-A02",
+      "requirement": "All interfaces are owned and published by a permitted role",
+      "task_id": "PC-WF2-I00",
+      "gate_id": "PC-WF2-I00-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I00-A03",
+      "requirement": "Old production release is unchanged",
+      "task_id": "PC-WF2-I00",
+      "gate_id": "PC-WF2-I00-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I10-A01",
+      "requirement": "V02 passes against the donor baseline",
+      "task_id": "PC-WF2-I10",
+      "gate_id": "PC-WF2-I10-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I10-A02",
+      "requirement": "No storage move, strict-schema change or lifecycle fix is included in parity",
+      "task_id": "PC-WF2-I10",
+      "gate_id": "PC-WF2-I10-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I10-A03",
+      "requirement": "Independent reviewer records approved normalization differences",
+      "task_id": "PC-WF2-I10",
+      "gate_id": "PC-WF2-I10-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I20-A01",
+      "requirement": "Candidate starts without sibling discovery",
+      "task_id": "PC-WF2-I20",
+      "gate_id": "PC-WF2-I20-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I20-A02",
+      "requirement": "Legacy old runtime remains available",
+      "task_id": "PC-WF2-I20",
+      "gate_id": "PC-WF2-I20-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I20-A03",
+      "requirement": "Supported facade receipt is published with source/build identity",
+      "task_id": "PC-WF2-I20",
+      "gate_id": "PC-WF2-I20-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I30-A01",
+      "requirement": "Every feature acceptance task passes with nonempty tests",
+      "task_id": "PC-WF2-I30",
+      "gate_id": "PC-WF2-I30-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I30-A02",
+      "requirement": "Strict schema, compact responses and side-effect recovery cooperate",
+      "task_id": "PC-WF2-I30",
+      "gate_id": "PC-WF2-I30-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I30-A03",
+      "requirement": "Legacy observer contract is explicitly negotiated, not silently replaced",
+      "task_id": "PC-WF2-I30",
+      "gate_id": "PC-WF2-I30-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I40-A01",
+      "requirement": "V04 and peer readiness pass",
+      "task_id": "PC-WF2-I40",
+      "gate_id": "PC-WF2-I40-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I40-A02",
+      "requirement": "Rollback safety is qualified at the actual DB format",
+      "task_id": "PC-WF2-I40",
+      "gate_id": "PC-WF2-I40-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I40-A03",
+      "requirement": "Candidate is deployable without editing the service currently executing the epic",
+      "task_id": "PC-WF2-I40",
+      "gate_id": "PC-WF2-I40-G",
+      "evidence_kind": "tests"
+    },
+    {
+      "id": "PC-WF2-I50-A01",
+      "requirement": "Fresh transports report the same accepted artifact and authority UUIDs",
+      "task_id": "PC-WF2-I50",
+      "gate_id": "PC-WF2-I50-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I50-A02",
+      "requirement": "No mixed old/new writers can corrupt upgraded state",
+      "task_id": "PC-WF2-I50",
+      "gate_id": "PC-WF2-I50-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I50-A03",
+      "requirement": "WF2-DEPLOYED receipt distinguishes rehearsal from actual deployment",
+      "task_id": "PC-WF2-I50",
+      "gate_id": "PC-WF2-I50-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I90-A01",
+      "requirement": "All owned implementation has landed on the intended main branches",
+      "task_id": "PC-WF2-I90",
+      "gate_id": "PC-WF2-I90-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I90-A02",
+      "requirement": "Final PC/Skills commits and Codex configuration hashes are recorded",
+      "task_id": "PC-WF2-I90",
+      "gate_id": "PC-WF2-I90-G",
+      "evidence_kind": "governance"
+    },
+    {
+      "id": "PC-WF2-I90-A03",
+      "requirement": "Only owned merged worktrees become cleanup eligible; unrelated programs remain untouched",
+      "task_id": "PC-WF2-I90",
+      "gate_id": "PC-WF2-I90-G",
+      "evidence_kind": "governance"
+    }
+  ]
+}

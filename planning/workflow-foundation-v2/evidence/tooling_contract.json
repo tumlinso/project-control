@@ -1,0 +1,19 @@
+{
+  "bridge_kind": "source-verified-current-Python-API",
+  "module": "project_control.mutation",
+  "calls": [
+    "validate_native_plan(config,project,native_plan)",
+    "build_mutation_snapshot(config,project)",
+    "apply_proposal(config,project,proposal)"
+  ],
+  "proposal_creation": "project_control.models.ProposalEnvelope.create with saved ObservationPreconditions",
+  "current_native_plan_versions": [
+    2,
+    3
+  ],
+  "generic_preledger_output": 2,
+  "exact_runtime_interpreter": null,
+  "runtime_inspection_required": true,
+  "runtime_pin": "actual selected interpreter/module/tree/config/release hashes captured and reviewed on host, never metadata file_identity",
+  "on_host_apply_exercised_here": false
+}

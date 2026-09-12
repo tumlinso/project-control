@@ -1,0 +1,70 @@
+id,stream,title,difficulty,risk,work_type,context_depth
+PC-WF2-COORD,COORD,Coordinate the accepted program; close only after final local integration,hard,critical,architecture,cross_project
+PC-WF2-0000,COORD,Workflow Foundation v2 — project-control aggregate,routine,high,review,focused
+PC-WF2-A01,A,"Freeze the current product, authority, and compatibility baseline",complex,high,implementation,cross_project
+PC-WF2-A02,A,Establish isolated test and rollback environments,complex,high,implementation,focused
+PC-WF2-A03,A,Verify low-cost research routing before fan-out,complex,high,inspection,cross_project
+PC-WF2-C01,C,Specify the embedded-core authority boundary,complex,high,implementation,deep
+PC-WF2-C02,C,"Freeze schema, snapshot, and evidence contracts",complex,high,implementation,focused
+PC-WF2-C03,C,Publish shared engine and cutover interfaces,complex,high,implementation,cross_project
+PC-WF2-K01,K,Import the identified Todo package and tests without redesign,complex,high,implementation,deep
+PC-WF2-K02,K,Preserve database transactions and durable projections,hard,high,implementation,focused
+PC-WF2-K03,K,Preserve workflow protocol and capability behavior,hard,high,implementation,focused
+PC-WF2-K04,K,Preserve sidecars and external runtime contracts,hard,high,implementation,cross_project
+PC-WF2-K05,K,Qualify the complete relocated core,complex,high,testing,focused
+PC-WF2-V01,V,Build the differential test harness and baseline fixtures,complex,high,testing,focused
+PC-WF2-V02,V,Differentially qualify workflow and persistence parity,hard,high,testing,focused
+PC-WF2-V03,V,Attack the unified authority and compatibility boundary,hard,critical,review,focused
+PC-WF2-V04,V,Qualify the candidate end to end and rehearse rollback,hard,critical,testing,cross_project
+PC-WF2-B01,B,Replace provider discovery with the embedded-core facade,complex,high,implementation,deep
+PC-WF2-B02,B,"Unify native validation, preview, and apply entry points",hard,high,implementation,focused
+PC-WF2-B03,B,Define forward compatibility entry points without duplicate kernels,complex,high,implementation,cross_project
+PC-WF2-B04,B,Publish the qualified embedded runtime contract,complex,high,implementation,cross_project
+PC-WF2-S01,S,Implement strict work-profile and versioned plan validation,complex,high,implementation,focused
+PC-WF2-S02,S,Persist profiles with transactional semantic revisions,hard,high,implementation,focused
+PC-WF2-S03,S,Add compatibility-safe legacy plan normalization,complex,high,implementation,focused
+PC-WF2-S04,S,Expose task profiles through native dispatch and inspection,complex,high,implementation,focused
+PC-WF2-S05,S,Promote the reviewed bootstrap profile catalog,complex,high,integration,focused
+PC-WF2-S06,S,Lower structured pre-ledger metadata without notes encoding,complex,high,implementation,focused
+PC-WF2-S07,S,Qualify schema migration and profile routing invariants,complex,high,testing,focused
+PC-WF2-L01,L,Centralize transactional run/lane reconciliation,hard,high,implementation,focused
+PC-WF2-L02,L,"Separate workspace usage, integration, and cleanup status",hard,high,implementation,focused
+PC-WF2-L03,L,Unify resource and ownership feasibility semantics,hard,high,implementation,focused
+PC-WF2-L04,L,Harden idempotent completion and interruption recovery,hard,high,implementation,focused
+PC-WF2-L05,L,Publish lifecycle repair with historical-state diagnostics,complex,high,testing,focused
+PC-WF2-R01,R,Produce one workflow snapshot under one read transaction,hard,high,implementation,focused
+PC-WF2-R02,R,Replace parallel Todo observations with shared projections,complex,high,implementation,deep
+PC-WF2-R03,R,Type workflow records at internal boundaries,complex,high,implementation,focused
+PC-WF2-R04,R,Make read caching coherent and bounded,complex,high,performance,focused
+PC-WF2-R05,R,Qualify snapshot compatibility and cost,complex,high,testing,focused
+PC-WF2-X01,X,Verify and import the Skills donor baseline,complex,high,inspection,cross_project
+PC-WF2-X02,X,Verify the standalone ctxpp query capability,complex,high,inspection,cross_project
+PC-WF2-X03,X,Verify the Skills consumer-ready candidate,complex,high,inspection,cross_project
+PC-WF2-X04,X,Verify Skills final closure after cutover,complex,high,inspection,cross_project
+PC-WF2-Q01,Q,Use ctxpp through a supported read-only query contract,complex,high,implementation,focused
+PC-WF2-Q02,Q,Repair source pagination and search selectivity,hard,high,implementation,focused
+PC-WF2-Q03,Q,Bind source evidence to actual selected bytes and worktrees,hard,high,implementation,focused
+PC-WF2-Q04,Q,Qualify source routing precision and boundedness,complex,high,testing,focused
+PC-WF2-T01,T,Implement compact observation references and retrieval,hard,high,implementation,focused
+PC-WF2-T02,T,Budget the whole serialized tool envelope semantically,hard,high,implementation,focused
+PC-WF2-T03,T,Provide compact defaults and explicit expansion routes,complex,high,implementation,focused
+PC-WF2-T04,T,Add reusable context and delta-first handoffs,complex,high,implementation,focused
+PC-WF2-T05,T,Measure end-to-end token economy and answer coverage,complex,high,performance,focused
+PC-WF2-T06,T,Qualify context economy without weakening safety,complex,high,testing,focused
+PC-WF2-G01,G,Build a shared typed retrieval facade,complex,high,implementation,deep
+PC-WF2-G02,G,Use dependency-sensitive mutation freshness,hard,critical,implementation,focused
+PC-WF2-G03,G,Qualify common retrieval and scoped-precondition races,complex,high,testing,focused
+PC-WF2-E01,E,Move admin persistence queries behind typed core methods,complex,high,implementation,deep
+PC-WF2-E02,E,Record external worktree intent and reconciliation,hard,high,implementation,focused
+PC-WF2-E03,E,Test partial side effects and uncertain outcomes,complex,high,testing,focused
+PC-WF2-D01,D,Specify research delegation and compact evidence digests,complex,high,implementation,focused
+PC-WF2-D02,D,Qualify effective Codex tools and permissions,complex,high,implementation,cross_project
+PC-WF2-D03,D,Integrate capability-aware routing with dispatch metadata,complex,high,implementation,focused
+PC-WF2-D04,D,Publish tested operator and controller instructions,complex,high,implementation,focused
+PC-WF2-I00,I,Integrate baseline test hooks and freeze developmental interfaces,complex,high,implementation,focused
+PC-WF2-I10,I,Accept the behavior-preserving embedded-core milestone,complex,high,integration,focused
+PC-WF2-I20,I,Integrate direct bindings and publish a candidate runtime,complex,high,integration,focused
+PC-WF2-I30,I,"Integrate schema, lifecycle, snapshots and efficient reads",complex,high,integration,focused
+PC-WF2-I40,I,Accept the candidate and deployment rehearsal,complex,critical,integration,focused
+PC-WF2-I50,I,Promote the qualified release through an explicit cutover,complex,critical,implementation,cross_project
+PC-WF2-I90,I,Close the paired foundation and publish the qualified source pair,complex,high,implementation,cross_project

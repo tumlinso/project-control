@@ -1,0 +1,68 @@
+{
+  "edges": [
+    {
+      "id": "WF2-DONOR",
+      "producer_task": "SK-WF2-I10",
+      "consumer_task": "PC-WF2-X01",
+      "producer_project": "skills",
+      "consumer_project": "project-control",
+      "producer_checkpoint": "SK-WF2-I10-CP",
+      "receipt_kind": "governance"
+    },
+    {
+      "id": "WF2-PARITY",
+      "producer_task": "PC-WF2-I10",
+      "consumer_task": "SK-WF2-X01",
+      "producer_project": "project-control",
+      "consumer_project": "skills",
+      "producer_checkpoint": "PC-WF2-I10-CP",
+      "receipt_kind": "qualified_capability"
+    },
+    {
+      "id": "WF2-RUNTIME",
+      "producer_task": "PC-WF2-I20",
+      "consumer_task": "SK-WF2-X02",
+      "producer_project": "project-control",
+      "consumer_project": "skills",
+      "producer_checkpoint": "PC-WF2-I20-CP",
+      "receipt_kind": "qualified_capability"
+    },
+    {
+      "id": "WF2-CTXPP",
+      "producer_task": "SK-WF2-I20",
+      "consumer_task": "PC-WF2-X02",
+      "producer_project": "skills",
+      "consumer_project": "project-control",
+      "producer_checkpoint": "SK-WF2-I20-CP",
+      "receipt_kind": "qualified_capability"
+    },
+    {
+      "id": "WF2-CONSUMERS",
+      "producer_task": "SK-WF2-I60",
+      "consumer_task": "PC-WF2-X03",
+      "producer_project": "skills",
+      "consumer_project": "project-control",
+      "producer_checkpoint": "SK-WF2-I60-CP",
+      "receipt_kind": "qualified_capability"
+    },
+    {
+      "id": "WF2-DEPLOYED",
+      "producer_task": "PC-WF2-I50",
+      "consumer_task": "SK-WF2-X03",
+      "producer_project": "project-control",
+      "consumer_project": "skills",
+      "producer_checkpoint": "PC-WF2-I50-CP",
+      "receipt_kind": "governance"
+    },
+    {
+      "id": "WF2-SK-FINAL",
+      "producer_task": "SK-WF2-I90",
+      "consumer_task": "PC-WF2-X04",
+      "producer_project": "skills",
+      "consumer_project": "project-control",
+      "producer_checkpoint": "SK-WF2-I90-CP",
+      "receipt_kind": "governance"
+    }
+  ],
+  "no_cross_project_atomic_transaction": true
+}

@@ -1,0 +1,11 @@
+{
+  "execute_now": false,
+  "entry_workspace": "project-control",
+  "handoff": "planning/workflow-foundation-v2/handoff/START_CONTROLLER.md",
+  "run_ids": [
+    "PC-WF2-RUN-V1",
+    "SK-WF2-RUN-V1"
+  ],
+  "dispatch_command": null,
+  "discovery_required": true
+}

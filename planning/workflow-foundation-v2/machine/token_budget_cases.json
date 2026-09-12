@@ -1,0 +1,79 @@
+{
+  "targets_are_proposed_not_measured": true,
+  "measurement": [
+    "whole_response_bytes",
+    "token_count_or_estimate_and_tokenizer",
+    "call_count",
+    "repeated_evidence_bytes",
+    "mandatory_coverage",
+    "source_identity",
+    "latency",
+    "cold_or_warm_cache",
+    "root_and_child_usage_when_observed"
+  ],
+  "cases": [
+    {
+      "id": "TOK-01",
+      "question": "Inspect one exact 80-line source range",
+      "initial_budget_bytes": 8192,
+      "must_preserve": [
+        "exact range/source identity",
+        "racy flag",
+        "truncation/expansion"
+      ],
+      "must_not_include": [
+        "unrelated complete worktree catalog"
+      ]
+    },
+    {
+      "id": "TOK-02",
+      "question": "Get one current task with requirements and blockers",
+      "initial_budget_bytes": 8192,
+      "must_preserve": [
+        "work_profile or unspecified",
+        "scope/capability caveats",
+        "dependency state"
+      ]
+    },
+    {
+      "id": "TOK-03",
+      "question": "Page a long source search without lost or duplicate matches",
+      "initial_budget_bytes": 8192,
+      "must_preserve": [
+        "per-stream delivery cursor",
+        "omission counts",
+        "deterministic ordering"
+      ]
+    },
+    {
+      "id": "TOK-04",
+      "question": "Deep three-module architecture review through one researcher",
+      "digest_target_tokens": 1200,
+      "must_preserve": [
+        "conclusion/evidence/uncertainty",
+        "contradictions",
+        "coverage"
+      ]
+    },
+    {
+      "id": "TOK-05",
+      "question": "Reinspect unchanged snapshot then one changed task",
+      "initial_budget_bytes": 4096,
+      "must_preserve": [
+        "explicit unchanged/delta",
+        "source/runtime changes if material",
+        "ref expiry"
+      ]
+    },
+    {
+      "id": "TOK-06",
+      "question": "Budget smaller than mandatory source/evidence",
+      "initial_budget_bytes": 1024,
+      "must_preserve": [
+        "structured insufficient budget or whole mandatory unit",
+        "exact expansion route"
+      ]
+    }
+  ],
+  "acceptance": "Paired tests preserve declared evidence and meet documented budget semantics; aim for >=50% reduction on metadata-heavy fixtures, report non-promotion honestly when quality/cost does not improve. Percentage is a design target, not a delivered measurement or subscription-credit promise."
+}

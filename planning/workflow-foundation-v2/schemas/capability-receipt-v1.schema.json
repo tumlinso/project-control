@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WF2 future capability receipt; not prefilled evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "program_id",
+    "edge_id",
+    "producer_project_uuid",
+    "producer_task",
+    "producer_checkpoint",
+    "qualification",
+    "status",
+    "source_commit",
+    "author",
+    "reviewer",
+    "source_dependencies",
+    "evidence"
+  ],
+  "properties": {
+    "format": {
+      "const": "wf2-capability-receipt-v1"
+    },
+    "program_id": {
+      "const": "WF2-20260912-v1"
+    },
+    "edge_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer_project_uuid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer_task": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer_checkpoint": {
+      "type": "string",
+      "minLength": 1
+    },
+    "qualification": {
+      "enum": [
+        "governance",
+        "qualified_capability"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "qualified",
+        "blocked"
+      ]
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40,64}$"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_dependencies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    },
+    "test_reports": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    }
+  },
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "domain": {
+          "enum": [
+            "source",
+            "evidence"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "qualification": {
+            "const": "qualified_capability"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "test_reports"
+        ]
+      }
+    }
+  ]
+}

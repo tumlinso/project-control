@@ -1,0 +1,8 @@
+{
+  "max_initial_concurrent_workers": 4,
+  "deep_researchers_default": 1,
+  "resource_limit_is_not_model_allowance": true,
+  "phase_base_and_integration_destination_must_exist_before_producer_finish": true,
+  "gpu_tests": "Only actual hardware-dependent consumer assertions require GPU leases; never count simulated arbitration as GPU execution. Other work continues when hardware unavailable.",
+  "live_control_runtime": "Frozen old release until PC-WF2-I50 qualified cutover; no hot replacement of the running kernel."
+}
