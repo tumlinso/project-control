@@ -49,6 +49,17 @@ without deleting the candidate or standalone checkout. Revert repository
 changes with new ordinary revert commits. Never reset, rebase, amend, squash,
 rewrite history, replace a Todo database, or change a project UUID.
 
+## Research-routing guidance
+
+Migrating model-facing guidance may link to the role-neutral research routing
+contract, but it must not manufacture durable lanes from spawned helpers or
+infer permissions from context depth, difficulty, model labels, or a digest.
+Keep routing policy separate from workflow state and preserve the authoritative
+workflow as the only creator of lanes and task claims. See
+[`workflow_foundation_v2/agents/research-routing.md`](workflow_foundation_v2/agents/research-routing.md)
+for the required conclusion, evidence, uncertainty, contradictory-evidence, and
+coverage fields.
+
 ## 2026-09-06 maintenance release
 
 The SS1 incidents exposed a deployment coupling: live Project Control compared

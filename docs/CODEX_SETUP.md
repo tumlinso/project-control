@@ -77,3 +77,13 @@ context.
 Profile selection is a trusted startup choice. `clientInfo`, user-agent strings,
 model identity claims, annotations, and tool arguments cannot select or broaden
 the profile.
+
+## Routing bounded research
+
+Use the role-neutral routing and digest contract in
+[`workflow_foundation_v2/agents/research-routing.md`](workflow_foundation_v2/agents/research-routing.md).
+Choose context depth and difficulty independently; neither chooses a provider,
+grants authority, or creates a workflow lane. For one independent deep question,
+start with one bounded read-only researcher and use its compact digest rather
+than repeating exploration in the controller. A spawned helper remains a
+subordinate child, never a first-class lane.
