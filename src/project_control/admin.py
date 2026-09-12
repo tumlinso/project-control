@@ -7,6 +7,7 @@ runtime and then invokes Todo Orchestrator's canonical owner recovery API.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -71,6 +72,75 @@ def _workspace_name(value: str) -> str:
     if not name:
         raise ValueError("lane ID cannot produce a safe workspace name")
     return name
+
+
+def _verified_schedule(plan_file: Path) -> dict[str, object] | None:
+    schedule_file = plan_file.parent / "integration_schedule.json"
+    manifest_file = plan_file.parent.parent / "MANIFEST.sha256"
+    if not schedule_file.is_file() or not manifest_file.is_file():
+        return None
+    if plan_file.is_symlink() or schedule_file.is_symlink() or manifest_file.is_symlink():
+        raise ValueError("workflow package inputs must not be symbolic links")
+    package_root = manifest_file.parent.resolve()
+    try:
+        plan_name = plan_file.resolve().relative_to(package_root).as_posix()
+        schedule_name = schedule_file.resolve().relative_to(package_root).as_posix()
+    except ValueError as exc:
+        raise ValueError("workflow package inputs escape the manifest root") from exc
+    entries: dict[str, str] = {}
+    for line in manifest_file.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        digest, separator, name = line.partition("  ")
+        if not separator or len(digest) != 64:
+            raise ValueError("workflow package manifest is malformed")
+        entries[name] = digest
+    if plan_name not in entries or schedule_name not in entries:
+        raise ValueError("workflow package manifest does not seal plan and schedule")
+    for path, name in ((plan_file, plan_name), (schedule_file, schedule_name)):
+        observed = hashlib.sha256(path.read_bytes()).hexdigest()
+        if observed != entries[name]:
+            raise ValueError(f"workflow package manifest mismatch: {name}")
+    schedule = json.loads(schedule_file.read_text(encoding="utf-8"))
+    if not isinstance(schedule, dict) or not isinstance(schedule.get("phases"), list):
+        raise ValueError("integration schedule must contain a phases list")
+    for phase in schedule["phases"]:
+        if not isinstance(phase, dict):
+            raise ValueError("integration schedule phases must be objects")
+        integration_task = phase.get("integration_task")
+        required_tasks = phase.get("required_tasks")
+        if not isinstance(integration_task, str) or not integration_task.strip():
+            raise ValueError("integration schedule task IDs must be non-empty strings")
+        if not isinstance(required_tasks, list) or any(
+            not isinstance(task_id, str) or not task_id.strip() for task_id in required_tasks
+        ):
+            raise ValueError("integration schedule required_tasks must contain task IDs")
+    return schedule
+
+
+def _scheduled_integration_task(plan_file: Path, lane: dict[str, object]) -> str | None:
+    """Resolve a single bootstrap integration target from a sealed WF2 schedule.
+
+    Schema-v3 plans may intentionally defer the binding while keeping the
+    phase schedule beside the native plan.  Only an unambiguous lane-to-phase
+    mapping is safe to materialize here; multi-phase lanes remain a runtime
+    lifecycle concern and fail closed.
+    """
+    schedule = _verified_schedule(plan_file)
+    if schedule is None:
+        return None
+    lane_tasks = {str(task_id) for task_id in lane.get("tasks", [])}
+    matches = {
+        str(phase["integration_task"])
+        for phase in schedule.get("phases", [])
+        if lane_tasks.intersection(str(task_id) for task_id in phase.get("required_tasks", []))
+    }
+    if len(matches) > 1:
+        raise ValueError(
+            "isolated lane spans multiple integration phases and requires dynamic binding: "
+            f"{lane.get('id')}"
+        )
+    return next(iter(matches), None)
 
 
 def _exclusive_integrator_destinations(
@@ -206,6 +276,15 @@ def prepare_run_workspaces(
             participant_integration_bases.setdefault(
                 str(row["integration_task_id"]), set()
             ).add(str(row["base_commit"]))
+        valid_integration_tasks = {
+            str(row["task_id"])
+            for row in conn.execute(
+                "SELECT lt.task_id FROM workflow_lanes l JOIN workflow_lane_tasks lt "
+                "ON lt.lane_id=l.id WHERE l.run_id=? AND l.role IN ('integrator','validator') "
+                "AND l.workspace_mode='exclusive'",
+                (run_id,),
+            )
+        }
 
     pending: list[dict[str, object]] = []
     for candidate in candidates:
@@ -223,7 +302,14 @@ def prepare_run_workspaces(
             continue
         integration_task_id = workspace.get("integration_task_id")
         if mode == "isolated_merge" and not integration_task_id:
+            integration_task_id = _scheduled_integration_task(plan_file, spec)
+        if mode == "isolated_merge" and not integration_task_id:
             raise ValueError(f"isolated lane lacks integration_task_id: {lane_id}")
+        if integration_task_id and str(integration_task_id) not in valid_integration_tasks:
+            raise ValueError(
+                "workspace integration task is not owned by an exclusive integrator "
+                f"or validator lane in this run: {integration_task_id}"
+            )
         workspace_base = base_commit
         if integration_task_id:
             observed_bases = participant_integration_bases.get(str(integration_task_id), set())

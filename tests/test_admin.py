@@ -241,6 +241,112 @@ class AdminCliTests(unittest.TestCase):
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
 
+    def test_prepare_derives_unambiguous_sealed_schedule_binding(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("DELETE FROM workflow_workspaces")
+        connection.execute("DELETE FROM workflow_patch_artifacts")
+        connection.execute("DELETE FROM workflow_lanes")
+        connection.execute(
+            "INSERT INTO workflow_lanes VALUES(?,?,?,?,?)",
+            ("L-A", "RUN", "implementer", "isolated_merge", "ready"),
+        )
+        connection.execute(
+            "INSERT INTO workflow_lanes VALUES(?,?,?,?,?)",
+            ("L-I", "RUN", "integrator", "exclusive", "blocked"),
+        )
+        connection.execute("INSERT INTO workflow_lane_tasks VALUES('L-I','I00',0,'queued')")
+        plan = {"runs": [{"id": "RUN", "lanes": [{
+            "id": "L-A", "role": "implementer", "tasks": ["A01", "A02"],
+            "workspace": {"mode": "isolated_merge"},
+        }]}]}
+        service = SimpleNamespace(
+            db=_ReadDatabase(connection), project={"project_uuid": "project-uuid"},
+            paths=SimpleNamespace(state_dir=Path("/state")),
+        )
+        manager = Mock()
+        modules = _todo_runtime_modules(plan, service, manager)
+        modules["todo_orchestrator.workflow.lanes"].lane_candidates.return_value = [
+            {"lane_id": "L-A", "task_id": "A01"}
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory) / "package"
+            machine = package / "machine"
+            machine.mkdir(parents=True)
+            plan_file = machine / "native.todo-plan.json"
+            plan_file.write_text("{}", encoding="utf-8")
+            schedule_file = machine / "integration_schedule.json"
+            schedule_file.write_text(
+                json.dumps({"phases": [{
+                    "integration_task": "I00", "required_tasks": ["A02"]
+                }]}), encoding="utf-8",
+            )
+            (package / "MANIFEST.sha256").write_text(
+                f"{admin.hashlib.sha256(schedule_file.read_bytes()).hexdigest()}  machine/integration_schedule.json\n"
+                f"{admin.hashlib.sha256(plan_file.read_bytes()).hexdigest()}  machine/native.todo-plan.json\n",
+                encoding="utf-8",
+            )
+            with patch.object(admin, "_runtime_identity"), \
+                 patch.object(admin, "_git", side_effect=["", "canonical-head"]), \
+                 patch.dict(sys.modules, modules):
+                result = admin.prepare_run_workspaces(
+                    "/repo", plan_file, "RUN", apply=True,
+                    confirmation=admin.PREPARE_WORKSPACES_CONFIRMATION,
+                )
+
+        self.assertEqual(result["pending"][0]["integration_task_id"], "I00")
+        manager.return_value.create_workspace.assert_called_once_with(
+            repository_root=Path("/repo"), repository_identity="repo-id", run_id="RUN",
+            lane_id="L-A", mode="isolated_merge", base_commit="canonical-head",
+            worktree_path=Path("/state") / "workflow-workspaces" / "l-a",
+            branch="codex/l-a", integration_task_id="I00",
+        )
+
+    def test_prepare_rejects_ambiguous_sealed_schedule_binding(self) -> None:
+        lane = {"id": "L-V", "tasks": ["V01", "V02"]}
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory) / "package"
+            machine = package / "machine"
+            machine.mkdir(parents=True)
+            plan_file = machine / "native.todo-plan.json"
+            plan_file.write_text("{}", encoding="utf-8")
+            schedule_file = machine / "integration_schedule.json"
+            schedule_file.write_text(
+                json.dumps({"phases": [
+                    {"integration_task": "I00", "required_tasks": ["V01"]},
+                    {"integration_task": "I10", "required_tasks": ["V02"]},
+                ]}), encoding="utf-8",
+            )
+            (package / "MANIFEST.sha256").write_text(
+                f"{admin.hashlib.sha256(schedule_file.read_bytes()).hexdigest()}  machine/integration_schedule.json\n"
+                f"{admin.hashlib.sha256(plan_file.read_bytes()).hexdigest()}  machine/native.todo-plan.json\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "multiple integration phases"):
+                admin._scheduled_integration_task(plan_file, lane)
+
+    def test_schedule_binding_rejects_unsealed_or_malformed_sidecar(self) -> None:
+        lane = {"id": "L-A", "tasks": ["A01"]}
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory) / "package"
+            machine = package / "machine"
+            machine.mkdir(parents=True)
+            plan_file = machine / "native.todo-plan.json"
+            plan_file.write_text("{}", encoding="utf-8")
+            schedule_file = machine / "integration_schedule.json"
+            schedule_file.write_text('{"phases": null}', encoding="utf-8")
+            (package / "MANIFEST.sha256").write_text(
+                f"{admin.hashlib.sha256(schedule_file.read_bytes()).hexdigest()}  machine/integration_schedule.json\n"
+                f"{admin.hashlib.sha256(plan_file.read_bytes()).hexdigest()}  machine/native.todo-plan.json\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "phases list"):
+                admin._scheduled_integration_task(plan_file, lane)
+
+            schedule_file.write_text('{"phases": []}', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "manifest mismatch"):
+                admin._scheduled_integration_task(plan_file, lane)
+
     def test_inspect_only_forwards_without_recovery(self) -> None:
         with patch.object(admin, "inspect_recovery", return_value={"status": "safe"}) as inspect, \
              patch.object(admin, "recover") as recover, patch("sys.stdout", new_callable=io.StringIO) as output:
