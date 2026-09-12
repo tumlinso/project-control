@@ -172,6 +172,27 @@ def validate_native_plan(
     }
 
 
+def apply_selective_replan(
+    config: ProjectControlConfig, project: str, request: Mapping[str, Any], *, snapshot_builder: SnapshotBuilder | None = None,
+) -> dict[str, Any]:
+    """Owner-only front door for the narrow Todo selective-replan transaction."""
+    expected = ObservationPreconditions.model_validate(request.get("observation_preconditions"))
+    plan = request.get("replan")
+    if not isinstance(plan, Mapping) or plan.get("format") != "selective-replan-v1":
+        raise MutationRejected("invalid_selective_replan", "Expected a selective-replan-v1 payload")
+    environment = _runtime_environment(config)
+    builder = _snapshot_builder(config, environment, snapshot_builder)
+    before = builder.build(project)
+    _fresh(ProposalEnvelope.create(intent="selective replan", proposed_change={}, observation_preconditions=expected), observation_preconditions(before))
+    _, service = _todo_service(config, project, environment, read_only=False)
+    try:
+        result = service.selective_replan(dict(plan), before.todo_revision)
+    except Exception as error:
+        raise _todo_error(error) from error
+    after = builder.build(project)
+    return {"status": "applied", "result": result, "current_observation_preconditions": observation_preconditions(after).model_dump(mode="json")}
+
+
 def _parse_proposal(value: ProposalEnvelope | Mapping[str, Any]) -> ProposalEnvelope:
     if isinstance(value, ProposalEnvelope):
         # Revalidate even already-constructed models so callers cannot rely on
