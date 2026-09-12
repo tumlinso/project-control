@@ -1,0 +1,10 @@
+{
+  "format": "shared-engine-cutover-v1",
+  "owner_task": "PC-WF2-C03",
+  "ctxpp_query": {"read_only": true, "no_refresh": true, "standalone": true},
+  "source_identity": {"algorithm": "declared-by-producer", "version": "producer-versioned", "domain": "ctxpp-canonical-source", "covered_inputs": ["canonical ranges", "compilation configuration"]},
+  "facades": [{"name": "host", "supported": true, "write_authority": false}, {"name": "worker", "supported": true, "write_authority": false}],
+  "mapping": {"donor": "todo_orchestrator", "recipient": "project_control.workflow_core", "parity_before_semantics": true},
+  "fencing": {"old_writers": "quiesce_before_affected_cutover", "rollback": "restore_or_migrate_forward_unless_qualified"},
+  "closure_order": ["PC-WF2-I50", "SK-WF2-X03", "SK-WF2-I90", "PC-WF2-X04", "PC-WF2-I90"]
+}
