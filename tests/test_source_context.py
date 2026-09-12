@@ -132,6 +132,21 @@ class SourceContextTests(unittest.TestCase):
         self.assertNotIn("DIRTY", result.data["targets"][0]["excerpt"])
         self.assertEqual("immutable_commit", result.data["source_freshness"])
 
+    def test_working_tree_reads_explicit_live_link_without_copying(self) -> None:
+        live = Path(self.temp.name) / "live-config.toml"
+        live.write_text("model = 'first'\n", encoding="utf-8")
+        (self.root / "live-config.toml").symlink_to(live)
+        git(self.root, "add", "live-config.toml")
+        git(self.root, "commit", "-m", "add live link")
+        self.config.workspaces["demo"].repositories["source"].live_links = {
+            "live-config.toml": live,
+        }
+        first = self.call([SourceTarget(kind="path", value="live-config.toml")])
+        self.assertIn("first", first.data["targets"][0]["excerpt"])
+        live.write_text("model = 'second'\n", encoding="utf-8")
+        second = self.call([SourceTarget(kind="path", value="live-config.toml")])
+        self.assertIn("second", second.data["targets"][0]["excerpt"])
+
     def test_workflow_workspace_maps_to_redacted_worktree_identity(self) -> None:
         self.snapshot.todo_workflow = {"runs": [{
             "id": "RUN", "lanes": [{

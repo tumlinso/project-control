@@ -43,8 +43,16 @@ def _file_identity(path: Path) -> tuple[int, int, int, str]:
     return stat.st_dev, stat.st_ino, stat.st_size, str(stat.st_mtime_ns)
 
 
-def _range_read(root: Path, relative: str, start: int | None, end: int | None, deny: list[str], budget: int) -> dict[str, Any]:
-    path = resolve_registered_path(root, relative, deny_patterns=deny)
+def _range_read(
+    root: Path,
+    relative: str,
+    start: int | None,
+    end: int | None,
+    deny: list[str],
+    budget: int,
+    live_links: dict[str, Path] | None = None,
+) -> dict[str, Any]:
+    path = resolve_registered_path(root, relative, deny_patterns=deny, live_links=live_links)
     if not is_allowlisted_text_path(Path(relative)):
         raise SecurityError("file type is not allowlisted text")
     before = _file_identity(path)
@@ -109,6 +117,7 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
     registry = WorkspaceRegistry(config)
     repository = registry.repository(request.project, request.repository)
     workspace = registry.workspace(request.project)
+    live_links = workspace.repositories[repository.alias].live_links
     deny = [*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns]
     warnings: list[str] = []
     try:
@@ -154,10 +163,10 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
         try:
             if target.kind == "path":
                 if revision is None:
-                    detail = _range_read(root, target.value, target.line_start, target.line_end, deny, per_target)
+                    detail = _range_read(root, target.value, target.line_start, target.line_end, deny, per_target, live_links)
                     if detail.pop("racy"):
                         # Retry once from a newly opened descriptor; preserve an explicit race if it moves again.
-                        detail = _range_read(root, target.value, target.line_start, target.line_end, deny, per_target)
+                        detail = _range_read(root, target.value, target.line_start, target.line_end, deny, per_target, live_links)
                         if detail.pop("racy"):
                             warnings.append("racy_source_read")
                             detail["status"] = "raced"

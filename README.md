@@ -133,6 +133,13 @@ Configuration lives at `$XDG_CONFIG_HOME/project-control/config.toml` or
 only through `project-control workspace add`; MCP tools accept stable workspace
 and repository IDs, never filesystem roots.
 
+For a deliberately small inspection façade, the local operator may register
+exact live symlinks with repeated
+`--live-link REPOSITORY_PATH=ABSOLUTE_TARGET` arguments. Each read verifies that
+the repository entry is still a symlink to that exact configured target.
+Unconfigured escaping symlinks remain denied, and the normal deny patterns,
+text limits, and output redaction still apply.
+
 Schema v2 can add query-only program groups without changing workspace authority:
 
 ```toml

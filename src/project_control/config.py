@@ -34,6 +34,7 @@ LEGACY_SKILLS_ROOT_ENV = "CODING_WORKFLOW_SKILLS_ROOT"
 class RepositoryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     root: Path
+    live_links: dict[str, Path] = Field(default_factory=dict)
 
     @field_validator("root")
     @classmethod
@@ -42,6 +43,20 @@ class RepositoryConfig(BaseModel):
         if not expanded.is_absolute():
             raise ValueError("repository root must be absolute")
         return expanded.resolve()
+
+    @field_validator("live_links")
+    @classmethod
+    def safe_live_links(cls, value: dict[str, Path]) -> dict[str, Path]:
+        normalized: dict[str, Path] = {}
+        for relative, target in value.items():
+            link = Path(relative)
+            if not relative or link.is_absolute() or ".." in link.parts or not link.parts:
+                raise ValueError("live link paths must be non-empty repository-relative paths")
+            expanded = target.expanduser()
+            if not expanded.is_absolute():
+                raise ValueError("live link targets must be absolute")
+            normalized[link.as_posix()] = expanded.resolve()
+        return normalized
 
 
 class WorkspaceConfig(BaseModel):
@@ -218,6 +233,10 @@ def render_config(config: ProjectControlConfig) -> str:
                 f"[{section}.repositories.{alias}]",
                 f"root = {_quote(str(repository.root))}",
             ])
+            if repository.live_links:
+                lines.extend(["", f"[{section}.repositories.{alias}.live_links]"])
+                for relative in sorted(repository.live_links):
+                    lines.append(f"{_quote(relative)} = {_quote(str(repository.live_links[relative]))}")
     for program_id in sorted(config.programs):
         program = config.programs[program_id]
         lines.extend(["", f"[programs.{program_id}]"])

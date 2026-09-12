@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 from .config import ProgramConfig, ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 
@@ -107,6 +108,7 @@ class WorkspaceRegistry:
         *,
         authority: bool = False,
         display_name: str | None = None,
+        live_links: Mapping[str, Path] | None = None,
     ) -> None:
         validate_id(workspace_id, "workspace")
         validate_id(repository_alias, "repository")
@@ -118,11 +120,18 @@ class WorkspaceRegistry:
             workspace = WorkspaceConfig(
                 display_name=display_name,
                 authority_repository=repository_alias,
-                repositories={repository_alias: RepositoryConfig(root=resolved)},
+                repositories={repository_alias: RepositoryConfig(root=resolved, live_links=dict(live_links or {}))},
             )
             self.config.workspaces[workspace_id] = workspace
             return
-        workspace.repositories[repository_alias] = RepositoryConfig(root=resolved)
+        existing = workspace.repositories.get(repository_alias)
+        merged_live_links = dict(existing.live_links if existing else {})
+        if live_links is not None:
+            merged_live_links.update(live_links)
+        workspace.repositories[repository_alias] = RepositoryConfig(
+            root=resolved,
+            live_links=merged_live_links,
+        )
         if authority or workspace.authority_repository is None:
             workspace.authority_repository = repository_alias
         if display_name:

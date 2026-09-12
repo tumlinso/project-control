@@ -38,8 +38,16 @@ def _file_identity(path: Path) -> str:
     return hashlib.sha256(f"{stat.st_dev}:{stat.st_ino}:{stat.st_size}:{stat.st_mtime_ns}".encode()).hexdigest()
 
 
-def _working_tree_range(root: Path, relative: str, *, deny_patterns: list[str], start: int, end: int) -> tuple[str, str, str]:
-    target = resolve_registered_path(root, relative, deny_patterns=deny_patterns)
+def _working_tree_range(
+    root: Path,
+    relative: str,
+    *,
+    deny_patterns: list[str],
+    live_links: dict[str, Path] | None,
+    start: int,
+    end: int,
+) -> tuple[str, str, str]:
+    target = resolve_registered_path(root, relative, deny_patterns=deny_patterns, live_links=live_links)
     for attempt in range(2):
         before = _file_identity(target)
         selected: list[str] = []
@@ -93,6 +101,7 @@ def inspect_subject(config: ProjectControlConfig, snapshot: ProjectSnapshot, req
         registry = WorkspaceRegistry(config)
         repository = registry.repository(request.project, request.repository)
         workspace = registry.workspace(request.project)
+        live_links = workspace.repositories[repository.alias].live_links
         source_root = repository.root
         selected_worktree_id = None
         if request.worktree_id:
@@ -108,16 +117,19 @@ def inspect_subject(config: ProjectControlConfig, snapshot: ProjectSnapshot, req
                 if request.source_selector == "working_tree":
                     if request.line_start or request.line_end:
                         excerpt, before, after = _working_tree_range(
-                            source_root, request.target, deny_patterns=workspace.deny_patterns,
+                            source_root, request.target, deny_patterns=workspace.deny_patterns, live_links=live_links,
                             start=line_start, end=line_end,
                         )
                     else:
                         text = read_bounded_text(
                             source_root, request.target, deny_patterns=workspace.deny_patterns,
+                            live_links=live_links,
                             max_bytes=min(2 * 1024 * 1024, request.budget_tokens * 4),
                         )
                         excerpt = "\n".join(text.splitlines()[: max(1, request.budget_tokens // 12)])
-                        target = resolve_registered_path(source_root, request.target, deny_patterns=workspace.deny_patterns)
+                        target = resolve_registered_path(
+                            source_root, request.target, deny_patterns=workspace.deny_patterns, live_links=live_links,
+                        )
                         before = after = _file_identity(target)
                     freshness = "working_tree"
                     try:

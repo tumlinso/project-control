@@ -16,6 +16,13 @@ from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provide
 from .terminal import BubblewrapSandbox
 
 
+def _live_link(value: str) -> tuple[str, Path]:
+    relative, separator, target = value.partition("=")
+    if not separator or not relative or not target:
+        raise argparse.ArgumentTypeError("live link must be PATH=ABSOLUTE_TARGET")
+    return relative, Path(target)
+
+
 def _terminal_service_constraints() -> dict[str, object]:
     """Inspect only bounded systemd policy fields relevant to bubblewrap."""
 
@@ -83,6 +90,10 @@ def _parser() -> argparse.ArgumentParser:
     add.add_argument("root", type=Path)
     add.add_argument("--authority", action="store_true")
     add.add_argument("--display-name")
+    add.add_argument(
+        "--live-link", action="append", default=[], type=_live_link, metavar="PATH=ABSOLUTE_TARGET",
+        help="allow one exact repository symlink for read-only live source inspection",
+    )
     remove = workspace_commands.add_parser("remove")
     remove.add_argument("workspace")
     workspace_commands.add_parser("list")
@@ -296,6 +307,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.root,
                     authority=args.authority,
                     display_name=args.display_name,
+                    live_links=dict(args.live_link) if args.live_link else None,
                 )
                 save_config(config)
                 print(args.workspace)

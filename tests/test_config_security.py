@@ -70,6 +70,55 @@ class ConfigSecurityTests(unittest.TestCase):
             with self.assertRaises(SecurityError):
                 resolve_registered_path(root, "escape.txt")
 
+    def test_explicit_live_link_is_bounded_to_its_configured_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "repo"
+            root.mkdir()
+            live = base / "live"
+            live.mkdir()
+            target = live / "config.toml"
+            target.write_text("model = 'current'\n", encoding="utf-8")
+            (root / "config.toml").symlink_to(target)
+            links = {"config.toml": target}
+            self.assertIn("current", read_bounded_text(root, "config.toml", live_links=links))
+
+            (live / "nested.md").write_text("nested live value\n", encoding="utf-8")
+            (root / "live").symlink_to(live, target_is_directory=True)
+            links["live"] = live
+            self.assertIn("nested live", read_bounded_text(root, "live/nested.md", live_links=links))
+
+            other = base / "other.toml"
+            other.write_text("secret = true\n", encoding="utf-8")
+            (root / "other.toml").symlink_to(other)
+            with self.assertRaises(SecurityError):
+                read_bounded_text(root, "other.toml", live_links=links)
+
+            (root / "config.toml").unlink()
+            (root / "config.toml").symlink_to(other)
+            with self.assertRaises(SecurityError):
+                read_bounded_text(root, "config.toml", live_links=links)
+
+    def test_live_links_round_trip_in_private_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "repo"
+            root.mkdir()
+            target = base / "config.toml"
+            target.write_text("value = 1\n", encoding="utf-8")
+            config = ProjectControlConfig(workspaces={
+                "demo": {"repositories": {"source": {
+                    "root": root, "live_links": {"config.toml": target},
+                }}},
+            })
+            path = base / "project-control.toml"
+            save_config(config, path)
+            loaded = load_config(path)
+            self.assertEqual(
+                loaded.workspaces["demo"].repositories["source"].live_links["config.toml"],
+                target.resolve(),
+            )
+
     def test_redaction_is_recursive(self) -> None:
         value = {"api_key": "visible?", "nested": ["Bearer abc.def", {"safe": "toc_abcdefghijklmnop"}]}
         result = redact(value)

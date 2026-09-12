@@ -4,7 +4,7 @@ import fnmatch
 import hashlib
 import re
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Mapping
 
 from .config import DEFAULT_DENY_PATTERNS
 
@@ -66,6 +66,7 @@ def resolve_registered_path(
     relative: str,
     *,
     deny_patterns: list[str] | None = None,
+    live_links: Mapping[str, Path] | None = None,
     require_file: bool = True,
 ) -> Path:
     requested = Path(relative)
@@ -78,9 +79,36 @@ def resolve_registered_path(
     resolved_root = root.resolve(strict=True)
     try:
         resolved = (resolved_root / requested).resolve(strict=True)
-        resolved.relative_to(resolved_root)
-    except (FileNotFoundError, ValueError) as exc:
+    except FileNotFoundError as exc:
         raise SecurityError("path is unavailable or escapes the registered repository") from exc
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError:
+        allowed = False
+        for relative, raw_target in sorted((live_links or {}).items(), key=lambda item: len(Path(item[0]).parts), reverse=True):
+            link = Path(relative)
+            if requested != link and link not in requested.parents:
+                continue
+            configured_link = resolved_root / link
+            if not configured_link.is_symlink():
+                continue
+            try:
+                configured_target = raw_target.resolve(strict=True)
+                if configured_link.resolve(strict=True) != configured_target:
+                    continue
+                remainder = requested.relative_to(link)
+                if remainder.parts:
+                    if not configured_target.is_dir():
+                        continue
+                    resolved.relative_to(configured_target)
+                elif resolved != configured_target:
+                    continue
+            except (FileNotFoundError, ValueError, OSError):
+                continue
+            allowed = True
+            break
+        if not allowed:
+            raise SecurityError("path is unavailable or escapes the registered repository")
     if require_file and not resolved.is_file():
         raise SecurityError("path is not a regular file")
     return resolved
@@ -91,9 +119,10 @@ def read_bounded_text(
     relative: str,
     *,
     deny_patterns: list[str] | None = None,
+    live_links: Mapping[str, Path] | None = None,
     max_bytes: int = MAX_TEXT_FILE_BYTES,
 ) -> str:
-    target = resolve_registered_path(root, relative, deny_patterns=deny_patterns)
+    target = resolve_registered_path(root, relative, deny_patterns=deny_patterns, live_links=live_links)
     size = target.stat().st_size
     if size > max_bytes:
         raise SecurityError("text file exceeds the read limit")
