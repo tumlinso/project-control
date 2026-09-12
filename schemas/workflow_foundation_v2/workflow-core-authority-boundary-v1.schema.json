@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow-core-authority-boundary-v1",
+  "title": "Workflow Core authority boundary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "workflow_transaction_authority", "external_authorities", "baseline_preservation", "source_ledger"],
+  "properties": {
+    "format": {"const": "workflow-core-authority-boundary-v1"},
+    "workflow_transaction_authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["module", "scope", "exclusions"],
+      "properties": {
+        "module": {"const": "project_control.workflow_core"},
+        "scope": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "exclusions": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "external_authorities": {
+      "type": "array", "minItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "authority", "boundary"],
+        "properties": {
+          "name": {"enum": ["git", "host_resources", "compiler_artifacts"]},
+          "authority": {"type": "string", "minLength": 1},
+          "boundary": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "baseline_preservation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["storage_layout", "lifecycle", "prohibited_changes"],
+      "properties": {
+        "storage_layout": {"const": "preserve_internal_todo_layout"},
+        "lifecycle": {"const": "preserve_baseline_workflow_lifecycle"},
+        "prohibited_changes": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "source_ledger": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"const": "planning/workflow-foundation-v2/evidence/source_ledger.json"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    }
+  }
+}
