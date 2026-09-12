@@ -47,6 +47,16 @@ def _workspace_database() -> sqlite3.Connection:
             id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, task_id TEXT NOT NULL,
             state TEXT NOT NULL, base_commit TEXT NOT NULL
         );
+        CREATE TABLE workflow_integration_queue(
+            id TEXT PRIMARY KEY, run_id TEXT NOT NULL, integration_task_id TEXT NOT NULL,
+            integrator_lane_id TEXT NOT NULL, patch_artifact_id TEXT NOT NULL,
+            position INTEGER NOT NULL, state TEXT NOT NULL
+        );
+        CREATE TABLE workflow_dispatches(
+            id TEXT PRIMARY KEY, lane_id TEXT NOT NULL, state TEXT NOT NULL,
+            claim_id TEXT NOT NULL DEFAULT 'CLAIM-1'
+        );
+        CREATE TABLE gates(id TEXT PRIMARY KEY, task_id TEXT NOT NULL, required INTEGER NOT NULL);
         INSERT INTO workflow_runs VALUES('RUN', 'active');
         INSERT INTO workflow_lanes VALUES(
             'L-INTEGRATE', 'RUN', 'integrator', 'exclusive', 'ready'
@@ -60,6 +70,8 @@ def _workspace_database() -> sqlite3.Connection:
             'A-1', 'W-PRODUCER', 'T-PRODUCER', 'pending', 'producer-base'
         );
         ALTER TABLE workflow_workspaces ADD COLUMN worktree_path TEXT DEFAULT '/worktree';
+        ALTER TABLE workflow_patch_artifacts ADD COLUMN artifact_ref TEXT DEFAULT 'artifact-ref';
+        ALTER TABLE workflow_patch_artifacts ADD COLUMN content_hash TEXT DEFAULT 'artifact-hash';
     """)
     return connection
 
@@ -79,6 +91,8 @@ def _todo_runtime_modules(plan, service, workspace_service):
     workflow_service_module.repository_identity = Mock(return_value="repo-id")
     workspaces_module = types.ModuleType("todo_orchestrator.workflow.workspaces")
     workspaces_module.WorkspaceService = workspace_service
+    gates_module = types.ModuleType("todo_orchestrator.gates")
+    gates_module.run_gate = Mock()
     models_module = types.ModuleType("todo_orchestrator.models")
     models_module.TodoError = RuntimeError
     return {
@@ -89,6 +103,7 @@ def _todo_runtime_modules(plan, service, workspace_service):
         "todo_orchestrator.workflow.lanes": lanes_module,
         "todo_orchestrator.workflow.service": workflow_service_module,
         "todo_orchestrator.workflow.workspaces": workspaces_module,
+        "todo_orchestrator.gates": gates_module,
         "todo_orchestrator.models": models_module,
     }
 
@@ -517,7 +532,8 @@ class AdminCliTests(unittest.TestCase):
                 "INSERT INTO workflow_lane_tasks VALUES('L-PRODUCER','T-DONE2',1,'completed')"
             )
             connection.execute(
-                "INSERT INTO workflow_patch_artifacts VALUES('A-OLD','W-PRODUCER','T-DONE','integrated','producer-base')"
+                "INSERT INTO workflow_patch_artifacts(id,workspace_id,task_id,state,base_commit) "
+                "VALUES('A-OLD','W-PRODUCER','T-DONE','integrated','producer-base')"
             )
             second = admin.publish_producer_wave(
                 "/repo", "/plan.json", "RUN", "L-PRODUCER"
@@ -530,6 +546,253 @@ class AdminCliTests(unittest.TestCase):
             workspace_id="W-PRODUCER", task_id="T-DONE", artifact_ref="wave-head",
             integrator_lane_id="L-INTEGRATE",
             integration_task_id="M40",
+        )
+
+    def test_manage_integration_wave_declares_complete_sealed_membership(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='queued'")
+        connection.execute("UPDATE workflow_workspaces SET worktree_path='/destination' WHERE id='W-PRODUCER'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "active", "exclusive", "M40", "producer-base", "/destination"),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_dispatches(id,lane_id,state) VALUES('D-1','L-INTEGRATE','active')")
+        connection.execute(
+            "INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'queued')"
+        )
+        connection.execute("INSERT INTO tasks VALUES('T-SECOND','done')")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-SECOND", "RUN", "L-SECOND", "artifact_ready", "isolated_merge", "M40", "producer-base", "/producer-second"),
+        )
+        connection.execute(
+            "INSERT INTO workflow_patch_artifacts(id,workspace_id,task_id,state,base_commit) "
+            "VALUES('A-2','W-SECOND','T-SECOND','queued','producer-base')"
+        )
+        connection.execute(
+            "INSERT INTO workflow_integration_queue VALUES('Q-2','RUN','M40','L-INTEGRATE','A-2',1,'queued')"
+        )
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        manager.return_value.declare_and_adopt_integration_wave.return_value = {"wave_id": "WAVE-1"}
+        manager.return_value.apply_declared_integration_wave.return_value = {"wave_id": "WAVE-1"}
+        schedule = {"phases": [{"integration_task": "M40", "required_tasks": ["T-PRODUCER", "T-SECOND"]}]}
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            preview = admin.manage_integration_wave("/repo", "/plan.json", "RUN", "M40", action="declare")
+            result = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="declare", apply=True,
+                confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+            applied = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="apply", wave_id="WAVE-1",
+                apply=True, confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+
+        self.assertEqual([item["queue_id"] for item in preview["members"]], ["Q-1", "Q-2"])
+        self.assertEqual(result["status"], "declared")
+        self.assertEqual(applied["status"], "applied")
+        manager.return_value.declare_and_adopt_integration_wave.assert_called_once_with(
+            queue_ids=["Q-1", "Q-2"], legacy_provenance_reason=None,
+        )
+        manager.return_value.apply_declared_integration_wave.assert_called_once_with(
+            integration_task_id="M40", wave_id="WAVE-1",
+        )
+
+    def test_manage_integration_wave_rejects_partial_or_unclaimed_membership(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='queued'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "active", "exclusive", "M40", "producer-base", "/destination"),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_dispatches(id,lane_id,state) VALUES('D-1','L-INTEGRATE','active')")
+        connection.execute(
+            "INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'queued')"
+        )
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        schedule = {"phases": [{"integration_task": "M40", "required_tasks": ["T-PRODUCER", "T-MISSING"]}]}
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            with self.assertRaisesRegex(ValueError, "membership differs"):
+                admin.manage_integration_wave("/repo", "/plan.json", "RUN", "M40", action="declare")
+            connection.execute("DELETE FROM workflow_dispatches")
+            schedule["phases"][0]["required_tasks"] = ["T-PRODUCER"]
+            with self.assertRaisesRegex(ValueError, "active durable owner"):
+                admin.manage_integration_wave("/repo", "/plan.json", "RUN", "M40", action="declare")
+
+    def test_manage_integration_wave_adopts_only_first_gate_failed_queued_artifact(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='queued'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "active", "exclusive", "M40", "producer-base", "/destination"),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_dispatches(id,lane_id,state) VALUES('D-1','L-INTEGRATE','active')")
+        connection.execute(
+            "INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'gate_failed')"
+        )
+        connection.execute("UPDATE workflow_patch_artifacts SET state='gate_failed' WHERE id='A-1'")
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        manager.return_value.declare_and_adopt_integration_wave.return_value = {"wave_id": "WAVE-1"}
+        schedule = {"phases": [{"integration_task": "M40", "required_tasks": ["T-PRODUCER"]}]}
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            result = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="declare", adopt_gate_failed=True,
+                apply=True, confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+
+        self.assertEqual(result["status"], "declared")
+        manager.return_value.declare_and_adopt_integration_wave.assert_called_once_with(
+            queue_ids=["Q-1"], legacy_provenance_reason=None,
+        )
+
+    def test_manage_integration_wave_gate_finalizes_with_fresh_root_gate_evidence(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='queued'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "applied_pending_wave", "exclusive", "M40", "producer-base", "/destination"),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_dispatches(id,lane_id,state) VALUES('D-1','L-INTEGRATE','active')")
+        connection.execute("INSERT INTO gates VALUES('G-1','M40',1)")
+        connection.execute(
+            "INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'applied_pending_wave')"
+        )
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        manager.return_value.record_integration_wave_gates.return_value = {"state": "integrated"}
+        schedule = {"phases": [{"integration_task": "M40", "required_tasks": ["T-PRODUCER"]}]}
+        modules = _todo_runtime_modules(plan, service, manager)
+        modules["todo_orchestrator.gates"].run_gate.return_value = (
+            {"gate_id": "G-1", "status": "passed", "evidence_id": "E-1"}, 41,
+        )
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, modules):
+            result = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="gate-finalize", wave_id="WAVE-1",
+                apply=True, confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+
+        self.assertEqual(result["status"], "finalized")
+        modules["todo_orchestrator.gates"].run_gate.assert_called_once_with(
+            service.db, service.paths, service.project, "G-1", None,
+            authorized_claim_id="CLAIM-1", execution_root=Path("/destination"),
+            workspace_base_commit="producer-base",
+        )
+        manager.return_value.record_integration_wave_gates.assert_called_once_with(
+            integration_task_id="M40", wave_id="WAVE-1",
+            gate_results=[{"gate_id": "G-1", "evidence_id": "E-1"}],
+        )
+
+    def test_manage_integration_wave_continues_explicitly_adopted_legacy_member(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='gate_failed'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "applied_pending_wave", "exclusive", "M40", "producer-base", "/destination"),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_dispatches(id,lane_id,state) VALUES('D-1','L-INTEGRATE','active')")
+        connection.execute(
+            "INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'applied_pending_wave')"
+        )
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        manager.return_value.apply_declared_integration_wave.return_value = {"wave_id": "WAVE-1"}
+        schedule = {"phases": [{"integration_task": "M40", "required_tasks": ["T-PRODUCER"]}]}
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            result = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="apply", wave_id="WAVE-1",
+                apply=True, confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+
+        self.assertEqual(result["status"], "applied")
+        manager.return_value.apply_declared_integration_wave.assert_called_once_with(
+            integration_task_id="M40", wave_id="WAVE-1",
+        )
+
+    def test_manage_integration_wave_gate_failure_does_not_finalize(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='queued'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "applied_pending_wave", "exclusive", "M40", "producer-base", "/destination"),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_dispatches(id,lane_id,state) VALUES('D-1','L-INTEGRATE','active')")
+        connection.execute("INSERT INTO gates VALUES('G-1','M40',1)")
+        connection.execute("INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'applied_pending_wave')")
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        schedule = {"phases": [{"integration_task": "M40", "required_tasks": ["T-PRODUCER"]}]}
+        modules = _todo_runtime_modules(plan, service, manager)
+        modules["todo_orchestrator.gates"].run_gate.return_value = (
+            {"gate_id": "G-1", "status": "failed", "evidence_id": "E-1"}, 41,
+        )
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, modules):
+            result = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="gate-finalize", wave_id="WAVE-1",
+                apply=True, confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+        self.assertEqual(result["status"], "gate_failed")
+        manager.return_value.record_integration_wave_gates.assert_not_called()
+
+    def test_manage_integration_wave_recovers_only_finalizing_wave_with_reason(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='queued'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?)",
+            ("W-DEST", "RUN", "L-INTEGRATE", "finalizing", "exclusive", "M40", "producer-base", "/destination"),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'finalizing')")
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        manager.return_value.recover_interrupted_integration_wave_finalization.return_value = {"state": "applied_pending_wave"}
+        schedule = {"phases": [{"integration_task": "M40", "required_tasks": ["T-PRODUCER"]}]}
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            with self.assertRaisesRegex(ValueError, "requires a reason"):
+                admin.manage_integration_wave("/repo", "/plan.json", "RUN", "M40", action="recover-finalization", wave_id="WAVE-1")
+            result = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="recover-finalization", wave_id="WAVE-1",
+                reason="process died after reservation", apply=True,
+                confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+        self.assertEqual(result["status"], "recovered")
+        manager.return_value.recover_interrupted_integration_wave_finalization.assert_called_once_with(
+            integration_task_id="M40", wave_id="WAVE-1", reason="process died after reservation",
         )
 
     def test_schedule_binding_rejects_unsealed_or_malformed_sidecar(self) -> None:
@@ -608,6 +871,23 @@ class AdminCliTests(unittest.TestCase):
             ])
         self.assertEqual(result, 0)
         cleanup.assert_called_once_with("/repo", "RUN", apply=False, confirmation=None)
+        self.assertEqual(json.loads(output.getvalue()), preview)
+
+    def test_integration_wave_cli_forwards_root_recovery_reason(self) -> None:
+        preview = {"status": "recovered", "wave_id": "WAVE-1"}
+        with patch.object(admin, "manage_integration_wave", return_value=preview) as manage, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            result = admin.main([
+                "integration-wave", "--repo", "/repo", "--plan", "/plan.json", "--run", "RUN",
+                "--integration-task", "M40", "--action", "recover-finalization", "--wave", "WAVE-1",
+                "--reason", "process died after reservation",
+            ])
+        self.assertEqual(result, 0)
+        manage.assert_called_once_with(
+            "/repo", "/plan.json", "RUN", "M40", action="recover-finalization", wave_id="WAVE-1",
+            adopt_gate_failed=False, apply=False, legacy_provenance_reason=None,
+            reason="process died after reservation", confirmation=None,
+        )
         self.assertEqual(json.loads(output.getvalue()), preview)
 
 

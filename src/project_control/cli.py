@@ -174,6 +174,18 @@ def _parser() -> argparse.ArgumentParser:
     publish.add_argument("--lane", required=True)
     publish.add_argument("--apply", action="store_true")
     publish.add_argument("--confirm")
+    integration_wave = admin_commands.add_parser("integration-wave")
+    integration_wave.add_argument("--repo", required=True)
+    integration_wave.add_argument("--plan", required=True)
+    integration_wave.add_argument("--run", required=True)
+    integration_wave.add_argument("--integration-task", required=True)
+    integration_wave.add_argument("--action", required=True, choices=("declare", "apply", "gate-finalize", "recover-finalization"))
+    integration_wave.add_argument("--wave")
+    integration_wave.add_argument("--adopt-gate-failed", action="store_true")
+    integration_wave.add_argument("--legacy-provenance-reason")
+    integration_wave.add_argument("--reason")
+    integration_wave.add_argument("--apply", action="store_true")
+    integration_wave.add_argument("--confirm")
     return parser
 
 
@@ -359,6 +371,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 advance_producer_wave,
                 inspect_recovery,
                 mark_run_workspaces_cleanup_eligible,
+                manage_integration_wave,
                 prepare_run_workspaces,
                 publish_producer_wave,
                 reconcile_workspace_base,
@@ -390,6 +403,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 result = advance_producer_wave(
                     args.repo, args.plan, args.run, args.lane, args.base, args.integration_task,
                     reason=args.reason, apply=args.apply, confirmation=args.confirm,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "integration-wave":
+                result = manage_integration_wave(
+                    args.repo, args.plan, args.run, args.integration_task,
+                    action=args.action, wave_id=args.wave,
+                    adopt_gate_failed=args.adopt_gate_failed, apply=args.apply,
+                    legacy_provenance_reason=args.legacy_provenance_reason,
+                    reason=args.reason,
+                    confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             else:

@@ -20,6 +20,7 @@ RECONCILE_WORKSPACE_BASE_CONFIRMATION = "RECONCILE-WORKSPACE-BASE"
 MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION = "MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE"
 ADVANCE_PRODUCER_WAVE_CONFIRMATION = "ADVANCE-PRODUCER-WAVE"
 PUBLISH_PRODUCER_WAVE_CONFIRMATION = "PUBLISH-PRODUCER-WAVE"
+INTEGRATION_WAVE_CONFIRMATION = "INTEGRATION-WAVE"
 
 
 def _runtime_identity() -> object:
@@ -688,6 +689,249 @@ def publish_producer_wave(
     return {**preview, "status": "published", "publication": published}
 
 
+def manage_integration_wave(
+    repo: str | Path,
+    plan_path: str | Path,
+    run_id: str,
+    integration_task_id: str,
+    *,
+    action: str,
+    wave_id: str | None = None,
+    adopt_gate_failed: bool = False,
+    legacy_provenance_reason: str | None = None,
+    reason: str | None = None,
+    apply: bool = False,
+    confirmation: str | None = None,
+) -> dict[str, object]:
+    """Root-only sealed-schedule control for one complete integration wave.
+
+    An integration lane remains the durable task owner.  This administrative
+    front door deliberately owns the privileged batch lifecycle: it derives
+    the complete producer membership from the sealed schedule before asking
+    the Todo kernel to declare, recover, apply, or finalise the wave.
+    """
+    _runtime_identity()
+    from todo_orchestrator.plan import load_plan
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.service import repository_identity
+    from todo_orchestrator.workflow.workspaces import WorkspaceService
+
+    if action not in {"declare", "apply", "gate-finalize", "recover-finalization"}:
+        raise ValueError("integration wave action must be declare, apply, gate-finalize, or recover-finalization")
+    if action in {"apply", "gate-finalize", "recover-finalization"} and not wave_id:
+        raise ValueError(f"integration wave {action} requires a wave ID")
+    if adopt_gate_failed and action != "declare":
+        raise ValueError("gate-failed adoption is permitted only while declaring a wave")
+    if legacy_provenance_reason is not None and not adopt_gate_failed:
+        raise ValueError("legacy provenance reason is permitted only while adopting a gate failure")
+    if action == "recover-finalization" and not (reason and reason.strip()):
+        raise ValueError("interrupted integration finalization recovery requires a reason")
+
+    repository = Path(repo).expanduser().resolve()
+    plan_file = Path(plan_path).expanduser().resolve()
+    plan = load_plan(plan_file)
+    runs = [item for item in plan.get("runs", []) if str(item.get("id")) == run_id]
+    if len(runs) != 1:
+        raise ValueError(f"native plan must contain exactly one run named {run_id}")
+    schedule = _verified_schedule(plan_file)
+    if schedule is None:
+        raise ValueError("batch integration requires a sealed integration schedule")
+    phases = [
+        item for item in schedule["phases"]
+        if str(item["integration_task"]) == integration_task_id
+    ]
+    if len(phases) != 1:
+        raise ValueError("sealed schedule must contain exactly one requested integration phase")
+    required = [str(item) for item in phases[0]["required_tasks"]]
+    if len(required) != len(set(required)):
+        raise ValueError("sealed integration phase contains duplicate producer tasks")
+
+    service = Service(repository, mutation_mode="self_debug")
+    project_uuid = str(service.project["project_uuid"])
+    with service.db.read() as conn:
+        queues = conn.execute(
+            """SELECT q.id,q.position,q.state,q.integrator_lane_id,q.patch_artifact_id,
+                      a.task_id,a.state AS artifact_state,a.artifact_ref,a.content_hash,a.base_commit AS artifact_base,
+                      w.id AS producer_workspace_id,w.run_id AS producer_run_id,w.lane_id AS producer_lane_id,
+                      w.state AS producer_state,w.integration_task_id AS producer_task,w.base_commit AS producer_base,
+                      d.id AS destination_workspace_id,d.mode AS destination_mode,
+                      d.integration_task_id AS destination_task,d.base_commit AS destination_base
+                 FROM workflow_integration_queue q
+                 JOIN workflow_patch_artifacts a ON a.id=q.patch_artifact_id
+                 JOIN workflow_workspaces w ON w.id=a.workspace_id
+                 JOIN workflow_workspaces d ON d.run_id=q.run_id AND d.lane_id=q.integrator_lane_id
+                WHERE q.run_id=? AND q.integration_task_id=?
+                ORDER BY q.position,q.id""",
+            (run_id, integration_task_id),
+        ).fetchall()
+        owned = conn.execute(
+            """SELECT lt.task_id,lt.state FROM workflow_lane_tasks lt
+                 JOIN workflow_lanes l ON l.id=lt.lane_id
+                WHERE l.run_id=? AND l.id IN (
+                    SELECT DISTINCT integrator_lane_id FROM workflow_integration_queue
+                     WHERE run_id=? AND integration_task_id=?
+                ) AND lt.state IN ('active','queued')
+                ORDER BY lt.position LIMIT 1""",
+            (run_id, run_id, integration_task_id),
+        ).fetchone()
+        dispatches = conn.execute(
+            """SELECT d.id FROM workflow_dispatches d
+                 JOIN workflow_integration_queue q ON q.integrator_lane_id=d.lane_id
+                WHERE q.run_id=? AND q.integration_task_id=? AND d.state='active'
+                GROUP BY d.id""",
+            (run_id, integration_task_id),
+        ).fetchall()
+    if not queues:
+        raise ValueError("integration wave has no queued producer artifacts")
+    lane_ids = {str(row["integrator_lane_id"]) for row in queues}
+    destination_ids = {str(row["destination_workspace_id"]) for row in queues}
+    bases = {str(row["artifact_base"]) for row in queues} | {str(row["producer_base"]) for row in queues}
+    task_ids = [str(row["task_id"]) for row in queues]
+    if len(lane_ids) != 1 or len(destination_ids) != 1:
+        raise ValueError("integration wave requires one exclusive destination and integrator lane")
+    if any(
+        str(row["producer_run_id"]) != run_id
+        or str(row["producer_task"] or "") != integration_task_id
+        for row in queues
+    ):
+        raise ValueError("integration wave artifact provenance is no longer immutable")
+    if task_ids != sorted(task_ids, key=lambda task_id: required.index(task_id) if task_id in required else len(required)):
+        # Queue ordering is sealed by producer membership, not timing of publication.
+        raise ValueError("integration queue order differs from the sealed producer wave")
+    if set(task_ids) != set(required) or len(task_ids) != len(required):
+        raise ValueError("integration queue membership differs from the sealed producer wave")
+    if len(bases) != 1:
+        raise ValueError("integration wave producer artifacts do not share one immutable base")
+    destination = queues[0]
+    if (str(destination["destination_mode"]) != "exclusive"
+            or str(destination["destination_task"] or "") != integration_task_id
+            or str(destination["destination_base"]) not in bases):
+        raise ValueError("integration wave destination is not the sealed exclusive workspace")
+    states = [str(row["state"]) for row in queues]
+    if action == "declare":
+        allowed = {"queued"} if not adopt_gate_failed else {"queued", "gate_failed"}
+    elif action == "apply":
+        allowed = {"queued", "applied_pending_wave"}
+    elif action == "gate-finalize":
+        allowed = {"applied_pending_wave"}
+    else:
+        allowed = {"finalizing"}
+    if any(state not in allowed for state in states):
+        raise ValueError("integration wave members are not all pending or explicitly adoptable")
+    if "gate_failed" in states and (states[0] != "gate_failed" or states.count("gate_failed") != 1):
+        raise ValueError("only the first gate-failed integration member is adoptable")
+    for row in queues:
+        queue_state = str(row["state"])
+        artifact_state = str(row["artifact_state"])
+        expected_artifact_state = "gate_failed" if queue_state == "gate_failed" else "queued"
+        legacy_adopted = (
+            queue_state == "applied_pending_wave"
+            and artifact_state == "gate_failed"
+            and row is queues[0]
+        )
+        if artifact_state != expected_artifact_state and not legacy_adopted:
+            raise ValueError("integration wave queue and immutable artifact states differ")
+    if owned is None or str(owned["task_id"]) != integration_task_id:
+        raise ValueError("integration task is not the current owned task for its lane")
+    # A normal batch action is performed while the durable integration owner
+    # remains live.  Interrupted finalization is different: its whole point
+    # is recovery after that process may have died, so it retains every
+    # sealed-membership/destination check above but cannot demand a dispatch.
+    if action != "recover-finalization" and len(dispatches) != 1:
+        raise ValueError("integration task must have exactly one active durable owner")
+
+    membership = [
+        {"queue_id": str(row["id"]), "position": int(row["position"]),
+         "task_id": str(row["task_id"]), "artifact_id": str(row["patch_artifact_id"]),
+         "artifact_ref": str(row["artifact_ref"]), "content_hash": str(row["content_hash"])}
+        for row in queues
+    ]
+    preview: dict[str, object] = {
+        "status": "ready", "action": action, "run_id": run_id,
+        "integration_task_id": integration_task_id, "integration_lane_id": next(iter(lane_ids)),
+        "destination_workspace_id": next(iter(destination_ids)), "base_commit": next(iter(bases)),
+        "members": membership, "wave_id": wave_id, "adopt_gate_failed": adopt_gate_failed,
+    }
+    if not apply:
+        return preview
+    if confirmation != INTEGRATION_WAVE_CONFIRMATION:
+        raise ValueError(f"--confirm must equal {INTEGRATION_WAVE_CONFIRMATION}")
+    manager = WorkspaceService(
+        service.db, managed_root=service.paths.state_dir / "workflow-workspaces",
+        repository_identity_resolver=lambda root: repository_identity(root, project_uuid),
+    )
+    queue_ids = [str(row["id"]) for row in queues]
+    if action == "declare":
+        declared = manager.declare_and_adopt_integration_wave(
+            queue_ids=queue_ids, legacy_provenance_reason=legacy_provenance_reason,
+        )
+        return {**preview, "status": "declared", "declaration": declared}
+    if action == "apply":
+        applied = manager.apply_declared_integration_wave(
+            integration_task_id=integration_task_id, wave_id=wave_id,
+        )
+        return {**preview, "status": "applied", "application": applied}
+    if action == "recover-finalization":
+        recovered = manager.recover_interrupted_integration_wave_finalization(
+            integration_task_id=integration_task_id, wave_id=wave_id, reason=str(reason),
+        )
+        return {**preview, "status": "recovered", "recovery": recovered}
+    # Batch gates are root-owned: use the active integration claim internally
+    # against the cumulative destination source, then immediately bind that
+    # fresh evidence into the same declared wave.
+    from todo_orchestrator.gates import run_gate
+    with service.db.read() as conn:
+        required_gates = conn.execute(
+            "SELECT id FROM gates WHERE task_id=? AND required=1 ORDER BY id",
+            (integration_task_id,),
+        ).fetchall()
+        owner = conn.execute(
+            """SELECT d.claim_id FROM workflow_dispatches d
+                 JOIN workflow_integration_queue q ON q.integrator_lane_id=d.lane_id
+                WHERE q.run_id=? AND q.integration_task_id=? AND d.state='active'
+                GROUP BY d.claim_id""",
+            (run_id, integration_task_id),
+        ).fetchall()
+    if not required_gates:
+        raise ValueError("integration wave requires at least one required gate")
+    if len(owner) != 1:
+        raise ValueError("integration task must retain exactly one active claim for root gate execution")
+    # Resolve from the authoritative workspace row rather than accepting a
+    # caller path.  The ID was already bound to the sealed exclusive target.
+    with service.db.read() as conn:
+        destination_row = conn.execute(
+            "SELECT worktree_path FROM workflow_workspaces WHERE id=?",
+            (str(destination["destination_workspace_id"]),),
+        ).fetchone()
+    if destination_row is None:
+        raise ValueError("integration wave destination disappeared before gates")
+    destination_path = Path(str(destination_row["worktree_path"])).resolve()
+    gate_results: list[dict[str, object]] = []
+    for gate in required_gates:
+        result, revision = run_gate(
+            service.db, service.paths, service.project, str(gate["id"]), None,
+            authorized_claim_id=str(owner[0]["claim_id"]), execution_root=destination_path,
+            workspace_base_commit=next(iter(bases)),
+        )
+        gate_results.append({**result, "project_revision": revision})
+    if any(str(item.get("status")) != "passed" for item in gate_results):
+        return {**preview, "status": "gate_failed", "gates": [
+            {key: item.get(key) for key in ("gate_id", "status", "evidence_id")}
+            for item in gate_results
+        ]}
+    finalized = manager.record_integration_wave_gates(
+        integration_task_id=integration_task_id, wave_id=wave_id,
+        gate_results=[
+            {"gate_id": str(item["gate_id"]), "evidence_id": str(item["evidence_id"])}
+            for item in gate_results
+        ],
+    )
+    return {**preview, "status": "finalized", "gates": [
+        {key: item.get(key) for key in ("gate_id", "status", "evidence_id")}
+        for item in gate_results
+    ], "finalization": finalized}
+
+
 def mark_run_workspaces_cleanup_eligible(
     repo: str | Path,
     run_id: str,
@@ -836,11 +1080,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     contract.add_argument("--reason", required=True)
     contract.add_argument("--apply", action="store_true")
     contract.add_argument("--confirm")
+    wave = commands.add_parser("integration-wave", help="root-owned sealed batch integration lifecycle")
+    wave.add_argument("--repo", required=True)
+    wave.add_argument("--plan", required=True)
+    wave.add_argument("--run", required=True)
+    wave.add_argument("--integration-task", required=True)
+    wave.add_argument("--action", required=True, choices=("declare", "apply", "gate-finalize", "recover-finalization"))
+    wave.add_argument("--wave")
+    wave.add_argument("--adopt-gate-failed", action="store_true")
+    wave.add_argument("--legacy-provenance-reason")
+    wave.add_argument("--reason")
+    wave.add_argument("--apply", action="store_true")
+    wave.add_argument("--confirm")
     args = parser.parse_args(argv)
     if args.command == "record-contract-split-integration":
         result = record_contract_split_integration(
             args.repo, args.workspace, args.integration_task, args.accepted_commit,
             reason=args.reason, apply=args.apply, confirmation=args.confirm,
+        )
+        print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    elif args.command == "integration-wave":
+        result = manage_integration_wave(
+            args.repo, args.plan, args.run, args.integration_task,
+            action=args.action, wave_id=args.wave, adopt_gate_failed=args.adopt_gate_failed,
+            legacy_provenance_reason=args.legacy_provenance_reason, reason=args.reason,
+            apply=args.apply, confirmation=args.confirm,
         )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     elif args.command == "recover":
