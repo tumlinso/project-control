@@ -77,6 +77,8 @@ def _todo_runtime_modules(plan, service, workspace_service):
     workflow_service_module.repository_identity = Mock(return_value="repo-id")
     workspaces_module = types.ModuleType("todo_orchestrator.workflow.workspaces")
     workspaces_module.WorkspaceService = workspace_service
+    models_module = types.ModuleType("todo_orchestrator.models")
+    models_module.TodoError = RuntimeError
     return {
         "todo_orchestrator": package,
         "todo_orchestrator.plan": plan_module,
@@ -85,6 +87,7 @@ def _todo_runtime_modules(plan, service, workspace_service):
         "todo_orchestrator.workflow.lanes": lanes_module,
         "todo_orchestrator.workflow.service": workflow_service_module,
         "todo_orchestrator.workflow.workspaces": workspaces_module,
+        "todo_orchestrator.models": models_module,
     }
 
 
@@ -250,6 +253,7 @@ class AdminCliTests(unittest.TestCase):
                 "lanes": [{
                     "id": "L-NEW",
                     "role": "implementer",
+                    "tasks": ["T-NEW"],
                     "workspace": {
                         "mode": "isolated_merge",
                         "integration_task_id": "M40",
@@ -315,9 +319,10 @@ class AdminCliTests(unittest.TestCase):
             plan_file.write_text("{}", encoding="utf-8")
             schedule_file = machine / "integration_schedule.json"
             schedule_file.write_text(
-                json.dumps({"phases": [{
-                    "integration_task": "I00", "required_tasks": ["A02"]
-                }]}), encoding="utf-8",
+                json.dumps({"phases": [
+                    {"integration_task": "I00", "required_tasks": ["A01"]},
+                    {"integration_task": "I10", "required_tasks": ["A02"]},
+                ]}), encoding="utf-8",
             )
             (package / "MANIFEST.sha256").write_text(
                 f"{admin.hashlib.sha256(schedule_file.read_bytes()).hexdigest()}  machine/integration_schedule.json\n"
@@ -362,6 +367,77 @@ class AdminCliTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "multiple integration phases"):
                 admin._scheduled_integration_task(plan_file, lane)
+
+            self.assertEqual(
+                admin._scheduled_integration_task(plan_file, lane, "V01"), "I00"
+            )
+            self.assertEqual(
+                admin._scheduled_integration_task(plan_file, lane, "V02"), "I10"
+            )
+            duplicate = {"phases": [
+                {"integration_task": "I00", "required_tasks": ["V01"]},
+                {"integration_task": "I10", "required_tasks": ["V01"]},
+            ]}
+            schedule_file.write_text(json.dumps(duplicate), encoding="utf-8")
+            (package / "MANIFEST.sha256").write_text(
+                f"{admin.hashlib.sha256(schedule_file.read_bytes()).hexdigest()}  machine/integration_schedule.json\n"
+                f"{admin.hashlib.sha256(plan_file.read_bytes()).hexdigest()}  machine/native.todo-plan.json\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "multiple integration phases"):
+                admin._scheduled_integration_task(plan_file, lane, "V01")
+
+    def test_advance_producer_wave_forwards_preview_and_apply(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute(
+            "UPDATE workflow_workspaces SET state='integrated' WHERE id='W-PRODUCER'"
+        )
+        connection.execute(
+            "INSERT INTO workflow_lane_tasks VALUES('L-PRODUCER','T-NEXT',0,'queued')"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            plan = {"runs": [{"id": "RUN", "lanes": [{
+                "id": "L-PRODUCER", "tasks": ["T-NEXT"]
+            }]}]}
+            _unused, service = self._prepare_fixture(connection, Path(directory))
+            manager = Mock()
+            manager.return_value.advance_producer_wave.return_value = {"revision": 12}
+            with patch.object(admin, "_runtime_identity"), \
+                 patch.object(admin, "_git", return_value="next-base"), \
+                 patch.object(admin, "_scheduled_integration_task", return_value="M50"), \
+                 patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+                preview = admin.advance_producer_wave(
+                    "/repo", "/plan.json", "RUN", "L-PRODUCER", "candidate", "M50",
+                    reason="next serial phase",
+                )
+                with self.assertRaisesRegex(ValueError, "differs from the sealed"):
+                    admin.advance_producer_wave(
+                        "/repo", "/plan.json", "RUN", "L-PRODUCER", "candidate", "M60",
+                        reason="wrong phase",
+                    )
+                result = admin.advance_producer_wave(
+                    "/repo", "/plan.json", "RUN", "L-PRODUCER", "candidate", "M50",
+                    reason="next serial phase", apply=True,
+                    confirmation=admin.ADVANCE_PRODUCER_WAVE_CONFIRMATION,
+                )
+                connection.execute(
+                    "DELETE FROM workflow_lane_tasks WHERE lane_id='L-PRODUCER'"
+                )
+                with self.assertRaisesRegex(ValueError, "next queued producer"):
+                    admin.advance_producer_wave(
+                        "/repo", "/plan.json", "RUN", "L-PRODUCER", "candidate", "M50",
+                        reason="stale candidate",
+                    )
+
+        self.assertEqual(preview["status"], "ready")
+        self.assertEqual(preview["base_commit"], "next-base")
+        self.assertEqual(result["status"], "advanced")
+        manager.return_value.advance_producer_wave.assert_called_once_with(
+            repository_root=Path("/repo"), workspace_id="W-PRODUCER",
+            base_commit="next-base", integration_task_id="M50",
+            reason="next serial phase",
+        )
 
     def test_schedule_binding_rejects_unsealed_or_malformed_sidecar(self) -> None:
         lane = {"id": "L-A", "tasks": ["A01"]}

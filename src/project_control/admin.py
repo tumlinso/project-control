@@ -18,6 +18,7 @@ from typing import Any, Sequence
 PREPARE_WORKSPACES_CONFIRMATION = "PREPARE-RUN-WORKSPACES"
 RECONCILE_WORKSPACE_BASE_CONFIRMATION = "RECONCILE-WORKSPACE-BASE"
 MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION = "MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE"
+ADVANCE_PRODUCER_WAVE_CONFIRMATION = "ADVANCE-PRODUCER-WAVE"
 
 
 def _runtime_identity() -> object:
@@ -118,7 +119,9 @@ def _verified_schedule(plan_file: Path) -> dict[str, object] | None:
     return schedule
 
 
-def _scheduled_integration_task(plan_file: Path, lane: dict[str, object]) -> str | None:
+def _scheduled_integration_task(
+    plan_file: Path, lane: dict[str, object], current_task_id: str | None = None,
+) -> str | None:
     """Resolve a single bootstrap integration target from a sealed WF2 schedule.
 
     Schema-v3 plans may intentionally defer the binding while keeping the
@@ -130,6 +133,19 @@ def _scheduled_integration_task(plan_file: Path, lane: dict[str, object]) -> str
     if schedule is None:
         return None
     lane_tasks = {str(task_id) for task_id in lane.get("tasks", [])}
+    if current_task_id:
+        current_matches = {
+            str(phase["integration_task"])
+            for phase in schedule.get("phases", [])
+            if current_task_id in {str(task_id) for task_id in phase.get("required_tasks", [])}
+        }
+        if len(current_matches) > 1:
+            raise ValueError(
+                "current task belongs to multiple integration phases: "
+                f"{current_task_id}"
+            )
+        if current_matches:
+            return next(iter(current_matches))
     matches = {
         str(phase["integration_task"])
         for phase in schedule.get("phases", [])
@@ -296,6 +312,9 @@ def prepare_run_workspaces(
         if spec is None:
             raise ValueError(f"active lane is absent from the supplied plan: {lane_id}")
         workspace = dict(spec.get("workspace", {}))
+        candidate_task_id = str(candidate["task_id"])
+        if candidate_task_id not in {str(task_id) for task_id in spec.get("tasks", [])}:
+            raise ValueError(f"live candidate is absent from the sealed lane: {candidate_task_id}")
         mode = str(workspace.get("mode", "exclusive"))
         if lane_modes.get(lane_id) != mode:
             raise ValueError(f"workspace mode differs from live lane contract: {lane_id}")
@@ -303,7 +322,9 @@ def prepare_run_workspaces(
             continue
         integration_task_id = workspace.get("integration_task_id")
         if mode == "isolated_merge" and not integration_task_id:
-            integration_task_id = _scheduled_integration_task(plan_file, spec)
+            integration_task_id = _scheduled_integration_task(
+                plan_file, spec, candidate_task_id,
+            )
         if mode == "isolated_merge" and not integration_task_id:
             raise ValueError(f"isolated lane lacks integration_task_id: {lane_id}")
         if integration_task_id and str(integration_task_id) not in valid_integration_tasks:
@@ -324,7 +345,7 @@ def prepare_run_workspaces(
         name = _workspace_name(lane_id)
         pending.append({
             "lane_id": lane_id,
-            "task_id": str(candidate["task_id"]),
+            "task_id": candidate_task_id,
             "mode": mode,
             "integration_task_id": str(integration_task_id) if integration_task_id else None,
             "base_commit": workspace_base,
@@ -444,6 +465,103 @@ def reconcile_workspace_base(
         reason=reason,
     )
     result["status"] = "reconciled"
+    return result
+
+
+def advance_producer_wave(
+    repo: str | Path,
+    plan_path: str | Path,
+    run_id: str,
+    lane_id: str,
+    base_commit: str,
+    integration_task_id: str,
+    *,
+    reason: str,
+    apply: bool = False,
+    confirmation: str | None = None,
+) -> dict[str, object]:
+    """Advance an integrated serial producer to its next integration wave."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.plan import load_plan
+    from todo_orchestrator.models import TodoError
+    from todo_orchestrator.workflow.service import repository_identity
+    from todo_orchestrator.workflow.workspaces import WorkspaceService
+
+    if not reason.strip():
+        raise ValueError("producer wave advancement requires a reason")
+    repository = Path(repo).expanduser().resolve()
+    plan_file = Path(plan_path).expanduser().resolve()
+    plan = load_plan(plan_file)
+    runs = [item for item in plan.get("runs", []) if str(item.get("id")) == run_id]
+    if len(runs) != 1:
+        raise ValueError(f"native plan must contain exactly one run named {run_id}")
+    lanes = [item for item in runs[0].get("lanes", []) if str(item.get("id")) == lane_id]
+    if len(lanes) != 1:
+        raise ValueError(f"native plan must contain exactly one lane named {lane_id}")
+    lane_spec = lanes[0]
+    canonical_base = _git(repository, "rev-parse", f"{base_commit}^{{commit}}")
+    service = Service(repository, mutation_mode="self_debug")
+    project_uuid = str(service.project["project_uuid"])
+    with service.db.read() as conn:
+        rows = conn.execute(
+            "SELECT id,state,base_commit,integration_task_id "
+            "FROM workflow_workspaces WHERE run_id=? AND lane_id=?",
+            (run_id, lane_id),
+        ).fetchall()
+        candidates = conn.execute(
+            "SELECT task_id FROM workflow_lane_tasks WHERE lane_id=? AND state='queued' "
+            "ORDER BY position LIMIT 1",
+            (lane_id,),
+        ).fetchall()
+    if len(rows) != 1:
+        raise ValueError("expected exactly one workspace for the requested producer lane")
+    if len(candidates) != 1:
+        raise ValueError("expected exactly one next queued producer task")
+    candidate_task_id = str(candidates[0]["task_id"])
+    if candidate_task_id not in {str(task_id) for task_id in lane_spec.get("tasks", [])}:
+        raise ValueError(f"live candidate is absent from the sealed lane: {candidate_task_id}")
+    expected_integration_task = _scheduled_integration_task(
+        plan_file, lane_spec, candidate_task_id,
+    )
+    if expected_integration_task != integration_task_id:
+        raise ValueError(
+            "requested integration task differs from the sealed current phase: "
+            f"{integration_task_id} != {expected_integration_task}"
+        )
+    current = dict(rows[0])
+    preview: dict[str, object] = {
+        "status": "ready",
+        "run_id": run_id,
+        "lane_id": lane_id,
+        "workspace_id": current["id"],
+        "old_state": current["state"],
+        "old_base_commit": current["base_commit"],
+        "old_integration_task_id": current["integration_task_id"],
+        "base_commit": canonical_base,
+        "integration_task_id": integration_task_id,
+        "task_id": candidate_task_id,
+    }
+    if not apply:
+        return preview
+    if confirmation != ADVANCE_PRODUCER_WAVE_CONFIRMATION:
+        raise ValueError(f"--confirm must equal {ADVANCE_PRODUCER_WAVE_CONFIRMATION}")
+    manager = WorkspaceService(
+        service.db,
+        managed_root=service.paths.state_dir / "workflow-workspaces",
+        repository_identity_resolver=lambda root: repository_identity(root, project_uuid),
+    )
+    try:
+        result = manager.advance_producer_wave(
+            repository_root=repository,
+            workspace_id=str(current["id"]),
+            base_commit=canonical_base,
+            integration_task_id=integration_task_id,
+            reason=reason,
+        )
+    except TodoError as exc:
+        raise ValueError(f"producer wave advancement rejected: {exc}") from exc
+    result["status"] = "advanced"
     return result
 
 

@@ -156,6 +156,16 @@ def _parser() -> argparse.ArgumentParser:
     cleanup.add_argument("--run", required=True)
     cleanup.add_argument("--apply", action="store_true")
     cleanup.add_argument("--confirm")
+    advance = admin_commands.add_parser("advance-producer-wave")
+    advance.add_argument("--repo", required=True)
+    advance.add_argument("--plan", required=True)
+    advance.add_argument("--run", required=True)
+    advance.add_argument("--lane", required=True)
+    advance.add_argument("--base", required=True)
+    advance.add_argument("--integration-task", required=True)
+    advance.add_argument("--reason", required=True)
+    advance.add_argument("--apply", action="store_true")
+    advance.add_argument("--confirm")
     return parser
 
 
@@ -338,6 +348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "admin":
             from .admin import (
+                advance_producer_wave,
                 inspect_recovery,
                 mark_run_workspaces_cleanup_eligible,
                 prepare_run_workspaces,
@@ -360,9 +371,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     apply=args.apply, confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            else:
+            elif args.admin_command == "mark-run-workspaces-cleanup-eligible":
                 result = mark_run_workspaces_cleanup_eligible(
                     args.repo, args.run, apply=args.apply, confirmation=args.confirm,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            else:
+                result = advance_producer_wave(
+                    args.repo, args.plan, args.run, args.lane, args.base, args.integration_task,
+                    reason=args.reason, apply=args.apply, confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             return 0
