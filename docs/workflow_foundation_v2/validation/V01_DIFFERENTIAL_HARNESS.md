@@ -13,3 +13,7 @@ existing/original test count separately from newly authored scenario names so
 coverage cannot be silently replaced. `run_original_suite` executes an
 explicit legacy-suite command and extracts its actual nonzero test count;
 scenario inventory is recorded independently.
+
+The mandatory `runtime_source` and `runtime_digest` probe fields identify the
+two pinned runtimes and must differ as an identity pair; they are excluded from
+semantic comparison only after that check because relocation changes location.
