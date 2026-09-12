@@ -78,6 +78,47 @@ def _workspace_name(value: str) -> str:
     return name
 
 
+def _verified_generated_projection_paths(repository: Path, service: Any) -> list[str]:
+    """Return only dirty files that exactly equal current Todo projections.
+
+    Root workspace preparation must never absorb source edits. Todo's durable
+    projections are the sole exception: verify their bytes against the live
+    authoritative database before allowing them.
+    """
+    from todo_orchestrator.git_state import dirty_paths, is_generated_projection
+    from todo_orchestrator.projections import build_snapshot, project_markdown, replace_managed
+
+    observed = dirty_paths(repository)
+    material = [path for path in observed if not is_generated_projection(path)]
+    if material:
+        raise ValueError(
+            "repository has non-projection changes that must be preserved: "
+            + ", ".join(material)
+        )
+    if not observed:
+        return []
+    with service.db.read() as conn:
+        snapshot = build_snapshot(conn, service.project)
+        revision = int(conn.execute("SELECT value FROM meta WHERE key='project_revision'").fetchone()[0])
+        root, status, tasks = project_markdown(conn, revision)
+    expected: dict[str, bytes] = {
+        ".todo-orchestrator/state.snapshot.json": (
+            json.dumps(snapshot, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8"),
+        "todos.md": replace_managed("", root).encode("utf-8"),
+        "todo-status.md": replace_managed("", status).encode("utf-8"),
+    }
+    expected.update({
+        f"todos/{task_id.lower()}.md": replace_managed("", body).encode("utf-8")
+        for task_id, body in tasks.items()
+    })
+    for relative in observed:
+        target = repository / relative
+        if relative not in expected or not target.is_file() or target.read_bytes() != expected[relative]:
+            raise ValueError(f"generated projection differs from authoritative Todo state: {relative}")
+    return observed
+
+
 def _verified_native_plan(plan_file: Path) -> dict[str, object]:
     """Load only a manifest-sealed native plan from its package directory."""
     manifest_file = plan_file.parent.parent / "MANIFEST.sha256"
@@ -413,10 +454,10 @@ def prepare_run_workspaces(
     if requested_lane_id is not None and requested_lane_id not in lane_specs:
         raise ValueError(f"requested lane is absent from the supplied plan: {requested_lane_id}")
 
-    if _git(repository, "status", "--porcelain=v1", "-z"):
-        raise ValueError("repository must be clean before managed workspaces are prepared")
-    base_commit = _git(repository, "rev-parse", "HEAD")
     service = Service(repository, mutation_mode="self_debug")
+    if _git(repository, "status", "--porcelain=v1", "-z"):
+        _verified_generated_projection_paths(repository, service)
+    base_commit = _git(repository, "rev-parse", "HEAD")
     project_uuid = str(service.project["project_uuid"])
     repo_identity = repository_identity(repository, project_uuid)
     with service.db.read() as conn:

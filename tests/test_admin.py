@@ -236,6 +236,57 @@ class AdminCliTests(unittest.TestCase):
         )
         return plan, service
 
+    def test_projection_dirty_guard_allows_only_exact_authoritative_outputs(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        self.addCleanup(connection.close)
+        connection.executescript(
+            "CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT);"
+            "INSERT INTO meta VALUES('project_revision','7');"
+        )
+        service = SimpleNamespace(
+            db=_ReadDatabase(connection), project={"project_uuid": "project-uuid"},
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected = {
+                ".todo-orchestrator/state.snapshot.json": b'{\n  "snapshot": true\n}\n',
+                "todos.md": b"ROOT\n",
+                "todo-status.md": b"STATUS\n",
+                "todos/task-a.md": b"TASK\n",
+            }
+            for relative, content in expected.items():
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            package = types.ModuleType("todo_orchestrator")
+            package.__path__ = []
+            git_state = types.ModuleType("todo_orchestrator.git_state")
+            git_state.dirty_paths = Mock(return_value=sorted(expected))
+            git_state.is_generated_projection = lambda _path: True
+            projections = types.ModuleType("todo_orchestrator.projections")
+            projections.build_snapshot = Mock(return_value={"snapshot": True})
+            projections.project_markdown = Mock(return_value=("ROOT\n", "STATUS\n", {"TASK-A": "TASK\n"}))
+            projections.replace_managed = lambda _existing, managed: managed
+            with patch.dict(sys.modules, {
+                "todo_orchestrator": package,
+                "todo_orchestrator.git_state": git_state,
+                "todo_orchestrator.projections": projections,
+            }):
+                self.assertEqual(
+                    admin._verified_generated_projection_paths(root, service),
+                    sorted(expected),
+                )
+                git_state.dirty_paths.return_value = ["source.py"]
+                git_state.is_generated_projection = lambda _path: False
+                with self.assertRaisesRegex(ValueError, "non-projection changes"):
+                    admin._verified_generated_projection_paths(root, service)
+                git_state.dirty_paths.return_value = ["todos.md"]
+                git_state.is_generated_projection = lambda _path: True
+                (root / "todos.md").write_text("forged\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "differs from authoritative"):
+                    admin._verified_generated_projection_paths(root, service)
+
     def test_prepare_run_workspaces_provisions_missing_exclusive_destination(self) -> None:
         connection = _workspace_database()
         self.addCleanup(connection.close)
@@ -997,11 +1048,13 @@ class AdminCliTests(unittest.TestCase):
         recover.assert_not_called()
         self.assertEqual(json.loads(output.getvalue()), {"status": "safe"})
 
-    def test_recovery_forwards_explicit_owner_reason(self) -> None:
+    def test_task_recovery_forwards_explicit_owner_reason_and_exact_task(self) -> None:
         with patch.object(admin, "recover") as recover:
-            result = admin.main(["recover", "--repo", "/repo", "--reason", "owner approved"])
+            result = admin.main([
+                "recover", "--repo", "/repo", "--task", "T-1", "--reason", "owner approved",
+            ])
         self.assertEqual(result, 0)
-        recover.assert_called_once_with("/repo", reason="owner approved", task_id=None)
+        recover.assert_called_once_with("/repo", reason="owner approved", task_id="T-1")
 
     def test_prepare_run_workspaces_cli_defaults_to_preview(self) -> None:
         prepared = {"status": "ready", "pending": [{"lane_id": "L-A"}]}
