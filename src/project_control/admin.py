@@ -154,7 +154,8 @@ def _exclusive_integrator_destinations(
         "JOIN workflow_lane_tasks lt ON lt.lane_id=l.id "
         "WHERE l.run_id=? AND l.role IN ('integrator','validator') "
         "AND l.workspace_mode='exclusive' "
-        "AND l.state IN ('ready','active') AND lt.state IN ('queued','active') "
+        "AND l.state NOT IN ('closed','cancelled') "
+        "AND lt.state IN ('queued','active') "
         "AND lt.position=(SELECT MIN(head.position) FROM workflow_lane_tasks head "
         "WHERE head.lane_id=l.id AND head.state IN ('queued','active')) ORDER BY l.id",
         (run_id,),

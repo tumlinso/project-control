@@ -149,6 +149,44 @@ class AdminCliTests(unittest.TestCase):
         self.assertEqual(result["pending"][0]["lane_id"], "L-INTEGRATE")
         self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
 
+    def test_prepare_blocked_exclusive_destination_before_producer_completion(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute("UPDATE workflow_lanes SET state='blocked' WHERE id='L-INTEGRATE'")
+        connection.execute("UPDATE workflow_workspaces SET state='active' WHERE id='W-PRODUCER'")
+        connection.execute("DELETE FROM workflow_patch_artifacts")
+        with tempfile.TemporaryDirectory() as directory:
+            plan, service = self._prepare_fixture(connection, Path(directory))
+            manager = Mock()
+            with patch.object(admin, "_runtime_identity"), \
+                 patch.object(admin, "_git", side_effect=["", "canonical-head"]), \
+                 patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+                result = admin.prepare_run_workspaces("/repo", "/plan.json", "RUN")
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["pending"][0]["lane_id"], "L-INTEGRATE")
+        self.assertEqual(result["pending"][0]["integration_task_id"], "M40")
+        self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
+
+    def test_prepare_never_materializes_terminal_exclusive_destination(self) -> None:
+        for state in ("closed", "cancelled"):
+            with self.subTest(state=state):
+                connection = _workspace_database()
+                self.addCleanup(connection.close)
+                connection.execute("UPDATE workflow_lanes SET state=? WHERE id='L-INTEGRATE'", (state,))
+                connection.execute("UPDATE workflow_workspaces SET state='active' WHERE id='W-PRODUCER'")
+                connection.execute("DELETE FROM workflow_patch_artifacts")
+                with tempfile.TemporaryDirectory() as directory:
+                    plan, service = self._prepare_fixture(connection, Path(directory))
+                    manager = Mock()
+                    with patch.object(admin, "_runtime_identity"), \
+                         patch.object(admin, "_git", side_effect=["", "canonical-head"]), \
+                         patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+                        result = admin.prepare_run_workspaces("/repo", "/plan.json", "RUN")
+
+                self.assertEqual(result["status"], "noop")
+                self.assertEqual(result["pending"], [])
+
     def test_prepare_validator_owned_exclusive_destination(self) -> None:
         connection = _workspace_database()
         self.addCleanup(connection.close)
