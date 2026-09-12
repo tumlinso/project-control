@@ -1,12 +1,15 @@
 # V01 differential-harness contract
 
-`tests/wf2_validation/differential_harness.py` runs the old and candidate
-commands in separate subprocesses. Each command receives a fresh fixture root
-through `WF2_FIXTURE_ROOT`; the harness rejects any fixture that overlaps a
-registered live authority root supplied by the caller.
+`tests/wf2_validation/differential_harness.py` runs explicitly pinned old and
+candidate commands in separate subprocesses. The command executable must be
+absolute and each side must carry a distinct pinned identity. Each command
+receives a fresh, distinct fixture root through `WF2_FIXTURE_ROOT`; the harness
+rejects either direction of overlap with a registered live authority root.
 
 Only fields named by the caller as documented nondeterminism may be removed
 before comparison. A changed status, a missing event field, malformed JSON, or
 a failed child process is a test failure. The inventory report records the
 existing/original test count separately from newly authored scenario names so
-coverage cannot be silently replaced.
+coverage cannot be silently replaced. `run_original_suite` executes an
+explicit legacy-suite command and extracts its actual nonzero test count;
+scenario inventory is recorded independently.

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 import subprocess
 from typing import Iterable, Mapping, Sequence
 
@@ -23,6 +24,7 @@ class RuntimeCase:
     command: tuple[str, ...]
     fixture_root: Path
     label: str
+    pinned_identity: str
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,15 @@ class InventoryReport:
         }
 
 
+@dataclass(frozen=True)
+class OriginalSuiteReport:
+    command: tuple[str, ...]
+    tests_run: int
+
+
+_RUN_COUNT = re.compile(r"Ran (\d+) tests?")
+
+
 def _resolved(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
@@ -53,14 +64,18 @@ def require_disposable_fixture(fixture_root: Path, registered_authority_roots: I
     fixture = _resolved(fixture_root)
     for authority in registered_authority_roots:
         live = _resolved(authority)
-        if fixture == live or fixture.is_relative_to(live):
+        if fixture == live or fixture.is_relative_to(live) or live.is_relative_to(fixture):
             raise DifferentialError(f"fixture root {fixture} overlaps registered authority {live}")
     return fixture
 
 
 def _run(case: RuntimeCase, registered_authority_roots: Iterable[Path]) -> Mapping[str, object]:
     fixture = require_disposable_fixture(case.fixture_root, registered_authority_roots)
-    fixture.mkdir(parents=True, exist_ok=True)
+    if fixture.exists():
+        raise DifferentialError(f"fixture root must be fresh: {fixture}")
+    if not case.pinned_identity or not Path(case.command[0]).is_absolute():
+        raise DifferentialError(f"{case.label} must name an absolute command and pinned identity")
+    fixture.mkdir(parents=True)
     completed = subprocess.run(
         case.command,
         cwd=fixture,
@@ -88,6 +103,10 @@ def compare_case(
     nondeterministic_fields: Iterable[str] = (),
 ) -> ScenarioResult:
     """Run both runtimes in fresh subprocesses and reject any unallowed delta."""
+    if old.fixture_root == candidate.fixture_root:
+        raise DifferentialError("old and candidate require distinct fixture roots")
+    if old.pinned_identity == candidate.pinned_identity:
+        raise DifferentialError("old and candidate require distinct pinned identities")
     forbidden = set(nondeterministic_fields)
     old_result = dict(_run(old, registered_authority_roots))
     candidate_result = dict(_run(candidate, registered_authority_roots))
@@ -101,3 +120,15 @@ def compare_case(
     if old_result != candidate_result:
         raise DifferentialError(f"semantic result mismatch: old={old_result!r}, candidate={candidate_result!r}")
     return ScenarioResult(old=old_result, candidate=candidate_result)
+
+
+def run_original_suite(command: Sequence[str], *, cwd: Path) -> OriginalSuiteReport:
+    """Run an explicitly selected legacy suite and record its real test count."""
+    if not command or not Path(command[0]).is_absolute():
+        raise DifferentialError("original suite command must be absolute and explicit")
+    completed = subprocess.run(command, cwd=cwd, check=False, capture_output=True, text=True)
+    transcript = completed.stdout + completed.stderr
+    match = _RUN_COUNT.search(transcript)
+    if completed.returncode or not match or int(match.group(1)) == 0:
+        raise DifferentialError("original suite did not complete with a nonzero test count: " + transcript[-1000:])
+    return OriginalSuiteReport(command=tuple(command), tests_run=int(match.group(1)))

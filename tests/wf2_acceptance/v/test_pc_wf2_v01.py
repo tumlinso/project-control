@@ -15,28 +15,35 @@ from differential_harness import (  # noqa: E402
     RuntimeCase,
     compare_case,
     require_disposable_fixture,
+    run_original_suite,
 )
 
 
 class WF2Acceptance(unittest.TestCase):
-    def _runtime(self, root: Path, name: str, result: dict[str, object]) -> RuntimeCase:
-        program = root / f"{name}.py"
-        program.write_text("import json\nprint(json.dumps(" + repr(result) + "))\n", encoding="utf-8")
-        return RuntimeCase((sys.executable, str(program)), root / f"fixture-{name}", name)
+    def _runtime(self, root: Path, name: str, *, status: str = "claimed", event: bool = True) -> RuntimeCase:
+        # This is a real Todo runtime import and derives the protocol value from
+        # its installed source; the altered branches are negative controls.
+        code = (
+            "import json, todo_orchestrator; "
+            "from todo_orchestrator.workflow.foundation import PROTOCOL_VERSION; "
+            f"r={{'runtime_source': todo_orchestrator.__file__, 'protocol_version': PROTOCOL_VERSION, 'status': {status!r}}}; "
+            + ("r['event']='claim'; " if event else "")
+            + "print(json.dumps(r, sort_keys=True))"
+        )
+        return RuntimeCase((sys.executable, "-B", "-c", code), root / f"fixture-{name}", name, f"pinned-{name}")
 
     def test_harness_catches_a_deliberately_changed_status_and_missing_event(self):
         with tempfile.TemporaryDirectory(prefix="wf2-v01-") as raw:
             root = Path(raw)
-            old = self._runtime(root, "old", {"status": "claimed", "event": "claim", "clock": 1})
-            changed = self._runtime(root, "changed", {"status": "done", "event": "claim", "clock": 2})
-            missing = self._runtime(root, "missing", {"status": "claimed", "clock": 2})
             live = root / "registered-live-authority"
-            compare_case(old, self._runtime(root, "same", {"status": "claimed", "event": "claim", "clock": 2}),
-                         registered_authority_roots=(live,), nondeterministic_fields=("clock",))
+            compare_case(self._runtime(root, "old-same"), self._runtime(root, "candidate-same"),
+                         registered_authority_roots=(live,))
             with self.assertRaisesRegex(DifferentialError, "semantic result mismatch"):
-                compare_case(old, changed, registered_authority_roots=(live,), nondeterministic_fields=("clock",))
+                compare_case(self._runtime(root, "old-changed"), self._runtime(root, "changed", status="done"),
+                             registered_authority_roots=(live,))
             with self.assertRaisesRegex(DifferentialError, "missing result fields"):
-                compare_case(old, missing, registered_authority_roots=(live,), nondeterministic_fields=("clock",))
+                compare_case(self._runtime(root, "old-missing"), self._runtime(root, "missing", event=False),
+                             registered_authority_roots=(live,))
 
     def test_fixtures_never_point_to_a_registered_live_db(self):
         with tempfile.TemporaryDirectory(prefix="wf2-v01-") as raw:
@@ -47,10 +54,16 @@ class WF2Acceptance(unittest.TestCase):
             self.assertEqual(require_disposable_fixture(disposable, (live,)), disposable.resolve())
             with self.assertRaisesRegex(DifferentialError, "overlaps registered authority"):
                 require_disposable_fixture(live / "candidate", (live,))
+            with self.assertRaisesRegex(DifferentialError, "overlaps registered authority"):
+                require_disposable_fixture(root, (live,))
 
     def test_full_original_tests_and_new_scenario_inventory_are_reported_separately(self):
-        report = InventoryReport(original_test_count=42, scenario_names=("claim", "completion", "recovery"))
+        project_root = Path(__file__).resolve().parents[3]
+        original = run_original_suite(
+            (sys.executable, "-B", "-m", "unittest", "tests.test_workflow_lifecycle"), cwd=project_root
+        )
+        report = InventoryReport(original_test_count=original.tests_run, scenario_names=("claim", "completion", "recovery"))
         payload = json.loads(json.dumps(report.as_dict()))
-        self.assertEqual(payload["original_test_count"], 42)
+        self.assertGreater(payload["original_test_count"], 0)
         self.assertEqual(payload["scenario_count"], 3)
         self.assertEqual(payload["scenario_names"], ["claim", "completion", "recovery"])
