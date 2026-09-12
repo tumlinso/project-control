@@ -903,6 +903,13 @@ def manage_integration_wave(
     required = [str(item) for item in phases[0]["required_tasks"]]
     if len(required) != len(set(required)):
         raise ValueError("sealed integration phase contains duplicate producer tasks")
+    phase_index = schedule["phases"].index(phases[0])
+    inherited_task_id: str | None = None
+    if phase_index:
+        previous_task_id = str(schedule["phases"][phase_index - 1]["integration_task"])
+        if previous_task_id in required:
+            inherited_task_id = previous_task_id
+    producer_required = [task_id for task_id in required if task_id != inherited_task_id]
 
     service = Service(repository, mutation_mode="self_debug")
     project_uuid = str(service.project["project_uuid"])
@@ -939,6 +946,15 @@ def manage_integration_wave(
                 GROUP BY d.id""",
             (run_id, integration_task_id),
         ).fetchall()
+        inherited = None
+        if inherited_task_id is not None:
+            inherited = conn.execute(
+                """SELECT w.id AS workspace_id,w.state AS workspace_state,w.artifact_kind,
+                          w.artifact_ref,w.diff_hash,w.merge_result_json,t.status AS task_status
+                     FROM workflow_workspaces w JOIN tasks t ON t.id=w.integration_task_id
+                    WHERE w.run_id=? AND w.integration_task_id=? AND w.mode='exclusive'""",
+                (run_id, inherited_task_id),
+            ).fetchall()
     if not queues:
         raise ValueError("integration wave has no queued producer artifacts")
     lane_ids = {str(row["integrator_lane_id"]) for row in queues}
@@ -953,10 +969,10 @@ def manage_integration_wave(
         for row in queues
     ):
         raise ValueError("integration wave artifact provenance is no longer immutable")
-    if task_ids != sorted(task_ids, key=lambda task_id: required.index(task_id) if task_id in required else len(required)):
+    if task_ids != sorted(task_ids, key=lambda task_id: producer_required.index(task_id) if task_id in producer_required else len(producer_required)):
         # Queue ordering is sealed by producer membership, not timing of publication.
         raise ValueError("integration queue order differs from the sealed producer wave")
-    if set(task_ids) != set(required) or len(task_ids) != len(required):
+    if set(task_ids) != set(producer_required) or len(task_ids) != len(producer_required):
         raise ValueError("integration queue membership differs from the sealed producer wave")
     if len(bases) != 1:
         raise ValueError("integration wave producer artifacts do not share one immutable base")
@@ -965,6 +981,37 @@ def manage_integration_wave(
             or str(destination["destination_task"] or "") != integration_task_id
             or str(destination["destination_base"]) not in bases):
         raise ValueError("integration wave destination is not the sealed exclusive workspace")
+    inherited_base: dict[str, str] | None = None
+    if inherited_task_id is not None:
+        if inherited is None or len(inherited) != 1:
+            raise ValueError("inherited integration base must have one exclusive destination receipt")
+        receipt = inherited[0]
+        try:
+            completion = json.loads(str(receipt["merge_result_json"] or "{}"))
+            integrated = dict(completion["integrated_artifact"])
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            raise ValueError("inherited integration base has no frozen completion receipt") from error
+        completion_commit = str(receipt["artifact_ref"] or "")
+        content_hash = str(receipt["diff_hash"] or "")
+        if (
+            str(receipt["task_status"]) != "done"
+            or str(receipt["workspace_state"]) != "integrated"
+            or str(receipt["artifact_kind"] or "") != "commit"
+            or not completion_commit
+            or not content_hash
+            or integrated.get("kind") != "commit"
+            or integrated.get("ref") != completion_commit
+            or integrated.get("content_hash") != content_hash
+        ):
+            raise ValueError("inherited integration base is not a frozen completed receipt")
+        if bases != {completion_commit} or str(destination["destination_base"]) != completion_commit:
+            raise ValueError("integration wave producers and destination must inherit the frozen completion base")
+        inherited_base = {
+            "task_id": inherited_task_id,
+            "completion_commit": completion_commit,
+            "content_hash": content_hash,
+            "workspace_id": str(receipt["workspace_id"]),
+        }
     states = [str(row["state"]) for row in queues]
     if action == "declare":
         allowed = {"queued"} if not adopt_gate_failed else {"queued", "gate_failed"}
@@ -1010,6 +1057,8 @@ def manage_integration_wave(
         "destination_workspace_id": next(iter(destination_ids)), "base_commit": next(iter(bases)),
         "members": membership, "wave_id": wave_id, "adopt_gate_failed": adopt_gate_failed,
     }
+    if inherited_base is not None:
+        preview["inherited_base"] = inherited_base
     if not apply:
         return preview
     if confirmation != INTEGRATION_WAVE_CONFIRMATION:
@@ -1020,9 +1069,13 @@ def manage_integration_wave(
     )
     queue_ids = [str(row["id"]) for row in queues]
     if action == "declare":
-        declared = manager.declare_and_adopt_integration_wave(
-            queue_ids=queue_ids, legacy_provenance_reason=legacy_provenance_reason,
-        )
+        declaration_args: dict[str, object] = {
+            "queue_ids": queue_ids,
+            "legacy_provenance_reason": legacy_provenance_reason,
+        }
+        if inherited_base is not None:
+            declaration_args["inherited_base"] = inherited_base
+        declared = manager.declare_and_adopt_integration_wave(**declaration_args)
         return {**preview, "status": "declared", "declaration": declared}
     if action == "apply":
         applied = manager.apply_declared_integration_wave(

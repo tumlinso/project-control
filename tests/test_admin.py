@@ -739,6 +739,68 @@ class AdminCliTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "active durable owner"):
                 admin.manage_integration_wave("/repo", "/plan.json", "RUN", "M40", action="declare")
 
+    def test_manage_integration_wave_inherits_the_previous_frozen_completion_base(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.executescript("""
+            ALTER TABLE workflow_workspaces ADD COLUMN artifact_kind TEXT;
+            ALTER TABLE workflow_workspaces ADD COLUMN artifact_ref TEXT;
+            ALTER TABLE workflow_workspaces ADD COLUMN diff_hash TEXT;
+            ALTER TABLE workflow_workspaces ADD COLUMN merge_result_json TEXT;
+        """)
+        connection.execute("UPDATE workflow_patch_artifacts SET state='queued',base_commit='previous-commit'")
+        connection.execute("UPDATE workflow_workspaces SET base_commit='previous-commit' WHERE id='W-PRODUCER'")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "W-PREVIOUS", "RUN", "L-PREVIOUS", "integrated", "exclusive", "M30",
+                "older-commit", "/previous", "commit", "previous-commit", "previous-hash",
+                json.dumps({"integrated_artifact": {
+                    "kind": "commit", "ref": "previous-commit", "content_hash": "previous-hash",
+                }}),
+            ),
+        )
+        connection.execute("INSERT INTO tasks VALUES('M30','done')")
+        connection.execute(
+            "INSERT INTO workflow_workspaces VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "W-DEST", "RUN", "L-INTEGRATE", "active", "exclusive", "M40",
+                "previous-commit", "/destination", None, None, None, None,
+            ),
+        )
+        connection.execute("UPDATE workflow_lane_tasks SET state='active' WHERE lane_id='L-INTEGRATE'")
+        connection.execute("INSERT INTO workflow_dispatches(id,lane_id,state) VALUES('D-1','L-INTEGRATE','active')")
+        connection.execute(
+            "INSERT INTO workflow_integration_queue VALUES('Q-1','RUN','M40','L-INTEGRATE','A-1',0,'queued')"
+        )
+        plan = {"runs": [{"id": "RUN", "lanes": []}]}
+        _unused, service = self._prepare_fixture(connection, Path("/state"))
+        manager = Mock()
+        manager.return_value.declare_and_adopt_integration_wave.return_value = {"wave_id": "WAVE-1"}
+        schedule = {"phases": [
+            {"integration_task": "M30", "required_tasks": ["T-PRODUCER"]},
+            {"integration_task": "M40", "required_tasks": ["M30", "T-PRODUCER"]},
+        ]}
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_verified_schedule", return_value=schedule), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            preview = admin.manage_integration_wave("/repo", "/plan.json", "RUN", "M40", action="declare")
+            result = admin.manage_integration_wave(
+                "/repo", "/plan.json", "RUN", "M40", action="declare", apply=True,
+                confirmation=admin.INTEGRATION_WAVE_CONFIRMATION,
+            )
+
+        inherited = {
+            "task_id": "M30", "completion_commit": "previous-commit",
+            "content_hash": "previous-hash", "workspace_id": "W-PREVIOUS",
+        }
+        self.assertEqual(preview["inherited_base"], inherited)
+        self.assertEqual([member["task_id"] for member in preview["members"]], ["T-PRODUCER"])
+        self.assertEqual(result["status"], "declared")
+        manager.return_value.declare_and_adopt_integration_wave.assert_called_once_with(
+            queue_ids=["Q-1"], legacy_provenance_reason=None, inherited_base=inherited,
+        )
+
     def test_manage_integration_wave_adopts_only_first_gate_failed_queued_artifact(self) -> None:
         connection = _workspace_database()
         self.addCleanup(connection.close)
