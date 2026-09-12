@@ -207,6 +207,36 @@ class AdminCliTests(unittest.TestCase):
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["pending"][0]["lane_id"], "L-INTEGRATE")
 
+    def test_scoped_prepare_keeps_selected_existing_producers_destination(self) -> None:
+        connection = _workspace_database()
+        self.addCleanup(connection.close)
+        connection.execute(
+            "UPDATE workflow_workspaces SET lane_id='L-SELECTED',state='artifact_ready' "
+            "WHERE id='W-PRODUCER'"
+        )
+        connection.execute(
+            "INSERT INTO workflow_lanes VALUES('L-SELECTED','RUN','implementer','isolated_merge','blocked')"
+        )
+        plan = {"runs": [{"id": "RUN", "lanes": [
+            {"id": "L-SELECTED", "role": "implementer", "tasks": ["T-DONE"],
+             "workspace": {"mode": "isolated_merge", "integration_task_id": "M40"}},
+            {"id": "L-INTEGRATE", "role": "integrator", "tasks": ["M40"],
+             "workspace": {"mode": "exclusive"}},
+        ]}]}
+        service = SimpleNamespace(
+            db=_ReadDatabase(connection), project={"project_uuid": "project-uuid"},
+            paths=SimpleNamespace(state_dir=Path("/state")),
+        )
+        manager = Mock()
+        with patch.object(admin, "_runtime_identity"), \
+             patch.object(admin, "_git", side_effect=["", "canonical-head"]), \
+             patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
+            result = admin.prepare_run_workspaces(
+                "/repo", "/plan.json", "RUN", lane_id="L-SELECTED"
+            )
+
+        self.assertEqual([item["lane_id"] for item in result["pending"]], ["L-INTEGRATE"])
+
     def test_prepare_run_workspaces_rejects_mixed_producer_bases(self) -> None:
         connection = _workspace_database()
         self.addCleanup(connection.close)
@@ -273,12 +303,15 @@ class AdminCliTests(unittest.TestCase):
         manager = Mock()
         modules = _todo_runtime_modules(plan, service, manager)
         modules["todo_orchestrator.workflow.lanes"].lane_candidates.return_value = [
-            {"lane_id": "L-NEW", "task_id": "T-NEW"}
+            {"lane_id": "L-NEW", "task_id": "T-NEW"},
+            {"lane_id": "L-UNRELATED", "task_id": "T-UNRELATED"},
         ]
         with patch.object(admin, "_runtime_identity"), \
              patch.object(admin, "_git", side_effect=["", "canonical-head"]), \
              patch.dict(sys.modules, modules):
-            result = admin.prepare_run_workspaces("/repo", "/plan.json", "RUN")
+            result = admin.prepare_run_workspaces(
+                "/repo", "/plan.json", "RUN", lane_id="L-NEW"
+            )
 
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
@@ -485,7 +518,8 @@ class AdminCliTests(unittest.TestCase):
             ])
         self.assertEqual(result, 0)
         prepare.assert_called_once_with(
-            "/repo", "/plan.json", "RUN", apply=False, confirmation=None,
+            "/repo", "/plan.json", "RUN", lane_id=None,
+            apply=False, confirmation=None,
         )
         self.assertEqual(json.loads(output.getvalue()), prepared)
 

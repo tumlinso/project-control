@@ -125,7 +125,8 @@ class ProfileCliTests(unittest.TestCase):
                 "--run", "RUN", "--apply", "--confirm", "PREPARE-RUN-WORKSPACES",
             ]), 0)
         prepare.assert_called_once_with(
-            "/repo", "/plan.json", "RUN", apply=True, confirmation="PREPARE-RUN-WORKSPACES",
+            "/repo", "/plan.json", "RUN", lane_id=None, apply=True,
+            confirmation="PREPARE-RUN-WORKSPACES",
         )
         self.assertEqual(json.loads(output.getvalue()), prepared)
 

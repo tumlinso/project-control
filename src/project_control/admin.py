@@ -220,6 +220,7 @@ def prepare_run_workspaces(
     plan_path: str | Path,
     run_id: str,
     *,
+    lane_id: str | None = None,
     apply: bool = False,
     confirmation: str | None = None,
 ) -> dict[str, object]:
@@ -248,6 +249,9 @@ def prepare_run_workspaces(
         raise ValueError(f"native plan must contain exactly one run named {run_id}")
     run = runs[0]
     lane_specs = {str(item["id"]): item for item in run.get("lanes", [])}
+    requested_lane_id = lane_id
+    if requested_lane_id is not None and requested_lane_id not in lane_specs:
+        raise ValueError(f"requested lane is absent from the supplied plan: {requested_lane_id}")
 
     if _git(repository, "status", "--porcelain=v1", "-z"):
         raise ValueError("repository must be clean before managed workspaces are prepared")
@@ -262,6 +266,11 @@ def prepare_run_workspaces(
         if active is None:
             raise ValueError(f"workflow run is not active: {run_id}")
         candidates = lane_candidates(conn, run_id)
+        if requested_lane_id is not None:
+            candidates = [
+                item for item in candidates
+                if str(item["lane_id"]) == requested_lane_id
+            ]
         existing = {
             str(row["lane_id"]): dict(row)
             for row in conn.execute(
@@ -302,22 +311,26 @@ def prepare_run_workspaces(
                 (run_id,),
             )
         }
+    if requested_lane_id is not None and requested_lane_id not in lane_modes:
+        raise ValueError(f"requested lane is absent from the live run: {requested_lane_id}")
+    if requested_lane_id is not None and not candidates and requested_lane_id not in existing:
+        raise ValueError(f"requested lane is not ready for workspace preparation: {requested_lane_id}")
 
     pending: list[dict[str, object]] = []
     for candidate in candidates:
-        lane_id = str(candidate["lane_id"])
-        if lane_id in existing:
+        candidate_lane_id = str(candidate["lane_id"])
+        if candidate_lane_id in existing:
             continue
-        spec = lane_specs.get(lane_id)
+        spec = lane_specs.get(candidate_lane_id)
         if spec is None:
-            raise ValueError(f"active lane is absent from the supplied plan: {lane_id}")
+            raise ValueError(f"active lane is absent from the supplied plan: {candidate_lane_id}")
         workspace = dict(spec.get("workspace", {}))
         candidate_task_id = str(candidate["task_id"])
         if candidate_task_id not in {str(task_id) for task_id in spec.get("tasks", [])}:
             raise ValueError(f"live candidate is absent from the sealed lane: {candidate_task_id}")
         mode = str(workspace.get("mode", "exclusive"))
-        if lane_modes.get(lane_id) != mode:
-            raise ValueError(f"workspace mode differs from live lane contract: {lane_id}")
+        if lane_modes.get(candidate_lane_id) != mode:
+            raise ValueError(f"workspace mode differs from live lane contract: {candidate_lane_id}")
         if mode not in {"isolated_merge", "contract_split"}:
             continue
         integration_task_id = workspace.get("integration_task_id")
@@ -326,7 +339,7 @@ def prepare_run_workspaces(
                 plan_file, spec, candidate_task_id,
             )
         if mode == "isolated_merge" and not integration_task_id:
-            raise ValueError(f"isolated lane lacks integration_task_id: {lane_id}")
+            raise ValueError(f"isolated lane lacks integration_task_id: {candidate_lane_id}")
         if integration_task_id and str(integration_task_id) not in valid_integration_tasks:
             raise ValueError(
                 "workspace integration task is not owned by an exclusive integrator "
@@ -342,9 +355,9 @@ def prepare_run_workspaces(
                 )
             if observed_bases:
                 workspace_base = next(iter(observed_bases))
-        name = _workspace_name(lane_id)
+        name = _workspace_name(candidate_lane_id)
         pending.append({
-            "lane_id": lane_id,
+            "lane_id": candidate_lane_id,
             "task_id": candidate_task_id,
             "mode": mode,
             "integration_task_id": str(integration_task_id) if integration_task_id else None,
@@ -352,7 +365,18 @@ def prepare_run_workspaces(
             "worktree_path": str(service.paths.state_dir / "workflow-workspaces" / name),
             "branch": f"codex/{name}",
         })
+    scoped_integration_tasks = {
+        str(item["integration_task_id"])
+        for item in pending
+        if item.get("integration_task_id")
+    }
+    if requested_lane_id is not None and requested_lane_id in existing:
+        existing_target = existing[requested_lane_id].get("integration_task_id")
+        if existing_target:
+            scoped_integration_tasks.add(str(existing_target))
     for destination in exclusive_destinations:
+        if requested_lane_id is not None and destination["task_id"] not in scoped_integration_tasks:
+            continue
         lane_id = destination["lane_id"]
         spec = lane_specs.get(lane_id)
         if spec is None:
@@ -682,6 +706,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare.add_argument("--repo", required=True)
     prepare.add_argument("--plan", required=True)
     prepare.add_argument("--run", required=True)
+    prepare.add_argument("--lane")
     prepare.add_argument("--apply", action="store_true")
     prepare.add_argument("--confirm")
     reconcile = commands.add_parser(
@@ -726,7 +751,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             recover(args.repo, reason=args.reason, task_id=args.task)
     elif args.command == "prepare-run-workspaces":
         result = prepare_run_workspaces(
-            args.repo, args.plan, args.run, apply=args.apply, confirmation=args.confirm,
+            args.repo, args.plan, args.run, lane_id=args.lane,
+            apply=args.apply, confirmation=args.confirm,
         )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     elif args.command == "reconcile-workspace-base":

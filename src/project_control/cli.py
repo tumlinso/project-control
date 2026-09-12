@@ -141,6 +141,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("--repo", required=True)
     prepare.add_argument("--plan", required=True)
     prepare.add_argument("--run", required=True)
+    prepare.add_argument("--lane")
     prepare.add_argument("--apply", action="store_true")
     prepare.add_argument("--confirm")
     reconcile = admin_commands.add_parser("reconcile-workspace-base")
@@ -358,7 +359,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             if args.admin_command == "prepare-run-workspaces":
                 result = prepare_run_workspaces(
-                    args.repo, args.plan, args.run, apply=args.apply, confirmation=args.confirm,
+                    args.repo, args.plan, args.run, lane_id=args.lane,
+                    apply=args.apply, confirmation=args.confirm,
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "recover" and args.inspect_only:
