@@ -186,6 +186,13 @@ def _parser() -> argparse.ArgumentParser:
     integration_wave.add_argument("--reason")
     integration_wave.add_argument("--apply", action="store_true")
     integration_wave.add_argument("--confirm")
+    publish_interface = admin_commands.add_parser("publish-completed-interface")
+    publish_interface.add_argument("--repo", required=True)
+    publish_interface.add_argument("--plan", required=True)
+    publish_interface.add_argument("--interface", required=True)
+    publish_interface.add_argument("--source-worktree", required=True)
+    publish_interface.add_argument("--apply", action="store_true")
+    publish_interface.add_argument("--confirm")
     return parser
 
 
@@ -374,11 +381,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 manage_integration_wave,
                 prepare_run_workspaces,
                 publish_producer_wave,
+                publish_completed_interface,
                 reconcile_workspace_base,
                 recover,
             )
 
-            if args.admin_command == "prepare-run-workspaces":
+            if args.admin_command == "publish-completed-interface":
+                result = publish_completed_interface(
+                    args.repo, args.plan, args.interface, args.source_worktree,
+                    apply=args.apply, confirmation=args.confirm,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "prepare-run-workspaces":
                 result = prepare_run_workspaces(
                     args.repo, args.plan, args.run, lane_id=args.lane,
                     apply=args.apply, confirmation=args.confirm,

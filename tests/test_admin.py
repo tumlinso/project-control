@@ -93,6 +93,8 @@ def _todo_runtime_modules(plan, service, workspace_service):
     workspaces_module.WorkspaceService = workspace_service
     gates_module = types.ModuleType("todo_orchestrator.gates")
     gates_module.run_gate = Mock()
+    interfaces_module = types.ModuleType("todo_orchestrator.interfaces")
+    interfaces_module.freeze = Mock()
     models_module = types.ModuleType("todo_orchestrator.models")
     models_module.TodoError = RuntimeError
     return {
@@ -104,11 +106,118 @@ def _todo_runtime_modules(plan, service, workspace_service):
         "todo_orchestrator.workflow.service": workflow_service_module,
         "todo_orchestrator.workflow.workspaces": workspaces_module,
         "todo_orchestrator.gates": gates_module,
+        "todo_orchestrator.interfaces": interfaces_module,
         "todo_orchestrator.models": models_module,
     }
 
 
 class AdminCliTests(unittest.TestCase):
+    def _interface_fixture(self, source: Path, *, claim: bool = False, scope: str = "contracts"):
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        connection.executescript("""
+            CREATE TABLE tasks(id TEXT PRIMARY KEY, status TEXT NOT NULL);
+            CREATE TABLE interfaces(
+                id TEXT PRIMARY KEY, owner_task_id TEXT NOT NULL, state TEXT NOT NULL,
+                version TEXT NOT NULL, contract_paths_json TEXT NOT NULL
+            );
+            CREATE TABLE claims(task_id TEXT NOT NULL, state TEXT NOT NULL);
+            CREATE TABLE ownership_scopes(task_id TEXT NOT NULL, mode TEXT NOT NULL, path TEXT NOT NULL);
+        """)
+        connection.execute("INSERT INTO tasks VALUES('OWNER','done')")
+        connection.execute(
+            "INSERT INTO interfaces VALUES(?,?,?,?,?)",
+            ("IFACE", "OWNER", "draft", "1", json.dumps(["contracts/interface.md"])),
+        )
+        connection.execute("INSERT INTO ownership_scopes VALUES('OWNER','exclusive',?)", (scope,))
+        if claim:
+            connection.execute("INSERT INTO claims VALUES('OWNER','active')")
+
+        def mutate(**kwargs):
+            return kwargs["operation"](connection, 42), 42, {}
+
+        service = SimpleNamespace(db=_ReadDatabase(connection), mutate=mutate)
+        return connection, service
+
+    @staticmethod
+    def _git_for_source(source: Path):
+        def invoke(repo: Path, *args: str) -> str:
+            if args == ("rev-parse", "--path-format=absolute", "--git-common-dir"):
+                return "/same/common"
+            if args == ("rev-parse", "--show-toplevel"):
+                return str(source)
+            if args == ("status", "--porcelain=v1", "-z"):
+                return ""
+            if args == ("rev-parse", "HEAD"):
+                return "source-head"
+            raise AssertionError(args)
+        return invoke
+
+    def test_publish_completed_interface_previews_and_freezes_completed_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source"
+            contract = source / "contracts" / "interface.md"
+            contract.parent.mkdir(parents=True)
+            contract.write_text("contract", encoding="utf-8")
+            connection, service = self._interface_fixture(source)
+            self.addCleanup(connection.close)
+            plan = {"interfaces": [{
+                "id": "IFACE", "owner_task_id": "OWNER", "state": "draft",
+                "version": "1", "contract_paths": ["contracts/interface.md"],
+            }]}
+            modules = _todo_runtime_modules(plan, service, Mock())
+            freezer = modules["todo_orchestrator.interfaces"].freeze
+            freezer.return_value = {"interface_id": "IFACE", "state": "frozen", "content_hash": "digest"}
+            with patch.object(admin, "_runtime_identity"), \
+                 patch.object(admin, "_verified_native_plan", return_value=plan), \
+                 patch.object(admin, "_git", side_effect=self._git_for_source(source)), \
+                 patch.dict(sys.modules, modules):
+                preview = admin.publish_completed_interface("/repo", "/sealed/plan.json", "IFACE", source)
+                result = admin.publish_completed_interface(
+                    "/repo", "/sealed/plan.json", "IFACE", source, apply=True,
+                    confirmation=admin.PUBLISH_COMPLETED_INTERFACE_CONFIRMATION,
+                )
+
+        self.assertEqual(preview["status"], "ready")
+        self.assertEqual(preview["source_commit"], "source-head")
+        self.assertEqual(result["status"], "published")
+        self.assertEqual(result["project_revision"], 42)
+        freezer.assert_called_once_with(connection, source.resolve(), "IFACE", "1", 42)
+
+    def test_publish_completed_interface_rejects_active_owner_or_unowned_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source"
+            contract = source / "contracts" / "interface.md"
+            contract.parent.mkdir(parents=True)
+            contract.write_text("contract", encoding="utf-8")
+            plan = {"interfaces": [{
+                "id": "IFACE", "owner_task_id": "OWNER", "state": "draft",
+                "version": "1", "contract_paths": ["contracts/interface.md"],
+            }]}
+            for claim, scope, error in ((True, "contracts", "active claim"), (False, "other", "outside owner write scope")):
+                connection, service = self._interface_fixture(source, claim=claim, scope=scope)
+                self.addCleanup(connection.close)
+                modules = _todo_runtime_modules(plan, service, Mock())
+                with patch.object(admin, "_runtime_identity"), \
+                     patch.object(admin, "_verified_native_plan", return_value=plan), \
+                     patch.object(admin, "_git", side_effect=self._git_for_source(source)), \
+                     patch.dict(sys.modules, modules):
+                    with self.assertRaisesRegex(ValueError, error):
+                        admin.publish_completed_interface("/repo", "/sealed/plan.json", "IFACE", source)
+
+    def test_publish_completed_interface_cli_previews_and_requires_confirmation(self) -> None:
+        preview = {"status": "ready", "interface_id": "IFACE"}
+        with patch.object(admin, "publish_completed_interface", return_value=preview) as publish, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            result = admin.main([
+                "publish-completed-interface", "--repo", "/repo", "--plan", "/plan.json",
+                "--interface", "IFACE", "--source-worktree", "/source",
+            ])
+        self.assertEqual(result, 0)
+        publish.assert_called_once_with(
+            "/repo", "/plan.json", "IFACE", "/source", apply=False, confirmation=None,
+        )
+        self.assertEqual(json.loads(output.getvalue()), preview)
     def _prepare_fixture(self, connection: sqlite3.Connection, state_dir: Path):
         plan = {
             "runs": [{

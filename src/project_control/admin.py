@@ -21,6 +21,7 @@ MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION = "MARK-RUN-WORKSPACES-CLEANUP
 ADVANCE_PRODUCER_WAVE_CONFIRMATION = "ADVANCE-PRODUCER-WAVE"
 PUBLISH_PRODUCER_WAVE_CONFIRMATION = "PUBLISH-PRODUCER-WAVE"
 INTEGRATION_WAVE_CONFIRMATION = "INTEGRATION-WAVE"
+PUBLISH_COMPLETED_INTERFACE_CONFIRMATION = "PUBLISH-COMPLETED-INTERFACE"
 
 
 def _runtime_identity() -> object:
@@ -75,6 +76,163 @@ def _workspace_name(value: str) -> str:
     if not name:
         raise ValueError("lane ID cannot produce a safe workspace name")
     return name
+
+
+def _verified_native_plan(plan_file: Path) -> dict[str, object]:
+    """Load only a manifest-sealed native plan from its package directory."""
+    manifest_file = plan_file.parent.parent / "MANIFEST.sha256"
+    if not plan_file.is_file() or not manifest_file.is_file():
+        raise ValueError("sealed native plan and package manifest are required")
+    if plan_file.is_symlink() or manifest_file.is_symlink():
+        raise ValueError("sealed native plan inputs must not be symbolic links")
+    package_root = manifest_file.parent.resolve()
+    try:
+        plan_name = plan_file.resolve().relative_to(package_root).as_posix()
+    except ValueError as exc:
+        raise ValueError("native plan escapes the package manifest root") from exc
+    entries: dict[str, str] = {}
+    for line in manifest_file.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        digest, separator, name = line.partition("  ")
+        if not separator or len(digest) != 64 or not name or name in entries:
+            raise ValueError("workflow package manifest is malformed")
+        entries[name] = digest
+    if plan_name not in entries:
+        raise ValueError("workflow package manifest does not seal native plan")
+    if hashlib.sha256(plan_file.read_bytes()).hexdigest() != entries[plan_name]:
+        raise ValueError(f"workflow package manifest mismatch: {plan_name}")
+    from todo_orchestrator.plan import load_plan
+
+    plan = load_plan(plan_file)
+    if not isinstance(plan, dict):
+        raise ValueError("native plan root must be an object")
+    return plan
+
+
+def _git_common_directory(repo: Path) -> Path:
+    return Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve()
+
+
+def _owned_contract_paths(conn: Any, owner_task_id: str, source_root: Path, paths: list[str]) -> list[dict[str, str]]:
+    scopes = [str(row["path"]) for row in conn.execute(
+        "SELECT path FROM ownership_scopes WHERE task_id=? AND mode='exclusive'", (owner_task_id,)
+    )]
+    if not scopes:
+        raise ValueError("interface owner has no exclusive write scope")
+    records: list[dict[str, str]] = []
+    for raw_path in paths:
+        path = Path(raw_path)
+        if path.is_absolute() or ".." in path.parts:
+            raise ValueError("interface contract path is not repository-relative")
+        relative = path.as_posix()
+        if not any(relative == scope or relative.startswith(scope.rstrip("/") + "/") for scope in scopes):
+            raise ValueError(f"interface contract path is outside owner write scope: {relative}")
+        target = (source_root / path).resolve()
+        if not target.is_relative_to(source_root) or not target.is_file():
+            raise ValueError(f"interface contract path is missing from source worktree: {relative}")
+        records.append({"path": relative, "sha256": hashlib.sha256(target.read_bytes()).hexdigest()})
+    return records
+
+
+def publish_completed_interface(
+    repo: str | Path,
+    plan_path: str | Path,
+    interface_id: str,
+    source_worktree: str | Path,
+    *,
+    apply: bool = False,
+    confirmation: str | None = None,
+) -> dict[str, object]:
+    """Freeze one draft interface from a clean completed owner worktree.
+
+    This root-only lifecycle bridge intentionally has no claim token: a normal
+    producer is already terminal and cannot publish after completing itself.
+    Preview performs every validation without a Todo transaction; apply repeats
+    source checks inside the transaction before delegating the state change to
+    Todo's canonical interface freezer.
+    """
+    _runtime_identity()
+    from todo_orchestrator import interfaces
+    from todo_orchestrator.service import Service
+
+    repository = Path(repo).expanduser().resolve()
+    plan_file = Path(plan_path).expanduser().resolve()
+    source = Path(source_worktree).expanduser().resolve()
+    plan = _verified_native_plan(plan_file)
+    declared = [item for item in plan.get("interfaces", []) if isinstance(item, dict) and item.get("id") == interface_id]
+    if len(declared) != 1:
+        raise ValueError("sealed native plan must declare exactly one requested interface")
+    spec = declared[0]
+    owner_task_id = spec.get("owner_task_id")
+    version = spec.get("version")
+    paths = spec.get("contract_paths")
+    if not isinstance(owner_task_id, str) or not owner_task_id or not isinstance(version, str) or not version:
+        raise ValueError("sealed interface requires owner_task_id and version")
+    if not isinstance(paths, list) or not paths or any(not isinstance(item, str) or not item for item in paths):
+        raise ValueError("sealed interface requires nonempty contract_paths")
+    if spec.get("state", "draft") != "draft":
+        raise ValueError("sealed interface publication requires a draft declaration")
+    if _git_common_directory(repository) != _git_common_directory(source):
+        raise ValueError("source worktree does not belong to the repository git common directory")
+    if Path(_git(source, "rev-parse", "--show-toplevel")).resolve() != source:
+        raise ValueError("source worktree must be its Git worktree root")
+
+    service = Service(repository, mutation_mode="self_debug")
+
+    def validate_source(conn: Any) -> tuple[str, list[dict[str, str]]]:
+        if _git(source, "status", "--porcelain=v1", "-z"):
+            raise ValueError("source worktree must be clean before interface publication")
+        source_commit = _git(source, "rev-parse", "HEAD")
+        interface = conn.execute("SELECT * FROM interfaces WHERE id=?", (interface_id,)).fetchone()
+        if interface is None or str(interface["state"]) != "draft":
+            raise ValueError("authoritative interface must exist and remain draft")
+        if str(interface["owner_task_id"]) != owner_task_id or str(interface["version"]) != version:
+            raise ValueError("authoritative interface owner or version differs from sealed plan")
+        authoritative_paths = json.loads(str(interface["contract_paths_json"]))
+        if authoritative_paths != paths:
+            raise ValueError("authoritative interface contract paths differ from sealed plan")
+        task = conn.execute("SELECT status FROM tasks WHERE id=?", (owner_task_id,)).fetchone()
+        if task is None or str(task["status"]) != "done":
+            raise ValueError("interface owner task must be completed/done")
+        if conn.execute("SELECT 1 FROM claims WHERE task_id=? AND state='active'", (owner_task_id,)).fetchone():
+            raise ValueError("interface owner task has an active claim")
+        return source_commit, _owned_contract_paths(conn, owner_task_id, source, paths)
+
+    with service.db.read() as conn:
+        source_commit, records = validate_source(conn)
+    result: dict[str, object] = {
+        "status": "ready",
+        "interface_id": interface_id,
+        "owner_task_id": owner_task_id,
+        "version": version,
+        "source_worktree": str(source),
+        "source_commit": source_commit,
+        "contracts": records,
+    }
+    if not apply:
+        return result
+    if confirmation != PUBLISH_COMPLETED_INTERFACE_CONFIRMATION:
+        raise ValueError(f"--confirm must equal {PUBLISH_COMPLETED_INTERFACE_CONFIRMATION}")
+
+    def operation(conn: Any, revision: int) -> dict[str, object]:
+        current_commit, current_records = validate_source(conn)
+        if current_commit != source_commit or current_records != records:
+            raise ValueError("source worktree changed after publication preview")
+        frozen = interfaces.freeze(conn, source, interface_id, version, revision)
+        return {**frozen, "owner_task_id": owner_task_id, "source_worktree": str(source), "source_commit": current_commit}
+
+    published, revision, _projection = service.mutate(
+        actor=None,
+        entity_type="interface",
+        entity_id=interface_id,
+        event_type="interface.published_completed_owner",
+        payload={"owner_task_id": owner_task_id, "source_worktree": str(source), "source_commit": source_commit, "contracts": records},
+        operation=operation,
+        full_projection=True,
+        canonical_workflow=True,
+    )
+    return {"status": "published", **dict(published), "project_revision": int(revision)}
 
 
 def _verified_schedule(plan_file: Path) -> dict[str, object] | None:
@@ -1080,6 +1238,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     contract.add_argument("--reason", required=True)
     contract.add_argument("--apply", action="store_true")
     contract.add_argument("--confirm")
+    publish_interface = commands.add_parser(
+        "publish-completed-interface", help="freeze one completed owner's sealed draft interface"
+    )
+    publish_interface.add_argument("--repo", required=True)
+    publish_interface.add_argument("--plan", required=True)
+    publish_interface.add_argument("--interface", required=True)
+    publish_interface.add_argument("--source-worktree", required=True)
+    publish_interface.add_argument("--apply", action="store_true")
+    publish_interface.add_argument("--confirm")
     wave = commands.add_parser("integration-wave", help="root-owned sealed batch integration lifecycle")
     wave.add_argument("--repo", required=True)
     wave.add_argument("--plan", required=True)
@@ -1093,7 +1260,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     wave.add_argument("--apply", action="store_true")
     wave.add_argument("--confirm")
     args = parser.parse_args(argv)
-    if args.command == "record-contract-split-integration":
+    if args.command == "publish-completed-interface":
+        result = publish_completed_interface(
+            args.repo, args.plan, args.interface, args.source_worktree,
+            apply=args.apply, confirmation=args.confirm,
+        )
+        print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    elif args.command == "record-contract-split-integration":
         result = record_contract_split_integration(
             args.repo, args.workspace, args.integration_task, args.accepted_commit,
             reason=args.reason, apply=args.apply, confirmation=args.confirm,
