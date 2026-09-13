@@ -57,6 +57,45 @@ def recover(repo: str | Path, *, reason: str, task_id: str | None = None) -> Non
     )
 
 
+def authorize_delegated_recovery(
+    repo: str | Path,
+    *,
+    task_id: str,
+    delegator_role: str,
+    delegator_lineage: str,
+    expires_seconds: int = 300,
+) -> dict[str, object]:
+    """Root/head lifecycle bridge for one opaque, scoped recovery launch.
+
+    This does not relax ordinary owner recovery.  It snapshots one exact safe
+    target, then the delegated invocation must still pass the kernel's fresh
+    inspection, project lock and canonical transaction checks.
+    """
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.recovery import RecoveryEngine
+    from .workflow_core.recovery import issue_recovery_authorization
+
+    service = Service(repo, mutation_mode="self_debug")
+    engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
+    return issue_recovery_authorization(
+        service, engine, task_id=task_id, delegator_role=delegator_role,
+        delegator_lineage=delegator_lineage, expires_seconds=expires_seconds,
+    )
+
+
+def recover_authorized(repo: str | Path, *, authorization_id: str, reason: str) -> dict[str, object]:
+    """Run the single-use authorization; no model-held root capability exists."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.recovery import RecoveryEngine
+    from .workflow_core.recovery import run_authorized_recovery
+
+    service = Service(repo, mutation_mode="self_debug")
+    engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
+    return run_authorized_recovery(service, engine, authorization_id=authorization_id, reason=reason)
+
+
 def _git(repo: Path, *args: str) -> str:
     completed = subprocess.run(
         ["git", "-C", str(repo), *args],

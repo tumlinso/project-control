@@ -4,7 +4,7 @@ from collections import defaultdict
 from typing import Any
 
 from ..models import ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope, bounded_payload
 from ..reconcile import ProjectReconciler, paths_overlap
 from ..workflow import workflow_summary, workflow_warnings
 
@@ -139,4 +139,7 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
         "historical_state_filtered": reconciled.historical_counts,
         "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
-    return envelope("project_frontier", snapshot, bounded_payload(data, 12000), warnings=list(dict.fromkeys([*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)])))
+    return bounded_envelope(
+        envelope("project_frontier", snapshot, bounded_payload(data, 12000), warnings=list(dict.fromkeys([*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)]))),
+        12_288,
+    )

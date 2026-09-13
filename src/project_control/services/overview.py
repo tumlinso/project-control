@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope, bounded_payload
 from ..reconcile import ProjectReconciler, rank_items
 from ..workflow import workflow_summary, workflow_warnings
 
@@ -181,4 +181,4 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             for alias, identity in result.project.repositories.items()
         }
         result.cursor.worktrees = {}
-    return result
+    return bounded_envelope(result, BUDGETS[detail])

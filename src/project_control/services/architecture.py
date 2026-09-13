@@ -7,7 +7,7 @@ from typing import Any
 
 from ..graph import ProjectGraph
 from ..models import ArchitectureContextInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope, bounded_payload
 from ..reconcile import ProjectReconciler
 from ..retrieval import economical_record, is_current, page, relevance_priority
 from ..workflow import workflow_view, workflow_warnings
@@ -183,4 +183,7 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
         "pagination": pagination,
     }
     warnings = [*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)]
-    return envelope("architecture_context", snapshot, bounded_payload(data, BUDGETS[request.detail]), warnings=list(dict.fromkeys(warnings)))
+    return bounded_envelope(
+        envelope("architecture_context", snapshot, bounded_payload(data, BUDGETS[request.detail]), warnings=list(dict.fromkeys(warnings))),
+        BUDGETS[request.detail],
+    )

@@ -227,7 +227,22 @@ class TodoReadAdapter:
         return self._call("changes", "--since", str(since))
 
     def semantic_state(self, *arguments: str) -> dict[str, Any]:
-        return self._semantic_call("state", *arguments).get("data", {})
+        data = self._semantic_call("state", *arguments).get("data", {})
+        if not isinstance(data, dict):
+            raise TodoReadError("todo_semantic_unavailable")
+        # Historical providers are allowed to omit profiles.  When one is
+        # present, preserve it exactly through the strict PC contract rather
+        # than silently degrading planning metadata into execution/readiness.
+        tasks = data.get("tasks")
+        if isinstance(tasks, list):
+            from ..workflow_core.profiles import normalize_task_work_profile
+
+            data = dict(data)
+            data["tasks"] = [
+                normalize_task_work_profile(task) if isinstance(task, dict) else task
+                for task in tasks
+            ]
+        return data
 
     def semantic_anchor(self, *arguments: str) -> dict[str, Any]:
         return self._semantic_call("anchor", *arguments).get("data", {})

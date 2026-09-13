@@ -72,7 +72,10 @@ SERVER_INSTRUCTIONS = (
     "edit files, run workers or benchmarks, reserve resources, or mutate Git/todo state. terminal_capture is the one "
     "bounded, sandboxed PTY observation capability; it has no shell or project mutation authority. Cross-project observations "
     "are independent, and program membership is not architectural authority. Proposal envelopes are inert and "
-    "confer no authority."
+    "confer no authority. Prefer compact responses and expand only the exact top-level cursor when decisive "
+    "evidence is missing or stale. Plan coarse outcome packages with explicit invariants, alternatives, and "
+    "acceptance; do not turn ordinary inspect/implement/test steps into durable tasks. Root or an explicitly "
+    "delegated head owns bounded lifecycle, recovery, and integration actions; workers return compact evidence."
 )
 
 CODEX_INSTRUCTIONS = (
@@ -207,7 +210,7 @@ def create_mcp(
     )
 
     @mcp.tool(
-        description="Synthesize current project identity, active/ready/blocked work, recent outcomes, architectural attention, and recommended focus.",
+        description="Compact full-envelope current state: authority, active/ready/blocked work, freshness, coverage and an exact expansion cursor.",
         annotations=READ_ONLY,
         structured_output=True,
     )
@@ -216,7 +219,7 @@ def create_mcp(
         return runtime.invoke("project_overview", project, lambda: project_overview_service(runtime.snapshot(project), detail=request.detail, max_items=request.max_items))
 
     @mcp.tool(
-        description="Classify material todo, interface, validation, coordination, performance, and Git changes since an explicit caller cursor; returns a new cursor.",
+        description="Compact full-envelope material change since an explicit cursor; retains authority, coverage, blockers and a fresh exact cursor for expansion.",
         annotations=READ_ONLY,
         structured_output=True,
     )
@@ -231,7 +234,7 @@ def create_mcp(
         return runtime.invoke("project_delta", project, operation)
 
     @mcp.tool(
-        description="Report todo-authoritative ready work, active claims and blockers plus clearly labeled heuristic critical path and safe parallel groups.",
+        description="Compact full-envelope todo-authoritative frontier with active claims, blockers, safe parallelism and exact expansion cursor.",
         annotations=READ_ONLY,
         structured_output=True,
     )
