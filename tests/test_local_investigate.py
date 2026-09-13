@@ -131,12 +131,17 @@ class LocalInvestigateTests(unittest.TestCase):
 
     def test_rejects_extra_read_parameters_and_keeps_final_compact(self) -> None:
         initial = snapshot()
+        model_inputs = []
         turns = iter([
             {"turn": {"action": "inspect_workflow", "requests": [{"hidden": "no"}]}},
         ])
+        def model_turn(value):
+            model_inputs.append(value)
+            return next(turns)
         with patch("project_control.services.local_investigate.architecture_context", return_value=envelope("architecture_context", initial, {"large": "x" * 100000})):
             result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", effort="quick"),
-                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=model_turn)
         self.assertIn("investigator_read_request_rejected", result.warnings)
         self.assertNotIn("evidence", result.data)
+        self.assertLess(len(str(model_inputs[0]["evidence"]).encode()), 22 * 1024)
         self.assertLess(len(str(result.model_dump(mode="json")).encode()), 48 * 1024 + 4096)

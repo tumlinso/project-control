@@ -200,6 +200,9 @@ def local_investigate(
         remaining = max(0, limits.bytes - used_bytes)
         if remaining <= 0:
             return
+        # The deployed local model has a 32K-token context. Keep each result
+        # useful but small enough for several cumulative read rounds.
+        payload = bounded_payload(payload, min(20 * 1024, remaining))
         # Services already apply security/redaction. A final hard cap prevents
         # a model context from becoming an unbounded alternate read surface.
         encoded = json.dumps(payload, sort_keys=True, default=str)
@@ -229,7 +232,7 @@ def local_investigate(
         visible_bytes = 0
         for item in reversed(evidence):
             size = _json_size(item)
-            if visible_bytes + size > 80 * 1024:
+            if visible_bytes + size > 44 * 1024:
                 continue
             visible.append(item)
             visible_bytes += size
@@ -302,7 +305,7 @@ def local_investigate(
                                if turn.action == "search_source" else [item.model_dump(mode="json") for item in spec.targets])
                     add(turn.action, source_context(config, snapshot, SourceContextInput(project=request.project, repository=repository,
                         targets=[SourceTarget.model_validate(item) for item in targets[:32]], source_selector=pinned_commit,
-                        intent="debug", detail="standard", budget_bytes=min(64 * 1024, max(1024, limits.bytes - used_bytes))),
+                        intent="debug", detail="standard", budget_bytes=min(20 * 1024, max(1024, limits.bytes - used_bytes))),
                         deadline=deadline_at))
                 elif turn.action == "inspect":
                     spec = _InspectSpec.model_validate(params)
