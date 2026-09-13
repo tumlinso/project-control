@@ -315,7 +315,6 @@ def local_investigate(
             try:
                 signature = json.dumps({"action": turn.action, "params": params}, sort_keys=True, separators=(",", ":"), default=str)
                 if signature in seen_reads:
-                    warnings.append("duplicate_investigator_read_rejected")
                     force_answer = True
                     continue
                 seen_reads.add(signature)

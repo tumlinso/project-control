@@ -163,6 +163,6 @@ class LocalInvestigateTests(unittest.TestCase):
             result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=model)
         self.assertEqual(result.data["status"], "ok")
-        self.assertIn("duplicate_investigator_read_rejected", result.warnings)
+        self.assertNotIn("duplicate_investigator_read_rejected", result.warnings)
         self.assertTrue(inputs[2]["must_answer"])
         self.assertIn("FINAL", inputs[2]["system_prompt"])
