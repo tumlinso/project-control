@@ -41,6 +41,7 @@ RICH_READ_TOOL_NAMES = (
     "history_trace",
     "impact_preview",
     "program_context",
+    "local_investigate",
     "observer_analysis",
 )
 

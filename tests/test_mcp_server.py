@@ -28,7 +28,7 @@ EXPECTED = {
     "project_overview", "project_delta", "project_frontier", "inspect",
     "evidence", "plan_preview", "agent_status", "performance_status",
     "architecture_context", "coordination_view", "source_context", "history_trace",
-    "impact_preview", "program_context",
+    "impact_preview", "program_context", "local_investigate",
     "terminal_capture", "observer_analysis",
 }
 

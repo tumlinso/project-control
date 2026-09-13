@@ -4,14 +4,14 @@ Project Control exposes three exact profile-specific tool sets. No profile
 publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
 or a generic shell.
 
-The **observer** profile exposes exactly 15 tools over loopback Streamable HTTP:
-the fourteen rich reads described below plus `terminal_capture`. It registers no
-workflow mutation tool. The **codex** profile exposes exactly 20 tools over
-stdio: the same fourteen rich reads, excluding `terminal_capture`, plus the six
+The **observer** profile exposes exactly 17 tools over loopback Streamable HTTP:
+the sixteen rich reads described below plus `terminal_capture`. It registers no
+workflow mutation tool. The **codex** profile exposes exactly 22 tools over
+stdio: the same sixteen rich reads, excluding `terminal_capture`, plus the six
 canonical workflow tools `next_task`, `inspect_task`, `coordinate_task`,
 `delegate_task`, `collect_delegation`, and `finish_task`.
-The **mutator** profile exposes exactly 21 tools over local stdio: the Codex
-20-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
+The **mutator** profile exposes exactly 23 tools over local stdio: the Codex
+22-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
 
 Both registration and invocation are allowlisted. A name hidden from a profile
 cannot be invoked directly. Trusted startup configuration selects the profile;
@@ -65,7 +65,7 @@ eight version-1 calls remain valid:
    architecture-evidence parser in this pass recognizes the observed stable
    `CE-ARCH-92-SUMMARY/1` schema from an explicitly registered todo artifact.
 
-The fourteen v2 query tools are annotated `readOnlyHint=true`,
+The sixteen v2 query tools are annotated `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Inputs use a registered
 workspace ID. Results share a schema-versioned envelope with status, observed
@@ -169,7 +169,7 @@ Because launch, retention, and termination change app-private runtime state,
 `terminal_capture` honestly carries `readOnlyHint=false`,
 `destructiveHint=false`, `idempotentHint=false`, and `openWorldHint=false`.
 This does not grant project, Git, todo, workflow, worker, or performance mutation
-authority and does not weaken the fourteen query tools.
+authority and does not weaken the sixteen query tools.
 
 ## Codex workflow protocol
 

@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+import time
 
-from ..security import SecurityError, read_bounded_text
+from ..security import SecurityError, is_denied, read_bounded_text
 from ..subprocesses import CommandError, FixedCommandRunner
 
 
@@ -167,18 +168,18 @@ class GitReadAdapter:
         arguments = ["-z", "--", *prefixes] if prefixes else ["-z"]
         return sorted(item for item in self._git("ls-files", *arguments).split("\x00") if item)
 
-    def show_text(self, revision: str, relative_path: str, max_bytes: int = 2 * 1024 * 1024) -> str:
+    def show_text(self, revision: str, relative_path: str, max_bytes: int = 2 * 1024 * 1024, *, timeout: float = 5.0) -> str:
         if revision.startswith("-") or relative_path.startswith("-") or ".." in Path(relative_path).parts:
             raise ValueError("invalid Git object request")
-        value = self._git("show", f"{revision}:{relative_path}")
+        value = self._git("show", f"{revision}:{relative_path}", timeout=timeout)
         if len(value.encode("utf-8")) > max_bytes:
             raise ValueError("Git object exceeds text limit")
         return value
 
-    def verify_revision(self, revision: str) -> str:
+    def verify_revision(self, revision: str, *, timeout: float = 5.0) -> str:
         if not revision or revision.startswith("-") or len(revision) > 128:
             raise ValueError("invalid Git revision")
-        return self._git("rev-parse", "--verify", f"{revision}^{{commit}}").strip()
+        return self._git("rev-parse", "--verify", f"{revision}^{{commit}}", timeout=timeout).strip()
 
     def changed_path_commits(self, relative_path: str, max_items: int = 20) -> list[dict[str, str]]:
         if relative_path.startswith("-") or ".." in Path(relative_path).parts:
@@ -191,8 +192,21 @@ class GitReadAdapter:
             values.append({"commit": sha, "observed_at": timestamp, "subject": subject})
         return values
 
-    def grep(self, pattern: str, *, max_items: int = 50, deny_patterns: Iterable[str] = ()) -> list[dict[str, object]]:
-        """Return bounded canonical source matches; Git's no-match exit is normal."""
+    def grep(
+        self,
+        pattern: str,
+        *,
+        max_items: int = 50,
+        deny_patterns: Iterable[str] = (),
+        revision: str | None = None,
+        deadline: float | None = None,
+    ) -> list[dict[str, object]]:
+        """Return bounded source matches from the worktree or one immutable commit.
+
+        A commit selector must keep both candidate discovery and excerpts on the
+        Git object side.  Reopening a matched path below ``self.root`` would
+        silently mix dirty working-tree bytes into an immutable read.
+        """
         if not pattern or pattern.startswith("-") or len(pattern) > 512:
             raise ValueError("invalid Git grep pattern")
         limit = max(1, min(max_items, 200))
@@ -206,10 +220,23 @@ class GitReadAdapter:
             ":(exclude)node_modules/**", ":(exclude)__pycache__/**",
         ]
         pathspecs.extend(f":(exclude,glob){item}" for item in deny_patterns if item and not item.startswith("-"))
+        def remaining(cap: float) -> float:
+            if deadline is None:
+                return cap
+            value = deadline - time.monotonic()
+            if value <= 0:
+                raise CommandError("source_read_deadline_exhausted")
+            return min(cap, max(0.05, value))
+
+        immutable_revision: str | None = None
+        revision_args: list[str] = ["--"]
+        if revision is not None:
+            immutable_revision = self.verify_revision(revision, timeout=remaining(5.0))
+            revision_args = [immutable_revision, "--"]
         result = self.runner.run(
-            ["git", "grep", "-l", "-z", "-I", "-F", "--", pattern, *pathspecs],
+            ["git", "grep", "-l", "-z", "-I", "-F", "-e", pattern, *revision_args, *pathspecs],
             cwd=self.root,
-            timeout=8.0,
+            timeout=remaining(8.0),
             check=False,
         )
         if result.returncode == 1:
@@ -225,9 +252,23 @@ class GitReadAdapter:
         for relative in result.stdout.split("\0"):
             if not relative:
                 continue
+            # ``git grep <tree>`` prefixes names with ``<tree>:``. Strip only
+            # the exact verified object prefix so colons in filenames remain
+            # ordinary path bytes.
+            if immutable_revision is not None:
+                prefix = f"{immutable_revision}:"
+                if not relative.startswith(prefix):
+                    continue
+                relative = relative[len(prefix):]
             try:
-                content = read_bounded_text(self.root, relative, deny_patterns=list(deny_patterns))
-            except (SecurityError, OSError):
+                candidate = Path(relative)
+                if candidate.is_absolute() or ".." in candidate.parts or is_denied(candidate, list(deny_patterns)):
+                    continue
+                content = (
+                    self.show_text(immutable_revision, relative, timeout=remaining(5.0))
+                    if immutable_revision is not None else read_bounded_text(self.root, relative, deny_patterns=list(deny_patterns))
+                )
+            except (SecurityError, OSError, ValueError, CommandError):
                 continue
             for number, line in enumerate(content.splitlines(), 1):
                 if any(needle in line for needle in needles):

@@ -10,6 +10,7 @@ from project_control.models import (
     DeltaSince,
     HistoryTraceInput,
     ImpactPreviewInput,
+    LocalInvestigateInput,
     PerformanceStatusInput,
     ProgramContextInput,
     ProjectSnapshot,
@@ -75,10 +76,11 @@ class ProjectModelTests(unittest.TestCase):
             "history_trace": HistoryTraceInput.model_json_schema(),
             "impact_preview": ImpactPreviewInput.model_json_schema(),
             "program_context": ProgramContextInput.model_json_schema(),
+            "local_investigate": LocalInvestigateInput.model_json_schema(),
         }
         self.assertEqual(set(schemas), {
             "architecture_context", "coordination_view", "source_context",
-            "history_trace", "impact_preview", "program_context",
+            "history_trace", "impact_preview", "program_context", "local_investigate",
         })
         serialized = json.dumps(schemas, sort_keys=True)
         for forbidden in ('"apply"', '"mutate"', '"write_enabled"', '"recovery"'):

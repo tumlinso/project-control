@@ -5,9 +5,9 @@ registered engineering workspaces. It composes two separately enforced MCP
 profiles over one implementation:
 
 - **observer** is the existing loopback Streamable HTTP service for ChatGPT. It
-  retains the exact 15-tool surface and is permanently project-read-only.
+  exposes exactly 17 tools and is permanently project-read-only.
 - **codex** is a stdio server registered as `project-control`. It exposes the
-  canonical six Todo workflow tools plus the fourteen rich Project Control read
+  canonical six Todo workflow tools plus the sixteen rich Project Control read
   tools. It does not expose `terminal_capture`.
 - **mutator** is a separately selected local stdio profile exposing the Codex
   surface plus `apply_plan`. It is intended for ledger/bootstrap control
@@ -43,9 +43,9 @@ returns the rendered PTY screen. Its mutable state is confined to an app-private
 PTY registry and grants no Todo, Git, repository, or workflow authority.
 
 Project Control v2 is the compatibility authority: it preserves the eight v1
-tools and makes six richer reads first-class. Project Control 0.3.1/tool schema
-v3 freezes those fourteen input contracts and adds one tool. The discovered
-surface is exactly fifteen tools:
+tools and makes richer reads first-class. Project Control 0.3.1/tool schema v3
+freezes the original fourteen input contracts. The discovered observer surface
+is exactly seventeen tools:
 
 - `project_overview`
 - `project_delta`
@@ -61,10 +61,12 @@ surface is exactly fifteen tools:
 - `history_trace`
 - `impact_preview`
 - `program_context`
+- `local_investigate`
+- `observer_analysis`
 - `terminal_capture`
 
 The observer service binds only to loopback and is intended to be connected to
-ChatGPT through OpenAI Secure MCP Tunnel. The fourteen query tools never accept
+ChatGPT through OpenAI Secure MCP Tunnel. The sixteen query tools never accept
 arbitrary repository paths, run workers or benchmarks, claim tasks, edit
 registered projects, or mutate Git/todo state. `terminal_capture` accepts no
 shell or host path and gives the child a read-only repository, isolated
@@ -91,7 +93,7 @@ Normal Codex work starts with the bounded workflow protocol:
    rendezvous, and integration requests.
 
 `delegate_task`, `collect_delegation`, and `finish_task` complete that canonical
-six-tool protocol. The fourteen rich reads remain available as secondary
+six-tool protocol. The sixteen rich reads remain available as secondary
 escalation tools when current-task context is insufficient or source,
 architecture, history, impact, performance, or cross-project context is
 genuinely needed.

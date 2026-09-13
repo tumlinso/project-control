@@ -1,9 +1,9 @@
 # Security
 
-Project Control enforces two capability profiles structurally, not by prompt
+Project Control enforces three capability profiles structurally, not by prompt
 convention. The observer's project/workflow/source query plane is permanently
 project-read-only. The Codex profile exposes only the six canonical Todo
-workflow tools and fourteen rich reads.
+workflow tools and sixteen rich reads.
 It accepts registered workspace and repository aliases only. The local operator
 may add absolute paths through the admin CLI; MCP callers cannot provide roots,
 commands, URLs, credentials, or service endpoints.

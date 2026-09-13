@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -114,7 +115,13 @@ def _workflow_mapping(snapshot: ProjectSnapshot, root: Path) -> list[dict[str, A
     return mappings
 
 
-def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, request: SourceContextInput) -> ToolEnvelope:
+def source_context(
+    config: ProjectControlConfig,
+    snapshot: ProjectSnapshot,
+    request: SourceContextInput,
+    *,
+    deadline: float | None = None,
+) -> ToolEnvelope:
     registry = WorkspaceRegistry(config)
     repository = registry.repository(request.project, request.repository)
     workspace = registry.workspace(request.project)
@@ -138,7 +145,10 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
         if not re.fullmatch(r"[0-9a-fA-F]{7,64}", selector):
             return envelope("source_context", snapshot, {"error": "invalid_source_selector", "targets": []}, warnings=["invalid_source_selector"])
         try:
-            revision = git.verify_revision(selector)
+            remaining = 5.0 if deadline is None else max(0.05, min(5.0, deadline - time.monotonic()))
+            if deadline is not None and deadline <= time.monotonic():
+                raise CommandError("source_read_deadline_exhausted")
+            revision = git.verify_revision(selector, timeout=remaining)
         except Exception:
             return envelope("source_context", snapshot, {"error": "invalid_source_selector", "targets": []}, warnings=["invalid_source_selector"])
         source_identity = revision
@@ -160,6 +170,9 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
             lexical = None
             warnings.append("source_index_unavailable")
     for target in request.targets:
+        if deadline is not None and time.monotonic() >= deadline:
+            warnings.append("source_read_deadline_exhausted")
+            break
         item: dict[str, Any] = {"kind": target.kind, "target": target.value}
         try:
             if target.kind == "path":
@@ -175,20 +188,34 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
                 else:
                     if Path(target.value).is_absolute() or ".." in Path(target.value).parts or is_denied(Path(target.value), deny):
                         raise SecurityError("path must be repository relative")
-                    text = git.show_text(revision, target.value, max_bytes=max(2 * 1024 * 1024, per_target * 8))
+                    remaining = 5.0 if deadline is None else max(0.05, min(5.0, deadline - time.monotonic()))
+                    text = git.show_text(revision, target.value, max_bytes=max(2 * 1024 * 1024, per_target * 8), timeout=remaining)
                     lines = text.splitlines()
                     first = target.line_start or 1
                     last = target.line_end or min(len(lines), first + 399)
                     item.update(path=target.value, line_start=first, line_end=last, excerpt=redact_text("\n".join(lines[first - 1:last]))[:per_target])
             elif target.kind == "symbol":
-                semantic = CtxppReadAdapter(root, git, deny).inspect(target.value, max_items=30)
+                if revision is None:
+                    semantic = CtxppReadAdapter(root, git, deny).inspect(target.value, max_items=30)
+                else:
+                    semantic = {
+                        "status": "partial",
+                        "source": "bounded_git_grep",
+                        "freshness": "immutable_commit",
+                        "matches": git.grep(target.value, max_items=30, deny_patterns=deny, revision=revision, deadline=deadline),
+                        "warnings": ["semantic_context_unavailable_for_immutable_commit"],
+                    }
                 item.update(semantic)
                 warnings.extend(semantic.get("warnings", []))
             elif lexical is not None:
                 matches = lexical.search(target.value, offset=offset, limit=50)
                 item.update(source="private_lexical_index", matches=[match.__dict__ for match in matches])
             else:
-                item.update(source="bounded_git_grep", matches=git.grep(target.value, max_items=50, deny_patterns=deny))
+                item.update(
+                    source="bounded_git_grep",
+                    freshness="immutable_commit" if revision is not None else "working_tree",
+                    matches=git.grep(target.value, max_items=50, deny_patterns=deny, revision=revision, deadline=deadline),
+                )
             if "recent_changes" in request.requested_relations and target.kind == "path":
                 item["recent_changes"] = git.changed_path_commits(target.value, 12)
             relation_token = Path(target.value).stem if target.kind == "path" else target.value
@@ -197,11 +224,11 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
                 if symbols:
                     relation_token = symbols[0]
             if "tests" in request.requested_relations:
-                item["tests"] = [match for match in git.grep(relation_token, max_items=30, deny_patterns=deny) if "test" in str(match["path"]).casefold()]
+                item["tests"] = [match for match in git.grep(relation_token, max_items=30, deny_patterns=deny, revision=revision, deadline=deadline) if "test" in str(match["path"]).casefold()]
             if "documentation" in request.requested_relations:
-                item["documentation"] = [match for match in git.grep(relation_token, max_items=30, deny_patterns=deny) if Path(str(match["path"])).suffix.casefold() in {".md", ".rst"}]
+                item["documentation"] = [match for match in git.grep(relation_token, max_items=30, deny_patterns=deny, revision=revision, deadline=deadline) if Path(str(match["path"])).suffix.casefold() in {".md", ".rst"}]
             if "build_config_references" in request.requested_relations:
-                item["build_config_references"] = [match for match in git.grep(relation_token, max_items=30, deny_patterns=deny) if Path(str(match["path"])).name in {"CMakeLists.txt", "Makefile", "pyproject.toml"}]
+                item["build_config_references"] = [match for match in git.grep(relation_token, max_items=30, deny_patterns=deny, revision=revision, deadline=deadline) if Path(str(match["path"])).name in {"CMakeLists.txt", "Makefile", "pyproject.toml"}]
             base_matches = item.get("matches", []) if isinstance(item.get("matches"), list) else []
             if "definitions" in request.requested_relations:
                 item["definitions"] = [

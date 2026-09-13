@@ -28,8 +28,13 @@ class QueryServiceTests(unittest.TestCase):
         self.root = Path(self.temporary.name) / "repo"
         self.root.mkdir()
         subprocess.run(["git", "init", "-b", "main"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "Tests"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.email", "tests@example.invalid"], cwd=self.root, check=True, capture_output=True)
         (self.root / "src").mkdir()
         (self.root / "src" / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "fixture"], cwd=self.root, check=True, capture_output=True)
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, check=True, text=True, capture_output=True).stdout.strip()
         self.config = ProjectControlConfig(workspaces={
             "demo": WorkspaceConfig(authority_repository="source", repositories={"source": RepositoryConfig(root=self.root)})
         })
@@ -37,7 +42,7 @@ class QueryServiceTests(unittest.TestCase):
             workspace_id="demo",
             observed_at="2026-08-25T00:00:00Z",
             todo_revision=7,
-            repositories={"source": RepositoryIdentity(commit="abc", dirty=False)},
+            repositories={"source": RepositoryIdentity(commit=head, dirty=False)},
             todo_status={"active_claims": [{"task_id": "T1", "expires_at": "2026-08-26T00:00:00Z"}]},
             todo_tables={
                 "tasks": [{"id": "T1", "title": "Task"}],
@@ -82,6 +87,18 @@ class QueryServiceTests(unittest.TestCase):
         self.snapshot.provider_warnings = {"todo": ["todo_authority_unavailable"]}
         result = inspect_subject(self.config, self.snapshot, InspectInput(project="demo", kind="path", target="src/module.py", repository="source"))
         self.assertNotIn("todo_authority_unavailable", result.warnings)
+
+    def test_immutable_unresolved_source_inspection_ignores_dirty_worktree(self) -> None:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, check=True, text=True, capture_output=True).stdout.strip()
+        (self.root / "src" / "module.py").write_text("DIRTY_SYMBOL = 1\n", encoding="utf-8")
+        for kind in ("symbol", "subsystem"):
+            result = inspect_subject(self.config, self.snapshot, InspectInput(
+                project="demo", kind=kind, target="VALUE", repository="source", source_selector=head,
+            ))
+            self.assertEqual("bounded_git_grep", result.data["source"])
+            self.assertEqual("immutable_commit", result.data["freshness"])
+            self.assertTrue(result.data["matches"])
+            self.assertNotIn("DIRTY_SYMBOL", json.dumps(result.data["matches"]))
 
     def test_evidence_reports_support_and_provenance(self) -> None:
         result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["gates", "worker", "git"]))

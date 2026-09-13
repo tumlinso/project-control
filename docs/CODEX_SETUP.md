@@ -22,7 +22,7 @@ Before registration, candidate validation must prove:
 
 - runtime package and frozen source match the digest-pinned manifest;
 - rebinding, skew, missing packages, and ambiguous packages fail closed;
-- stdio discovery returns exactly 20 tools;
+- stdio discovery returns exactly 22 tools;
 - the six workflow input schemas match the existing canonical protocol;
 - workflow writes and rich reads observe the same Todo project UUID, revision,
   and authority fingerprint; and
@@ -46,7 +46,7 @@ The Codex profile exposes these six workflow tools:
 - `collect_delegation`
 - `finish_task`
 
-It also exposes the fourteen rich reads:
+It also exposes the sixteen rich reads:
 
 - `project_overview`
 - `project_delta`
@@ -56,6 +56,8 @@ It also exposes the fourteen rich reads:
 - `plan_preview`
 - `agent_status`
 - `performance_status`
+- `local_investigate`
+- `observer_analysis`
 - `architecture_context`
 - `coordination_view`
 - `source_context`

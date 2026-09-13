@@ -132,6 +132,33 @@ class SourceContextTests(unittest.TestCase):
         self.assertNotIn("DIRTY", result.data["targets"][0]["excerpt"])
         self.assertEqual("immutable_commit", result.data["source_freshness"])
 
+    def test_commit_selector_keeps_searches_and_relations_on_git_objects(self) -> None:
+        head = git(self.root, "rev-parse", "HEAD").strip()
+        (self.root / "src" / "module.py").write_text("DIRTY_SYMBOL = True\n", encoding="utf-8")
+        (self.root / "tests" / "test_module.py").write_text("DIRTY_SYMBOL\n", encoding="utf-8")
+        (self.root / "docs" / "architecture.md").write_text("DIRTY_SYMBOL\n", encoding="utf-8")
+        (self.root / "pyproject.toml").write_text("DIRTY_SYMBOL\n", encoding="utf-8")
+        result = self.call(
+            [
+                SourceTarget(kind="symbol", value="calculate_total"),
+                SourceTarget(kind="text", value="calculate_total"),
+                SourceTarget(kind="subsystem", value="calculate_total"),
+                SourceTarget(kind="path", value="src/module.py"),
+            ],
+            source_selector=head,
+            requested_relations=["tests", "documentation", "build_config_references"],
+        )
+        symbol, text, subsystem, path = result.data["targets"]
+        for item in (symbol, text, subsystem):
+            self.assertEqual("bounded_git_grep", item["source"])
+            self.assertEqual("immutable_commit", item["freshness"])
+            self.assertTrue(item["matches"])
+            self.assertNotIn("DIRTY_SYMBOL", json.dumps(item))
+        self.assertIn("calculate_total", path["excerpt"])
+        self.assertNotIn("DIRTY_SYMBOL", json.dumps(path["tests"]))
+        self.assertNotIn("DIRTY_SYMBOL", json.dumps(path["documentation"]))
+        self.assertNotIn("DIRTY_SYMBOL", json.dumps(path["build_config_references"]))
+
     def test_working_tree_reads_explicit_live_link_without_copying(self) -> None:
         live = Path(self.temp.name) / "live-config.toml"
         live.write_text("model = 'first'\n", encoding="utf-8")

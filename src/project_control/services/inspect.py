@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
 from ..security import SecurityError, read_bounded_text, resolve_registered_path
+from ..subprocesses import CommandError
 
 
 TABLES = {
@@ -65,7 +67,13 @@ def _working_tree_range(
     raise SecurityError("racy_source_read")
 
 
-def inspect_subject(config: ProjectControlConfig, snapshot: ProjectSnapshot, request: InspectInput) -> ToolEnvelope:
+def inspect_subject(
+    config: ProjectControlConfig,
+    snapshot: ProjectSnapshot,
+    request: InspectInput,
+    *,
+    deadline: float | None = None,
+) -> ToolEnvelope:
     warnings: list[str] = []
     data: dict[str, Any] = {"kind": request.kind, "target": request.target, "intent": request.intent}
     reconciled = ProjectReconciler(snapshot).reconcile()
@@ -140,7 +148,10 @@ def inspect_subject(config: ProjectControlConfig, snapshot: ProjectSnapshot, req
                     selector = "HEAD" if request.source_selector == "HEAD" else request.source_selector
                     if selector.startswith("-") or len(selector) > 128:
                         raise SecurityError("invalid source selector")
-                    text = GitReadAdapter(source_root).show_text(selector, request.target, max_bytes=8 * 1024 * 1024)
+                    remaining = 5.0 if deadline is None else max(0.05, min(5.0, deadline - time.monotonic()))
+                    if deadline is not None and deadline <= time.monotonic():
+                        raise SecurityError("source_read_deadline_exhausted")
+                    text = GitReadAdapter(source_root).show_text(selector, request.target, max_bytes=8 * 1024 * 1024, timeout=remaining)
                     lines = text.splitlines()
                     excerpt = "\n".join(lines[line_start - 1:line_end])
                     before = after = hashlib.sha256(text.encode()).hexdigest()
@@ -168,7 +179,36 @@ def inspect_subject(config: ProjectControlConfig, snapshot: ProjectSnapshot, req
             data.update(source="reconciled_project_graph", freshness="snapshot", resolution=resolution)
             warnings.append("subject_ambiguous")
         else:
-            result = CtxppReadAdapter(source_root, deny_patterns=[*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns]).inspect(request.target, max_items=30)
+            if request.source_selector == "working_tree":
+                result = CtxppReadAdapter(source_root, deny_patterns=[*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns]).inspect(request.target, max_items=30)
+            else:
+                selector = "HEAD" if request.source_selector == "HEAD" else request.source_selector
+                try:
+                    remaining = 5.0 if deadline is None else max(0.05, min(5.0, deadline - time.monotonic()))
+                    if deadline is not None and deadline <= time.monotonic():
+                        raise CommandError("source_read_deadline_exhausted")
+                    revision = GitReadAdapter(source_root).verify_revision(selector, timeout=remaining)
+                    result = {
+                        "status": "partial",
+                        "source": "bounded_git_grep",
+                        "freshness": "immutable_commit",
+                        "matches": GitReadAdapter(source_root).grep(
+                            request.target,
+                            max_items=30,
+                            deny_patterns=[*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns],
+                            revision=revision,
+                            deadline=deadline,
+                        ),
+                        "warnings": ["semantic_context_unavailable_for_immutable_commit"],
+                    }
+                except (CommandError, OSError, ValueError):
+                    result = {
+                        "status": "unavailable",
+                        "source": "bounded_git_grep",
+                        "freshness": "immutable_commit",
+                        "matches": [],
+                        "warnings": ["invalid_source_selector"],
+                    }
             data.update(repository=repository.alias, resolution=resolution, **result)
             warnings.extend(result.get("warnings", []))
     budget = min(28000, request.budget_tokens * 4)

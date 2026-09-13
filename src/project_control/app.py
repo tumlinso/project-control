@@ -20,6 +20,7 @@ from .models import (
     DeltaSince,
     EvidenceInput,
     InspectInput,
+    LocalInvestigateInput,
     HistoryTraceInput,
     ImpactPreviewInput,
     PerformanceStatusInput,
@@ -53,6 +54,7 @@ from .services.performance import performance_status as performance_status_servi
 from .services.planning import MutationDetected, plan_preview as plan_preview_service
 from .services.program import program_context as program_context_service
 from .services.source_context import source_context as source_context_service
+from .services.local_investigate import local_investigate as local_investigate_service
 from .snapshot import SnapshotBuilder
 from .security import redact_output
 from .terminal import TerminalSessionRegistry
@@ -66,10 +68,11 @@ from .observer_analysis import DisabledObserverAnalysisProvider, ObserverAnalysi
 SERVER_INSTRUCTIONS = (
     "Use project-control to inspect live engineering projects through its read-only architectural, source, "
     "history, planning, and coordination "
-    "observatory. Start with architecture_context for broad questions, project_overview for status, or "
+    "observatory. Prefer local_investigate for a finished bounded local-model investigation; observer_analysis is "
+    "the low-level immutable-packet primitive. Start with architecture_context for broad questions, project_overview for status, or "
     "project_delta for change. Use source_context for bounded multi-target source reads and coordination_view for "
     "todo-authoritative workflow state. Todo semantic workflow owns operational truth; durable export only enriches "
-    "anchored records. The fourteen project query tools never claim tasks, mark messages read, advance cursors, "
+    "anchored records. The read-only project query tools never claim tasks, mark messages read, advance cursors, "
     "edit files, run workers or benchmarks, reserve resources, or mutate Git/todo state. terminal_capture is the one "
     "bounded, sandboxed PTY observation capability; it has no shell or project mutation authority. Cross-project observations "
     "are independent, and program membership is not architectural authority. Proposal envelopes are inert and "
@@ -264,6 +267,25 @@ def create_mcp(
             return ToolEnvelope(tool="observer_analysis", status=status, project=snapshot.identity(),
                                 data=provider_result, warnings=warning, cursor=snapshot.cursor())
         return runtime.invoke("observer_analysis", project, operation)
+
+    @mcp.tool(
+        description="Preferred high-level local read-only investigation. Project Control brokers bounded architecture, source, inspect and workflow reads to a tool-less local model; returns evidence-linked facts, inferences and uncertainty without claims, writes or paid-model fallback.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def local_investigate(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], effort: Literal["quick", "standard", "deep"] = "standard") -> dict[str, Any]:
+        request = LocalInvestigateInput(project=project, question=question, effort=effort)
+        def operation() -> ToolEnvelope:
+            snapshot = runtime.snapshot(project)
+            workspace = WorkspaceRegistry(active_config).workspace(project)
+            alias = workspace.authority_repository or (sorted(snapshot.repositories)[0] if snapshot.repositories else None)
+            root = WorkspaceRegistry(active_config).repository(project, alias).root if alias is not None else None
+            return local_investigate_service(
+                active_config, request, snapshot=snapshot, snapshot_getter=lambda: runtime.snapshot(project),
+                model_turn=lambda turn: ({"status": "unavailable", "reason": "project_has_no_repository"}
+                                         if root is None else observer_analysis_registry.investigate_turn(root, turn)),
+            )
+        return runtime.invoke("local_investigate", project, operation)
 
     @mcp.tool(
         description="Inspect one bounded registered task, contract, decision, dependency, symbol, path, or subsystem with source location and freshness.",

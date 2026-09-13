@@ -4,14 +4,14 @@ Project Control now implements a deliberately narrow general Todo plan write
 surface in a separate **mutator** profile. This does not change the existing
 profiles:
 
-- **observer** remains permanently project-read-only with its frozen 15-tool
+- **observer** remains permanently project-read-only with its 17-tool
   surface. It has no `apply_plan`, write flag, hidden switch, or dormant
   mutator.
-- **codex** retains its exact six Todo workflow tools and fourteen rich reads.
+- **codex** retains its exact six Todo workflow tools and sixteen rich reads.
   The workflow protocol remains the ordinary path for claimed implementation
   work.
 - **mutator** is an explicit trusted-startup stdio profile. It exposes the
-  Codex 20-tool surface plus `apply_plan`, and excludes `terminal_capture`.
+  Codex 22-tool surface plus `apply_plan`, and excludes `terminal_capture`.
 
 Profile selection is process configuration. MCP `clientInfo`, user agents,
 annotations, model claims, and tool arguments cannot grant mutation authority.

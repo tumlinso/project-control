@@ -29,6 +29,34 @@ class _Provider:
 
 
 class ObserverAnalysisRegistryTests(unittest.TestCase):
+    def test_investigator_turn_is_translated_to_skills_chat_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            skills = base / "skills"
+            module_root = skills / "local-coding-worker" / "local_worker"
+            module_root.mkdir(parents=True)
+            captured = []
+            class Backend:
+                def __init__(self, *_args, **_kwargs): pass
+                def run_observer_turn(self, request):
+                    captured.append(request)
+                    return {"status": "available", "text": '{"action":"answer","answer":{}}'}
+            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), ProductionBackend=Backend)
+            with mock.patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(skills), "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}, clear=False), \
+                 mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
+                result = SkillsObserverAnalysisProvider(base / "observed").investigate_turn({
+                    "protocol": "PC-LOCAL-INVESTIGATOR-TURN/1", "system_prompt": "system", "question": "q",
+                    "evidence": [{"id": "E1"}], "max_tokens": 123, "timeout_seconds": 12,
+                    "messages": [{"round": 1}, {"role": "assistant", "content": "prior"}],
+                })
+            self.assertEqual(result["status"], "available")
+            self.assertEqual(captured[0]["format"], "PC-LOCAL-INVESTIGATOR-TURN/1")
+            self.assertEqual(captured[0]["messages"][0], {"role": "system", "content": "system"})
+            self.assertEqual(captured[0]["messages"][1]["role"], "user")
+            self.assertEqual(captured[0]["messages"][2], {"role": "assistant", "content": "prior"})
+            self.assertEqual(captured[0]["max_tokens"], 123)
+            self.assertEqual(captured[0]["timeout_seconds"], 12)
+
     def test_skills_provider_uses_private_service_state_not_observed_repository(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -84,3 +112,12 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
         self.assertEqual(_Provider.created, 1)
         registry.close()
         self.assertEqual(_Provider.closed, 1)
+
+    def test_different_projects_share_one_local_service_provider(self):
+        _Provider.created = _Provider.closed = 0
+        registry = ObserverAnalysisRegistry(_Provider)
+        first = registry.analyze("/tmp/observer-one", {"one": 1})
+        second = registry.analyze("/tmp/observer-two", {"two": 2})
+        self.assertEqual(first["root"], second["root"])
+        self.assertEqual(_Provider.created, 1)
+        registry.close()

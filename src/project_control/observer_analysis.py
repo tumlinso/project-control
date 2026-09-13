@@ -51,12 +51,17 @@ class ObserverAnalysisProvider(Protocol):
 
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]: ...
 
+    def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]: ...
+
 
 class DisabledObserverAnalysisProvider:
     available = False
 
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]:
         return compact_packet_fallback(immutable_packet, "observer_analysis_disabled")
+
+    def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]:
+        return {"status": "unavailable", "reason": "local_investigator_disabled"}
 
 
 class SkillsObserverAnalysisProvider:
@@ -108,6 +113,40 @@ class SkillsObserverAnalysisProvider:
         except Exception as error:
             return compact_packet_fallback(immutable_packet, str(error))
 
+    def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Run one inert investigator turn; Project Control retains every read."""
+        try:
+            system_prompt = request.get("system_prompt")
+            if not isinstance(system_prompt, str) or not system_prompt:
+                raise ValueError("local_investigator_system_prompt_missing")
+            user_context = {key: value for key, value in request.items()
+                            if key not in {"system_prompt", "messages", "max_tokens", "timeout_seconds"}}
+            messages: list[dict[str, str]] = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(user_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False)},
+            ]
+            # Only explicitly role/content-shaped prior model turns may cross
+            # the provider boundary; broker bookkeeping never becomes chat.
+            for item in request.get("messages", []):
+                if (isinstance(item, dict) and item.get("role") == "assistant"
+                        and isinstance(item.get("content"), str)):
+                    messages.append({"role": "assistant", "content": item["content"]})
+            backend_request = {
+                "format": "PC-LOCAL-INVESTIGATOR-TURN/1",
+                "messages": messages,
+                "max_tokens": int(request.get("max_tokens", 2048)),
+                "timeout_seconds": float(request.get("timeout_seconds", 90)),
+            }
+            encoded = json.dumps(backend_request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            if len(encoded.encode("utf-8")) > 256 * 1024:
+                raise ValueError("local_investigator_turn_too_large")
+            result = self._get_backend().run_observer_turn(json.loads(encoded))
+            if not isinstance(result, dict):
+                raise ValueError("local_investigator_invalid_result")
+            return result
+        except Exception as error:
+            return {"status": "unavailable", "reason": str(error)[:500]}
+
     def close(self) -> None:
         """Release the one cached model slot during server shutdown."""
         backend, self._backend = self._backend, None
@@ -119,7 +158,7 @@ class SkillsObserverAnalysisProvider:
 
 
 class ObserverAnalysisRegistry:
-    """Process-lifetime, per-repository serialized observer providers."""
+    """One process-lifetime serialized local provider for inert project packets."""
 
     def __init__(self, factory: Any = SkillsObserverAnalysisProvider):
         self._factory = factory
@@ -127,11 +166,11 @@ class ObserverAnalysisRegistry:
         self._lock = threading.Lock()
 
     def analyze(self, repo_root: str | Path, packet: dict[str, Any]) -> dict[str, Any]:
-        key = str(Path(repo_root).resolve())
+        key = "local-observer-service"
         with self._lock:
             provider = self._providers.get(key)
             if provider is None:
-                provider = self._factory(key)
+                provider = self._factory(str(Path(repo_root).resolve()))
                 self._providers[key] = provider
         try:
             return provider.analyze(packet)
@@ -141,6 +180,20 @@ class ObserverAnalysisRegistry:
                 # Idle slots are intentionally reusable; polling releases them
                 # deterministically after TTL/preemption without a second
                 # provider or GPU reservation.
+                backend.poll()
+
+    def investigate_turn(self, repo_root: str | Path, request: dict[str, Any]) -> dict[str, Any]:
+        key = "local-observer-service"
+        with self._lock:
+            provider = self._providers.get(key)
+            if provider is None:
+                provider = self._factory(str(Path(repo_root).resolve()))
+                self._providers[key] = provider
+        try:
+            return provider.investigate_turn(request)
+        finally:
+            backend = getattr(provider, "_backend", None)
+            if backend is not None:
                 backend.poll()
 
     def close(self) -> None:

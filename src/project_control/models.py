@@ -292,6 +292,14 @@ class AgentStatusInput(BaseModel):
     include_local_services: bool = True
 
 
+class LocalInvestigateInput(BaseModel):
+    """The deliberately small public request for mediated local investigation."""
+
+    project: str
+    question: str = Field(min_length=1, max_length=12_000)
+    effort: Literal["quick", "standard", "deep"] = "standard"
+
+
 class PerformanceStatusInput(BaseModel):
     project: str
     campaign: str | None = Field(default=None, max_length=256)
