@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -27,6 +28,27 @@ def completed(command, code=0, stdout="", stderr=""):
 
 
 class InstallerTests(unittest.TestCase):
+    def test_candidate_binds_frozen_local_analysis_without_pythonpath(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            project, skills, destination = root / "project", root / "skills", root / "candidate"
+            project.mkdir(); (project / "pyproject.toml").write_text("")
+            (skills / "todo-orchestrator").mkdir(parents=True); (skills / "todo-orchestrator" / "pyproject.toml").write_text("")
+            (skills / "local-coding-worker" / "local_worker").mkdir(parents=True)
+            (skills / "local-coding-worker" / "local_worker" / "supervisor.py").write_text("# frozen\n")
+            def runner(command):
+                if command[0] == "git": return completed(command, stdout="hash\n")
+                if "venv" in command:
+                    staging = Path(command[-1]); (staging / "bin").mkdir(parents=True)
+                    (staging / "lib/python3.13/site-packages").mkdir(parents=True)
+                    return completed(command)
+                if "pip" in command: return completed(command)
+                return completed(command)
+            build_candidate(project_control_root=project, skills_root=skills, destination=destination, runner=runner)
+            pth = next((destination / "lib/python3.13/site-packages").glob("project_control_observer_analysis.pth"))
+            self.assertEqual(pth.read_text().strip(), str(destination / "runtime-skills/local-coding-worker"))
+            release = json.loads((destination / "release-manifest.json").read_text())
+            self.assertEqual(release["observer_analysis_binding"]["path"], str(destination / "runtime-skills/local-coding-worker"))
     def test_candidate_is_published_only_after_both_packages_install(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)

@@ -137,16 +137,19 @@ def _parser() -> argparse.ArgumentParser:
     recover.add_argument("--task")
     recover.add_argument("--reason", required=True)
     recover.add_argument("--inspect-only", action="store_true")
-    authorize_recovery = admin_commands.add_parser("authorize-delegated-recovery")
-    authorize_recovery.add_argument("--repo", required=True)
-    authorize_recovery.add_argument("--task", required=True)
-    authorize_recovery.add_argument("--delegator-role", required=True, choices=("root", "parallel_head"))
-    authorize_recovery.add_argument("--delegator-lineage", required=True)
-    authorize_recovery.add_argument("--expires-seconds", type=int, default=300)
     delegated_recovery = admin_commands.add_parser("recover-authorized")
     delegated_recovery.add_argument("--repo", required=True)
     delegated_recovery.add_argument("--authorization", required=True)
     delegated_recovery.add_argument("--reason", required=True)
+    retire_batch = admin_commands.add_parser("retire-run-batch")
+    retire_batch.add_argument("--repo", required=True)
+    retire_batch.add_argument("--request", required=True)
+    retire_batch.add_argument("--apply", action="store_true")
+    retire_batch.add_argument("--confirm")
+    prepare_retire = admin_commands.add_parser("prepare-retire-run-batch")
+    prepare_retire.add_argument("--repo", required=True)
+    prepare_retire.add_argument("--intent", required=True)
+    prepare_retire.add_argument("--output")
     prepare = admin_commands.add_parser("prepare-run-workspaces")
     prepare.add_argument("--repo", required=True)
     prepare.add_argument("--plan", required=True)
@@ -389,7 +392,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "admin":
             from .admin import (
                 advance_producer_wave,
-                authorize_delegated_recovery,
                 inspect_recovery,
                 mark_run_workspaces_cleanup_eligible,
                 manage_integration_wave,
@@ -399,6 +401,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 reconcile_workspace_base,
                 recover,
                 recover_authorized,
+                prepare_retire_run_batch,
+                retire_run_batch,
             )
 
             if args.admin_command == "selective-replan":
@@ -423,14 +427,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "recover":
                 recover(args.repo, reason=args.reason, task_id=args.task)
-            elif args.admin_command == "authorize-delegated-recovery":
-                result = authorize_delegated_recovery(
-                    args.repo, task_id=args.task, delegator_role=args.delegator_role,
-                    delegator_lineage=args.delegator_lineage, expires_seconds=args.expires_seconds,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "recover-authorized":
                 result = recover_authorized(args.repo, authorization_id=args.authorization, reason=args.reason)
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "retire-run-batch":
+                result = retire_run_batch(args.repo, args.request, apply=args.apply, confirmation=args.confirm)
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "prepare-retire-run-batch":
+                result = prepare_retire_run_batch(args.repo, args.intent, args.output)
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "reconcile-workspace-base":
                 result = reconcile_workspace_base(

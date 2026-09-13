@@ -175,6 +175,32 @@ def _freeze_skills(skills: Path, temporary: Path, destination: Path) -> dict:
             "todo_runtime_fingerprint": fingerprint, "tools_fingerprint": _source_fingerprint(snapshot)}
 
 
+def _bind_observer_analysis_skill(temporary: Path, destination: Path) -> dict[str, str] | None:
+    """Expose only the frozen local-analysis package to the candidate Python.
+
+    A path-only .pth is deterministic and cannot execute startup code.  It is
+    recorded in the digest-pinned release manifest, avoiding ambient
+    PYTHONPATH inheritance while keeping the full skill implementation out of
+    Project Control's wheel.
+    """
+    skill = temporary / "runtime-skills" / "local-coding-worker"
+    package = skill / "local_worker"
+    if not package.is_dir():
+        return None
+    sites = [*temporary.glob("lib/python*/site-packages"), temporary / "Lib" / "site-packages"]
+    site = next((candidate for candidate in sites if candidate.is_dir()), None)
+    if site is None:
+        # Test runners may stub venv creation. A real candidate must have its
+        # site-packages directory after pip installation.
+        if (temporary / "bin" / "python").exists():
+            raise InstallError("candidate site-packages missing for observer-analysis binding")
+        return None
+    binding_name = "project_control_observer_analysis.pth"
+    bound_path = destination / "runtime-skills" / "local-coding-worker"
+    (site / binding_name).write_text(str(bound_path) + "\n", encoding="utf-8")
+    return {"pth": binding_name, "path": str(bound_path), "fingerprint": _source_fingerprint(package)}
+
+
 def build_candidate(
     *,
     project_control_root: Path,
@@ -216,6 +242,9 @@ def build_candidate(
                     f"candidate command failed ({command[0]}): {completed.stderr.strip()}"
                 )
         release = _freeze_skills(skills_root, temporary, destination)
+        observer_binding = _bind_observer_analysis_skill(temporary, destination)
+        if observer_binding is not None:
+            release["observer_analysis_binding"] = observer_binding
         release.update({"project_control_commit": identity.project_control_commit,
                         "todo_commit": identity.todo_commit,
                         "project_control_fingerprint": _source_fingerprint(project_control_root / "src" / "project_control")})

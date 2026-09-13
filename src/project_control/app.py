@@ -60,6 +60,7 @@ from .profiles import MCPProfile, ProfiledFastMCP
 from .mutation_tools import register_mutation_tools
 from .workflow_binding import todo_read_port_factory, workflow_protocol
 from .workflow_tools import WORKFLOW_INSTRUCTIONS, register_workflow_tools
+from .observer_analysis import DisabledObserverAnalysisProvider, ObserverAnalysisRegistry
 
 
 SERVER_INSTRUCTIONS = (
@@ -189,6 +190,7 @@ def create_mcp(
 ) -> ProfiledFastMCP:
     active_config = config or load_config()
     runtime = Runtime(active_config)
+    observer_analysis_registry = ObserverAnalysisRegistry()
     server = active_config.server
     selected_profile = MCPProfile(profile)
     instructions = SERVER_INSTRUCTIONS
@@ -241,6 +243,27 @@ def create_mcp(
     def project_frontier(project: str, max_ready: Annotated[int, Field(ge=1, le=100)] = 20, include_blocked: bool = True, include_parallel_groups: bool = True) -> dict[str, Any]:
         request = ProjectFrontierInput(project=project, max_ready=max_ready, include_blocked=include_blocked, include_parallel_groups=include_parallel_groups)
         return runtime.invoke("project_frontier", project, lambda: project_frontier_service(runtime.snapshot(project), max_ready=request.max_ready, include_blocked=request.include_blocked, include_parallel_groups=request.include_parallel_groups))
+
+    @mcp.tool(
+        description="Optional non-authoritative local summary of an immutable bounded evidence packet. Never claims, writes, invokes tools, or starts workers; unavailable local inference returns a deterministic compact-envelope fallback.",
+        annotations=READ_ONLY,
+        structured_output=True,
+    )
+    def observer_analysis(project: str, packet: dict[str, Any]) -> dict[str, Any]:
+        snapshot = runtime.snapshot(project)
+        provider_result: dict[str, Any]
+        try:
+            alias = next(iter(snapshot.repositories))
+            root = WorkspaceRegistry(active_config).repository(project, alias).root
+            provider_result = observer_analysis_registry.analyze(root, packet)
+        except Exception:
+            provider_result = DisabledObserverAnalysisProvider().analyze(packet)
+        def operation() -> ToolEnvelope:
+            status = ToolStatus.OK if provider_result.get("status") == "available" else ToolStatus.PARTIAL
+            warning = [] if status is ToolStatus.OK else [str(provider_result.get("reason", "local_analysis_unavailable"))[:500]]
+            return ToolEnvelope(tool="observer_analysis", status=status, project=snapshot.identity(),
+                                data=provider_result, warnings=warning, cursor=snapshot.cursor())
+        return runtime.invoke("observer_analysis", project, operation)
 
     @mcp.tool(
         description="Inspect one bounded registered task, contract, decision, dependency, symbol, path, or subsystem with source location and freshness.",
@@ -437,6 +460,7 @@ def create_mcp(
         register_mutation_tools(mcp, active_config)
 
     setattr(mcp, "_project_control_runtime", runtime)
+    setattr(mcp, "_project_control_observer_analysis_registry", observer_analysis_registry)
     return mcp
 
 
@@ -445,6 +469,7 @@ def create_asgi_app(config: ProjectControlConfig | None = None):
     app = mcp.streamable_http_app()
     original_lifespan = app.router.lifespan_context
     runtime = getattr(mcp, "_project_control_runtime")
+    observer_analysis_registry = getattr(mcp, "_project_control_observer_analysis_registry")
 
     @asynccontextmanager
     async def application_lifespan(asgi_app):
@@ -452,6 +477,7 @@ def create_asgi_app(config: ProjectControlConfig | None = None):
             try:
                 yield state
             finally:
+                observer_analysis_registry.close()
                 runtime.terminals.shutdown()
 
     app.router.lifespan_context = application_lifespan
@@ -472,15 +498,24 @@ def serve(*, host: str | None = None, port: int | None = None) -> int:
     return 0
 
 
+def _serve_stdio(profile: MCPProfile) -> int:
+    """Run stdio MCP and release any cached observer model on EOF/error."""
+    mcp = create_mcp(profile=profile)
+    try:
+        mcp.run(transport="stdio")
+    finally:
+        getattr(mcp, "_project_control_observer_analysis_registry").close()
+    return 0
+
+
 def serve_codex() -> int:
     """Run the explicitly selected Codex profile over stdio."""
 
-    create_mcp(profile=MCPProfile.CODEX).run(transport="stdio")
+    return _serve_stdio(MCPProfile.CODEX)
     return 0
 
 
 def serve_mutator() -> int:
     """Run the explicitly selected mutation-capable profile over local stdio."""
 
-    create_mcp(profile=MCPProfile.MUTATOR).run(transport="stdio")
-    return 0
+    return _serve_stdio(MCPProfile.MUTATOR)

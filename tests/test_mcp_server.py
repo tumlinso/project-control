@@ -29,7 +29,7 @@ EXPECTED = {
     "evidence", "plan_preview", "agent_status", "performance_status",
     "architecture_context", "coordination_view", "source_context", "history_trace",
     "impact_preview", "program_context",
-    "terminal_capture",
+    "terminal_capture", "observer_analysis",
 }
 
 INPUT_SCHEMA_SHA256 = {
@@ -128,6 +128,23 @@ class MCPServerTests(unittest.TestCase):
         descriptions = {tool.name: tool.description for tool in tools}
         for name in EXPECTED - {"terminal_capture"}:
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
+
+    def test_observer_analysis_is_discoverable_read_only_in_every_profile(self) -> None:
+        for profile in ("observer", "codex", "mutator"):
+            with self.subTest(profile=profile):
+                tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile=profile).list_tools())}
+                self.assertIn("observer_analysis", tools)
+                self.assertTrue(tools["observer_analysis"].annotations.readOnlyHint)
+                self.assertFalse(tools["observer_analysis"].annotations.destructiveHint)
+
+    def test_observer_analysis_call_returns_provider_content_in_envelope(self) -> None:
+        result = asyncio.run(create_mcp(self.config).call_tool("observer_analysis", {
+            "project": "demo", "packet": {"source_identity": {"project": "demo"},
+            "evidence": [{"id": "ev-smoke", "text": "packet-related smoke content"}]},
+        }))
+        encoded = json.dumps(result, default=lambda item: item.model_dump(mode="json") if hasattr(item, "model_dump") else str(item))
+        self.assertIn("packet-related smoke content", encoded)
+        self.assertNotIn("internal_error", encoded)
 
     def test_server_runtime_receives_configured_in_process_read_port_factory(self) -> None:
         factory = lambda _root: None

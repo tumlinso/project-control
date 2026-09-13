@@ -41,6 +41,7 @@ RICH_READ_TOOL_NAMES = (
     "history_trace",
     "impact_preview",
     "program_context",
+    "observer_analysis",
 )
 
 WORKFLOW_TOOL_NAMES = (

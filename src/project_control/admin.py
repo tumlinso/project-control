@@ -22,6 +22,7 @@ ADVANCE_PRODUCER_WAVE_CONFIRMATION = "ADVANCE-PRODUCER-WAVE"
 PUBLISH_PRODUCER_WAVE_CONFIRMATION = "PUBLISH-PRODUCER-WAVE"
 INTEGRATION_WAVE_CONFIRMATION = "INTEGRATION-WAVE"
 PUBLISH_COMPLETED_INTERFACE_CONFIRMATION = "PUBLISH-COMPLETED-INTERFACE"
+RETIRE_RUN_BATCH_CONFIRMATION = "RETIRE-RUN-BATCH"
 
 
 def _runtime_identity() -> object:
@@ -57,12 +58,10 @@ def recover(repo: str | Path, *, reason: str, task_id: str | None = None) -> Non
     )
 
 
-def authorize_delegated_recovery(
+def issue_root_delegated_recovery(
     repo: str | Path,
     *,
     task_id: str,
-    delegator_role: str,
-    delegator_lineage: str,
     expires_seconds: int = 300,
 ) -> dict[str, object]:
     """Root/head lifecycle bridge for one opaque, scoped recovery launch.
@@ -74,14 +73,86 @@ def authorize_delegated_recovery(
     _runtime_identity()
     from todo_orchestrator.service import Service
     from todo_orchestrator.workflow.recovery import RecoveryEngine
-    from .workflow_core.recovery import issue_recovery_authorization
+    from .workflow_core.recovery import issue_root_recovery_authorization
 
     service = Service(repo, mutation_mode="self_debug")
     engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
-    return issue_recovery_authorization(
-        service, engine, task_id=task_id, delegator_role=delegator_role,
-        delegator_lineage=delegator_lineage, expires_seconds=expires_seconds,
-    )
+    return issue_root_recovery_authorization(service, engine, task_id=task_id, expires_seconds=expires_seconds)
+
+
+def retire_run_batch(repo: str | Path, request_file: str | Path, *, apply: bool, confirmation: str | None) -> dict[str, object]:
+    """Root-only exact retirement front door; preview never mutates."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from .workflow_core.retirement import RetirementRequest, retire_run_batch as kernel_retire
+
+    path = Path(request_file)
+    try:
+        raw = path.read_bytes()
+        request = RetirementRequest.model_validate_json(raw)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"invalid retirement request file: {exc}") from exc
+    digest = hashlib.sha256(raw).hexdigest()
+    preview = {"status": "preview", "request_sha256": digest, "source_run_id": request.source_run_id,
+               "successor_run_id": request.successor_run_id, "task_ids": sorted(request.expected_tasks),
+               "apply_confirmation": RETIRE_RUN_BATCH_CONFIRMATION}
+    if not apply:
+        return preview
+    if confirmation != RETIRE_RUN_BATCH_CONFIRMATION:
+        raise ValueError("retire-run-batch requires exact confirmation")
+    service = Service(repo, mutation_mode="self_debug")
+    receipt = kernel_retire(service, request)
+    return {**receipt, "request_sha256": digest, "request_file": str(path.resolve())}
+
+
+def prepare_retire_run_batch(repo: str | Path, intent_file: str | Path, output_file: str | Path | None = None) -> dict[str, object]:
+    """Derive one stale-safe exact request from a small declarative intent.
+
+    This is a read-only owner operation.  It keeps raw authority fingerprints
+    and row digests in the kernel boundary instead of asking a root model to
+    reinterpret a ledger or inspect SQLite itself.
+    """
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.retirement import _fingerprint, _task_digest
+    from .workflow_core.retirement import RetirementRequest
+
+    try:
+        intent = json.loads(Path(intent_file).read_text(encoding="utf-8"))
+        required = {"source_run_id", "successor_run_id", "task_ids", "dispositions", "reason"}
+        if not isinstance(intent, dict) or set(intent) != required or not isinstance(intent["task_ids"], list):
+            raise ValueError("intent must contain exactly source_run_id, successor_run_id, task_ids, dispositions, reason")
+        task_ids = sorted({str(item) for item in intent["task_ids"]})
+        if not task_ids or set(intent["dispositions"]) != set(task_ids):
+            raise ValueError("intent task_ids and dispositions must match exactly")
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid retirement intent file: {exc}") from exc
+    service = Service(repo, mutation_mode="self_debug")
+    with service.db.read() as conn:
+        rows = {str(row["id"]): row for row in conn.execute(
+            "SELECT * FROM tasks WHERE id IN (" + ",".join("?" for _ in task_ids) + ")", task_ids
+        )}
+        if set(rows) != set(task_ids):
+            raise ValueError("retirement intent references missing task")
+        request = RetirementRequest(
+            source_run_id=str(intent["source_run_id"]), successor_run_id=str(intent["successor_run_id"]),
+            expected_project_uuid=str(service.project["project_uuid"]),
+            expected_revision=int(conn.execute("SELECT value FROM meta WHERE key='project_revision'").fetchone()[0]),
+            expected_fingerprint=_fingerprint(conn),
+            expected_tasks={task_id: {"status": str(rows[task_id]["status"]), "version": int(rows[task_id]["version"]),
+                                      "revision": int(rows[task_id]["revision"]), "row_digest": _task_digest(rows[task_id])}
+                            for task_id in task_ids},
+            dispositions={str(key): str(value) for key, value in intent["dispositions"].items()}, reason=str(intent["reason"]),
+        )
+    canonical = request.model_dump_json(indent=2) + "\n"
+    digest = hashlib.sha256(canonical.encode()).hexdigest()
+    if output_file is not None:
+        target = Path(output_file)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(canonical, encoding="utf-8")
+    return {"status": "prepared", "request": request.model_dump(mode="json"), "request_sha256": digest,
+            "output_file": str(Path(output_file).resolve()) if output_file is not None else None,
+            "apply_confirmation": RETIRE_RUN_BATCH_CONFIRMATION}
 
 
 def recover_authorized(repo: str | Path, *, authorization_id: str, reason: str) -> dict[str, object]:

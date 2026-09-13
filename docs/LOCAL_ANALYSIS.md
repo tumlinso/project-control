@@ -1,14 +1,17 @@
 # Optional local observer analysis
 
-Project Control's initial observer-analysis provider is intentionally disabled.
-It accepts no claims, sessions, children, repository writes, coding tools, or
-GPU reservations, and returns deterministic `observer_analysis_disabled` when
-called. Deterministic compact MCP reads remain the normal path.
+Project Control exposes an optional `observer_analysis` read-only tool.  It
+passes an immutable JSON evidence packet (at most 64 KiB and 64 evidence IDs)
+to Skills' existing serialized `ProductionBackend.analyze_observer_packet`
+boundary.  The backend owns cached-model discovery, llama-server lifecycle,
+and topology-aware reservations; Project Control never passes a repository
+handle, workflow handle, callable tool, claim, or child-execution context.
 
-The bounded reuse probe on 2026-09-13 found an installed `llama-server` binary
-but no resident loopback service. Starting a model would require a model choice
-and serving setup, which exceeds this release's stop-line. No model was
-downloaded, no service was started, and no scheduler or local-worker behavior
-was changed. A future opt-in provider may consume immutable bounded evidence
-packets only after it can reuse an already healthy installed service; otherwise
-it must retain this explicit fallback.
+Every response is explicitly non-authoritative and mutation-free.  A missing,
+busy, malformed, or unsupported local provider deterministically returns
+`authoritative_compact_envelope`; compact MCP reads remain the normal path.
+
+The implementation reuses the installed cached model and llama-server support;
+it does not import writable local-coding-worker protocol, coding-agent tools,
+claims, recursive delegation, or scheduler machinery. One serialized model
+service is sufficient.

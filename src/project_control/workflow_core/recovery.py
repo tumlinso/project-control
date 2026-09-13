@@ -64,13 +64,11 @@ def plan_fingerprint(plan: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical(plan)).hexdigest()
 
 
-def issue_recovery_authorization(
+def issue_root_recovery_authorization(
     service: object,
     engine: object,
     *,
     task_id: str,
-    delegator_role: str,
-    delegator_lineage: str,
     expires_seconds: int = 300,
 ) -> dict[str, str | int]:
     """Issue one opaque, exact-target authorization after a fresh safe inspect.
@@ -79,8 +77,10 @@ def issue_recovery_authorization(
     binds the observed UUID, revision and full plan fingerprint; execution
     repeats the inspection under the canonical recovery lock.
     """
-    if delegator_role not in {"root", "parallel_head"} or not delegator_lineage:
-        raise RecoveryAuthorizationError("recovery_delegator_not_authorized")
+    # This is deliberately an internal root/head lifecycle call. It has no
+    # CLI/MCP issuer and accepts no caller-declared role or lineage. Same-user
+    # arbitrary Python is outside the model-facing authority boundary; the
+    # executor receives only this opaque exact token.
     if not task_id or expires_seconds < 1 or expires_seconds > 900:
         raise RecoveryAuthorizationError("recovery_authorization_invalid")
     plan = engine.inspect(task_id)
@@ -98,8 +98,7 @@ def issue_recovery_authorization(
         "task_id": task_id,
         "authority_revision": revision,
         "plan_fingerprint": plan_fingerprint(plan),
-        "delegator_role": delegator_role,
-        "delegator_lineage": delegator_lineage,
+        "issuer": "root_lifecycle_gateway",
         "issued_at": _now().isoformat(),
         "expires_at": (_now() + timedelta(seconds=expires_seconds)).isoformat(),
     }
