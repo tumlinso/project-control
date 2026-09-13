@@ -144,4 +144,25 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertIn("investigator_read_request_rejected", result.warnings)
         self.assertNotIn("evidence", result.data)
         self.assertLess(len(str(model_inputs[0]["evidence"]).encode()), 22 * 1024)
+        self.assertIn("large", model_inputs[0]["evidence"][0]["result"]["data"])
         self.assertLess(len(str(result.model_dump(mode="json")).encode()), 48 * 1024 + 4096)
+
+    def test_duplicate_read_forces_final_only_turn(self) -> None:
+        initial = snapshot()
+        read = {"turn": {"action": "search_source", "requests": [{"targets": [{"value": "needle"}]}]}}
+        answer = {"turn": {"action": "answer", "requests": [], "answer": {
+            "summary": "done", "facts": [{"text": "observed", "evidence_ids": ["E2"]}],
+            "inferences": [], "uncertainty": [], "citations": ["E2"]}}}
+        turns = iter([read, read, answer])
+        inputs = []
+        def model(value):
+            inputs.append(value)
+            return next(turns)
+        with patch("project_control.services.local_investigate.architecture_context", return_value=envelope("architecture_context", initial, {})), \
+             patch("project_control.services.local_investigate.source_context", return_value=envelope("source_context", initial, {"targets": [{"matches": [{"path": "x.py", "line": 1}]}]})):
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=model)
+        self.assertEqual(result.data["status"], "ok")
+        self.assertIn("duplicate_investigator_read_rejected", result.warnings)
+        self.assertTrue(inputs[2]["must_answer"])
+        self.assertIn("FINAL", inputs[2]["system_prompt"])
