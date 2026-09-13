@@ -5,10 +5,12 @@ registered engineering workspaces. It composes two separately enforced MCP
 profiles over one implementation:
 
 - **observer** is the existing loopback Streamable HTTP service for ChatGPT. It
-  exposes exactly 17 tools and is permanently project-read-only.
+  exposes exactly 18 tools and is permanently project-read-only; its explicit
+  `performance_probe` aperture writes only app-private measurement evidence.
 - **codex** is a stdio server registered as `project-control`. It exposes the
-  canonical six Todo workflow tools plus the sixteen rich Project Control read
-  tools. It does not expose `terminal_capture`.
+  canonical six Todo workflow tools plus sixteen rich Project Control reads and
+  the registered `performance_probe` aperture. It does not expose
+  `terminal_capture`.
 - **mutator** is a separately selected local stdio profile exposing the Codex
   surface plus `apply_plan`. It is intended for ledger/bootstrap control
   changes and does not replace ordinary task claims.
@@ -45,7 +47,7 @@ PTY registry and grants no Todo, Git, repository, or workflow authority.
 Project Control v2 is the compatibility authority: it preserves the eight v1
 tools and makes richer reads first-class. Project Control 0.3.1/tool schema v3
 freezes the original fourteen input contracts. The discovered observer surface
-is exactly seventeen tools:
+is exactly eighteen tools:
 
 - `project_overview`
 - `project_delta`
@@ -63,6 +65,7 @@ is exactly seventeen tools:
 - `program_context`
 - `local_investigate`
 - `observer_analysis`
+- `performance_probe`
 - `terminal_capture`
 
 The observer service binds only to loopback and is intended to be connected to
@@ -73,6 +76,16 @@ shell or host path and gives the child a read-only repository, isolated
 HOME/tmp, and no network through bubblewrap. Bubblewrap is required; the
 capability fails closed when it is unavailable. `pyte` supplies the VT state
 machine.
+
+`performance_probe(project, campaign, mode, parameters, rebuild=false)` is an
+observer/root-requested aperture, never a `local_investigate` action. It sends
+only a fixed typed spec to Skills; the registered campaign owns safe argv
+expansion, build recipe, dataset roots, topology and interlocks. `rebuild=false`
+requires an existing binary. The read-only remote observer rejects
+`rebuild=true`; the local root/Codex profile may explicitly run only the
+registry-owned build recipe. Results stay in
+`%h/.cache/project-control/performance-probe` and verify project worktrees did
+not change.
 
 Local setup and connection instructions are in `docs/CHATGPT_SETUP.md`.
 Codex setup, compatibility, and cheap-first usage are in `docs/CODEX_SETUP.md`;
@@ -93,7 +106,7 @@ Normal Codex work starts with the bounded workflow protocol:
    rendezvous, and integration requests.
 
 `delegate_task`, `collect_delegation`, and `finish_task` complete that canonical
-six-tool protocol. The sixteen rich reads remain available as secondary
+six-tool protocol. The sixteen rich reads and registered measurement aperture remain available as secondary
 escalation tools when current-task context is insufficient or source,
 architecture, history, impact, performance, or cross-project context is
 genuinely needed.

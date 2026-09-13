@@ -35,6 +35,7 @@ RICH_READ_TOOL_NAMES = (
     "plan_preview",
     "agent_status",
     "performance_status",
+    "performance_probe",
     "architecture_context",
     "coordination_view",
     "source_context",

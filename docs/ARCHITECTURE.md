@@ -13,11 +13,11 @@ lifecycle and resources. Project Control never repairs or initializes those
 authorities.
 
 ```text
-ChatGPT -> observer / Streamable HTTP -> 14 rich reads + terminal_capture
+ChatGPT -> observer / Streamable HTTP -> 16 rich reads + performance_probe + terminal_capture
                                       -> invocation allowlist
 
 Codex   -> codex / stdio -> 6 workflow tools -> canonical WorkflowProtocol
-                       \-> 14 rich reads
+                       \-> 16 rich reads + performance_probe
                                       -> invocation allowlist
 
 Project Control -> verified in-process Todo runtime -> WorkflowKernel/read port

@@ -3,7 +3,10 @@
 Project Control enforces three capability profiles structurally, not by prompt
 convention. The observer's project/workflow/source query plane is permanently
 project-read-only. The Codex profile exposes only the six canonical Todo
-workflow tools and sixteen rich reads.
+workflow tools, sixteen rich reads, and the registered `performance_probe`
+measurement aperture. `performance_probe` has no command/path/environment
+input: it passes a fixed typed request to the trusted Skills registry and can
+write only app-private evidence.
 It accepts registered workspace and repository aliases only. The local operator
 may add absolute paths through the admin CLI; MCP callers cannot provide roots,
 commands, URLs, credentials, or service endpoints.

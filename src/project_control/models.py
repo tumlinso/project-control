@@ -307,6 +307,38 @@ class PerformanceStatusInput(BaseModel):
     include_host_capacity: bool = True
 
 
+class PerformanceProbeInput(BaseModel):
+    """A bounded request to execute one registered CUDA measurement campaign.
+
+    The campaign registry, rather than the MCP caller, owns commands, datasets,
+    resource requirements, and parameter schemas.
+    """
+
+    project: str
+    campaign: str = Field(min_length=1, max_length=128)
+    mode: Literal["benchmark", "nsys", "ncu"] = "benchmark"
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    rebuild: bool = False
+
+    @field_validator("parameters")
+    @classmethod
+    def bounded_scalar_parameters(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if len(value) > 32:
+            raise ValueError("parameters exceeds 32 entries")
+        if len(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()) > 8192:
+            raise ValueError("parameters exceeds 8 KiB")
+        for name, item in value.items():
+            if not isinstance(name, str) or not name or len(name) > 64:
+                raise ValueError("parameter names must be non-empty strings up to 64 characters")
+            # Parameter semantics (including any permitted enum/dataset string)
+            # are enforced by the trusted registered campaign schema.  Keep this
+            # boundary scalar-only so callers cannot smuggle command fragments,
+            # paths, environment maps, or nested structures into the adapter.
+            if type(item) not in {str, int, float, bool} or (isinstance(item, str) and len(item) > 256):
+                raise ValueError("parameters must contain only bounded scalar values")
+        return value
+
+
 class ArchitectureContextInput(BaseModel):
     project: str
     question: str = Field(min_length=1, max_length=12000)

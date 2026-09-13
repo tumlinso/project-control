@@ -24,6 +24,7 @@ from .models import (
     HistoryTraceInput,
     ImpactPreviewInput,
     PerformanceStatusInput,
+    PerformanceProbeInput,
     PlanPreviewInput,
     ProjectDeltaInput,
     ProjectFrontierInput,
@@ -51,6 +52,7 @@ from .services.impact import impact_preview as impact_preview_service
 from .services.inspect import inspect_subject
 from .services.overview import project_overview as project_overview_service
 from .services.performance import performance_status as performance_status_service
+from .services.performance_probe import performance_probe as performance_probe_service
 from .services.planning import MutationDetected, plan_preview as plan_preview_service
 from .services.program import program_context as program_context_service
 from .services.source_context import source_context as source_context_service
@@ -97,6 +99,16 @@ READ_ONLY = ToolAnnotations(
 )
 
 TERMINAL_OBSERVATION = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=False,
+)
+
+# Registered probes may reserve accelerators and write evidence only below the
+# app-private artifact root.  They are not repository or Todo mutations, but
+# unlike read tools they are explicitly requested measurements.
+PERFORMANCE_PROBE = ToolAnnotations(
     readOnlyHint=False,
     destructiveHint=False,
     idempotentHint=False,
@@ -331,6 +343,23 @@ def create_mcp(
     def performance_status(project: str, campaign: Annotated[str | None, Field(max_length=256)] = None, detail: OverviewDetail = "standard", include_host_capacity: bool = True) -> dict[str, Any]:
         request = PerformanceStatusInput(project=project, campaign=campaign, detail=detail, include_host_capacity=include_host_capacity)
         return runtime.invoke("performance_status", project, lambda: performance_status_service(runtime.snapshot(project, host=request.include_host_capacity, campaign=request.campaign), request, active_config))
+
+    @mcp.tool(
+        description="Run one registered, already-built CUDA benchmark or profiler campaign through the host scheduler. Commands, datasets, typed parameter schema and GPU placement come only from the registered campaign; outputs stay app-private and the project worktree is verified unchanged. Set rebuild only for an explicit registered build.",
+        annotations=PERFORMANCE_PROBE,
+        structured_output=True,
+    )
+    def performance_probe(project: str, campaign: Annotated[str, Field(min_length=1, max_length=128)], mode: Literal["benchmark", "nsys", "ncu"] = "benchmark", parameters: dict[str, Any] | None = None, rebuild: bool = False) -> dict[str, Any]:
+        request = PerformanceProbeInput(project=project, campaign=campaign, mode=mode, parameters=parameters or {}, rebuild=rebuild)
+        return runtime.invoke(
+            "performance_probe", project,
+            lambda: performance_probe_service(
+                active_config, request, snapshot=runtime.snapshot(project),
+                snapshot_getter=lambda: runtime.snapshot(project),
+                skills_root=getattr(runtime.todo_read_port_factory, "_project_control_bound_skills_root", None),
+                allow_rebuild=selected_profile is not MCPProfile.OBSERVER,
+            ),
+        )
 
     @mcp.tool(
         description="Orient a broad architectural or planning question with multi-seed retrieval, authority labels, active context, risks, and observation preconditions.",

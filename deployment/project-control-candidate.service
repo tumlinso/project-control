@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 Environment=PROJECT_CONTROL_PROFILE=observer
 Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis
+Environment=PROJECT_CONTROL_PERFORMANCE_PROBE_STATE_DIR=%h/.cache/project-control/performance-probe
 Environment=TODO_BACKGROUND_HOST_RUNTIME_DIR=%t/codex-todo-orchestrator
 ExecStart=@CANDIDATE_ROOT@/bin/project-control observer --host 127.0.0.1 --port @CANDIDATE_PORT@
 RuntimeDirectory=codex-todo-orchestrator
@@ -15,5 +16,5 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=%h/.cache/project-control/observer-analysis
+ReadWritePaths=%h/.cache/project-control/observer-analysis %h/.cache/project-control/performance-probe
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

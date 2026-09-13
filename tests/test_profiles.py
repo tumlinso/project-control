@@ -51,10 +51,10 @@ def _server(profile: MCPProfile) -> ProfiledFastMCP:
 
 class ProfilePolicyTests(unittest.TestCase):
     def test_contract_tool_sets_are_exact_and_distinct(self) -> None:
-        self.assertEqual(17, len(OBSERVER_TOOL_NAMES))
-        self.assertEqual(22, len(CODEX_TOOL_NAMES))
-        self.assertEqual(23, len(MUTATOR_TOOL_NAMES))
-        self.assertEqual(16, len(RICH_READ_TOOL_NAMES))
+        self.assertEqual(18, len(OBSERVER_TOOL_NAMES))
+        self.assertEqual(23, len(CODEX_TOOL_NAMES))
+        self.assertEqual(24, len(MUTATOR_TOOL_NAMES))
+        self.assertEqual(17, len(RICH_READ_TOOL_NAMES))
         self.assertEqual(6, len(WORKFLOW_TOOL_NAMES))
         self.assertEqual(set(RICH_READ_TOOL_NAMES), set(OBSERVER_TOOL_NAMES) - {"terminal_capture"})
         self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES))

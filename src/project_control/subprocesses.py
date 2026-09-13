@@ -55,6 +55,7 @@ class FixedCommandRunner:
         cwd: Path,
         timeout: float = 5.0,
         env: Mapping[str, str] | None = None,
+        input_text: str | None = None,
         check: bool = True,
     ) -> CommandResult:
         if not argv or not all(isinstance(item, str) and item for item in argv):
@@ -73,7 +74,8 @@ class FixedCommandRunner:
                 list(argv),
                 cwd=cwd,
                 env=process_env,
-                stdin=subprocess.DEVNULL,
+                stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+                input=input_text.encode("utf-8") if input_text is not None else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=timeout,

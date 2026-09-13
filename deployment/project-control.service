@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 WorkingDirectory=%h/project-control
 Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis
+Environment=PROJECT_CONTROL_PERFORMANCE_PROBE_STATE_DIR=%h/.cache/project-control/performance-probe
 Environment=TODO_BACKGROUND_HOST_RUNTIME_DIR=%t/codex-todo-orchestrator
 ExecStart=%h/.local/bin/uv run --frozen project-control serve
 Restart=on-failure

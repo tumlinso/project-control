@@ -39,14 +39,17 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("NoNewPrivileges=true", service)
         self.assertIn("ProtectSystem=strict", service)
         self.assertIn("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis", service)
+        self.assertIn("PROJECT_CONTROL_PERFORMANCE_PROBE_STATE_DIR=%h/.cache/project-control/performance-probe", service)
         self.assertIn("TODO_BACKGROUND_HOST_RUNTIME_DIR=%t/codex-todo-orchestrator", service)
         self.assertIn("RuntimeDirectory=codex-todo-orchestrator", service)
         self.assertIn("%h/.cache/project-control", service)
         candidate = (ROOT / "deployment" / "project-control-candidate.service").read_text(encoding="utf-8")
         self.assertIn("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis", candidate)
+        self.assertIn("PROJECT_CONTROL_PERFORMANCE_PROBE_STATE_DIR=%h/.cache/project-control/performance-probe", candidate)
         self.assertIn("TODO_BACKGROUND_HOST_RUNTIME_DIR=%t/codex-todo-orchestrator", candidate)
         self.assertIn("RuntimeDirectory=codex-todo-orchestrator", candidate)
         self.assertIn("ReadWritePaths=%h/.cache/project-control/observer-analysis", candidate)
+        self.assertIn("%h/.cache/project-control/performance-probe", candidate)
         self.assertIn("RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK", service)
         self.assertNotIn("0.0.0.0", service)
 
@@ -61,7 +64,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_setup_has_exact_account_gate_and_reconnect_warning(self) -> None:
         setup = (ROOT / "docs" / "CHATGPT_SETUP.md").read_text(encoding="utf-8")
-        for phrase in ("Developer Mode", "Secure MCP Tunnel", "official tunnel client", "custom ChatGPT app", "exactly these seventeen tools", "fresh ChatGPT conversation", "disposable workspace"):
+        for phrase in ("Developer Mode", "Secure MCP Tunnel", "official tunnel client", "custom ChatGPT app", "exactly these eighteen tools", "fresh ChatGPT conversation", "disposable workspace"):
             self.assertIn(phrase, setup)
         self.assertIn("reconnect or recreate", setup)
         self.assertIn("Never paste credentials", setup)

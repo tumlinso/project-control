@@ -19,7 +19,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.server.fastmcp.exceptions import ToolError
 from starlette.testclient import TestClient
 
-from project_control.app import CODEX_INSTRUCTIONS, READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp, serve_codex
+from project_control.app import CODEX_INSTRUCTIONS, PERFORMANCE_PROBE, READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp, serve_codex
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.profiles import CODEX_RICH_READ_DESCRIPTION_PREFIX, CODEX_TOOL_NAMES
 
@@ -27,6 +27,7 @@ from project_control.profiles import CODEX_RICH_READ_DESCRIPTION_PREFIX, CODEX_T
 EXPECTED = {
     "project_overview", "project_delta", "project_frontier", "inspect",
     "evidence", "plan_preview", "agent_status", "performance_status",
+    "performance_probe",
     "architecture_context", "coordination_view", "source_context", "history_trace",
     "impact_preview", "program_context", "local_investigate",
     "terminal_capture", "observer_analysis",
@@ -88,9 +89,9 @@ class MCPServerTests(unittest.TestCase):
         tools = asyncio.run(mcp.list_tools())
         self.assertEqual({tool.name for tool in tools}, EXPECTED)
         for tool in tools:
-            self.assertEqual(tool.annotations.readOnlyHint, tool.name != "terminal_capture")
+            self.assertEqual(tool.annotations.readOnlyHint, tool.name not in {"terminal_capture", "performance_probe"})
             self.assertFalse(tool.annotations.destructiveHint)
-            self.assertEqual(tool.annotations.idempotentHint, tool.name != "terminal_capture")
+            self.assertEqual(tool.annotations.idempotentHint, tool.name not in {"terminal_capture", "performance_probe"})
             self.assertFalse(tool.annotations.openWorldHint)
         schema_bytes = len(json.dumps([tool.model_dump(mode="json") for tool in tools], sort_keys=True).encode())
         self.assertLess(schema_bytes, 38000)
@@ -112,6 +113,8 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(terminal_schema["properties"]["argv"]["maxItems"], 64)
         self.assertFalse(TERMINAL_OBSERVATION.readOnlyHint)
         self.assertFalse(TERMINAL_OBSERVATION.idempotentHint)
+        self.assertFalse(PERFORMANCE_PROBE.readOnlyHint)
+        self.assertFalse(PERFORMANCE_PROBE.idempotentHint)
         self.assertEqual(schemas["project_overview"]["properties"]["detail"]["enum"], ["compact", "standard", "expanded"])
         self.assertEqual(schemas["project_overview"]["properties"]["max_items"]["maximum"], 100)
         self.assertIn("worktree", schemas["inspect"]["properties"]["kind"]["enum"])
@@ -128,6 +131,12 @@ class MCPServerTests(unittest.TestCase):
         descriptions = {tool.name: tool.description for tool in tools}
         for name in EXPECTED - {"terminal_capture"}:
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
+
+    def test_performance_probe_is_observer_and_codex_only_not_local_model_action(self) -> None:
+        for profile in ("observer", "codex", "mutator"):
+            tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile=profile).list_tools())}
+            self.assertIn("performance_probe", tools)
+            self.assertFalse(tools["performance_probe"].annotations.readOnlyHint)
 
     def test_observer_analysis_is_discoverable_read_only_in_every_profile(self) -> None:
         for profile in ("observer", "codex", "mutator"):

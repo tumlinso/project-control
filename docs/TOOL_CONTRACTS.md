@@ -4,14 +4,14 @@ Project Control exposes three exact profile-specific tool sets. No profile
 publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
 or a generic shell.
 
-The **observer** profile exposes exactly 17 tools over loopback Streamable HTTP:
-the sixteen rich reads described below plus `terminal_capture`. It registers no
+The **observer** profile exposes exactly 18 tools over loopback Streamable HTTP:
+the sixteen rich reads, one registered measurement aperture, and `terminal_capture`. It registers no
 workflow mutation tool. The **codex** profile exposes exactly 22 tools over
-stdio: the same sixteen rich reads, excluding `terminal_capture`, plus the six
+stdio: the same seventeen Project Control tools, excluding `terminal_capture`, plus the six
 canonical workflow tools `next_task`, `inspect_task`, `coordinate_task`,
 `delegate_task`, `collect_delegation`, and `finish_task`.
-The **mutator** profile exposes exactly 23 tools over local stdio: the Codex
-22-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
+The **mutator** profile exposes exactly 24 tools over local stdio: the Codex
+23-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
 
 Both registration and invocation are allowlisted. A name hidden from a profile
 cannot be invoked directly. Trusted startup configuration selects the profile;
@@ -74,6 +74,16 @@ and a reusable explicit cursor. The todo revision is nullable when authority is
 unavailable; null is not revision zero. Every emitted cursor is legal input to
 `project_delta`, including nullable revisions and optional working-tree
 fingerprints.
+
+`performance_probe` is explicitly non-read-only because it reserves GPUs and
+creates app-private evidence. It accepts only a registered campaign ID, mode,
+bounded scalar parameters, and `rebuild` (default false). Project Control
+derives the repository, sends a fixed spec to Skills, rejects nested command,
+path and environment payloads, and verifies the project worktree is unchanged.
+The registry alone owns safe argv expansion, datasets, resource reservations,
+profiler exclusivity and quiescence. It is not exposed to `local_investigate`.
+The remote observer profile rejects `rebuild=true`; a local root/Codex caller
+may opt into only the registry-owned build recipe.
 
 The exact eight original tool names and their version-1 calls remain frozen;
 their schemas receive additive optional fields only. If `todo semantic workflow` is unavailable,
