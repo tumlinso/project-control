@@ -318,12 +318,12 @@ def local_investigate(
         observe("read_source", lambda: source_context(config, snapshot, SourceContextInput(
             project=request.project, repository=repository,
             targets=[SourceTarget(kind="path", value=value, line_start=1, line_end=200) for value in initial_targets],
-            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at))
+            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at, compact_identity=True))
     elif initial_kind == "search_source":
         observe("search_source", lambda: source_context(config, snapshot, SourceContextInput(
             project=request.project, repository=repository,
             targets=[SourceTarget(kind="text", value=value) for value in initial_targets],
-            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at))
+            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at, compact_identity=True))
     elif initial_kind == "inspect_task":
         observe("inspect", lambda: inspect_subject(config, snapshot, InspectInput(
             project=request.project, kind="task", target=initial_targets[0], repository=repository,
@@ -439,7 +439,7 @@ def local_investigate(
                     observe(turn.action, lambda: source_context(config, snapshot, SourceContextInput(project=request.project, repository=repository,
                         targets=[SourceTarget.model_validate(item) for item in targets[:32]], source_selector=pinned_commit,
                         intent="debug", detail="standard", budget_bytes=min(12 * 1024, max(1024, limits.bytes - used_bytes))),
-                        deadline=deadline_at))
+                        deadline=deadline_at, compact_identity=True))
                 elif turn.action == "inspect":
                     spec = _InspectSpec.model_validate(params)
                     observe("inspect", lambda: inspect_subject(config, snapshot, InspectInput(project=request.project, kind=spec.kind, target=spec.target, repository=repository, intent="debug", budget_tokens=8000, source_selector=pinned_commit), deadline=deadline_at))

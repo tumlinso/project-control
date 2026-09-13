@@ -121,6 +121,7 @@ def source_context(
     request: SourceContextInput,
     *,
     deadline: float | None = None,
+    compact_identity: bool = False,
 ) -> ToolEnvelope:
     registry = WorkspaceRegistry(config)
     repository = registry.repository(request.project, request.repository)
@@ -304,7 +305,7 @@ def source_context(
     }
     # Last-line defense: adapters must never surface secrets or private paths.
     return bounded_envelope(
-        envelope("source_context", snapshot, redact(data), warnings=list(dict.fromkeys(warnings))),
+        envelope("source_context", snapshot, redact(data), warnings=list(dict.fromkeys(warnings)), compact_identity=compact_identity),
         # Historic callers may request a 1 KiB source *section*.  A complete
         # envelope cannot carry identity, freshness and an exact continuation
         # token in that space, so preserve their compatible section behavior
