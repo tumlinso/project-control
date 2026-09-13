@@ -97,6 +97,15 @@ class CoordinationViewTests(unittest.TestCase):
         self.assertEqual(before, snapshot.todo_tables["workflow_message_receipts"])
         self.assertEqual(cursors, [lane["context_cursor"] for lane in snapshot.todo_workflow["runs"][0]["lanes"]])
 
+    def test_compact_uses_runs_as_the_single_lane_and_queue_representation(self) -> None:
+        result = coordination_view(self.snapshot(), CoordinationViewInput(project="demo", detail="compact"))
+        self.assertIn("runs", result.data)
+        self.assertNotIn("roles", result.data)
+        self.assertNotIn("lane_queues", result.data)
+        self.assertNotIn("first_class_agents", result.data)
+        self.assertNotIn("subordinate_local_children", result.data)
+        self.assertIn("identity_digest", result.cursor.model_dump(mode="json"))
+
 
 if __name__ == "__main__":
     unittest.main()

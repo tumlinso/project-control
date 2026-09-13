@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from project_control.config import ProgramConfig, ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-from project_control.models import AuthorityComponent, ProgramContextInput, ProjectSnapshot, RepositoryIdentity
+from project_control.models import AuthorityComponent, ProgramContextInput, ProjectSnapshot, RepositoryIdentity, WorktreeIdentity
 from project_control.services.program import program_context
 
 
@@ -93,16 +93,32 @@ class ProgramContextTests(unittest.TestCase):
             self.assertFalse(data["program"]["architectural_authority"])
             self.assertEqual(data["cross_project_synthesis"]["observation_atomicity"], "independent_not_global")
             self.assertEqual(data["cross_project_synthesis"]["observation_skew_seconds"], 1.0)
-            self.assertEqual(set(data["observation_preconditions"]), {"alpha", "beta"})
-            alpha_preconditions = data["observation_preconditions"]["alpha"]
-            self.assertEqual(alpha_preconditions["task_ids"], ["alpha-1"])
-            self.assertEqual(alpha_preconditions["lane_ids"], ["lane"])
-            self.assertEqual(alpha_preconditions["context_fragments"]["ctx-alpha"]["version"], 2)
-            self.assertEqual(alpha_preconditions["interfaces"]["if-alpha"]["state"], "frozen")
+            self.assertNotIn("observation_preconditions", data)
+            alpha_identity = data["projects"][0]["observation_identity"]
+            self.assertEqual(alpha_identity["repositories"]["source"]["commit"], f"{10:040x}")
+            self.assertTrue(alpha_identity["identity_digest"])
+            self.assertTrue(data["projects"][0]["revalidation"]["required_for_mutation"])
             self.assertIn("cross_project_observations_not_atomic", result["warnings"])
             self.assertNotIn(str(base), json.dumps(result))
             self.assertEqual(len(data["projects"][0]["coordination"]["first_class_agents"]), 1)
             self.assertEqual(len(data["projects"][0]["coordination"]["subordinate_local_children"]), 1)
+
+    def test_compact_program_omits_irrelevant_worktrees_and_budgets_full_response(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = ProjectControlConfig(workspaces={"alpha": WorkspaceConfig(repositories={"source": RepositoryConfig(root=root)})})
+            snapshot = _snapshot("alpha", root, observed_at="2026-08-27T00:00:00Z", revision=1)
+            snapshot.repositories["source"].current_worktree_id = "wt-0"
+            snapshot.repositories["source"].worktrees = {
+                f"wt-{index}": WorktreeIdentity(id=f"wt-{index}", repository="source", head=f"{index:040x}", dirty=False,
+                    working_tree_fingerprint=f"fp-{index}", observed_at=snapshot.observed_at)
+                for index in range(48)
+            }
+            result = program_context(config, ProgramContextInput(workspaces=["alpha"], question="interface", detail="compact"), builder=_Builder({"alpha": snapshot}))
+            encoded = json.dumps(result, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            self.assertLessEqual(len(encoded), 16 * 1024)
+            self.assertIn("identity_digest", result["data"]["projects"][0]["observation_identity"])
+            self.assertNotIn("wt-47", encoded.decode("utf-8"))
 
     def test_explicit_workspace_list_does_not_require_program(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

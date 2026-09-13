@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from ..adapters.git import GitReadAdapter
 from ..models import PerformanceStatusInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..reconcile import ProjectReconciler
 from ..workflow import workflow_summary
 
@@ -137,14 +137,6 @@ def performance_status(snapshot: ProjectSnapshot, request: PerformanceStatusInpu
             for item in [*current, *historical_measurements]
             if item.get("id") or item.get("fact_id")
         },
-        "repository_source_identities": {
-            alias: {
-                "commit": identity.commit,
-                "worktrees": {worktree_id: {"head": worktree.head, "dirty": worktree.dirty} for worktree_id, worktree in identity.worktrees.items()},
-            }
-            for alias, identity in snapshot.repositories.items()
-        },
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
     if request.detail == "expanded":
         data["historical_campaigns_and_evidence"] = {
@@ -154,4 +146,8 @@ def performance_status(snapshot: ProjectSnapshot, request: PerformanceStatusInpu
     warnings = [*snapshot.warnings_for("cuda", "worker", *("host",) if request.include_host_capacity else ()), *registered_warnings]
     if cuda.get("status") != "ok":
         warnings.append("performance_evidence_unavailable")
-    return envelope("performance_status", snapshot, bounded_payload(data, 12000 if request.detail != "expanded" else 20000), warnings=list(dict.fromkeys(warnings)))
+    budget = 12000 if request.detail != "expanded" else 20000
+    return bounded_envelope(
+        envelope("performance_status", snapshot, data, warnings=list(dict.fromkeys(warnings)), compact_identity=True),
+        budget,
+    )

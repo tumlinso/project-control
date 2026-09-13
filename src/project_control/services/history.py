@@ -6,7 +6,7 @@ from typing import Any
 
 from ..graph import ProjectGraph
 from ..models import HistoryTraceInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..reconcile import ProjectReconciler
 from ..retrieval import authority_label, event_sort_key, material_event, page, records_from_tables
 
@@ -130,10 +130,12 @@ def history_trace(snapshot: ProjectSnapshot, request: HistoryTraceInput) -> Tool
         "missing_evidence": unsupported,
         "coalescing": {"raw_event_count": len(raw_events), "administrative_or_heartbeat_events_omitted": noise_omitted},
         "pagination": pagination,
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         "provenance": {"event_log": "todo_readonly_export", "operational_state": "todo_semantic_workflow", "task_semantics": "todo_semantic_state", "git": "git_identity_or_exported_commit_metadata"},
     }
     warnings = snapshot.warnings_for("todo")
     if not ordered:
         warnings.append("history_evidence_unavailable")
-    return envelope("history_trace", snapshot, bounded_payload(data, BUDGETS[request.detail]), warnings=list(dict.fromkeys(warnings)))
+    return bounded_envelope(
+        envelope("history_trace", snapshot, data, warnings=list(dict.fromkeys(warnings)), compact_identity=True),
+        BUDGETS[request.detail], essential_data_keys=("pagination",),
+    )

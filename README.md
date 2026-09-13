@@ -5,10 +5,10 @@ registered engineering workspaces. It composes two separately enforced MCP
 profiles over one implementation:
 
 - **observer** is the existing loopback Streamable HTTP service for ChatGPT. It
-  exposes exactly 18 tools and is permanently project-read-only; its explicit
+  exposes exactly 17 tools and is permanently project-read-only; its explicit
   `performance_probe` aperture writes only app-private measurement evidence.
 - **codex** is a stdio server registered as `project-control`. It exposes the
-  canonical six Todo workflow tools plus sixteen rich Project Control reads and
+  canonical six Todo workflow tools plus fourteen rich Project Control reads and
   the registered `performance_probe` aperture. It does not expose
   `terminal_capture`.
 - **mutator** is a separately selected local stdio profile exposing the Codex
@@ -47,7 +47,7 @@ PTY registry and grants no Todo, Git, repository, or workflow authority.
 Project Control v2 is the compatibility authority: it preserves the eight v1
 tools and makes richer reads first-class. Project Control 0.3.1/tool schema v3
 freezes the original fourteen input contracts. The discovered observer surface
-is exactly eighteen tools:
+is exactly seventeen tools:
 
 - `project_overview`
 - `project_delta`
@@ -64,12 +64,11 @@ is exactly eighteen tools:
 - `impact_preview`
 - `program_context`
 - `local_investigate`
-- `observer_analysis`
 - `performance_probe`
 - `terminal_capture`
 
 The observer service binds only to loopback and is intended to be connected to
-ChatGPT through OpenAI Secure MCP Tunnel. The sixteen query tools never accept
+ChatGPT through OpenAI Secure MCP Tunnel. The observer tools never accept
 arbitrary repository paths, run workers or benchmarks, claim tasks, edit
 registered projects, or mutate Git/todo state. `terminal_capture` accepts no
 shell or host path and gives the child a read-only repository, isolated
@@ -106,7 +105,7 @@ Normal Codex work starts with the bounded workflow protocol:
    rendezvous, and integration requests.
 
 `delegate_task`, `collect_delegation`, and `finish_task` complete that canonical
-six-tool protocol. The sixteen rich reads and registered measurement aperture remain available as secondary
+six-tool protocol. Fourteen rich reads and the registered measurement aperture remain available as secondary
 escalation tools when current-task context is insufficient or source,
 architecture, history, impact, performance, or cross-project context is
 genuinely needed.

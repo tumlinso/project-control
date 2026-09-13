@@ -9,7 +9,7 @@ from ..adapters.ctxpp import CtxppReadAdapter
 from ..adapters.git import GitReadAdapter
 from ..config import DEFAULT_DENY_PATTERNS, ProjectControlConfig
 from ..models import InspectInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
@@ -102,7 +102,6 @@ def inspect_subject(
             source="reconciled_project_graph", freshness="snapshot", resolution=resolution,
             subject={key: entity[key] for key in ("type", "id", "title", "relevance")},
             matches=[entity["record"]], related=graph.related(entity["key"]),
-            observation_preconditions=snapshot.observation_preconditions().model_dump(mode="json"),
         )
         warnings.extend(snapshot.warnings_for("todo"))
     elif request.kind in {"path", "symbol", "subsystem"}:
@@ -161,8 +160,6 @@ def inspect_subject(
                     source="canonical_file", freshness=freshness,
                     location={"repository": repository.alias, "worktree_id": selected_worktree_id, "path": request.target, "line_start": line_start, "line_end": line_end},
                     excerpt=excerpt, source_commit=source_commit,
-                    file_identity_before=before, file_identity_after=after,
-                    observation_preconditions=snapshot.observation_preconditions().model_dump(mode="json"),
                 )
             except Exception as exc:
                 code = "racy_source_read" if str(exc) == "racy_source_read" else "source_inspection_unavailable"
@@ -212,5 +209,7 @@ def inspect_subject(
             data.update(repository=repository.alias, resolution=resolution, **result)
             warnings.extend(result.get("warnings", []))
     budget = min(28000, request.budget_tokens * 4)
-    data.setdefault("observation_preconditions", snapshot.observation_preconditions().model_dump(mode="json"))
-    return envelope("inspect", snapshot, bounded_payload(data, budget), warnings=warnings)
+    return bounded_envelope(
+        envelope("inspect", snapshot, data, warnings=warnings, compact_identity=True), budget,
+        essential_data_keys=("source_commit",),
+    )

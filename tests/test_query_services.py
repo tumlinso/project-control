@@ -80,7 +80,9 @@ class QueryServiceTests(unittest.TestCase):
         self.assertEqual(result.data["excerpt"].splitlines(), [
             "line-099999 padding padding", "line-100000 padding padding", "line-100001 padding padding",
         ])
-        self.assertEqual(result.data["file_identity_before"], result.data["file_identity_after"])
+        # The read itself verifies the before/after identity; ordinary output
+        # exposes the compact envelope cursor rather than duplicating hashes.
+        self.assertIn("identity_digest", result.cursor.model_dump(mode="json"))
         self.assertNotIn("source_inspection_unavailable", result.warnings)
 
     def test_path_inspection_ignores_unrelated_todo_warning(self) -> None:
@@ -114,7 +116,8 @@ class QueryServiceTests(unittest.TestCase):
         ))
         self.assertEqual(result.data["evidence_state_counts"]["current_support"], 1)
         self.assertEqual(result.data["evidence_state_counts"]["stale"], 1)
-        self.assertIn("observation_preconditions", result.data)
+        self.assertNotIn("observation_preconditions", result.data)
+        self.assertIn("identity_digest", result.cursor.model_dump(mode="json"))
 
     def test_nonexistent_subject_has_no_git_pseudo_support(self) -> None:
         subject = "THIS-SUBJECT-DEFINITELY-DOES-NOT-EXIST-XYZ-92841"
@@ -131,7 +134,9 @@ class QueryServiceTests(unittest.TestCase):
         result = agent_status(self.snapshot, AgentStatusInput(project="demo"))
         self.assertTrue(result.data["observable_only"])
         self.assertNotIn("thinking", str(result.model_dump()))
-        self.assertIn("local_supervisor_capacity", result.data)
+        self.assertIn("local_services", result.data)
+        self.assertNotIn("local_supervisor_capacity", result.data)
+        self.assertNotIn("agents", result.data)
         self.assertEqual(result.data["observer_jobs"], [])
 
     def test_agent_output_uses_stable_worktree_id_and_omits_process_authority_ids(self) -> None:
@@ -158,6 +163,24 @@ class QueryServiceTests(unittest.TestCase):
         self.assertNotIn("S-private", encoded)
         self.assertNotIn("C-private", encoded)
         self.assertNotIn("/private/path", encoded)
+
+    def test_compact_envelope_omits_irrelevant_worktrees(self) -> None:
+        worktrees = {
+            f"wt-{number}": WorktreeIdentity(
+                id=f"wt-{number}", repository="source", branch=f"lane-{number}",
+                head=f"commit-{number}", dirty=False, working_tree_fingerprint=f"fingerprint-{number}",
+                observed_at=self.snapshot.observed_at,
+            )
+            for number in range(48)
+        }
+        self.snapshot.repositories["source"] = RepositoryIdentity(
+            commit="commit-0", dirty=False, current_worktree_id="wt-0", worktrees=worktrees,
+        )
+        result = agent_status(self.snapshot, AgentStatusInput(project="demo"))
+        encoded = result.model_dump_json()
+        self.assertIn("wt-0", encoded)
+        self.assertNotIn("wt-47", encoded)
+        self.assertLessEqual(len(encoded.encode("utf-8")), 10_000)
 
     def test_performance_never_executes(self) -> None:
         result = performance_status(self.snapshot, PerformanceStatusInput(project="demo"))

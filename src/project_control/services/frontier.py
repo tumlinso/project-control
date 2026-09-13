@@ -137,7 +137,6 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
             "verification_clues": [gate.get("id") for gate in reconciled.gates if gate.get("task_id") == task.get("id")],
         } for task in ready[:max_ready]],
         "historical_state_filtered": reconciled.historical_counts,
-        "observation_identity": snapshot.compact_observation_identity(),
     }
     return bounded_envelope(
         envelope(

@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import unittest
 
-from project_control.models import RepositoryIdentity, WorktreeIdentity
+from project_control.models import ImpactPreviewInput, RepositoryIdentity, WorktreeIdentity
 from project_control.services.frontier import project_frontier
 from project_control.services.delta import project_delta
 from project_control.services.overview import project_overview
+from project_control.services.impact import impact_preview
 from project_control.models import DeltaSince
 
 try:
@@ -58,7 +59,6 @@ class FullEnvelopeBudgetTests(unittest.TestCase):
                 "immutable_identity_exceeds_budget",
             )
         self.assertEqual(len(full.worktrees), 80)
-        self.assertEqual(delta.data["new_cursor"]["identity_digest"], delta.cursor.identity_digest)
 
     def test_frontier_budget_keeps_authority_and_cursor(self) -> None:
         result = project_frontier(self.snapshot(), max_ready=100)
@@ -66,6 +66,36 @@ class FullEnvelopeBudgetTests(unittest.TestCase):
         self.assertIn("ready", result.data)
         self.assertEqual(result.cursor.todo_revision, 8)
         self.assertEqual(result.data["response_coverage"]["measurement"], "canonical_json_utf8_full_envelope")
+
+    def test_oversized_explicit_contract_requires_typed_expansion(self) -> None:
+        snapshot = self.snapshot()
+        repository = snapshot.repositories["source"]
+        worktrees = dict(repository.worktrees)
+        for index in range(80, 240):
+            worktrees[f"wt-{index}"] = WorktreeIdentity(
+                id=f"wt-{index}", repository="source", branch="feature",
+                head="a" * 40, dirty=False, working_tree_fingerprint="b" * 64,
+                observed_at=snapshot.observed_at,
+            )
+        snapshot.repositories["source"] = repository.model_copy(update={"worktrees": worktrees})
+        result = impact_preview(snapshot, ImpactPreviewInput(
+            project="demo", hypothesis="change interface", detail="compact",
+            include_proposal_envelope=True,
+        ))
+        self.assertEqual(result.status.value, "partial")
+        self.assertIn("response_essential_fields_require_expansion", result.warnings)
+        self.assertTrue(result.data["response_coverage"]["expansion_required"])
+        self.assertIn("proposal_envelope", result.data["response_coverage"]["essential_fields_omitted"])
+        self.assertIn("detail=exact", result.data["response_coverage"]["expansion_route"])
+        self.assertLessEqual(size(result), 16 * 1024)
+
+        exact = impact_preview(snapshot, ImpactPreviewInput(
+            project="demo", hypothesis="change interface", detail="exact",
+            include_proposal_envelope=True,
+        ))
+        self.assertNotIn("response_essential_fields_require_expansion", exact.warnings)
+        self.assertEqual(len(exact.data["proposal_envelope"]["observation_preconditions"]["worktrees"]), 240)
+        self.assertLessEqual(size(exact), 512 * 1024)
 
 
 if __name__ == "__main__":

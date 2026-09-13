@@ -7,7 +7,7 @@ from typing import Any
 
 from ..graph import ProjectGraph
 from ..models import ArchitectureContextInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_envelope, bounded_payload
+from ..normalize import bounded_envelope
 from ..reconcile import ProjectReconciler
 from ..retrieval import economical_record, is_current, page, relevance_priority
 from ..workflow import workflow_view, workflow_warnings
@@ -149,15 +149,6 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
             "authority_label": "authoritative_fact" if workflow.get("available") else "missing_evidence",
         },
         "worktree_and_integration_state": {
-            "repositories": {
-                alias: {
-                    "commit": identity.commit,
-                    "dirty": identity.dirty,
-                    "worktree_ids": sorted(identity.worktrees),
-                }
-                for alias, identity in sorted(snapshot.repositories.items())
-                if request.repository is None or alias == request.repository
-            },
             "requested_worktree_id": request.worktree_id,
             "workspaces": [
                 {key: item.get(key) for key in ("id", "run_id", "lane_id", "repository", "branch", "mode", "state", "integration_task_id") if item.get(key) is not None}
@@ -172,7 +163,6 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
             {"kind": item["type"], "target": item["id"], "reason": item["match_basis"]}
             for item in seeds[: min(12, request.max_items)]
         ],
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         "provenance": {
             "workflow": "todo_semantic_workflow",
             "task_semantics": "todo_semantic_state",
@@ -184,6 +174,6 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
     }
     warnings = [*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)]
     return bounded_envelope(
-        envelope("architecture_context", snapshot, bounded_payload(data, BUDGETS[request.detail]), warnings=list(dict.fromkeys(warnings))),
+        envelope("architecture_context", snapshot, data, warnings=list(dict.fromkeys(warnings)), compact_identity=True),
         BUDGETS[request.detail],
     )

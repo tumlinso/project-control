@@ -33,7 +33,8 @@ class ArchitectureContextTests(unittest.TestCase):
             relation["authority_label"] == "derived_relationship"
             for cluster in result.data["clusters"] for relation in cluster["relationships"]
         ))
-        self.assertIn("observation_preconditions", result.data)
+        self.assertNotIn("observation_preconditions", result.data)
+        self.assertIn("identity_digest", result.cursor.model_dump(mode="json"))
         self.assertIn("provider_components", result.data["provenance"])
 
     def test_output_is_deterministic_and_observation_is_read_only(self) -> None:

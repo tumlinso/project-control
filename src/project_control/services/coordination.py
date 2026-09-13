@@ -4,7 +4,7 @@ from typing import Any
 
 from ..coordination import decode_cursor, encode_cursor, observation_identity, parse_json, table_index
 from ..models import CoordinationViewInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..workflow import workflow_view
 
 
@@ -120,11 +120,10 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
             "component_authority": {
                 key: value.model_dump(mode="json") for key, value in snapshot.component_authority.items()
             },
-            "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         }
-        return envelope(
-            "coordination_view", snapshot, bounded_payload(data, BUDGETS[request.detail]),
-            warnings=["todo_workflow_semantic_unavailable"],
+        return bounded_envelope(
+            envelope("coordination_view", snapshot, data, warnings=["todo_workflow_semantic_unavailable"], compact_identity=True),
+            BUDGETS[request.detail],
         )
 
     identity = observation_identity(
@@ -205,6 +204,14 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
         "messages": messages, "context_fragments": fragments, "rendezvous": rendezvous,
         "workspaces": workspaces, **semantic_lists,
     }
+    # ``runs`` is the canonical compact workflow representation: it carries
+    # lane role/state and queue once.  The parallel role/queue/agent views are
+    # retained for standard and expanded compatibility only.
+    if request.detail == "compact":
+        collections.pop("roles")
+        collections.pop("lane_queues")
+        collections.pop("first_class_agents")
+        collections.pop("subordinate_local_children")
     paged = {name: values[offset: offset + request.max_items] for name, values in collections.items()}
     more = any(len(values) > offset + request.max_items for values in collections.values())
     data = {
@@ -221,10 +228,6 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
             {**_pick(item, ("id", "owner_task_id", "state", "version", "content_hash", "revision")), "authority": "durable_export_enrichment"}
             for item in snapshot.todo_tables.get("interfaces", [])[offset: offset + request.max_items]
         ],
-        "component_authority": {
-            key: value.model_dump(mode="json") for key, value in snapshot.component_authority.items()
-        },
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         "ranking": {
             "offset": offset,
             "max_items_per_section": request.max_items,
@@ -234,7 +237,7 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
         "continuation_cursor": encode_cursor("coordination_view", identity, offset + request.max_items) if more else None,
     }
     warnings = snapshot.warnings_for("todo")
-    return envelope(
-        "coordination_view", snapshot, bounded_payload(data, BUDGETS[request.detail]),
-        warnings=warnings,
+    return bounded_envelope(
+        envelope("coordination_view", snapshot, data, warnings=warnings, compact_identity=True),
+        BUDGETS[request.detail], essential_data_keys=("continuation_cursor", "revision", "active_run_id"),
     )

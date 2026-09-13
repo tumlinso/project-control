@@ -7,11 +7,12 @@ profiles:
 - **observer** remains permanently project-read-only with its 17-tool
   surface. It has no `apply_plan`, write flag, hidden switch, or dormant
   mutator.
-- **codex** retains its exact six Todo workflow tools and sixteen rich reads.
+- **codex** retains its exact six Todo workflow tools, fourteen rich reads, and
+  the registered measurement aperture.
   The workflow protocol remains the ordinary path for claimed implementation
   work.
 - **mutator** is an explicit trusted-startup stdio profile. It exposes the
-  Codex 22-tool surface plus `apply_plan`, and excludes `terminal_capture`.
+  Codex 21-tool surface plus `apply_plan`, and excludes `terminal_capture`.
 
 Profile selection is process configuration. MCP `clientInfo`, user agents,
 annotations, model claims, and tool arguments cannot grant mutation authority.

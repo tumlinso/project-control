@@ -5,7 +5,7 @@ from typing import Any
 from ..adapters.ctxpp import CtxppReadAdapter
 from ..config import DEFAULT_DENY_PATTERNS, ProjectControlConfig
 from ..models import EvidenceInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
@@ -199,7 +199,9 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
             "stale": len(stale), "unvalidated": len(unvalidated), "inference": 0,
             "absence": int(not support and not stale and not unvalidated),
         },
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
     response_warnings = warnings if warnings else ([] if support or stale else ["evidence_unavailable"])
-    return envelope("evidence", snapshot, bounded_payload(data, 18000), warnings=list(dict.fromkeys(response_warnings)))
+    return bounded_envelope(
+        envelope("evidence", snapshot, data, warnings=list(dict.fromkeys(response_warnings)), compact_identity=True),
+        18000,
+    )

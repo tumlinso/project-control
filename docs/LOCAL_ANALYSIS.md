@@ -8,7 +8,19 @@ an evidence-linked answer separated into facts, inferences, and uncertainty.
 `quick`, `standard`, and `deep` impose hard round, read, byte, and time ceilings;
 source and project identity are pinned and drift returns `refresh_required`.
 
-The lower-level `observer_analysis` read-only tool remains a primitive. It
+The broker also accepts `inspect_machine` for bounded GPU, topology, process,
+memory, filesystem, Project Control service, kernel, device, log, and runtime
+observations. Project Control owns fixed diagnostic commands and validates
+structured filesystem reads under registered repositories and useful local
+roots including home, `/mnt`, `/proc`, and `/sys`. Traversal, symlink escape,
+special files, process secret surfaces, credential stores, private keys, and
+oversized or binary reads are rejected; returned text is redacted and bounded.
+External diagnostics run unprivileged in a no-network, read-only bubblewrap
+sandbox with private scratch directories and resource ceilings. The interface
+exposes no shell, caller-selected argv, privilege, socket handle, or mutation
+surface.
+
+The lower-level observer-analysis provider remains an internal primitive. It
 passes an immutable JSON evidence packet (at most 64 KiB and 64 evidence IDs)
 to Skills' existing serialized `ProductionBackend.analyze_observer_packet`
 boundary.  The backend owns cached-model discovery, llama-server lifecycle,

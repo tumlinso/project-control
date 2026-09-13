@@ -30,7 +30,7 @@ EXPECTED = {
     "performance_probe",
     "architecture_context", "coordination_view", "source_context", "history_trace",
     "impact_preview", "program_context", "local_investigate",
-    "terminal_capture", "observer_analysis",
+    "terminal_capture",
 }
 
 INPUT_SCHEMA_SHA256 = {
@@ -39,14 +39,14 @@ INPUT_SCHEMA_SHA256 = {
     "project_frontier": "ad4c2888841c1395c612fe56427a8a6f6b36454aafe0eea1301ea5d2cea56061",
     "inspect": "b2bc28930f470d4319b0d16d92fad47e2b6fe3ea44c9612f32eb2aef4b967d5c",
     "evidence": "6fcb2f398f87c0517dc4a1324c7f4c89acff7ae4a1e069fe4d4dda52a7edf556",
-    "plan_preview": "3b34bfc5c59670fe82df3fac81f746c9b0401093403bad6459895ca31e94dda9",
+    "plan_preview": "6039603bca7184f50a8d09450ea00a2d873d475449a20e59b0495980fdc0bff4",
     "agent_status": "15065af772af4bb13c5a717e55eb122dcc116635a45c9413ce6da21710caa0b2",
     "performance_status": "c50251ba7af1c1ff5659c218e93f489d8826dc68c330ddaa1b68f9c5219547b7",
     "architecture_context": "18d23a7572db9126d06945dda0eff15f98e8ec5983647ddd62144440e281e81e",
     "coordination_view": "470dae037b5460bec0b8c1d8450525be878b04385d235c8cb3cb7e6cb20b39bb",
     "source_context": "7f0f61c5d6116b28e30976cd3c95071eb99fab9fae4d7c22e1318fbc1aa8cc97",
     "history_trace": "2089fda1a35f72b6700b2aded9d521b4b31bdb2c21026438f41f34b57a6d3abe",
-    "impact_preview": "fb7581b9cf10d63090eefe5bbbf2d152fc74beb085c81fcf501fb7ee4a095d71",
+    "impact_preview": "088c19084ee669c2075554785f5f127113b120cdf5656825d4c492b01db2cc63",
     "program_context": "8dffbb402cec796026659a94db8e550df00c4baeb6e87050f1aabda84e246263",
 }
 TERMINAL_INPUT_SCHEMA_SHA256 = "ea82a2b87a65912655f5bcc9c418db4088d8c5b6da4ff586bb4b9246e684bbd4"
@@ -120,8 +120,11 @@ class MCPServerTests(unittest.TestCase):
         self.assertIn("worktree", schemas["inspect"]["properties"]["kind"]["enum"])
         self.assertEqual(schemas["inspect"]["properties"]["budget_tokens"]["maximum"], 32768)
         self.assertEqual(schemas["source_context"]["properties"]["targets"]["maxItems"], 32)
+        self.assertFalse(schemas["impact_preview"]["properties"]["include_proposal_envelope"]["default"])
+        self.assertIn("exact", schemas["plan_preview"]["properties"]["detail"]["enum"])
+        self.assertIn("exact", schemas["impact_preview"]["properties"]["detail"]["enum"])
 
-    def test_codex_composes_exact_six_and_fourteen_rich_reads(self) -> None:
+    def test_codex_composes_workflow_and_compact_rich_reads(self) -> None:
         mcp = create_mcp(self.config, profile="codex")
         tools = asyncio.run(mcp.list_tools())
         self.assertEqual(set(CODEX_TOOL_NAMES), {tool.name for tool in tools})
@@ -129,7 +132,7 @@ class MCPServerTests(unittest.TestCase):
         self.assertNotIn("coding-workflow", CODEX_INSTRUCTIONS)
         self.assertIn("workflow tools exposed by the current Project Control Codex profile", CODEX_INSTRUCTIONS)
         descriptions = {tool.name: tool.description for tool in tools}
-        for name in EXPECTED - {"terminal_capture"}:
+        for name in set(CODEX_TOOL_NAMES) - {"next_task", "inspect_task", "coordinate_task", "delegate_task", "collect_delegation", "finish_task"}:
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
 
     def test_performance_probe_is_observer_and_codex_only_not_local_model_action(self) -> None:
@@ -138,22 +141,12 @@ class MCPServerTests(unittest.TestCase):
             self.assertIn("performance_probe", tools)
             self.assertFalse(tools["performance_probe"].annotations.readOnlyHint)
 
-    def test_observer_analysis_is_discoverable_read_only_in_every_profile(self) -> None:
+    def test_local_analysis_surface_is_observer_only(self) -> None:
         for profile in ("observer", "codex", "mutator"):
             with self.subTest(profile=profile):
                 tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile=profile).list_tools())}
-                self.assertIn("observer_analysis", tools)
-                self.assertTrue(tools["observer_analysis"].annotations.readOnlyHint)
-                self.assertFalse(tools["observer_analysis"].annotations.destructiveHint)
-
-    def test_observer_analysis_call_returns_provider_content_in_envelope(self) -> None:
-        result = asyncio.run(create_mcp(self.config).call_tool("observer_analysis", {
-            "project": "demo", "packet": {"source_identity": {"project": "demo"},
-            "evidence": [{"id": "ev-smoke", "text": "packet-related smoke content"}]},
-        }))
-        encoded = json.dumps(result, default=lambda item: item.model_dump(mode="json") if hasattr(item, "model_dump") else str(item))
-        self.assertIn("packet-related smoke content", encoded)
-        self.assertNotIn("internal_error", encoded)
+                self.assertNotIn("observer_analysis", tools)
+                self.assertEqual("local_investigate" in tools, profile == "observer")
 
     def test_server_runtime_receives_configured_in_process_read_port_factory(self) -> None:
         factory = lambda _root: None

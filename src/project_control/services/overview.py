@@ -48,14 +48,6 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
         {key: item.get(key) for key in ("id", "state", "summary", "rationale", "task_id") if item.get(key) is not None}
         for item in snapshot.todo_tables.get("decisions", [])[:max_items]
     ]
-    worktrees = {
-        alias: [
-            {"id": item.id, "branch": item.branch, "head": item.head, "detached": item.detached, "dirty": item.dirty}
-            for item in identity.worktrees.values()
-        ]
-        for alias, identity in snapshot.repositories.items()
-    }
-
     data = {
         "identity": {"display_name": snapshot.display_name, "project_uuid": snapshot.project_uuid},
         "workflow": workflow,
@@ -63,7 +55,6 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             name: component.model_dump(mode="json")
             for name, component in sorted(snapshot.component_authority.items())
         },
-        "repository_worktrees": worktrees,
         "architecture": {
             "active_run_id": workflow.get("active_run_id"),
             "charter_version": (workflow.get("active_run") or {}).get("active_charter_version") if workflow.get("active_run") else None,
@@ -98,7 +89,6 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             "historical_items_omitted": sum(reconciled.historical_counts.values()),
             "budget_bytes": BUDGETS[detail],
         },
-        "observation_identity": snapshot.compact_observation_identity(),
     }
     if detail == "compact":
         compact_workflow = {
@@ -132,43 +122,28 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             {key: item.get(key) for key in ("id", "title", "effective_state") if item.get(key) is not None}
             for item in items[:5]
         ]
+        compact_activity = {
+            key: tiny(data[key]) for key in ("active_work", "ready_work", "current_blockers")
+        }
+        material_recent = [item for item in reconciled.completed if item.get("kind") != "epic"]
+        material_recent.extend(item for item in reconciled.completed if item.get("kind") == "epic")
         data = {
-            "identity": data["identity"],
             "workflow": compact_workflow,
-            "provider_health": {
-                key: {
-                    field: value.get(field) for field in ("status", "error_code", "revision")
-                    if value.get(field) is not None
-                }
-                for key, value in data["provider_health"].items()
-            },
-            "worktree_summary": {
-                alias: {
-                    "count": len(identity.worktrees),
-                    "dirty": sum(1 for item in identity.worktrees.values() if item.dirty),
-                }
-                for alias, identity in snapshot.repositories.items()
-            },
             "current_project_state": [
                 {key: item.get(key) for key in ("id", "complete", "has_current_work", "effective_state_counts") if item.get(key) is not None}
                 for item in data["current_project_state"][:3]
             ],
-            "active_work": tiny(data["active_work"]),
-            "ready_work": tiny(data["ready_work"]),
-            "current_blockers": tiny(data["current_blockers"]),
             "architectural_attention": tiny(data["architectural_attention"]),
             "validation_attention": tiny(data["validation_attention"]),
             "performance_attention": tiny(data["performance_attention"]),
-            "recent_materially_completed": tiny(data["recent_materially_completed"]),
-            "cross_authority_warnings": data["cross_authority_warnings"][:1],
+            "recent_materially_completed": tiny(material_recent),
             "recommended_focus": data["recommended_focus"],
             "historical_state_filtered": data["historical_state_filtered"],
-            "active_tasks": tiny(data["active_tasks"]),
-            "ready_tasks": tiny(data["ready_tasks"]),
-            "attention_tasks": tiny(data["attention_tasks"]),
-            "recently_completed": tiny(data["recently_completed"]),
-            "ranking": {"items_considered": data["ranking"]["items_considered"], "historical_items_omitted": data["ranking"]["historical_items_omitted"]},
         }
+        for key in ("active_work", "ready_work", "current_blockers"):
+            selected = compact_activity[key]
+            if selected:
+                data[key] = selected
     warnings = [*snapshot.warnings_for("todo", "cuda"), *reconciled.warnings, *workflow_warnings(snapshot)]
     result = envelope(
         "project_overview", snapshot, bounded_payload(data, BUDGETS[detail]),

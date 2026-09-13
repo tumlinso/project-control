@@ -6,14 +6,14 @@ from typing import Any
 
 from ..graph import ProjectGraph
 from ..models import ImpactPreviewInput, ProjectSnapshot, ProposalEnvelope, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..reconcile import ProjectReconciler
 from ..retrieval import page, relevance_priority
 from ..workflow import workflow_view, workflow_warnings
 from ..proposals import observation_preconditions
 
 
-BUDGETS = {"compact": 16 * 1024, "standard": 48 * 1024, "expanded": 96 * 1024}
+BUDGETS = {"compact": 16 * 1024, "standard": 48 * 1024, "expanded": 96 * 1024, "exact": 512 * 1024}
 
 
 def impact_preview(snapshot: ProjectSnapshot, request: ImpactPreviewInput) -> ToolEnvelope:
@@ -29,7 +29,7 @@ def impact_preview(snapshot: ProjectSnapshot, request: ImpactPreviewInput) -> To
         else:
             unknown.append({"target": target, "reason": resolved["reason"], "candidates": resolved.get("candidates", []), "authority_label": "missing_evidence"})
     heuristic = graph.seed_candidates(request.hypothesis, max_items=min(request.max_items, 64))
-    if request.detail != "expanded":
+    if request.detail not in {"expanded", "exact"}:
         heuristic = [item for item in heuristic if relevance_priority(item.get("record", {})) < 3]
     proven_keys = {item["key"] for item in explicit}
     proven = [{**item, "impact_basis": "explicit_target", "authority_label": "authoritative_fact"} for item in explicit]
@@ -114,7 +114,6 @@ def impact_preview(snapshot: ProjectSnapshot, request: ImpactPreviewInput) -> To
         "affected_by_category": {key: value[:request.max_items] for key, value in categorized.items()},
         "active_lane_context_staleness": stale_agents[:request.max_items],
         "safe_unaffected_work": unaffected[:request.max_items],
-        "required_preconditions": preconditions.model_dump(mode="json"),
         "planning_guidance": {
             "skeleton": ["revalidate_observation_preconditions", "resolve_unknown_impacts", "revise_affected_interfaces_and_context", "define_tests_and_gates"],
             "questions": [item["target"] for item in unknown],
@@ -124,8 +123,15 @@ def impact_preview(snapshot: ProjectSnapshot, request: ImpactPreviewInput) -> To
         "read_only": True,
         "application_authority": False,
         "pagination": pagination,
-        "observation_preconditions": preconditions.model_dump(mode="json"),
         "provenance": {"relationships": "project_control_graph_over_authoritative_reads", "operational_state": "todo_semantic_workflow", "task_semantics": "todo_semantic_state", "source": "git_identity"},
     }
     warnings = [*snapshot.warnings_for("todo"), *workflow_warnings(snapshot)]
-    return envelope("impact_preview", snapshot, bounded_payload(data, BUDGETS[request.detail]), warnings=list(dict.fromkeys(warnings)))
+    # Ordinary impact exploration relies on the compact envelope cursor.  A
+    # requested inert proposal retains the exact preconditions inside that
+    # proposal, which is the contract a later handoff must revalidate.
+    return bounded_envelope(
+        envelope("impact_preview", snapshot, data, warnings=list(dict.fromkeys(warnings)), compact_identity=True),
+        BUDGETS[request.detail],
+        essential_data_keys=("hypothesis", "read_only", "application_authority", "proposal_envelope"),
+        expansion_route="repeat impact_preview with detail=exact and include_proposal_envelope=true",
+    )

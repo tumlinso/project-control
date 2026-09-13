@@ -57,7 +57,7 @@ class ProjectModelTests(unittest.TestCase):
         self.assertEqual(ArchitectureContextInput(project="demo", question="architecture").detail, "standard")
         self.assertEqual(CoordinationViewInput(project="demo").max_items, 100)
         self.assertEqual(HistoryTraceInput(project="demo", subject="T1").max_events, 100)
-        self.assertTrue(ImpactPreviewInput(project="demo", hypothesis="change interface").include_proposal_envelope)
+        self.assertFalse(ImpactPreviewInput(project="demo", hypothesis="change interface").include_proposal_envelope)
         self.assertEqual(ProgramContextInput(program_id="stack", question="boundaries").program_id, "stack")
         source = SourceContextInput(
             project="demo", repository="source",
@@ -239,7 +239,7 @@ class ProjectModelTests(unittest.TestCase):
     def test_delta_uses_explicit_cursor_and_returns_new_one(self) -> None:
         result = project_delta(fixture_snapshot(), DeltaSince(todo_revision=6, commits={"source": "abc"}), {})
         self.assertEqual(result.data["changes"][0]["category"], "validation")
-        self.assertEqual(result.data["new_cursor"]["todo_revision"], 8)
+        self.assertEqual(result.cursor.todo_revision, 8)
 
     def test_nullable_cursor_round_trip_is_bounded(self) -> None:
         snapshot = fixture_snapshot().model_copy(update={"todo_revision": None, "todo_tables": {}})

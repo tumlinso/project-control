@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-from project_control.models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, RepositoryIdentity
+from project_control.models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, RepositoryIdentity, WorktreeIdentity
 from project_control.services.planning import plan_preview
 
 
@@ -62,6 +62,24 @@ class PlanPreviewTests(unittest.TestCase):
     def test_context_is_prospective(self) -> None:
         result = plan_preview(self.config, self.snapshot, PlanPreviewInput(project="demo", mode="context"))
         self.assertEqual(result.data["plan_schema_version"], 2)
+        self.assertNotIn("observation_preconditions", result.data)
+
+    def test_compact_context_budgets_the_full_envelope_and_keeps_refresh_identity(self) -> None:
+        self.snapshot.repositories["source"].current_worktree_id = "wt-0"
+        self.snapshot.repositories["source"].worktrees = {
+            f"wt-{index}": WorktreeIdentity(
+                id=f"wt-{index}", repository="source", head="a" * 40,
+                dirty=False, working_tree_fingerprint=f"fp-{index}",
+                observed_at=self.snapshot.observed_at,
+            )
+            for index in range(40)
+        }
+        result = plan_preview(self.config, self.snapshot, PlanPreviewInput(project="demo", mode="context", detail="compact"))
+        encoded = json.dumps(result.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        self.assertLessEqual(len(encoded), 6000)
+        self.assertEqual(result.data["mode"], "context")
+        self.assertEqual(result.cursor.identity_digest, self.snapshot.identity_digest())
+        self.assertNotIn("wt-39", encoded.decode("utf-8"))
 
     def test_validate_and_handoff_do_not_mutate(self) -> None:
         with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.cache)}):
@@ -76,6 +94,8 @@ class PlanPreviewTests(unittest.TestCase):
         self.assertEqual(validated.data["mutation_guard"], "unchanged")
         self.assertIn("prospective_impact", validated.data)
         self.assertEqual(handed.data["handoff"]["handoff_version"], 1)
+        self.assertIn("observation_preconditions", handed.data["handoff"])
+        self.assertNotIn("observation_preconditions", validated.data)
         self.assertFalse(any(self.cache.rglob("proposal-*.json")))
 
     def test_proposal_limit_is_enforced(self) -> None:

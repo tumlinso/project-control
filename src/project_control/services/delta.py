@@ -216,8 +216,6 @@ def project_delta(
             name: component.revision_skew for name, component in sorted(snapshot.component_authority.items())
             if component.revision_skew is not None
         },
-        "observation_identity": snapshot.compact_observation_identity(),
-        "new_cursor": snapshot.compact_identity()[1].model_dump(mode="json"),
         "ranking": {
             "items_considered": int(semantic_delta.get("raw_event_count", len(events))),
             "items_returned": int(semantic_delta.get("coalesced_event_count", len(events[:max_items]))),

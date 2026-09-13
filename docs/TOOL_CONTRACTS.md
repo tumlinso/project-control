@@ -4,14 +4,14 @@ Project Control exposes three exact profile-specific tool sets. No profile
 publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
 or a generic shell.
 
-The **observer** profile exposes exactly 18 tools over loopback Streamable HTTP:
-the sixteen rich reads, one registered measurement aperture, and `terminal_capture`. It registers no
-workflow mutation tool. The **codex** profile exposes exactly 22 tools over
-stdio: the same seventeen Project Control tools, excluding `terminal_capture`, plus the six
+The **observer** profile exposes exactly 17 tools over loopback Streamable HTTP:
+fifteen read-only tools, one registered measurement aperture, and `terminal_capture`. It registers no
+workflow mutation tool. The **codex** profile exposes exactly 21 tools over
+stdio: fourteen read-only Project Control tools plus the measurement aperture and six
 canonical workflow tools `next_task`, `inspect_task`, `coordinate_task`,
 `delegate_task`, `collect_delegation`, and `finish_task`.
-The **mutator** profile exposes exactly 24 tools over local stdio: the Codex
-23-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
+The **mutator** profile exposes exactly 22 tools over local stdio: the Codex
+21-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
 
 Both registration and invocation are allowlisted. A name hidden from a profile
 cannot be invoked directly. Trusted startup configuration selects the profile;
@@ -53,7 +53,9 @@ eight version-1 calls remain valid:
    freshness-sensitive confidence, and bounded provenance.
 6. `plan_preview` returns objective-resolved planning context, validates/diffs
    an app-private proposal without applying it, adds a conservative prospective
-   impact section, or packages a prospective Codex handoff.
+   impact section, or packages a prospective Codex handoff. Ordinary modes are
+   compact; `detail=exact` is accepted only for handoff when complete mutation
+   preconditions must be materialized.
 7. `agent_status` reports only observable sessions, claims, children, results,
    and existing local-service state. It separates authoritative first-class
    Codex lane dispatches, claim-only observations, and subordinate local-worker
@@ -65,7 +67,7 @@ eight version-1 calls remain valid:
    architecture-evidence parser in this pass recognizes the observed stable
    `CE-ARCH-92-SUMMARY/1` schema from an explicitly registered todo artifact.
 
-The sixteen v2 query tools are annotated `readOnlyHint=true`,
+The fifteen observer query tools are annotated `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Inputs use a registered
 workspace ID. Results share a schema-versioned envelope with status, observed
@@ -98,7 +100,7 @@ The six version-2 tools are:
    several thematic seed clusters, attributed graph expansion, commitments,
    boundaries, decisions, interfaces/consumers, realization, tests/evidence,
    active coordination, assumptions, contradictions, risks, next inspections,
-   retrieval basis, provenance, and observation preconditions. Serialized data
+   retrieval basis, provenance, and a compact freshness cursor. Serialized full-envelope
    budgets are 16/48/128 KiB.
 10. `coordination_view` accepts optional run/lane/task filters, since revision,
    detail, resolved-message and historical-arrival flags, item bound, and
@@ -122,8 +124,9 @@ The six version-2 tools are:
 13. `impact_preview` accepts a hypothesis, optional inert structured change set,
    optional target entities, detail, item bound, and proposal-envelope flag. It
    separates proven, possible, unknown, stale-context, integration, performance,
-   and unaffected impacts. It never applies or stores a proposal. Maximum data
-   is 96 KiB.
+   and unaffected impacts. It never applies or stores a proposal. Ordinary data
+   is at most 96 KiB; an explicitly requested `detail=exact` proposal contract
+   may use up to 512 KiB.
 14. `program_context` accepts exactly one configured program ID or explicit list
    of up to 16 registered workspaces, plus question, detail, item bound, and
    continuation. Program membership is query grouping only and never implies

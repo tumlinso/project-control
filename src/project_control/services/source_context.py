@@ -121,7 +121,7 @@ def source_context(
     request: SourceContextInput,
     *,
     deadline: float | None = None,
-    compact_identity: bool = False,
+    compact_identity: bool = True,
 ) -> ToolEnvelope:
     registry = WorkspaceRegistry(config)
     repository = registry.repository(request.project, request.repository)
@@ -292,7 +292,11 @@ def source_context(
     has_more = returned_items < considered_items or any(len(item.get("matches", [])) >= 50 for item in results)
     data = {
         "repository": repository.alias,
-        "worktree": selected.public(),
+        "worktree": {
+            "id": selected.selected.worktree_id,
+            "branch": selected.selected.branch,
+            "dirty": selected.selected.dirty,
+        },
         "workflow_mapping": _workflow_mapping(snapshot, root),
         "source_selector": selector,
         "source_commit": revision or selected.selected.head,
@@ -301,7 +305,6 @@ def source_context(
         "counts": {"considered": len(request.targets), "returned": len(results)},
         "result_items": {"considered": considered_items, "returned": returned_items},
         "continuation_cursor": _cursor(query_identity, offset + 50) if has_more else None,
-        "preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
     # Last-line defense: adapters must never surface secrets or private paths.
     return bounded_envelope(

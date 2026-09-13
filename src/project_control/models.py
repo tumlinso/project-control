@@ -275,7 +275,7 @@ class PlanPreviewInput(BaseModel):
     mode: Literal["context", "validate", "handoff"]
     objective: str | None = Field(default=None, max_length=4000)
     proposal: dict[str, Any] | None = None
-    detail: Literal["compact", "standard"] = "standard"
+    detail: Literal["compact", "standard", "exact"] = "standard"
 
     @model_validator(mode="after")
     def proposal_required(self) -> "PlanPreviewInput":
@@ -283,6 +283,8 @@ class PlanPreviewInput(BaseModel):
             raise ValueError("proposal is required for validate and handoff")
         if self.proposal is not None and len(json.dumps(self.proposal).encode()) > 256 * 1024:
             raise ValueError("proposal exceeds 256 KiB")
+        if self.detail == "exact" and self.mode != "handoff":
+            raise ValueError("exact detail is available only for handoff")
         return self
 
 
@@ -426,9 +428,15 @@ class ImpactPreviewInput(BaseModel):
     hypothesis: str = Field(min_length=1, max_length=12000)
     proposed_change: dict[str, Any] | None = None
     target_entities: list[str] = Field(default_factory=list, max_length=64)
-    detail: Literal["compact", "standard", "expanded"] = "standard"
+    detail: Literal["compact", "standard", "expanded", "exact"] = "standard"
     max_items: int = Field(default=100, ge=1, le=1000)
-    include_proposal_envelope: bool = True
+    include_proposal_envelope: bool = False
+
+    @model_validator(mode="after")
+    def exact_requires_contract(self) -> "ImpactPreviewInput":
+        if self.detail == "exact" and not self.include_proposal_envelope:
+            raise ValueError("exact detail requires include_proposal_envelope")
+        return self
 
 
 class ProgramContextInput(BaseModel):
@@ -552,7 +560,11 @@ class ProjectSnapshot(BaseModel):
                     head=selected.head,
                     working_tree_fingerprint=selected.working_tree_fingerprint,
                 )
-        cursor = self.cursor().model_copy(update={"worktrees": worktrees, "identity_digest": digest})
+        cursor = self.cursor().model_copy(update={
+            "fingerprints": {},
+            "worktrees": worktrees,
+            "identity_digest": digest,
+        })
         # Keep the digest on the cursor, the explicit read freshness contract;
         # duplicating it in project identity costs a compact field for no gain.
         identity = self.identity().model_copy(update={"repositories": repositories})
@@ -593,7 +605,7 @@ def envelope(
     data: dict[str, Any],
     *,
     warnings: list[str] | None = None,
-    compact_identity: bool = False,
+    compact_identity: bool = True,
 ) -> ToolEnvelope:
     all_warnings = list(dict.fromkeys([*snapshot.warnings, *(warnings or [])]))
     status = ToolStatus.PARTIAL if all_warnings else ToolStatus.OK

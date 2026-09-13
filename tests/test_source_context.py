@@ -81,6 +81,17 @@ class SourceContextTests(unittest.TestCase):
         self.assertTrue(result.data["targets"][1]["documentation"])
         self.assertEqual(before, manifest(self.root))
 
+    def test_small_full_envelope_budget_preserves_requested_source_content(self) -> None:
+        result = self.call(
+            [SourceTarget(kind="path", value="src/module.py", line_start=1, line_end=2)],
+            budget_bytes=4096,
+        )
+        encoded = result.model_dump_json().encode("utf-8")
+        self.assertLessEqual(len(encoded), 4096)
+        self.assertIn("calculate_total", result.data["targets"][0]["excerpt"])
+        self.assertIn("identity_digest", result.cursor.model_dump(mode="json"))
+        self.assertNotIn("preconditions", result.data)
+
     def test_symbol_falls_back_without_writing_ctxpp(self) -> None:
         result = self.call([SourceTarget(kind="symbol", value="calculate_total")])
         target = result.data["targets"][0]

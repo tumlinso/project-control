@@ -3,10 +3,19 @@
 Project Control enforces three capability profiles structurally, not by prompt
 convention. The observer's project/workflow/source query plane is permanently
 project-read-only. The Codex profile exposes only the six canonical Todo
-workflow tools, sixteen rich reads, and the registered `performance_probe`
+workflow tools, fourteen rich reads, and the registered `performance_probe`
 measurement aperture. `performance_probe` has no command/path/environment
 input: it passes a fixed typed request to the trusted Skills registry and can
 write only app-private evidence.
+
+`local_investigate` machine evidence is brokered rather than model-executed.
+Fixed host diagnostics run unprivileged inside a no-network, read-only
+bubblewrap sandbox with a cleared environment, private scratch mounts, and
+hard process/time/output ceilings. Structured filesystem inspection can read
+useful local roots (including home, `/mnt`, `/proc`, and `/sys`) but rejects
+traversal, symlink escapes, special files, per-process secret interfaces,
+credential stores, private-key material, binaries, and oversized content.
+Evidence is redacted and byte-budgeted before it reaches the local model.
 It accepts registered workspace and repository aliases only. The local operator
 may add absolute paths through the admin CLI; MCP callers cannot provide roots,
 commands, URLs, credentials, or service endpoints.

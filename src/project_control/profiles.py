@@ -42,9 +42,11 @@ RICH_READ_TOOL_NAMES = (
     "history_trace",
     "impact_preview",
     "program_context",
-    "local_investigate",
-    "observer_analysis",
 )
+
+# Local investigation is intentionally remote-observer-only. The packet
+# analyzer remains an internal provider primitive and has no MCP surface.
+OBSERVER_ONLY_TOOL_NAMES = ("local_investigate",)
 
 WORKFLOW_TOOL_NAMES = (
     "next_task",
@@ -57,7 +59,7 @@ WORKFLOW_TOOL_NAMES = (
 
 TERMINAL_TOOL_NAME = "terminal_capture"
 MUTATION_TOOL_NAMES = ("apply_plan",)
-OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + (TERMINAL_TOOL_NAME,)
+OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + OBSERVER_ONLY_TOOL_NAMES + (TERMINAL_TOOL_NAME,)
 CODEX_TOOL_NAMES = WORKFLOW_TOOL_NAMES + RICH_READ_TOOL_NAMES
 MUTATOR_TOOL_NAMES = WORKFLOW_TOOL_NAMES + RICH_READ_TOOL_NAMES + MUTATION_TOOL_NAMES
 

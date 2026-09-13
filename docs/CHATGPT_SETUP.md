@@ -51,14 +51,13 @@ performed by Codex:
    client service.
 6. Create a custom ChatGPT app named `project-control` using that tunnel.
 7. Because tool schema v3 changes discovery, reconnect or recreate the custom
-   app, then verify discovery returns exactly these eighteen tools:
+   app, then verify discovery returns exactly these seventeen tools:
    `project_overview`, `project_delta`, `project_frontier`, `inspect`,
    `evidence`, `plan_preview`, `agent_status`, `performance_status`,
    `architecture_context`, `coordination_view`, `source_context`,
    `history_trace`, `impact_preview`, `program_context`, `local_investigate`,
-   `observer_analysis`, `performance_probe`, and `terminal_capture`. `local_investigate` is the
-   preferred finished answer path; `observer_analysis` remains its low-level
-   immutable-packet primitive. The read-only tools are idempotent.
+   `performance_probe`, and `terminal_capture`. `local_investigate` is the
+   supported local-analysis path. The read-only tools are idempotent.
    `terminal_capture` is
    intentionally non-read-only and non-idempotent because it owns bounded
    app-private PTY runtime state; it is non-destructive and closed-world.

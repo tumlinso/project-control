@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from ..config import ProjectControlConfig
-from ..models import ObservationPreconditions, ProgramContextInput, ProjectSnapshot, VersionedPrecondition
+from ..models import ProgramContextInput, ProjectSnapshot
 from ..normalize import bounded_payload
 from ..registry import WorkspaceRegistry
 from ..snapshot import SnapshotBuilder
@@ -103,56 +103,37 @@ def _workflow_context(snapshot: ProjectSnapshot, maximum: int) -> dict[str, Any]
     }
 
 
-def _preconditions(snapshot: ProjectSnapshot) -> ObservationPreconditions:
-    base = snapshot.observation_preconditions()
-    workflow = workflow_view(snapshot)
-    agents = [item for item in workflow.get("first_class_agents", []) if isinstance(item, dict)]
-    fragment_rows = snapshot.todo_tables.get("context_fragments", [])
-    interface_rows = snapshot.todo_tables.get("interfaces", [])
-    return base.model_copy(update={
-        "task_ids": sorted({str(item["task_id"]) for item in agents if item.get("task_id")}),
-        "lane_ids": sorted({str(item["lane_id"]) for item in agents if item.get("lane_id")}),
-        "context_fragments": {
-            str(item["id"]): VersionedPrecondition(
-                version=item.get("version"), content_hash=item.get("content_hash"), state=item.get("state"),
-            )
-            for item in fragment_rows if isinstance(item, dict) and item.get("id")
-        },
-        "interfaces": {
-            str(item["id"]): VersionedPrecondition(
-                version=item.get("version"), content_hash=item.get("content_hash"), state=item.get("state"),
-            )
-            for item in interface_rows if isinstance(item, dict) and item.get("id")
-        },
-    })
-
-
 def _workspace_context(snapshot: ProjectSnapshot, question: str, maximum: int) -> dict[str, Any]:
-    preconditions = _preconditions(snapshot)
+    identity, cursor = snapshot.compact_identity()
+    workflow = workflow_view(snapshot)
     return {
         "workspace_id": snapshot.workspace_id,
         "display_name": snapshot.display_name,
-        "identity": {
+        # This is intentionally a compact ordinary-read identity.  The digest
+        # covers the complete server-side worktree state; mutation callers
+        # reacquire exact preconditions rather than receiving them per project.
+        "observation_identity": {
             "project_uuid": snapshot.project_uuid,
             "repositories": {
-                alias: {
-                    "commit": identity.commit,
-                    "dirty": identity.dirty,
-                    "working_tree_fingerprint": identity.working_tree_fingerprint,
-                }
-                for alias, identity in sorted(snapshot.repositories.items())
+                alias: {key: value for key, value in repository.model_dump(mode="json").items()
+                        if key in {"commit", "dirty", "current_worktree_id"}}
+                for alias, repository in sorted(identity.repositories.items())
             },
+            "relevant_worktrees": {key: value.model_dump(mode="json") for key, value in cursor.worktrees.items()},
+            "identity_digest": cursor.identity_digest,
         },
         "authority_cursor": {
             "todo_revision": snapshot.todo_revision,
-            "todo_semantic_fingerprint": preconditions.todo_semantic_authority_fingerprint,
-            "workflow_revision": preconditions.workflow_revision,
-            "workflow_fingerprint": preconditions.workflow_authority_fingerprint,
+            "workflow_revision": workflow.get("revision"),
+            "active_run_id": workflow.get("active_run_id"),
             "observed_at": snapshot.observed_at,
         },
         "relevant_commitments": _rank_records(snapshot, question, maximum),
         "coordination": _workflow_context(snapshot, maximum),
-        "observation_preconditions": preconditions.model_dump(mode="json"),
+        "revalidation": {
+            "required_for_mutation": True,
+            "route": "reacquire_workspace_observation_preconditions",
+        },
         "warnings": list(dict.fromkeys([*snapshot.warnings, *snapshot.warnings_for("todo")])),
     }
 
@@ -246,9 +227,6 @@ def program_context(
                 "program membership does not establish source dependencies, interfaces, or ownership"
             ],
         },
-        "observation_preconditions": {
-            item.workspace_id: _preconditions(item).model_dump(mode="json") for item in snapshots
-        },
         "ranking": {
             "projects_considered": len(workspace_ids),
             "projects_returned": len(projects),
@@ -257,10 +235,12 @@ def program_context(
             "deterministic": True,
         },
     }
-    return {
+    # Program context is not a ToolEnvelope, so bound the complete response,
+    # not only its data field.  Per-workspace identity is already compact.
+    return bounded_payload({
         "schema_version": 2,
         "tool": "program_context",
         "status": "partial" if failures else "ok",
-        "data": bounded_payload(data, BUDGETS[request.detail]),
+        "data": data,
         "warnings": warnings,
-    }
+    }, BUDGETS[request.detail])

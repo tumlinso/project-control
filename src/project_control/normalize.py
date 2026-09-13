@@ -92,7 +92,10 @@ def bounded_payload(value: dict[str, Any], budget_bytes: int) -> dict[str, Any]:
     return clean
 
 
-def bounded_envelope(value: Any, budget_bytes: int, *, essential_data_keys: tuple[str, ...] = ()) -> Any:
+def bounded_envelope(
+    value: Any, budget_bytes: int, *, essential_data_keys: tuple[str, ...] = (),
+    expansion_route: str | None = None,
+) -> Any:
     """Fit a read result to a UTF-8 canonical-JSON *envelope* budget.
 
     Individual services used to budget only ``data``.  That made a compact
@@ -142,6 +145,17 @@ def bounded_envelope(value: Any, budget_bytes: int, *, essential_data_keys: tupl
     # entire response with a refresh failure.
     if not fits() and essential:
         result.data = essential
+        if not fits():
+            omitted = sorted(key for key in essential if key != "response_coverage")
+            coverage = deepcopy(essential.get("response_coverage", {}))
+            coverage.update({
+                "essential_fields_omitted": omitted,
+                "expansion_required": True,
+                "expansion_route": expansion_route or "use_the_tool_documented_expansion_or_revalidation_route",
+            })
+            result.status = type(result.status).PARTIAL
+            result.warnings = list(dict.fromkeys([*result.warnings, "response_essential_fields_require_expansion"]))
+            result.data = {"response_coverage": coverage}
     if not fits():
         # Compact read envelopes already carry only the registered/current
         # worktree plus a digest of the complete registry.  Never discard that

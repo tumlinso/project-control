@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..models import AgentStatusInput, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..workflow import workflow_summary
 
 
@@ -60,19 +60,17 @@ def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput) -> ToolEn
         "subordinate_local_children": children,
         "claim_observations": legacy_claims,
         "legacy_child_observations": legacy_children if not workflow["available"] else [],
-        # Compatibility aliases retain their shapes while never flattening children into agents.
-        "agents": first_class_agents,
-        "children": children,
         "active_run_id": workflow.get("active_run_id"),
         "workflow_authority_available": bool(workflow["available"]),
         "stale_or_orphaned": snapshot.todo_status.get("orphaned_claims", []),
         "local_services": local,
-        "local_supervisor_capacity": local,
         "observer_jobs": [],
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         "observable_only": True,
     }
     warnings = [] if workflow["available"] else [str(workflow.get("reason") or "agent_state_unavailable")]
     if not workflow["available"] and local.get("status") != "ok":
         warnings.append("agent_state_unavailable")
-    return envelope("agent_status", snapshot, bounded_payload(data, 10000), warnings=[*snapshot.warnings_for("todo", "worker"), *warnings])
+    return bounded_envelope(
+        envelope("agent_status", snapshot, data, warnings=[*snapshot.warnings_for("todo", "worker"), *warnings], compact_identity=True),
+        10000,
+    )

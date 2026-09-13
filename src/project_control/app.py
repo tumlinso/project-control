@@ -64,14 +64,14 @@ from .profiles import MCPProfile, ProfiledFastMCP
 from .mutation_tools import register_mutation_tools
 from .workflow_binding import todo_read_port_factory, workflow_protocol
 from .workflow_tools import WORKFLOW_INSTRUCTIONS, register_workflow_tools
-from .observer_analysis import DisabledObserverAnalysisProvider, ObserverAnalysisRegistry
+from .observer_analysis import ObserverAnalysisRegistry
 
 
 SERVER_INSTRUCTIONS = (
     "Use project-control to inspect live engineering projects through its read-only architectural, source, "
     "history, planning, and coordination "
-    "observatory. Prefer local_investigate for a finished bounded local-model investigation; observer_analysis is "
-    "the low-level immutable-packet primitive. Start with architecture_context for broad questions, project_overview for status, or "
+    "observatory. Use local_investigate for a finished bounded local-model investigation. Start with "
+    "architecture_context for broad questions, project_overview for status, or "
     "project_delta for change. Use source_context for bounded multi-target source reads and coordination_view for "
     "todo-authoritative workflow state. Todo semantic workflow owns operational truth; durable export only enriches "
     "anchored records. The read-only project query tools never claim tasks, mark messages read, advance cursors, "
@@ -137,8 +137,9 @@ EvidenceKind = Literal[
 ]
 EvidenceDetail = Literal["summary", "provenance", "bounded_excerpt"]
 PlanMode = Literal["context", "validate", "handoff"]
-PlanDetail = Literal["compact", "standard"]
+PlanDetail = Literal["compact", "standard", "exact"]
 ContextDetail = Literal["compact", "standard", "expanded"]
+ImpactDetail = Literal["compact", "standard", "expanded", "exact"]
 ArchitectureScope = Literal["current", "current_and_reference", "all"]
 SourceKind = Literal["path", "symbol", "subsystem", "text"]
 SourceSelectorIntent = Literal["architecture", "implementation", "debug", "review", "performance"]
@@ -258,27 +259,6 @@ def create_mcp(
     def project_frontier(project: str, max_ready: Annotated[int, Field(ge=1, le=100)] = 20, include_blocked: bool = True, include_parallel_groups: bool = True) -> dict[str, Any]:
         request = ProjectFrontierInput(project=project, max_ready=max_ready, include_blocked=include_blocked, include_parallel_groups=include_parallel_groups)
         return runtime.invoke("project_frontier", project, lambda: project_frontier_service(runtime.snapshot(project), max_ready=request.max_ready, include_blocked=request.include_blocked, include_parallel_groups=request.include_parallel_groups))
-
-    @mcp.tool(
-        description="Optional non-authoritative local summary of an immutable bounded evidence packet. Never claims, writes, invokes tools, or starts workers; unavailable local inference returns a deterministic compact-envelope fallback.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def observer_analysis(project: str, packet: dict[str, Any]) -> dict[str, Any]:
-        snapshot = runtime.snapshot(project)
-        provider_result: dict[str, Any]
-        try:
-            alias = next(iter(snapshot.repositories))
-            root = WorkspaceRegistry(active_config).repository(project, alias).root
-            provider_result = observer_analysis_registry.analyze(root, packet)
-        except Exception:
-            provider_result = DisabledObserverAnalysisProvider().analyze(packet)
-        def operation() -> ToolEnvelope:
-            status = ToolStatus.OK if provider_result.get("status") == "available" else ToolStatus.PARTIAL
-            warning = [] if status is ToolStatus.OK else [str(provider_result.get("reason", "local_analysis_unavailable"))[:500]]
-            return ToolEnvelope(tool="observer_analysis", status=status, project=snapshot.identity(),
-                                data=provider_result, warnings=warning, cursor=snapshot.cursor())
-        return runtime.invoke("observer_analysis", project, operation)
 
     @mcp.tool(
         description="Preferred high-level local read-only investigation. Project Control brokers bounded architecture, source, inspect and workflow reads to a tool-less local model; returns evidence-linked facts, inferences and uncertainty without claims, writes or paid-model fallback.",
@@ -402,7 +382,7 @@ def create_mcp(
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def impact_preview(project: str, hypothesis: Annotated[str, Field(min_length=1, max_length=12000)], proposed_change: dict[str, Any] | None = None, target_entities: Annotated[list[str] | None, Field(max_length=64)] = None, detail: ContextDetail = "standard", max_items: Annotated[int, Field(ge=1, le=1000)] = 100, include_proposal_envelope: bool = True) -> dict[str, Any]:
+    def impact_preview(project: str, hypothesis: Annotated[str, Field(min_length=1, max_length=12000)], proposed_change: dict[str, Any] | None = None, target_entities: Annotated[list[str] | None, Field(max_length=64)] = None, detail: ImpactDetail = "standard", max_items: Annotated[int, Field(ge=1, le=1000)] = 100, include_proposal_envelope: bool = False) -> dict[str, Any]:
         request = ImpactPreviewInput(project=project, hypothesis=hypothesis, proposed_change=proposed_change, target_entities=target_entities or [], detail=detail, max_items=max_items, include_proposal_envelope=include_proposal_envelope)
         return runtime.invoke("impact_preview", project, lambda: impact_preview_service(runtime.snapshot(project), request))
 

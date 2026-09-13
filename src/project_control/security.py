@@ -25,7 +25,11 @@ SENSITIVE_KEY = re.compile(
     re.IGNORECASE,
 )
 SENSITIVE_VALUE = re.compile(
-    r"(?i)(bearer\s+[A-Za-z0-9._~+/-]+=*|(?<![A-Za-z0-9_])(?:sk|tok|toc|tos|tol)_[A-Za-z0-9_-]{12,})"
+    r"(?i)(bearer\s+[A-Za-z0-9._~+/-]+=*|"
+    r"(?<![A-Za-z0-9_])(?:sk|tok|toc|tos|tol|hf|ghp|gho|ghu|ghs|ghr|xoxb|xoxa|xoxp|xoxr)_[A-Za-z0-9_-]{12,}|"
+    r"github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16}|"
+    r"[\"']?(?:token|password|api[_-]?key|secret|credential)[\"']?\s*[:=]\s*"
+    r"(?:\"(?:\\.|[^\"\\\r\n])*\"|'(?:\\.|[^'\\\r\n])*'|[^\s,;}]+))"
 )
 LOCAL_ABSOLUTE_PATH = re.compile(
     r"(?<![A-Za-z0-9:])/(?:home|tmp|var|run|mnt|media|opt|srv|root)(?:/[A-Za-z0-9._@+,:=-]+)+"

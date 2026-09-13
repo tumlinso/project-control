@@ -11,7 +11,7 @@ from ..adapters.git import GitReadAdapter
 from ..adapters.todo import TodoReadAdapter
 from ..config import ProjectControlConfig, ensure_private_directory
 from ..models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope
 from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
@@ -118,9 +118,8 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
             "workflow": workflow,
             "plan_schema_version": 2,
             "accepted_plan_schema_versions": accepted_plan_schema_versions,
-            "base_revision": snapshot.todo_revision,
-            "base_commits": {key: value.commit for key, value in snapshot.repositories.items()},
-            "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
+            # The envelope cursor carries ordinary-read identity.  Exact
+            # mutation preconditions are materialized only for a handoff.
         }
     prefixes = sorted({str(item.get("id", "")).split("-", 1)[0] for item in tasks if "-" in str(item.get("id", ""))})
     return {
@@ -136,16 +135,23 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
         "workflow": workflow,
         "plan_schema_version": 2,
         "accepted_plan_schema_versions": accepted_plan_schema_versions,
-        "base_revision": snapshot.todo_revision,
-        "base_commits": {key: value.commit for key, value in snapshot.repositories.items()},
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
+        # The envelope cursor carries ordinary-read identity.  Exact mutation
+        # preconditions are materialized only for a handoff.
     }
 
 
 def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, request: PlanPreviewInput) -> ToolEnvelope:
     if request.mode == "context":
         budget = 10000 if request.detail == "standard" else 6000
-        return envelope("plan_preview", snapshot, bounded_payload({"mode": "context", **_planning_context(snapshot, request.objective)}, budget), warnings=snapshot.warnings_for("todo"))
+        return bounded_envelope(
+            envelope(
+                "plan_preview", snapshot,
+                {"mode": "context", **_planning_context(snapshot, request.objective)},
+                warnings=snapshot.warnings_for("todo"), compact_identity=True,
+            ),
+            budget,
+            essential_data_keys=("mode",),
+        )
 
     registry = WorkspaceRegistry(config)
     workspace = registry.workspace(request.project)
@@ -215,7 +221,6 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "mutation_guard": "unchanged",
         "plan_schema_version_observed": proposal.get("schema_version"),
         "accepted_plan_schema_versions": [2, 3],
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
         "proposal_envelope": {
             "recognized": proposal_envelope is not None,
             "authority_to_apply": False,
@@ -233,13 +238,13 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "performance_assumptions_needing_reconsideration": [item.get("id") or item.get("fact_id") for item in reconciled.performance["current_evidence"] if set(item.get("linked_task_ids", [])) & affected],
         "safe_parallel_work_unaffected": [item.get("id") for item in reconciled.ready if str(item.get("id")) not in affected],
         "runs_lanes_and_rendezvous": workflow_summary(snapshot),
-        "worktree_identities": snapshot.observation_preconditions().model_dump(mode="json")["worktrees"],
     }
     if request.mode == "handoff" and valid:
         result["handoff"] = {
             "handoff_version": 1,
             "base_todo_revision": before_revision,
             "base_commits": result["base_commits"],
+            "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
             "proposal_sha256": digest,
             "objective": request.objective or "",
             "proposal": proposal,
@@ -252,4 +257,11 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     warnings = snapshot.warnings_for("todo")
     if not valid:
         warnings.append("proposal_invalid")
-    return envelope("plan_preview", snapshot, bounded_payload(result, 32000), warnings=warnings)
+    # Use the complete response envelope for byte accounting: data-only
+    # trimming used to let full worktree metadata crowd out useful preview.
+    return bounded_envelope(
+        envelope("plan_preview", snapshot, result, warnings=warnings, compact_identity=True),
+        512 * 1024 if request.detail == "exact" else 32000,
+        essential_data_keys=("mode", "valid", "mutation_guard", "handoff"),
+        expansion_route="repeat plan_preview handoff with detail=exact and the same proposal",
+    )

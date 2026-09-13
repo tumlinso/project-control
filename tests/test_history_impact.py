@@ -66,6 +66,7 @@ class HistoryImpactTests(unittest.TestCase):
             project="cellerator",
             hypothesis="Revise Execution Image v2 and its validation context",
             target_entities=["EXECUTION-IMAGE-V2", "DOES-NOT-EXIST"],
+            include_proposal_envelope=True,
         )
         first = impact_preview(snapshot, request)
         second = impact_preview(snapshot, request)
@@ -79,8 +80,11 @@ class HistoryImpactTests(unittest.TestCase):
         }])
         self.assertFalse(first.data["proposal_envelope"]["authority_to_apply"])
         self.assertEqual(first.data["proposal_envelope"]["deterministic_digest"], second.data["proposal_envelope"]["deterministic_digest"])
-        self.assertIn("CTX-1", first.data["required_preconditions"]["context_fragments"])
-        self.assertIn("EXECUTION-IMAGE-V2", first.data["required_preconditions"]["interfaces"])
+        self.assertNotIn("required_preconditions", first.data)
+        self.assertNotIn("observation_preconditions", first.data)
+        exact = first.data["proposal_envelope"]["observation_preconditions"]
+        self.assertIn("CTX-1", exact["context_fragments"])
+        self.assertIn("EXECUTION-IMAGE-V2", exact["interfaces"])
         self.assertEqual(before, snapshot.model_dump(mode="json"))
 
     def test_history_continuation_is_bound_to_query(self) -> None:
@@ -92,6 +96,17 @@ class HistoryImpactTests(unittest.TestCase):
         self.assertEqual(second.data["pagination"]["offset"], 2)
         with self.assertRaisesRegex(ValueError, "continuation_cursor_mismatch"):
             history_trace(snapshot, HistoryTraceInput(project="cellerator", subject="different", max_events=2, continuation_cursor=cursor))
+
+    def test_ordinary_impact_uses_compact_identity_without_mutation_preconditions(self) -> None:
+        snapshot = rich_snapshot()
+        result = impact_preview(snapshot, ImpactPreviewInput(
+            project="cellerator", hypothesis="Revise execution image", target_entities=["EXECUTION-IMAGE-V2"],
+            include_proposal_envelope=False, detail="compact",
+        ))
+        self.assertIsNone(result.data["proposal_envelope"])
+        self.assertNotIn("required_preconditions", result.data)
+        self.assertNotIn("observation_preconditions", result.data)
+        self.assertEqual(result.cursor.identity_digest, snapshot.identity_digest())
 
 
 if __name__ == "__main__":
