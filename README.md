@@ -75,6 +75,11 @@ machine.
 Local setup and connection instructions are in `docs/CHATGPT_SETUP.md`.
 Codex setup, compatibility, and cheap-first usage are in `docs/CODEX_SETUP.md`;
 repository guidance migration is in `docs/MIGRATION.md`.
+For coarse outcome packages, guarded conditional choices, compact evidence, and
+root/head-authorized low-ceremony lifecycle actions, see
+`docs/ADAPTIVE_EPICS.md`.
+The optional, claimless local-analysis stop-line and deterministic fallback are
+documented in `docs/LOCAL_ANALYSIS.md`.
 
 ## Codex usage policy
 

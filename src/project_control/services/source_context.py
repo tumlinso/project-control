@@ -12,6 +12,7 @@ from ..adapters.ctxpp import CtxppReadAdapter
 from ..adapters.git import GitReadAdapter
 from ..config import DEFAULT_DENY_PATTERNS, ProjectControlConfig
 from ..models import ProjectSnapshot, SourceContextInput, ToolEnvelope, envelope
+from ..normalize import bounded_envelope
 from ..registry import WorkspaceRegistry
 from ..security import SecurityError, is_allowlisted_text_path, is_denied, redact, redact_text, resolve_registered_path
 from ..source_index import SourceLexicalIndex
@@ -275,4 +276,12 @@ def source_context(config: ProjectControlConfig, snapshot: ProjectSnapshot, requ
         "preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
     }
     # Last-line defense: adapters must never surface secrets or private paths.
-    return envelope("source_context", snapshot, redact(data), warnings=list(dict.fromkeys(warnings)))
+    return bounded_envelope(
+        envelope("source_context", snapshot, redact(data), warnings=list(dict.fromkeys(warnings))),
+        # Historic callers may request a 1 KiB source *section*.  A complete
+        # envelope cannot carry identity, freshness and an exact continuation
+        # token in that space, so preserve their compatible section behavior
+        # while common source reads use a full-envelope floor.
+        max(4 * 1024, request.budget_bytes),
+        essential_data_keys=("continuation_cursor", "source_commit", "source_freshness"),
+    )

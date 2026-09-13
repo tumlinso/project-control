@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from typing import Any
 
 from .security import redact_output
@@ -89,3 +90,58 @@ def bounded_payload(value: dict[str, Any], budget_bytes: int) -> dict[str, Any]:
         break
     clean["truncation"]["items_returned"] = sum(len(item) for item in collections(clean, root=True)[0])
     return clean
+
+
+def bounded_envelope(value: Any, budget_bytes: int, *, essential_data_keys: tuple[str, ...] = ()) -> Any:
+    """Fit a read result to a UTF-8 canonical-JSON *envelope* budget.
+
+    Individual services used to budget only ``data``.  That made a compact
+    answer unexpectedly large when a project had many worktrees or warnings.
+    The cursor remains the exact expansion/refresh route; this helper removes
+    duplicated detail before trimming the payload, rather than substituting a
+    newer snapshot or hiding authority state.
+    """
+    encoded = lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    result = value.model_copy(deep=True)
+    result.data = dict(result.data)
+    result.data.setdefault("response_coverage", {
+        "budget_bytes": budget_bytes,
+        "measurement": "canonical_json_utf8_full_envelope",
+        "expansion_cursor": "top_level.cursor",
+        "stale_cursor_behavior": "typed_refresh_required",
+    })
+
+    # Worktree tables are useful in detailed reads but duplicate the cursor and
+    # can dominate an otherwise small overview.  Preserve repository heads and
+    # fingerprints, which are the decisive identity/refresh facts.
+    for identity in result.project.repositories.values():
+        identity.worktrees = {}
+    result.cursor.worktrees = {}
+
+    def fits() -> bool:
+        return len(encoded(result.model_dump(mode="json"))) <= budget_bytes
+
+    if fits():
+        return result
+    essential = {
+        key: deepcopy(result.data[key]) for key in ("response_coverage", *essential_data_keys)
+        if key in result.data
+    }
+    payload = {key: value for key, value in result.data.items() if key not in essential}
+    base = result.model_dump(mode="json")
+    base["data"] = {}
+    available = max(0, budget_bytes - len(encoded(base)) - len(encoded(essential)) - 32)
+    while True:
+        result.data = {**bounded_payload(payload, max(0, available)), **essential}
+        if fits() or available <= 128:
+            break
+        available = max(128, available // 2)
+
+    # Warnings are authoritative signals, but repeated verbose provider text
+    # is not.  Retain deterministic codes/first messages when the envelope is
+    # otherwise unable to fit.
+    while not fits() and len(result.warnings) > 1:
+        result.warnings.pop()
+    while not fits() and result.warnings and len(result.warnings[0]) > 48:
+        result.warnings[0] = result.warnings[0][: max(24, len(result.warnings[0]) // 2)] + "…"
+    return result

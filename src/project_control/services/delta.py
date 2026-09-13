@@ -5,7 +5,7 @@ from typing import Any
 from ..adapters.git import GitReadAdapter
 from ..adapters.todo import TodoReadAdapter, TodoReadError
 from ..models import DeltaSince, ProjectSnapshot, ToolEnvelope, envelope
-from ..normalize import bounded_payload
+from ..normalize import bounded_envelope, bounded_payload
 from ..workflow import workflow_summary, workflow_warnings
 
 
@@ -225,4 +225,7 @@ def project_delta(
             "budget_bytes": 16000,
         },
     }
-    return envelope("project_delta", snapshot, bounded_payload(data, 16000), warnings=list(dict.fromkeys([*warnings, *workflow_warnings(snapshot)])))
+    return bounded_envelope(
+        envelope("project_delta", snapshot, bounded_payload(data, 16000), warnings=list(dict.fromkeys([*warnings, *workflow_warnings(snapshot)]))),
+        16_384,
+    )
