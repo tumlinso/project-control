@@ -25,6 +25,13 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(_initial_route("How is PC-LOCAL-INVESTIGATOR/1 implemented?"), ("search_source", ["PC-LOCAL-INVESTIGATOR"]))
         self.assertEqual(_initial_route("What is task PC-WF2-A03 status?"), ("inspect_task", ["PC-WF2-A03"]))
         self.assertEqual(_initial_route("Which workflow lanes are ready?"), ("inspect_workflow", []))
+        self.assertEqual(_initial_route("What GPU topology is visible?"), ("inspect_machine", ["gpu_topology"]))
+        self.assertEqual(_initial_route("Show GPU process usage"), ("inspect_machine", ["gpu_processes"]))
+        self.assertEqual(_initial_route("What host memory is free?"), ("inspect_machine", ["host_memory"]))
+        self.assertEqual(_initial_route("How much disk capacity is available?"), ("inspect_machine", ["filesystem_capacity"]))
+        self.assertEqual(_initial_route("Is Project Control service healthy?"), ("inspect_machine", ["services"]))
+        self.assertEqual(_initial_route("What kernel system diagnostics are available?"), ("inspect_machine", ["system"]))
+        self.assertEqual(_initial_route("Which workflow task status is ready?"), ("inspect_workflow", []))
         self.assertEqual(_initial_route("Explain the broad architecture"), ("orient", []))
 
     def test_narrow_source_seed_preserves_hits_and_populates_metrics(self) -> None:

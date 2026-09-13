@@ -157,6 +157,27 @@ _PATH = re.compile(r"(?<![\w.-])([\w./-]+\.(?:py|md|toml|json|ya?ml|c|cc|cpp|cu|
 _IDENTIFIER = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b|\b[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]+)+\b")
 _TASK_ID = re.compile(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+){1,}\b")
 
+def _machine_diagnostic(question: str) -> str | None:
+    """Recognize only explicit host-observation questions; no model inference."""
+    lowered = question.casefold()
+    if re.search(r"\b(gpu|nvidia|cuda)\b", lowered):
+        if re.search(r"\b(topology|nvlink|pcie)\b", lowered):
+            return "gpu_topology"
+        if re.search(r"\b(process|usage|users?)\b", lowered):
+            return "gpu_processes"
+        return "gpu_summary"
+    if re.search(r"\b(project control|project-control)\b.*\bservice\b|\bservice\b.*\b(project control|project-control)\b", lowered):
+        return "services"
+    if re.search(r"\b(process|llama|inference)\b", lowered):
+        return "processes"
+    if re.search(r"\b(memory|ram|swap)\b", lowered):
+        return "host_memory"
+    if re.search(r"\b(disk|storage|filesystem|capacity)\b", lowered):
+        return "filesystem_capacity"
+    if re.search(r"\b(kernel|host system|system diagnostics)\b", lowered):
+        return "system"
+    return None
+
 def _initial_route(question: str) -> tuple[str, list[str]]:
     """Choose one cheap deterministic evidence seed without model inference."""
     paths = list(dict.fromkeys(_PATH.findall(question)))[:4]
@@ -171,8 +192,12 @@ def _initial_route(question: str) -> tuple[str, list[str]]:
     task_ids = list(dict.fromkeys(_TASK_ID.findall(question)))[:1]
     if task_ids:
         return "inspect_task", task_ids
+    # Workflow wording remains authoritative over generic status vocabulary.
     if _WORKFLOW_WORDS.search(question):
         return "inspect_workflow", []
+    diagnostic = _machine_diagnostic(question)
+    if diagnostic:
+        return "inspect_machine", [diagnostic]
     return "orient", []
 
 def _compact_source_data(data: dict[str, Any], budget: int) -> dict[str, Any]:
@@ -362,6 +387,10 @@ def local_investigate(
         seen_reads.add(_read_signature("inspect_workflow", {}))
         observe("inspect_workflow", lambda: coordination_view(snapshot, CoordinationViewInput(
             project=request.project, detail="compact" if request.effort == "quick" else "standard", max_items=24 if request.effort == "quick" else 100)))
+    elif initial_kind == "inspect_machine":
+        seen_reads.add(_read_signature("inspect_machine", {"diagnostic": initial_targets[0]}))
+        observe("inspect_machine", lambda: machine_inspection(
+            config, snapshot, project=request.project, diagnostic=initial_targets[0]))
     else:
         detail, _, max_items = _seed_limits(request.effort)
         seen_reads.add(_read_signature("orient", {"question": request.question}))
