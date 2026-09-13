@@ -138,6 +138,13 @@ def todo_read_port_factory(
         binding.validate()
         return port
 
+    # Provider discovery normally begins with workspace configuration.  A
+    # manifest-backed candidate intentionally imports its frozen runtime copy,
+    # though, which can differ from that live configuration path.  Advertise
+    # the already-validated root so the resolver selects the same authority
+    # before it asks this fail-closed factory to validate a configured alias.
+    # This is metadata on a private callable seam, not a second binding route.
+    setattr(create, "_project_control_bound_skills_root", identity.skills_root)
     return create
 
 

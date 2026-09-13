@@ -5,6 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/project-control
+Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis
 ExecStart=%h/.local/bin/uv run --frozen project-control serve
 Restart=on-failure
 RestartSec=2

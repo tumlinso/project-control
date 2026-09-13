@@ -79,9 +79,12 @@ class TodoObservation:
 
 
 class TodoReadError(CommandError):
-    def __init__(self, code: str):
+    def __init__(self, code: str, *, cause: str | None = None):
         super().__init__(code)
         self.code = code
+        # Keep a bounded, path-free upstream classification for component
+        # diagnostics.  Never expose raw SQLite messages or filesystem paths.
+        self.cause = cause
 
 
 class TodoReadAdapter:
@@ -128,6 +131,8 @@ class TodoReadAdapter:
             return "todo_entrypoint_incompatible"
         if code in {"database_busy", "database_locked"}:
             return "todo_read_database_busy"
+        if code in {"database_open_failed", "database_read_failed"}:
+            return "todo_read_database_open_failed"
         if code in {"permission_denied", "read_permission_denied"}:
             return "todo_read_permission_denied"
         if code in {"project_identity_mismatch", "project_uuid_mismatch"}:
@@ -173,7 +178,11 @@ class TodoReadAdapter:
         except Exception as exc:
             raise TodoReadError(f"todo_{operation.replace('.', '_')}_unavailable") from exc
         if not result.get("ok"):
-            raise TodoReadError(self._error_code(operation, result.get("code")))
+            upstream = result.get("code")
+            raise TodoReadError(
+                self._error_code(operation, upstream),
+                cause=str(upstream) if isinstance(upstream, str) else None,
+            )
         return result
 
     def _call_at(self, root: Path, operation: str, *arguments: str, timeout: float | None = None) -> dict[str, Any]:
@@ -408,7 +417,8 @@ class TodoReadAdapter:
             data = call()
         except TodoReadError as exc:
             return AuthorityComponentObservation(
-                "unavailable", operation, None, None, project_uuid, observed, source, exc.code, None, {},
+                "unavailable", operation, None, None, project_uuid, observed, source, exc.code, None,
+                {"diagnostic_cause": exc.cause} if exc.cause else {},
             )
         except (CommandError, OSError, ValueError, json.JSONDecodeError):
             return AuthorityComponentObservation(

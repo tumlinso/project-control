@@ -75,7 +75,8 @@ class SemanticDeltaTests(unittest.TestCase):
         self.assertEqual(result.data["workflow_changes"]["interfaces"][0]["category"], "architecture")
         self.assertTrue(result.data["workflow_changed"])
         self.assertNotIn("claim.pulsed", str(result.data["workflow_changes"]))
-        self.assertIn("observation_preconditions", result.data)
+        self.assertIn("observation_identity", result.data)
+        self.assertIn("identity_digest", result.data["observation_identity"])
 
 
 if __name__ == "__main__":

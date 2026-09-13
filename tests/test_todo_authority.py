@@ -130,6 +130,41 @@ class TodoAuthorityTests(unittest.TestCase):
         builder.build("fixture")
         self.assertEqual(calls, 1)
 
+    def test_bound_runtime_root_precedes_live_skills_alias(self) -> None:
+        frozen = Path(self.temporary.name) / "frozen-skills"
+        frozen.mkdir()
+        port = FakeReadPort(frozen)
+
+        def factory(root: Path):
+            self.assertEqual(root, frozen)
+            return port
+
+        # This mirrors a release candidate: config remains intentionally on
+        # the source checkout while the verified in-process port is frozen.
+        setattr(factory, "_project_control_bound_skills_root", frozen)
+        resolution = resolve_todo_provider(self.config, "fixture", read_port_factory=factory)
+        self.assertTrue(resolution.compatible)
+        self.assertEqual(resolution.selection_source, "runtime_binding")
+        self.assertEqual(resolution.skills_root, frozen.resolve())
+
+    def test_database_open_failure_is_preserved_as_bounded_component_code(self) -> None:
+        port = FakeReadPort(self.skills_root)
+        port.invoke = lambda *_args, **_kwargs: {
+            "ok": False,
+            "code": "database_open_failed",
+            "error": {"message": "unable to open database file /private/path"},
+        }
+        observation = TodoReadAdapter(self.repo, read_port=port).observe()
+        self.assertEqual(observation.revision, None)
+        self.assertEqual(
+            observation.components["todo_workflow"].error_code,
+            "todo_read_database_open_failed",
+        )
+        self.assertEqual(
+            observation.components["todo_workflow"].data,
+            {"diagnostic_cause": "database_open_failed"},
+        )
+
     def test_runtime_supplies_verified_port_and_large_reads_avoid_subprocess_capture(self) -> None:
         port = FakeReadPort(self.skills_root, large_export_bytes=9 * 1024 * 1024)
         factory = lambda _root: port

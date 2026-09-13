@@ -137,26 +137,26 @@ def bounded_envelope(value: Any, budget_bytes: int, *, essential_data_keys: tupl
         result.warnings.pop()
     while not fits() and result.warnings and len(result.warnings[0]) > 48:
         result.warnings[0] = result.warnings[0][: max(24, len(result.warnings[0]) // 2)] + "…"
+    # If the payload trimmer cannot make a tiny heterogeneous object fit,
+    # retain declared essential fields verbatim rather than replacing the
+    # entire response with a refresh failure.
+    if not fits() and essential:
+        result.data = essential
     if not fits():
-        # Immutable identity alone can exceed a compact budget in very large
-        # registries.  Do not silently sever a cursor from its worktree
-        # preconditions: return an explicit typed partial that requires a
-        # fresh narrow query instead.
-        result.project.repositories = {}
-        result.cursor.worktrees = {}
+        # Compact read envelopes already carry only the registered/current
+        # worktree plus a digest of the complete registry.  Never discard that
+        # identity as a budgeting escape hatch: it is the caller's stable
+        # refresh anchor. Full preconditions remain explicit proposal input.
+        # Preserve the compact identity/cursor and the ordinary-read freshness
+        # summary.  A full worktree map is no longer part of this envelope, so
+        # this is a bounded response, not a refresh-required identity failure.
         result.data = {
-            "response_coverage": {
-                "budget_bytes": budget_bytes,
-                "measurement": "canonical_json_utf8_full_envelope",
-                "status": "partial_refresh_required",
-                "reason": "immutable_identity_exceeds_budget",
-            },
-            # Retain the first bounded actionable collection when present;
-            # callers still receive useful frontier data while being told its
-            # cursor cannot safely be reused for the omitted registry.
-            **({"ready": list(value.data.get("ready", []))[:20]} if isinstance(getattr(value, "data", None), dict) and isinstance(value.data.get("ready"), list) else {}),
+            "response_coverage": result.data["response_coverage"],
+            **({"observation_identity": value.data["observation_identity"]}
+               if isinstance(getattr(value, "data", None), dict) and "observation_identity" in value.data else {}),
+            **({"ready": list(value.data.get("ready", []))[:20]}
+               if isinstance(getattr(value, "data", None), dict) and isinstance(value.data.get("ready"), list) else {}),
         }
-        result.warnings = ["response partial; refresh with a narrower query"]
     # The last-resort schema envelope is deliberately tiny.  Keep trimming the
     # only user controlled field so byte budgets are a hard contract.
     while not fits() and result.warnings and len(result.warnings[0]) > 8:

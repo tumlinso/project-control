@@ -5,9 +5,11 @@ After=network.target
 [Service]
 Type=simple
 Environment=PROJECT_CONTROL_PROFILE=observer
+Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis
 ExecStart=@CANDIDATE_ROOT@/bin/project-control observer --host 127.0.0.1 --port @CANDIDATE_PORT@
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+ReadWritePaths=%h/.cache/project-control/observer-analysis
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

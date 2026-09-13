@@ -137,9 +137,13 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
             "verification_clues": [gate.get("id") for gate in reconciled.gates if gate.get("task_id") == task.get("id")],
         } for task in ready[:max_ready]],
         "historical_state_filtered": reconciled.historical_counts,
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
+        "observation_identity": snapshot.compact_observation_identity(),
     }
     return bounded_envelope(
-        envelope("project_frontier", snapshot, bounded_payload(data, 12000), warnings=list(dict.fromkeys([*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)]))),
+        envelope(
+            "project_frontier", snapshot, bounded_payload(data, 12000),
+            warnings=list(dict.fromkeys([*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)])),
+            compact_identity=True,
+        ),
         12_288,
     )

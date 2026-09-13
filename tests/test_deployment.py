@@ -38,6 +38,11 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("project-control serve", service)
         self.assertIn("NoNewPrivileges=true", service)
         self.assertIn("ProtectSystem=strict", service)
+        self.assertIn("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis", service)
+        self.assertIn("%h/.cache/project-control", service)
+        candidate = (ROOT / "deployment" / "project-control-candidate.service").read_text(encoding="utf-8")
+        self.assertIn("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis", candidate)
+        self.assertIn("ReadWritePaths=%h/.cache/project-control/observer-analysis", candidate)
         self.assertIn("RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK", service)
         self.assertNotIn("0.0.0.0", service)
 

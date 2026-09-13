@@ -202,9 +202,22 @@ def resolve_todo_provider(
     closed instead of silently selecting the subprocess fallback.
     """
 
+    candidates = _root_candidates(config, workspace_id)
+    # A release-bound in-process port must be resolved through the exact
+    # frozen Skills tree it verified at process initialization.  The ordinary
+    # configuration can legitimately name the source Skills checkout instead;
+    # passing that alias to the port factory used to fail closed and hid every
+    # otherwise healthy Todo component behind a provider-level failure.
+    bound_root = getattr(read_port_factory, "_project_control_bound_skills_root", None)
+    if bound_root is not None:
+        try:
+            candidates.insert(0, ("runtime_binding", Path(bound_root), ()))
+        except TypeError:
+            pass
+
     seen: set[Path] = set()
     incompatible: TodoProviderResolution | None = None
-    for source, candidate, warnings in _root_candidates(config, workspace_id):
+    for source, candidate, warnings in candidates:
         if source.startswith("legacy_") and incompatible is not None:
             return incompatible
         if candidate is None:

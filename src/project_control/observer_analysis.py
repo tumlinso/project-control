@@ -10,6 +10,22 @@ from pathlib import Path
 from typing import Any, Protocol
 
 
+def observer_analysis_state_root() -> Path:
+    """Return the private service state root, never an observed project root."""
+    configured = os.environ.get("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR")
+    if configured:
+        root = Path(configured).expanduser().resolve()
+    else:
+        base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")).expanduser()
+        root = (base / "project-control" / "observer-analysis").resolve()
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        root.chmod(0o700)
+    except OSError:
+        pass
+    return root
+
+
 def compact_packet_fallback(packet: dict[str, Any], reason: str) -> dict[str, Any]:
     """Return useful, bounded packet-derived content when inference is absent."""
     evidence = packet.get("evidence") if isinstance(packet, dict) else None
@@ -69,7 +85,11 @@ class SkillsObserverAnalysisProvider:
             if not expected.is_dir() or expected not in source.parents:
                 raise RuntimeError("observer_analysis_runtime_binding_invalid")
             ProductionBackend = getattr(module, "ProductionBackend")
-            self._backend = ProductionBackend(self._repo_root)
+            # A local model service has its own private sidecars (SQLite
+            # resource state, logs and runtime files).  The observed project
+            # is evidence only and must never become its writable root.
+            state_root = observer_analysis_state_root()
+            self._backend = ProductionBackend(state_root, service_state_root=state_root)
         return self._backend
 
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]:

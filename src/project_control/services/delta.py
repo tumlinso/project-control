@@ -216,8 +216,8 @@ def project_delta(
             name: component.revision_skew for name, component in sorted(snapshot.component_authority.items())
             if component.revision_skew is not None
         },
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
-        "new_cursor": snapshot.cursor().model_dump(mode="json"),
+        "observation_identity": snapshot.compact_observation_identity(),
+        "new_cursor": snapshot.compact_identity()[1].model_dump(mode="json"),
         "ranking": {
             "items_considered": int(semantic_delta.get("raw_event_count", len(events))),
             "items_returned": int(semantic_delta.get("coalesced_event_count", len(events[:max_items]))),
@@ -226,6 +226,9 @@ def project_delta(
         },
     }
     return bounded_envelope(
-        envelope("project_delta", snapshot, bounded_payload(data, 16000), warnings=list(dict.fromkeys([*warnings, *workflow_warnings(snapshot)]))),
+        envelope(
+            "project_delta", snapshot, bounded_payload(data, 16000),
+            warnings=list(dict.fromkeys([*warnings, *workflow_warnings(snapshot)])), compact_identity=True,
+        ),
         16_384,
     )

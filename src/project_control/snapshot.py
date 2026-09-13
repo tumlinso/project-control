@@ -56,6 +56,10 @@ class SnapshotBuilder:
                     dirty=identity.dirty,
                     working_tree_fingerprint=identity.status_fingerprint,
                     git_common_id=stable_public_id("git-common", git.common_dir()),
+                    current_worktree_id=next(
+                        (item.worktree_id for item in worktree_values if item.root == registered.root.resolve()),
+                        None,
+                    ),
                     worktrees={
                         item.worktree_id: WorktreeIdentity(
                             id=item.worktree_id,

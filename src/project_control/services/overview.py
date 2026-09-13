@@ -98,7 +98,7 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             "historical_items_omitted": sum(reconciled.historical_counts.values()),
             "budget_bytes": BUDGETS[detail],
         },
-        "observation_preconditions": snapshot.observation_preconditions().model_dump(mode="json"),
+        "observation_identity": snapshot.compact_observation_identity(),
     }
     if detail == "compact":
         compact_workflow = {
@@ -170,15 +170,12 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             "ranking": {"items_considered": data["ranking"]["items_considered"], "historical_items_omitted": data["ranking"]["historical_items_omitted"]},
         }
     warnings = [*snapshot.warnings_for("todo", "cuda"), *reconciled.warnings, *workflow_warnings(snapshot)]
-    result = envelope("project_overview", snapshot, bounded_payload(data, BUDGETS[detail]), warnings=list(dict.fromkeys(warnings)))
-    if detail == "compact":
-        # Compact overview returns bounded IDs/counts in its data while standard
-        # and expanded detail carry every worktree record. Avoid duplicating
-        # every HEAD/fingerprint in both identity and the compact delta cursor;
-        # project_delta retains the full per-worktree cursor contract.
-        result.project.repositories = {
-            alias: identity.model_copy(update={"worktrees": {}})
-            for alias, identity in result.project.repositories.items()
-        }
-        result.cursor.worktrees = {}
-    return bounded_envelope(result, BUDGETS[detail])
+    result = envelope(
+        "project_overview", snapshot, bounded_payload(data, BUDGETS[detail]),
+        warnings=list(dict.fromkeys(warnings)), compact_identity=True,
+    )
+    return bounded_envelope(
+        result,
+        BUDGETS[detail],
+        essential_data_keys=("workflow", "recommended_focus") if detail == "compact" else (),
+    )

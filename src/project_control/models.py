@@ -22,6 +22,7 @@ class RepositoryIdentity(BaseModel):
     dirty: bool
     working_tree_fingerprint: str | None = None
     git_common_id: str | None = None
+    current_worktree_id: str | None = None
     worktrees: dict[str, "WorktreeIdentity"] = Field(default_factory=dict)
 
 
@@ -127,6 +128,11 @@ class ProjectIdentity(BaseModel):
     id: str
     observed_at: str
     todo_revision: int | None = None
+    # A compact read result identifies the complete observation without
+    # serializing every historical worktree into both identity and cursor.
+    # Full worktree preconditions remain available through
+    # ``observation_preconditions()`` for proposal/stale-check paths.
+    identity_digest: str | None = None
     repositories: dict[str, RepositoryIdentity]
 
 
@@ -141,6 +147,7 @@ class Cursor(BaseModel):
     context_fragments: dict[str, VersionedPrecondition] = Field(default_factory=dict)
     active_run_id: str | None = None
     observed_at: str
+    identity_digest: str | None = None
 
 
 class ToolEnvelope(BaseModel):
@@ -458,6 +465,69 @@ class ProjectSnapshot(BaseModel):
             observed_at=self.observed_at,
         )
 
+    def identity_digest(self) -> str:
+        """Stable digest of the complete read observation, excluding clock time.
+
+        The digest intentionally covers the complete worktree map even when a
+        compact read exports only the registered worktree.  It is therefore a
+        cheap signal that a consumer should explicitly reacquire full mutation
+        preconditions, never a replacement for them.
+        """
+        preconditions = self.observation_preconditions().model_dump(mode="json")
+        preconditions.pop("observed_at", None)
+        return hashlib.sha256(
+            json.dumps(preconditions, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    def compact_identity(self) -> tuple[ProjectIdentity, Cursor]:
+        """Return ordinary-read identity with just the registered worktree.
+
+        A repository's registered root is represented by the worktree sharing
+        its current commit/fingerprint.  Where fixture or degraded providers
+        cannot identify one, no worktree is exported rather than guessing.
+        """
+        digest = self.identity_digest()
+        repositories: dict[str, RepositoryIdentity] = {}
+        worktrees: dict[str, WorktreePrecondition] = {}
+        for alias, repository in self.repositories.items():
+            selected = repository.worktrees.get(repository.current_worktree_id or "")
+            if selected is None:
+                selected = next(
+                    (
+                        item for item in repository.worktrees.values()
+                        if item.head == repository.commit
+                        and (
+                            repository.working_tree_fingerprint is None
+                            or item.working_tree_fingerprint == repository.working_tree_fingerprint
+                        )
+                    ),
+                    None,
+                )
+            # Repository identity retains ``current_worktree_id`` while the
+            # cursor carries that one worktree's stale-check identity. Keeping
+            # the record in one place avoids duplicating it in every envelope.
+            repositories[alias] = repository.model_copy(update={"worktrees": {}})
+            if selected is not None:
+                worktrees[selected.id] = WorktreePrecondition(
+                    head=selected.head,
+                    working_tree_fingerprint=selected.working_tree_fingerprint,
+                )
+        cursor = self.cursor().model_copy(update={"worktrees": worktrees, "identity_digest": digest})
+        # Keep the digest on the cursor, the explicit read freshness contract;
+        # duplicating it in project identity costs a compact field for no gain.
+        identity = self.identity().model_copy(update={"repositories": repositories})
+        return identity, cursor
+
+    def compact_observation_identity(self) -> dict[str, Any]:
+        """Read-only freshness summary; proposal APIs retain full preconditions.
+
+        The envelope cursor carries the selected worktree.  Keeping this data
+        field digest-only prevents a second identity copy in normal reads.
+        """
+        return {
+            "identity_digest": self.identity_digest(),
+        }
+
     def identity(self) -> ProjectIdentity:
         return ProjectIdentity(
             id=self.workspace_id,
@@ -477,14 +547,22 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def envelope(tool: str, snapshot: ProjectSnapshot, data: dict[str, Any], *, warnings: list[str] | None = None) -> ToolEnvelope:
+def envelope(
+    tool: str,
+    snapshot: ProjectSnapshot,
+    data: dict[str, Any],
+    *,
+    warnings: list[str] | None = None,
+    compact_identity: bool = False,
+) -> ToolEnvelope:
     all_warnings = list(dict.fromkeys([*snapshot.warnings, *(warnings or [])]))
     status = ToolStatus.PARTIAL if all_warnings else ToolStatus.OK
+    project, cursor = snapshot.compact_identity() if compact_identity else (snapshot.identity(), snapshot.cursor())
     return ToolEnvelope(
         tool=tool,
         status=status,
-        project=snapshot.identity(),
+        project=project,
         data=data,
         warnings=all_warnings,
-        cursor=snapshot.cursor(),
+        cursor=cursor,
     )

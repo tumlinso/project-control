@@ -5,7 +5,9 @@ import unittest
 
 from project_control.models import RepositoryIdentity, WorktreeIdentity
 from project_control.services.frontier import project_frontier
+from project_control.services.delta import project_delta
 from project_control.services.overview import project_overview
+from project_control.models import DeltaSince
 
 try:
     from tests.test_project_model import fixture_snapshot
@@ -39,6 +41,24 @@ class FullEnvelopeBudgetTests(unittest.TestCase):
         self.assertEqual(result.cursor.todo_revision, 8)
         self.assertEqual(result.project.repositories["source"].commit, "a" * 40)
         self.assertEqual(result.data["response_coverage"]["expansion_cursor"], "top_level.cursor")
+
+    def test_ordinary_read_identity_is_compact_but_digests_complete_worktrees(self) -> None:
+        snapshot = self.snapshot()
+        full = snapshot.observation_preconditions()
+        overview = project_overview(snapshot, detail="compact", max_items=100)
+        delta = project_delta(snapshot, DeltaSince(todo_revision=7), {})
+        frontier = project_frontier(snapshot, max_ready=100)
+        for result in (overview, delta, frontier):
+            self.assertEqual(len(result.project.repositories["source"].worktrees), 0)
+            self.assertEqual(len(result.cursor.worktrees), 1)
+            self.assertIsNotNone(result.cursor.identity_digest)
+            self.assertNotIn("observation_preconditions", result.data)
+            self.assertNotEqual(
+                result.data.get("response_coverage", {}).get("reason"),
+                "immutable_identity_exceeds_budget",
+            )
+        self.assertEqual(len(full.worktrees), 80)
+        self.assertEqual(delta.data["new_cursor"]["identity_digest"], delta.cursor.identity_digest)
 
     def test_frontier_budget_keeps_authority_and_cursor(self) -> None:
         result = project_frontier(self.snapshot(), max_ready=100)
