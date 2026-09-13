@@ -43,7 +43,7 @@ Valid read turns are exactly one of:
 {"action":"read_source","requests":[{"targets":[{"kind":"path|symbol|subsystem|text","value":"...","line_start":1,"line_end":200}]}]}
 {"action":"inspect","requests":[{"kind":"task|interface|checkpoint|decision|dependency|symbol|path|subsystem|run|lane|dispatch|message|rendezvous|context_fragment|workspace|patch|integration|gate|invariant|artifact|commit|test","target":"..."}]}
 {"action":"inspect_workflow","requests":[{}]}
-{"action":"inspect_machine","requests":[{"diagnostic":"gpu_summary|gpu_topology|gpu_processes|host_memory|filesystem_capacity|services|system"}]}
+{"action":"inspect_machine","requests":[{"diagnostic":"gpu_summary|gpu_topology|gpu_processes|host_memory|filesystem_capacity|services|processes|system"}]}
 The final turn is {"action":"answer","requests":[],"answer":{"summary":"...","facts":[{"text":"...","evidence_ids":["E1"]}],"inferences":[{"text":"...","evidence_ids":["E1"]}],"uncertainty":["..."],"citations":["E1"]}}.
 The citations list is required and must support the summary as well as the claims.
 Stop when the evidence answers the question, or when another read is unlikely to
@@ -117,7 +117,7 @@ class _WorkflowSpec(BaseModel):
 
 class _MachineSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    diagnostic: Literal["gpu_summary", "gpu_topology", "gpu_processes", "host_memory", "filesystem_capacity", "services", "system"]
+    diagnostic: Literal["gpu_summary", "gpu_topology", "gpu_processes", "host_memory", "filesystem_capacity", "services", "processes", "system"]
 
 class _Answer(BaseModel):
     model_config = ConfigDict(extra="forbid")

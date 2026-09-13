@@ -12,7 +12,7 @@ from ..subprocesses import CommandError, FixedCommandRunner
 
 MachineDiagnostic = Literal[
     "gpu_summary", "gpu_topology", "gpu_processes", "host_memory",
-    "filesystem_capacity", "services", "system",
+    "filesystem_capacity", "services", "processes", "system",
 ]
 _MAX_ROWS = 16
 
@@ -80,7 +80,7 @@ def machine_inspection(
                     capacities.append({"root": label, "status": "unavailable"})
             data["filesystems"] = capacities
         elif diagnostic == "services":
-            services = ("project-control.service", "project-control-local-inference.service")
+            services = ("project-control.service",)
             states = []
             for service in services:
                 raw = command_runner.run([
@@ -91,6 +91,17 @@ def machine_inspection(
                 states.append({"service": service, **{key: fields.get(key, "unknown")[:64]
                                                         for key in ("LoadState", "ActiveState", "SubState")}})
             data["services"] = states
+        elif diagnostic == "processes":
+            raw = command_runner.run([
+                "ps", "-eo", "pid=,comm=,rss=,stat=", "--no-headers",
+            ], cwd=Path("/"), timeout=2.0).stdout
+            processes = []
+            for line in raw.splitlines()[:_MAX_ROWS]:
+                fields = line.split(None, 3)
+                if len(fields) == 4:
+                    processes.append({"process": fields[1][:128], "rss_kib": fields[2][:32],
+                                      "state": fields[3][:32]})
+            data["processes"] = processes
         elif diagnostic == "system":
             raw = command_runner.run(["uname", "-srmo"], cwd=Path("/"), timeout=2.0).stdout
             data["kernel"] = _bounded_lines(raw, 1)
