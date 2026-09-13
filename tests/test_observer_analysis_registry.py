@@ -53,7 +53,8 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
             self.assertEqual(captured[0]["format"], "PC-LOCAL-INVESTIGATOR-TURN/1")
             self.assertEqual(captured[0]["messages"][0], {"role": "system", "content": "system"})
             self.assertEqual(captured[0]["messages"][1]["role"], "user")
-            self.assertEqual(captured[0]["messages"][2], {"role": "assistant", "content": "prior"})
+            self.assertIn('"messages":[{"round":1}', captured[0]["messages"][1]["content"])
+            self.assertEqual(len(captured[0]["messages"]), 2)
             self.assertEqual(captured[0]["max_tokens"], 123)
             self.assertEqual(captured[0]["timeout_seconds"], 12)
 

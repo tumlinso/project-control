@@ -120,17 +120,11 @@ class SkillsObserverAnalysisProvider:
             if not isinstance(system_prompt, str) or not system_prompt:
                 raise ValueError("local_investigator_system_prompt_missing")
             user_context = {key: value for key, value in request.items()
-                            if key not in {"system_prompt", "messages", "max_tokens", "timeout_seconds"}}
+                            if key not in {"system_prompt", "max_tokens", "timeout_seconds"}}
             messages: list[dict[str, str]] = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(user_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False)},
             ]
-            # Only explicitly role/content-shaped prior model turns may cross
-            # the provider boundary; broker bookkeeping never becomes chat.
-            for item in request.get("messages", []):
-                if (isinstance(item, dict) and item.get("role") == "assistant"
-                        and isinstance(item.get("content"), str)):
-                    messages.append({"role": "assistant", "content": item["content"]})
             backend_request = {
                 "format": "PC-LOCAL-INVESTIGATOR-TURN/1",
                 "messages": messages,

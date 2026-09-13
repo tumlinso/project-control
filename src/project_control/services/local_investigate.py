@@ -44,7 +44,10 @@ Valid read turns are exactly one of:
 The final turn is {"action":"answer","requests":[],"answer":{"summary":"...","facts":[{"text":"...","evidence_ids":["E1"]}],"inferences":[{"text":"...","evidence_ids":["E1"]}],"uncertainty":["..."],"citations":["E1"]}}.
 The citations list is required and must support the summary as well as the claims.
 Stop when the evidence answers the question, or when another read is unlikely to
-change the answer. Never request writes, commands, paths outside supplied project
+change the answer. Never repeat an identical read. search_source values are search
+phrases or symbol names; use read_source for a known repository-relative path. If
+must_answer is true, return answer immediately using the evidence already supplied.
+Never request writes, commands, paths outside supplied project
 context, credentials, network access, recursive tool calls, or hidden reasoning."""
 
 @dataclass(frozen=True)
@@ -188,6 +191,7 @@ def local_investigate(
     messages: list[dict[str, Any]] = []
     used_bytes = 0
     warnings: list[str] = []
+    seen_reads: set[str] = set()
 
     def fresh() -> bool:
         return snapshot_getter().identity_digest() == pinned_digest
@@ -202,7 +206,7 @@ def local_investigate(
             return
         # The deployed local model has a 32K-token context. Keep each result
         # useful but small enough for several cumulative read rounds.
-        payload = bounded_payload(payload, min(20 * 1024, remaining))
+        payload = bounded_payload(payload, min(10 * 1024, remaining))
         # Services already apply security/redaction. A final hard cap prevents
         # a model context from becoming an unbounded alternate read surface.
         encoded = json.dumps(payload, sort_keys=True, default=str)
@@ -232,7 +236,7 @@ def local_investigate(
         visible_bytes = 0
         for item in reversed(evidence):
             size = _json_size(item)
-            if visible_bytes + size > 44 * 1024:
+            if visible_bytes + size > 22 * 1024:
                 continue
             visible.append(item)
             visible_bytes += size
@@ -241,6 +245,7 @@ def local_investigate(
             "system_prompt": SYSTEM_PROMPT, "question": request.question, "effort": request.effort,
             "max_tokens": {"quick": 1024, "standard": 2048, "deep": 2048}[request.effort],
             "timeout_seconds": min(90.0, max(0.05, deadline_at - time.monotonic())),
+            "must_answer": round_number == limits.rounds - 1 or deadline_at - time.monotonic() < 30,
             "identity": {"identity_digest": pinned_digest, "repository": repository, "source_commit": pinned_commit},
             "evidence": visible, "messages": messages[-limits.messages:]}
         try:
@@ -291,11 +296,17 @@ def local_investigate(
             return envelope("local_investigate", snapshot, _read_only_result({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
                 "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
         batch = turn.requests[:min(4, limits.reads - len(evidence))]
+        evidence_before = len(evidence)
         for params in batch:
             if time.monotonic() >= deadline_at:
                 warnings.append("investigation_time_budget_exhausted")
                 break
             try:
+                signature = json.dumps({"action": turn.action, "params": params}, sort_keys=True, separators=(",", ":"), default=str)
+                if signature in seen_reads:
+                    warnings.append("duplicate_investigator_read_rejected")
+                    continue
+                seen_reads.add(signature)
                 if turn.action == "orient":
                     spec = _OrientSpec.model_validate(params)
                     add("orient", architecture_context(snapshot, ArchitectureContextInput(project=request.project, question=spec.question, repository=repository, detail="standard", max_items=60)))
@@ -305,7 +316,7 @@ def local_investigate(
                                if turn.action == "search_source" else [item.model_dump(mode="json") for item in spec.targets])
                     add(turn.action, source_context(config, snapshot, SourceContextInput(project=request.project, repository=repository,
                         targets=[SourceTarget.model_validate(item) for item in targets[:32]], source_selector=pinned_commit,
-                        intent="debug", detail="standard", budget_bytes=min(20 * 1024, max(1024, limits.bytes - used_bytes))),
+                        intent="debug", detail="standard", budget_bytes=min(12 * 1024, max(1024, limits.bytes - used_bytes))),
                         deadline=deadline_at))
                 elif turn.action == "inspect":
                     spec = _InspectSpec.model_validate(params)
@@ -320,6 +331,7 @@ def local_investigate(
                     break
             except Exception:
                 warnings.append("investigator_read_request_rejected")
-        messages.append({"round": round_number + 1, "result": "reads_returned", "evidence_ids": [item["id"] for item in evidence[-len(batch):]]})
+        messages.append({"round": round_number + 1, "action": turn.action, "requests": turn.requests,
+                         "result": "reads_returned", "evidence_ids": [item["id"] for item in evidence[evidence_before:]]})
     return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_budget_exhausted"),
         "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]), "pinned_identity_digest": pinned_digest}), warnings=[*warnings, "investigation_budget_exhausted"], compact_identity=True), 48 * 1024)
