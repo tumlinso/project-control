@@ -43,7 +43,8 @@ Valid read turns are exactly one of:
 {"action":"read_source","requests":[{"targets":[{"kind":"path|symbol|subsystem|text","value":"...","line_start":1,"line_end":200}]}]}
 {"action":"inspect","requests":[{"kind":"task|interface|checkpoint|decision|dependency|symbol|path|subsystem|run|lane|dispatch|message|rendezvous|context_fragment|workspace|patch|integration|gate|invariant|artifact|commit|test","target":"..."}]}
 {"action":"inspect_workflow","requests":[{}]}
-{"action":"inspect_machine","requests":[{"diagnostic":"gpu_summary|gpu_topology|gpu_processes|host_memory|filesystem_capacity|services|processes|system"}]}
+{"action":"inspect_machine","requests":[{"diagnostic":"gpu_summary|gpu_topology|gpu_processes|host_memory|filesystem_capacity|services|processes|system|pcie_devices|storage_block|network_state|project_control_logs|versions|proc_sys"}]}
+{"action":"inspect_machine","requests":[{"diagnostic":"filesystem","filesystem":{"root":"repository|home|mnt|opt|srv|var_log|var_lib|etc|usr_local","repository":"registered alias when root is repository","operation":"list|stat|read|search","path":"relative path","query":"search text only"}}]}
 The final turn is {"action":"answer","requests":[],"answer":{"summary":"...","facts":[{"text":"...","evidence_ids":["E1"]}],"inferences":[{"text":"...","evidence_ids":["E1"]}],"uncertainty":["..."],"citations":["E1"]}}.
 The citations list is required and must support the summary as well as the claims.
 Stop when the evidence answers the question, or when another read is unlikely to
@@ -53,6 +54,10 @@ must_answer is true, return answer immediately using the evidence already suppli
 Each turn contains only newly issued evidence. issued_evidence is a compact catalog
 of earlier evidence IDs, kinds, status and source references; cite any issued ID,
 but do not assume its full payload is repeated.
+Local data may be inspected only to answer the question. Never quote or return
+credentials, tokens, private keys, personal secrets, or unrelated sensitive
+content; minimize evidence. Project Control independently enforces masking and
+redaction, so this instruction never grants access to sensitive data.
 Never request writes, commands, paths outside supplied project
 context, credentials, network access, recursive tool calls, or hidden reasoning."""
 FINAL_SYSTEM_PROMPT = """PC-LOCAL-INVESTIGATOR/1 FINAL
@@ -115,9 +120,35 @@ class _InspectSpec(BaseModel):
 class _WorkflowSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+class _FilesystemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    root: Literal["repository", "home", "mnt", "opt", "srv", "var_log", "var_lib", "etc", "usr_local"]
+    repository: str | None = Field(default=None, max_length=64)
+    operation: Literal["list", "stat", "read", "search"]
+    path: str = Field(default=".", min_length=1, max_length=512)
+    query: str | None = Field(default=None, max_length=256)
+
+    @model_validator(mode="after")
+    def root_contract(self) -> "_FilesystemRequest":
+        if (self.root == "repository") != (self.repository is not None):
+            raise ValueError("filesystem_repository_contract_invalid")
+        if (self.operation == "search") != (self.query is not None):
+            raise ValueError("filesystem_search_contract_invalid")
+        return self
+
 class _MachineSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    diagnostic: Literal["gpu_summary", "gpu_topology", "gpu_processes", "host_memory", "filesystem_capacity", "services", "processes", "system"]
+    diagnostic: Literal["gpu_summary", "gpu_topology", "gpu_processes", "host_memory", "filesystem_capacity", "services", "processes", "system", "pcie_devices", "storage_block", "network_state", "project_control_logs", "versions", "proc_sys", "filesystem"]
+    filesystem: _FilesystemRequest | None = None
+
+    @model_validator(mode="after")
+    def filesystem_is_exact(self) -> "_MachineSpec":
+        if self.diagnostic == "filesystem":
+            if self.filesystem is None:
+                raise ValueError("filesystem_request_invalid")
+        elif self.filesystem is not None:
+            raise ValueError("filesystem_request_unavailable")
+        return self
 
 class _Answer(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -160,6 +191,16 @@ _TASK_ID = re.compile(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+){1,}\b")
 def _machine_diagnostic(question: str) -> str | None:
     """Recognize only explicit host-observation questions; no model inference."""
     lowered = question.casefold()
+    if re.search(r"\b(pcie|pci express)\b", lowered):
+        return "pcie_devices"
+    if re.search(r"\b(block device|lsblk)\b", lowered):
+        return "storage_block"
+    if re.search(r"\b(network state|network interface|ip address)\b", lowered):
+        return "network_state"
+    if re.search(r"\b(project control|project-control)\b.*\b(logs?|journal)\b", lowered):
+        return "project_control_logs"
+    if re.search(r"\b(compiler|runtime version)\b", lowered):
+        return "versions"
     if re.search(r"\b(gpu|nvidia|cuda)\b", lowered):
         if re.search(r"\b(topology|nvlink|pcie)\b", lowered):
             return "gpu_topology"
@@ -403,8 +444,8 @@ def local_investigate(
             warnings.append("investigation_time_budget_exhausted")
             break
         if not fresh():
-            return envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
-                "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
+            return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
+                "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True), 48 * 1024)
         # Do not replay a rolling window on every fresh model turn. The model
         # receives newly issued payloads plus a small catalog of prior IDs;
         # final response evidence remains independently indexed.
@@ -455,8 +496,8 @@ def local_investigate(
                 warnings.append("local_model_final_has_unissued_citation")
                 return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_has_unissued_citation"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
             if not fresh():
-                return envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
-                    "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
+                return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
+                    "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True), 48 * 1024)
             cited_ids = list(answer["citations"])
             for claim in [*answer["facts"], *answer["inferences"]]:
                 cited_ids.extend(claim["evidence_ids"])
@@ -476,8 +517,8 @@ def local_investigate(
             warnings.append("investigation_read_budget_exhausted")
             break
         if not fresh():
-            return envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
-                "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
+            return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
+                "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True), 48 * 1024)
         batch = turn.requests[:min(4, limits.reads - len(evidence))]
         evidence_before = len(evidence)
         for params in batch:
@@ -510,7 +551,8 @@ def local_investigate(
                 elif turn.action == "inspect_machine":
                     spec = _MachineSpec.model_validate(params)
                     observe("inspect_machine", lambda: machine_inspection(
-                        config, snapshot, project=request.project, diagnostic=spec.diagnostic))
+                        config, snapshot, project=request.project, diagnostic=spec.diagnostic,
+                        filesystem=spec.filesystem.model_dump(mode="json") if spec.filesystem else None))
                 else:
                     raise ValueError("invalid_investigator_action")
                 if time.monotonic() >= deadline_at:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import ProjectSnapshot, RepositoryIdentity
@@ -68,6 +69,44 @@ class MachineInspectionTests(unittest.TestCase):
         self.assertEqual(result.data["processes"][0], {"process": "local-llama", "rss_kib": "12345", "state": "Sl"})
         self.assertEqual(runner.calls, [["ps", "-eo", "pid=,comm=,rss=,stat=", "--no-headers"]])
         self.assertNotIn("pid", result.data["processes"][0])
+
+    def test_home_filesystem_read_and_credential_denial_are_contained(self) -> None:
+        home = Path(self.temporary.name) / "home"
+        home.mkdir()
+        (home / "note.txt").write_text("ordinary local evidence", encoding="utf-8")
+        (home / ".ssh").mkdir()
+        (home / ".ssh" / "id_rsa").write_text("secret", encoding="utf-8")
+        with patch("project_control.services.machine_inspection.Path.home", return_value=home):
+            readable = machine_inspection(self.config, self.snapshot, project="demo", diagnostic="filesystem",
+                filesystem={"root": "home", "operation": "read", "path": "note.txt"})
+            denied = machine_inspection(self.config, self.snapshot, project="demo", diagnostic="filesystem",
+                filesystem={"root": "home", "operation": "read", "path": ".ssh/id_rsa"})
+        self.assertEqual(readable.data["filesystem"]["text"], "ordinary local evidence")
+        self.assertEqual(denied.data["status"], "partial")
+
+    def test_repository_traversal_and_symlink_escape_are_rejected(self) -> None:
+        (self.root / "safe").mkdir()
+        (self.root / "safe" / "escape").symlink_to("/etc/passwd")
+        traversal = machine_inspection(self.config, self.snapshot, project="demo", diagnostic="filesystem",
+            filesystem={"root": "repository", "repository": "source", "operation": "stat", "path": "../etc/passwd"})
+        escaped = machine_inspection(self.config, self.snapshot, project="demo", diagnostic="filesystem",
+            filesystem={"root": "repository", "repository": "source", "operation": "read", "path": "safe/escape"})
+        self.assertEqual(traversal.data["status"], "partial")
+        self.assertEqual(escaped.data["status"], "partial")
+
+    def test_mnt_listing_is_allowlisted_and_pathless(self) -> None:
+        result = machine_inspection(self.config, self.snapshot, project="demo", diagnostic="filesystem",
+            filesystem={"root": "mnt", "operation": "list", "path": "."})
+        self.assertEqual(result.data["status"], "ok")
+        self.assertNotIn("/mnt", str(result.data))
+
+    def test_new_host_diagnostics_are_fixed_and_bounded(self) -> None:
+        for diagnostic, command in (("pcie_devices", "lspci"), ("storage_block", "lsblk"), ("network_state", "ip"),
+                                    ("project_control_logs", "journalctl"), ("versions", "python3")):
+            runner = RecordingRunner("row\n" * 40)
+            result = machine_inspection(self.config, self.snapshot, project="demo", diagnostic=diagnostic, runner=runner)
+            self.assertLess(len(str(result.model_dump(mode="json")).encode()), 24 * 1024)
+            self.assertEqual(runner.calls[0][0], command)
 
 
 if __name__ == "__main__":
