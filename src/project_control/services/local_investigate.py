@@ -54,6 +54,8 @@ must_answer is true, return answer immediately using the evidence already suppli
 Each turn contains only newly issued evidence. issued_evidence is a compact catalog
 of earlier evidence IDs, kinds, status and source references; cite any issued ID,
 but do not assume its full payload is repeated.
+Answer concisely: do not restate the same conclusion, and prefer a short summary
+plus only the facts and inferences needed to answer the question.
 Local data may be inspected only to answer the question. Never quote or return
 credentials, tokens, private keys, personal secrets, or unrelated sensitive
 content; minimize evidence. Project Control independently enforces masking and

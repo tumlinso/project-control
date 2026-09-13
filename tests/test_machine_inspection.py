@@ -49,6 +49,20 @@ class MachineInspectionTests(unittest.TestCase):
         self.assertNotIn("stdout", str(result.data))
         self.assertNotIn("command", str(result.data))
 
+    def test_topology_returns_explicit_nvlink_pairs(self) -> None:
+        runner = RecordingRunner(
+            "        GPU0 GPU1 GPU2 GPU3 CPU Affinity\n"
+            "GPU0     X    PHB  NV6  SYS  0-19\n"
+            "GPU1     PHB  X    SYS  NV6  0-19\n"
+            "GPU2     NV6  SYS  X    PHB  20-39\n"
+            "GPU3     SYS  NV6  PHB  X    20-39\n"
+        )
+        result = machine_inspection(self.config, self.snapshot, project="demo", diagnostic="gpu_topology", runner=runner)
+        self.assertEqual(result.data["nvlink_pairs"], [
+            {"gpu_a": "GPU0", "gpu_b": "GPU2", "link": "NV6"},
+            {"gpu_a": "GPU1", "gpu_b": "GPU3", "link": "NV6"},
+        ])
+
     def test_filesystem_capacity_uses_only_registered_or_private_roots(self) -> None:
         result = machine_inspection(self.config, self.snapshot, project="demo", diagnostic="filesystem_capacity")
         labels = [item["root"] for item in result.data["filesystems"]]

@@ -167,6 +167,31 @@ def _gpu_csv(raw: str, fields: tuple[str, ...]) -> list[dict[str, str]]:
     return rows
 
 
+def _gpu_topology(raw: str) -> tuple[list[str], list[dict[str, str]]]:
+    lines = _bounded_lines(raw)
+    gpu_names: list[str] = []
+    for line in lines:
+        columns = line.split()
+        candidates = [column for column in columns if column.startswith("GPU") and column[3:].isdigit()]
+        if len(candidates) >= 2:
+            gpu_names = candidates
+            break
+    pairs: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for line in lines:
+        columns = line.split()
+        if not columns or columns[0] not in gpu_names or len(columns) < len(gpu_names) + 1:
+            continue
+        source = columns[0]
+        for index, peer in enumerate(gpu_names):
+            link = columns[index + 1]
+            pair = tuple(sorted((source, peer)))
+            if source != peer and link.startswith("NV") and pair not in seen:
+                seen.add(pair)
+                pairs.append({"gpu_a": pair[0], "gpu_b": pair[1], "link": link[:16]})
+    return lines, pairs
+
+
 def _filesystem_root(config: ProjectControlConfig, project: str, spec: dict[str, Any]) -> Path:
     root_kind = spec.get("root")
     if root_kind == "repository":
@@ -289,7 +314,7 @@ def machine_inspection(
             data["devices"] = _gpu_csv(raw, ("index", "name", "driver_version", "memory_total_mib", "memory_free_mib", "utilization_percent"))
         elif diagnostic == "gpu_topology":
             raw = command_runner.run(["nvidia-smi", "topo", "-m"], cwd=Path("/"), timeout=2.0).stdout
-            data["topology_rows"] = _bounded_lines(raw)
+            data["topology_rows"], data["nvlink_pairs"] = _gpu_topology(raw)
         elif diagnostic == "gpu_processes":
             raw = command_runner.run([
                 "nvidia-smi", "--query-compute-apps=process_name,used_gpu_memory",
