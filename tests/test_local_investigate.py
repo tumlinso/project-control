@@ -65,6 +65,22 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertFalse(result.data["authoritative"])
         self.assertFalse(result.data["mutation_authority"])
 
+    def test_quick_narrow_seed_uses_compact_small_source_budget(self) -> None:
+        initial = snapshot()
+        captured = []
+        answer = {"turn": {"action": "answer", "requests": [], "answer": {
+            "summary": "Found.", "facts": [], "inferences": [], "uncertainty": [], "citations": ["E1"]}}}
+        def source_read(*args, **kwargs):
+            captured.append(args[2])
+            return envelope("source_context", initial, {"targets": []})
+        with patch("project_control.services.local_investigate.source_context", side_effect=source_read):
+            local_investigate(config(), LocalInvestigateInput(
+                project="demo", question="Read src/project_control/app.py", effort="quick"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: answer)
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0].detail, "compact")
+        self.assertEqual(captured[0].budget_bytes, 4 * 1024)
+
     def test_empty_snapshot_returns_structured_read_only_fallback(self) -> None:
         empty = ProjectSnapshot(workspace_id="demo", observed_at="2026-01-01T00:00:00Z", repositories={})
         result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
@@ -212,3 +228,45 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertNotIn("duplicate_investigator_read_rejected", result.warnings)
         self.assertTrue(inputs[2]["must_answer"])
         self.assertIn("FINAL", inputs[2]["system_prompt"])
+
+    def test_initial_equivalent_read_is_not_reissued(self) -> None:
+        initial = snapshot()
+        turns = iter([
+            {"turn": {"action": "search_source", "requests": [{"targets": [{"value": "needle"}]}]}},
+            {"turn": {"action": "answer", "requests": [], "answer": {
+                "summary": "done", "facts": [], "inferences": [], "uncertainty": [], "citations": ["E1"]}}},
+        ])
+        calls = []
+        def source_read(*args, **kwargs):
+            calls.append(args[2])
+            return envelope("source_context", initial, {"targets": []})
+        with patch("project_control.services.local_investigate.source_context", side_effect=source_read):
+            result = local_investigate(config(), LocalInvestigateInput(
+                project="demo", question="Where is needle implemented?"), snapshot=initial,
+                snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result.data["status"], "ok")
+
+    def test_later_model_turn_sends_only_new_evidence(self) -> None:
+        initial = snapshot()
+        inputs = []
+        turns = iter([
+            {"turn": {"action": "search_source", "requests": [{"targets": [{"value": "needle"}]}]}},
+            {"turn": {"action": "answer", "requests": [], "answer": {
+                "summary": "done", "facts": [], "inferences": [], "uncertainty": [], "citations": ["E2"]}}},
+        ])
+        def model(value):
+            inputs.append(value)
+            return next(turns)
+        orientation = envelope("architecture_context", initial, {"large": "x" * 9000})
+        source = envelope("source_context", initial, {"targets": [{"matches": [{"path": "x.py", "line": 1}]}]})
+        with patch("project_control.services.local_investigate.architecture_context", return_value=orientation), \
+             patch("project_control.services.local_investigate.source_context", return_value=source):
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=model)
+        self.assertEqual(result.data["status"], "ok")
+        self.assertEqual([item["id"] for item in inputs[0]["evidence"]], ["E1"])
+        self.assertEqual([item["id"] for item in inputs[1]["evidence"]], ["E2"])
+        self.assertEqual(inputs[1]["issued_evidence"][0]["id"], "E1")
+        self.assertNotIn("result", inputs[1]["issued_evidence"][0])
+        self.assertLess(len(str(inputs[1]).encode()), len(str(inputs[0]).encode()))

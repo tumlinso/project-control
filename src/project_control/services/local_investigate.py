@@ -48,6 +48,9 @@ Stop when the evidence answers the question, or when another read is unlikely to
 change the answer. Never repeat an identical read. search_source values are search
 phrases or symbol names; use read_source for a known repository-relative path. If
 must_answer is true, return answer immediately using the evidence already supplied.
+Each turn contains only newly issued evidence. issued_evidence is a compact catalog
+of earlier evidence IDs, kinds, status and source references; cite any issued ID,
+but do not assume its full payload is repeated.
 Never request writes, commands, paths outside supplied project
 context, credentials, network access, recursive tool calls, or hidden reasoning."""
 FINAL_SYSTEM_PROMPT = """PC-LOCAL-INVESTIGATOR/1 FINAL
@@ -125,6 +128,19 @@ class _Claim(BaseModel):
 
 def _json_size(value: Any) -> int:
     return len(json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode())
+
+def _read_signature(action: str, params: dict[str, Any]) -> str:
+    """Stable duplicate-read key; only validated request shapes reach services."""
+    return json.dumps({"action": action, "params": params}, sort_keys=True,
+                      separators=(",", ":"), default=str)
+
+def _seed_limits(effort: str, *, source: bool = False) -> tuple[str, int, int]:
+    """Keep deterministic first reads proportionate to the requested effort."""
+    if effort == "quick":
+        return "compact", (4 * 1024 if source else 0), (16 if not source else 0)
+    if effort == "standard":
+        return "standard", (8 * 1024 if source else 0), (36 if not source else 0)
+    return "standard", (12 * 1024 if source else 0), (60 if not source else 0)
 
 def _read_only_result(data: dict[str, Any]) -> dict[str, Any]:
     return {"authoritative": False, "mutation_authority": False, **data}
@@ -272,6 +288,7 @@ def local_investigate(
     used_bytes = 0
     warnings: list[str] = []
     seen_reads: set[str] = set()
+    evidence_sent = 0
     force_answer = False
 
     def fresh() -> bool:
@@ -315,25 +332,35 @@ def local_investigate(
 
     initial_kind, initial_targets = _initial_route(request.question)
     if initial_kind == "read_source":
+        _, source_budget, _ = _seed_limits(request.effort, source=True)
+        seen_reads.add(_read_signature("read_source", {"targets": [
+            SourceTarget(kind="path", value=value, line_start=1, line_end=200).model_dump(mode="json")
+            for value in initial_targets]}))
         observe("read_source", lambda: source_context(config, snapshot, SourceContextInput(
             project=request.project, repository=repository,
             targets=[SourceTarget(kind="path", value=value, line_start=1, line_end=200) for value in initial_targets],
-            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at, compact_identity=True))
+            source_selector=pinned_commit, intent="debug", detail="compact" if request.effort == "quick" else "standard", budget_bytes=source_budget), deadline=deadline_at, compact_identity=True))
     elif initial_kind == "search_source":
+        _, source_budget, _ = _seed_limits(request.effort, source=True)
+        seen_reads.add(_read_signature("search_source", {"targets": [{"value": value} for value in initial_targets]}))
         observe("search_source", lambda: source_context(config, snapshot, SourceContextInput(
             project=request.project, repository=repository,
             targets=[SourceTarget(kind="text", value=value) for value in initial_targets],
-            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at, compact_identity=True))
+            source_selector=pinned_commit, intent="debug", detail="compact" if request.effort == "quick" else "standard", budget_bytes=source_budget), deadline=deadline_at, compact_identity=True))
     elif initial_kind == "inspect_task":
+        seen_reads.add(_read_signature("inspect", {"kind": "task", "target": initial_targets[0]}))
         observe("inspect", lambda: inspect_subject(config, snapshot, InspectInput(
             project=request.project, kind="task", target=initial_targets[0], repository=repository,
-            intent="debug", budget_tokens=8000, source_selector=pinned_commit), deadline=deadline_at))
+            intent="debug", budget_tokens=2000 if request.effort == "quick" else 8000, source_selector=pinned_commit), deadline=deadline_at))
     elif initial_kind == "inspect_workflow":
+        seen_reads.add(_read_signature("inspect_workflow", {}))
         observe("inspect_workflow", lambda: coordination_view(snapshot, CoordinationViewInput(
-            project=request.project, detail="standard", max_items=100)))
+            project=request.project, detail="compact" if request.effort == "quick" else "standard", max_items=24 if request.effort == "quick" else 100)))
     else:
+        detail, _, max_items = _seed_limits(request.effort)
+        seen_reads.add(_read_signature("orient", {"question": request.question}))
         observe("orient", lambda: architecture_context(snapshot, ArchitectureContextInput(
-            project=request.project, question=request.question, repository=repository, detail="standard", max_items=60)))
+            project=request.project, question=request.question, repository=repository, detail=detail, max_items=max_items)))
     if time.monotonic() >= deadline_at:
         return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_time_budget_exhausted"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=["investigation_time_budget_exhausted"], compact_identity=True), 48 * 1024)
     for round_number in range(limits.rounds):
@@ -343,17 +370,14 @@ def local_investigate(
         if not fresh():
             return envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
                 "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
-        # The model transport gets a bounded rolling evidence window. The
-        # complete issued evidence remains in the final envelope/citation set.
-        visible: list[dict[str, Any]] = []
-        visible_bytes = 0
-        for item in reversed(evidence):
-            size = _json_size(item)
-            if visible_bytes + size > 22 * 1024:
-                continue
-            visible.append(item)
-            visible_bytes += size
-        visible.reverse()
+        # Do not replay a rolling window on every fresh model turn. The model
+        # receives newly issued payloads plus a small catalog of prior IDs;
+        # final response evidence remains independently indexed.
+        visible = evidence[evidence_sent:]
+        prior_catalog = [{"id": item["id"], "kind": item["kind"],
+                          "tool": item["result"].get("tool"),
+                          "status": item["result"].get("status")}
+                         for item in evidence[:evidence_sent]]
         must_answer = force_answer or round_number == limits.rounds - 1 or deadline_at - time.monotonic() < 30
         turn_request = {"protocol": PROTOCOL, "system_prompt_version": SYSTEM_PROMPT_VERSION,
             "system_prompt": FINAL_SYSTEM_PROMPT if must_answer else SYSTEM_PROMPT, "question": request.question, "effort": request.effort,
@@ -361,7 +385,8 @@ def local_investigate(
             "timeout_seconds": min(90.0, max(0.05, deadline_at - time.monotonic())),
             "must_answer": must_answer,
             "identity": {"identity_digest": pinned_digest, "repository": repository, "source_commit": pinned_commit},
-            "evidence": visible, "messages": messages[-limits.messages:]}
+            "evidence": visible, "issued_evidence": prior_catalog,
+            "messages": messages[-limits.messages:]}
         try:
             model_context_bytes += _json_size(turn_request)
             rounds_completed += 1
@@ -375,6 +400,7 @@ def local_investigate(
             if not isinstance(raw, dict) or _json_size(raw) > 96 * 1024:
                 raise ValueError("local_model_result_too_large")
             turn = _parse_turn(raw)
+            evidence_sent = len(evidence)
         except (Exception, ValidationError, ValueError, json.JSONDecodeError) as exc:
             warnings.append("local_model_turn_invalid_or_unavailable")
             return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_turn_invalid_or_unavailable"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
@@ -424,7 +450,7 @@ def local_investigate(
                 warnings.append("investigation_time_budget_exhausted")
                 break
             try:
-                signature = json.dumps({"action": turn.action, "params": params}, sort_keys=True, separators=(",", ":"), default=str)
+                signature = _read_signature(turn.action, params)
                 if signature in seen_reads:
                     force_answer = True
                     continue
@@ -453,7 +479,7 @@ def local_investigate(
                     break
             except Exception:
                 warnings.append("investigator_read_request_rejected")
-        messages.append({"round": round_number + 1, "action": turn.action, "requests": turn.requests,
+        messages.append({"round": round_number + 1, "action": turn.action,
                          "result": "reads_returned", "evidence_ids": [item["id"] for item in evidence[evidence_before:]]})
     return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_budget_exhausted"),
         "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]), "pinned_identity_digest": pinned_digest}), warnings=[*warnings, "investigation_budget_exhausted"], compact_identity=True), 48 * 1024)
