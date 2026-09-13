@@ -270,3 +270,26 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(inputs[1]["issued_evidence"][0]["id"], "E1")
         self.assertNotIn("result", inputs[1]["issued_evidence"][0])
         self.assertLess(len(str(inputs[1]).encode()), len(str(inputs[0]).encode()))
+
+    def test_machine_action_is_enum_only_and_evidence_linked(self) -> None:
+        initial = snapshot()
+        turns = iter([
+            {"turn": {"action": "inspect_machine", "requests": [{"diagnostic": "gpu_summary"}]}},
+            {"turn": {"action": "answer", "requests": [], "answer": {
+                "summary": "done", "facts": [], "inferences": [], "uncertainty": [], "citations": ["E2"]}}},
+        ])
+        machine = envelope("machine_inspection", initial, {"diagnostic": "gpu_summary", "devices": []})
+        with patch("project_control.services.local_investigate.architecture_context", return_value=envelope("architecture_context", initial, {})), \
+             patch("project_control.services.local_investigate.machine_inspection", return_value=machine) as inspect_machine:
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
+        self.assertEqual(result.data["status"], "ok")
+        self.assertEqual(inspect_machine.call_args.kwargs["diagnostic"], "gpu_summary")
+
+        rejected = {"turn": {"action": "inspect_machine", "requests": [{"diagnostic": "gpu_summary", "argv": ["sh"]}]}}
+        with patch("project_control.services.local_investigate.architecture_context", return_value=envelope("architecture_context", initial, {})), \
+             patch("project_control.services.local_investigate.machine_inspection") as forbidden:
+            partial = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", effort="quick"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: rejected)
+        forbidden.assert_not_called()
+        self.assertIn("investigator_read_request_rejected", partial.warnings)

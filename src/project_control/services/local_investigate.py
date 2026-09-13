@@ -22,6 +22,7 @@ from ..models import (ArchitectureContextInput, CoordinationViewInput, InspectIn
 from ..services.architecture import architecture_context
 from ..services.coordination import coordination_view
 from ..services.inspect import inspect_subject
+from ..services.machine_inspection import machine_inspection
 from ..services.source_context import source_context
 from ..registry import WorkspaceRegistry
 from ..security import redact_output
@@ -42,6 +43,7 @@ Valid read turns are exactly one of:
 {"action":"read_source","requests":[{"targets":[{"kind":"path|symbol|subsystem|text","value":"...","line_start":1,"line_end":200}]}]}
 {"action":"inspect","requests":[{"kind":"task|interface|checkpoint|decision|dependency|symbol|path|subsystem|run|lane|dispatch|message|rendezvous|context_fragment|workspace|patch|integration|gate|invariant|artifact|commit|test","target":"..."}]}
 {"action":"inspect_workflow","requests":[{}]}
+{"action":"inspect_machine","requests":[{"diagnostic":"gpu_summary|gpu_topology|gpu_processes|host_memory|filesystem_capacity|services|system"}]}
 The final turn is {"action":"answer","requests":[],"answer":{"summary":"...","facts":[{"text":"...","evidence_ids":["E1"]}],"inferences":[{"text":"...","evidence_ids":["E1"]}],"uncertainty":["..."],"citations":["E1"]}}.
 The citations list is required and must support the summary as well as the claims.
 Stop when the evidence answers the question, or when another read is unlikely to
@@ -76,7 +78,7 @@ LIMITS = {
 
 class _Request(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    action: Literal["orient", "search_source", "read_source", "inspect", "inspect_workflow", "answer"]
+    action: Literal["orient", "search_source", "read_source", "inspect", "inspect_workflow", "inspect_machine", "answer"]
     requests: list[dict[str, Any]] = Field(default_factory=list, max_length=4)
     answer: dict[str, Any] | None = None
 
@@ -112,6 +114,10 @@ class _InspectSpec(BaseModel):
 
 class _WorkflowSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+class _MachineSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    diagnostic: Literal["gpu_summary", "gpu_topology", "gpu_processes", "host_memory", "filesystem_capacity", "services", "system"]
 
 class _Answer(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -472,6 +478,10 @@ def local_investigate(
                 elif turn.action == "inspect_workflow":
                     _WorkflowSpec.model_validate(params)
                     observe("inspect_workflow", lambda: coordination_view(snapshot, CoordinationViewInput(project=request.project, detail="standard", max_items=100)))
+                elif turn.action == "inspect_machine":
+                    spec = _MachineSpec.model_validate(params)
+                    observe("inspect_machine", lambda: machine_inspection(
+                        config, snapshot, project=request.project, diagnostic=spec.diagnostic))
                 else:
                     raise ValueError("invalid_investigator_action")
                 if time.monotonic() >= deadline_at:
