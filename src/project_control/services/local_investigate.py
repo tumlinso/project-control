@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
@@ -128,6 +129,54 @@ def _json_size(value: Any) -> int:
 def _read_only_result(data: dict[str, Any]) -> dict[str, Any]:
     return {"authoritative": False, "mutation_authority": False, **data}
 
+_SOURCE_WORDS = re.compile(r"\b(source|file|path|symbol|function|class|method|implementation|implemented|defined|code)\b", re.I)
+_WORKFLOW_WORDS = re.compile(r"\b(run|task|lane|claim|workflow|gate|integration|dispatch|rendezvous|blocked|ready|status)\b", re.I)
+_PATH = re.compile(r"(?<![\w.-])([\w./-]+\.(?:py|md|toml|json|ya?ml|c|cc|cpp|cu|cuh|h|hpp|sh))(?![\w.-])", re.I)
+_IDENTIFIER = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b|\b[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]+)+\b")
+_TASK_ID = re.compile(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+){1,}\b")
+
+def _initial_route(question: str) -> tuple[str, list[str]]:
+    """Choose one cheap deterministic evidence seed without model inference."""
+    paths = list(dict.fromkeys(_PATH.findall(question)))[:4]
+    identifiers = list(dict.fromkeys(_IDENTIFIER.findall(question)))[:4]
+    if paths:
+        return "read_source", paths
+    if identifiers or _SOURCE_WORDS.search(question):
+        search_terms = identifiers or [word for word in re.findall(r"[A-Za-z][A-Za-z0-9_-]{3,}", question) if word.casefold() not in {
+            "where", "what", "which", "does", "from", "with", "that", "this", "how", "source", "file", "code", "implemented", "implementation", "project", "control",
+        }][:4]
+        return ("search_source", search_terms) if search_terms else ("orient", [])
+    task_ids = list(dict.fromkeys(_TASK_ID.findall(question)))[:1]
+    if task_ids:
+        return "inspect_task", task_ids
+    if _WORKFLOW_WORDS.search(question):
+        return "inspect_workflow", []
+    return "orient", []
+
+def _compact_source_data(data: dict[str, Any], budget: int) -> dict[str, Any]:
+    """Retain source substance before generic service-envelope metadata."""
+    compact: dict[str, Any] = {key: data[key] for key in (
+        "repository", "source_commit", "source_selector", "source_freshness", "source_identity",
+        "location", "excerpt", "kind", "target", "source", "freshness", "status", "error",
+    ) if key in data}
+    targets: list[dict[str, Any]] = []
+    for target in data.get("targets", [])[:8] if isinstance(data.get("targets"), list) else []:
+        if not isinstance(target, dict):
+            continue
+        selected = {key: target[key] for key in (
+            "kind", "target", "path", "line", "line_start", "line_end", "excerpt", "source", "freshness", "status", "error",
+        ) if key in target}
+        matches = []
+        for match in target.get("matches", [])[:12] if isinstance(target.get("matches"), list) else []:
+            if isinstance(match, dict):
+                matches.append({key: match[key] for key in ("path", "line", "line_start", "line_end", "excerpt", "kind") if key in match})
+        if matches:
+            selected["matches"] = matches
+        targets.append(selected)
+    if targets:
+        compact["targets"] = targets
+    return bounded_payload(compact, budget)
+
 def _fallback(question: str, evidence: list[dict[str, Any]], reason: str) -> dict[str, Any]:
     ids = [item["id"] for item in evidence[:16]]
     return {"summary": "Local investigation ended before a model-backed conclusion was available.",
@@ -148,7 +197,9 @@ def _evidence_index(evidence: list[dict[str, Any]], cited_ids: list[str]) -> lis
         if isinstance(data, dict):
             # Keep citations independently auditable without returning the
             # full model context. This is a redacted, deterministic excerpt.
-            entry["observed"] = bounded_payload(data, 1024)
+            entry["observed"] = (_compact_source_data(data, 1536)
+                                 if item["kind"] in {"search_source", "read_source"}
+                                 else bounded_payload(data, 1024))
             entry["source_refs"] = {key: data[key] for key in ("repository", "source_commit", "source_freshness", "source_identity") if key in data}
             if isinstance(data.get("location"), dict):
                 entry["location"] = {key: data["location"].get(key) for key in ("repository", "worktree_id", "path", "line_start", "line_end") if key in data["location"]}
@@ -185,13 +236,36 @@ def local_investigate(
     limits = LIMITS[request.effort]
     started = time.monotonic()
     deadline_at = started + limits.seconds
+    rounds_completed = 0
+    reads_performed = 0
+    evidence_bytes_read = 0
+    model_context_bytes = 0
+    model_ms = 0.0
+    read_ms = 0.0
+    warm_model_reused: bool | None = None
+
+    def metrics() -> dict[str, Any]:
+        return {
+            "rounds": rounds_completed,
+            "reads_performed": reads_performed,
+            "evidence_bytes_read": evidence_bytes_read,
+            "model_context_bytes": model_context_bytes,
+            "elapsed_ms": round((time.monotonic() - started) * 1000, 3),
+            "model_ms": round(model_ms, 3),
+            "read_ms": round(read_ms, 3),
+            "warm_model_reused": warm_model_reused,
+        }
+
+    def result_data(data: dict[str, Any]) -> dict[str, Any]:
+        return _read_only_result({**data, "metrics": metrics()})
+
     pinned_digest = snapshot.identity_digest()
     workspace = WorkspaceRegistry(config).workspace(request.project)
     repository = workspace.authority_repository or (sorted(snapshot.repositories)[0] if snapshot.repositories else None)
     if repository not in snapshot.repositories:
         repository = None
     if repository is None:
-        return envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, [], "project_has_no_repository")}), warnings=["project_has_no_repository"], compact_identity=True)
+        return envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, [], "project_has_no_repository")}), warnings=["project_has_no_repository"], compact_identity=True)
     pinned_commit = snapshot.repositories[repository].commit
     evidence: list[dict[str, Any]] = []
     messages: list[dict[str, Any]] = []
@@ -216,6 +290,8 @@ def local_investigate(
             return
         # The deployed local model has a 32K-token context. Keep each result
         # useful but small enough for several cumulative read rounds.
+        if kind in {"search_source", "read_source"} and isinstance(payload.get("data"), dict):
+            payload["data"] = _compact_source_data(payload["data"], min(9 * 1024, remaining))
         payload = bounded_payload(payload, min(10 * 1024, remaining))
         # Services already apply security/redaction. A final hard cap prevents
         # a model context from becoming an unbounded alternate read surface.
@@ -227,18 +303,45 @@ def local_investigate(
         evidence.append(item)
         used_bytes += _json_size(item)
 
-    # Orientation is mandatory and gives the model useful bounded evidence even
-    # when its first inference turn is unavailable.
-    add("orient", architecture_context(snapshot, ArchitectureContextInput(
-        project=request.project, question=request.question, repository=repository, detail="standard", max_items=60)))
+    def observe(kind: str, call: Callable[[], ToolEnvelope]) -> None:
+        nonlocal reads_performed, evidence_bytes_read, read_ms
+        read_started = time.monotonic()
+        value = call()
+        read_ms += (time.monotonic() - read_started) * 1000
+        reads_performed += 1
+        dumped = redact_output(value.model_dump(mode="json"))
+        evidence_bytes_read += _json_size({key: dumped.get(key) for key in ("tool", "status", "warnings", "data")})
+        add(kind, value)
+
+    initial_kind, initial_targets = _initial_route(request.question)
+    if initial_kind == "read_source":
+        observe("read_source", lambda: source_context(config, snapshot, SourceContextInput(
+            project=request.project, repository=repository,
+            targets=[SourceTarget(kind="path", value=value, line_start=1, line_end=200) for value in initial_targets],
+            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at))
+    elif initial_kind == "search_source":
+        observe("search_source", lambda: source_context(config, snapshot, SourceContextInput(
+            project=request.project, repository=repository,
+            targets=[SourceTarget(kind="text", value=value) for value in initial_targets],
+            source_selector=pinned_commit, intent="debug", detail="standard", budget_bytes=12 * 1024), deadline=deadline_at))
+    elif initial_kind == "inspect_task":
+        observe("inspect", lambda: inspect_subject(config, snapshot, InspectInput(
+            project=request.project, kind="task", target=initial_targets[0], repository=repository,
+            intent="debug", budget_tokens=8000, source_selector=pinned_commit), deadline=deadline_at))
+    elif initial_kind == "inspect_workflow":
+        observe("inspect_workflow", lambda: coordination_view(snapshot, CoordinationViewInput(
+            project=request.project, detail="standard", max_items=100)))
+    else:
+        observe("orient", lambda: architecture_context(snapshot, ArchitectureContextInput(
+            project=request.project, question=request.question, repository=repository, detail="standard", max_items=60)))
     if time.monotonic() >= deadline_at:
-        return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_time_budget_exhausted"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=["investigation_time_budget_exhausted"], compact_identity=True), 48 * 1024)
+        return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_time_budget_exhausted"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=["investigation_time_budget_exhausted"], compact_identity=True), 48 * 1024)
     for round_number in range(limits.rounds):
         if time.monotonic() >= deadline_at:
             warnings.append("investigation_time_budget_exhausted")
             break
         if not fresh():
-            return envelope("local_investigate", snapshot, _read_only_result({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
+            return envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
                 "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
         # The model transport gets a bounded rolling evidence window. The
         # complete issued evidence remains in the final envelope/citation set.
@@ -260,13 +363,21 @@ def local_investigate(
             "identity": {"identity_digest": pinned_digest, "repository": repository, "source_commit": pinned_commit},
             "evidence": visible, "messages": messages[-limits.messages:]}
         try:
-            raw = model_turn(turn_request)
+            model_context_bytes += _json_size(turn_request)
+            rounds_completed += 1
+            model_started = time.monotonic()
+            try:
+                raw = model_turn(turn_request)
+            finally:
+                model_ms += (time.monotonic() - model_started) * 1000
+            if warm_model_reused is None and isinstance(raw.get("warm_model_reused"), bool):
+                warm_model_reused = raw["warm_model_reused"]
             if not isinstance(raw, dict) or _json_size(raw) > 96 * 1024:
                 raise ValueError("local_model_result_too_large")
             turn = _parse_turn(raw)
         except (Exception, ValidationError, ValueError, json.JSONDecodeError) as exc:
             warnings.append("local_model_turn_invalid_or_unavailable")
-            return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_turn_invalid_or_unavailable"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
+            return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_turn_invalid_or_unavailable"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
         if turn.action == "answer":
             try:
                 answer = _Answer.model_validate(turn.answer or {}).model_dump(mode="json")
@@ -274,16 +385,16 @@ def local_investigate(
                     raise ValueError("local_model_final_too_large")
             except (ValidationError, ValueError):
                 warnings.append("local_model_final_invalid")
-                return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_invalid"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
+                return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_invalid"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
             issued = {item["id"] for item in evidence}
             cited = [*answer.get("citations", [])]
             cited.extend(evidence_id for claim in [*answer.get("facts", []), *answer.get("inferences", [])]
                          for evidence_id in claim.get("evidence_ids", []))
             if any(item not in issued for item in cited):
                 warnings.append("local_model_final_has_unissued_citation")
-                return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_has_unissued_citation"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
+                return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_has_unissued_citation"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
             if not fresh():
-                return envelope("local_investigate", snapshot, _read_only_result({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
+                return envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
                     "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
             cited_ids = list(answer["citations"])
             for claim in [*answer["facts"], *answer["inferences"]]:
@@ -291,20 +402,20 @@ def local_investigate(
             cited_ids = list(dict.fromkeys(cited_ids))
             if len(cited_ids) > 16:
                 warnings.append("local_model_final_too_many_evidence_items")
-                return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_too_many_evidence_items"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
+                return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_too_many_evidence_items"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)
             index = _evidence_index(evidence, cited_ids)
             if _json_size({"answer": answer, "evidence_index": index}) > 40 * 1024:
                 warnings.append("local_model_final_too_large")
-                return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_too_large"), "evidence_index": []}), warnings=warnings, compact_identity=True), 48 * 1024)
-            return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "ok", "answer": answer,
+                return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_too_large"), "evidence_index": []}), warnings=warnings, compact_identity=True), 48 * 1024)
+            return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "ok", "answer": answer,
                 "evidence_index": index, "rounds": round_number + 1,
                 "pinned_identity_digest": pinned_digest}), warnings=warnings, compact_identity=True), 48 * 1024,
-                essential_data_keys=("answer", "evidence_index"))
+                essential_data_keys=("answer", "evidence_index", "metrics"))
         if not turn.requests or len(evidence) >= limits.reads or used_bytes >= limits.bytes:
             warnings.append("investigation_read_budget_exhausted")
             break
         if not fresh():
-            return envelope("local_investigate", snapshot, _read_only_result({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
+            return envelope("local_investigate", snapshot, result_data({"status": "refresh_required", "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]),
                 "reason": "project_identity_changed", "pinned_identity_digest": pinned_digest}), warnings=["refresh_required"], compact_identity=True)
         batch = turn.requests[:min(4, limits.reads - len(evidence))]
         evidence_before = len(evidence)
@@ -320,21 +431,21 @@ def local_investigate(
                 seen_reads.add(signature)
                 if turn.action == "orient":
                     spec = _OrientSpec.model_validate(params)
-                    add("orient", architecture_context(snapshot, ArchitectureContextInput(project=request.project, question=spec.question, repository=repository, detail="standard", max_items=60)))
+                    observe("orient", lambda: architecture_context(snapshot, ArchitectureContextInput(project=request.project, question=spec.question, repository=repository, detail="standard", max_items=60)))
                 elif turn.action in {"search_source", "read_source"}:
                     spec = _SearchSpec.model_validate(params) if turn.action == "search_source" else _ReadSpec.model_validate(params)
                     targets = ([{"kind": "text", "value": item.value} for item in spec.targets]
                                if turn.action == "search_source" else [item.model_dump(mode="json") for item in spec.targets])
-                    add(turn.action, source_context(config, snapshot, SourceContextInput(project=request.project, repository=repository,
+                    observe(turn.action, lambda: source_context(config, snapshot, SourceContextInput(project=request.project, repository=repository,
                         targets=[SourceTarget.model_validate(item) for item in targets[:32]], source_selector=pinned_commit,
                         intent="debug", detail="standard", budget_bytes=min(12 * 1024, max(1024, limits.bytes - used_bytes))),
                         deadline=deadline_at))
                 elif turn.action == "inspect":
                     spec = _InspectSpec.model_validate(params)
-                    add("inspect", inspect_subject(config, snapshot, InspectInput(project=request.project, kind=spec.kind, target=spec.target, repository=repository, intent="debug", budget_tokens=8000, source_selector=pinned_commit), deadline=deadline_at))
+                    observe("inspect", lambda: inspect_subject(config, snapshot, InspectInput(project=request.project, kind=spec.kind, target=spec.target, repository=repository, intent="debug", budget_tokens=8000, source_selector=pinned_commit), deadline=deadline_at))
                 elif turn.action == "inspect_workflow":
                     _WorkflowSpec.model_validate(params)
-                    add("inspect_workflow", coordination_view(snapshot, CoordinationViewInput(project=request.project, detail="standard", max_items=100)))
+                    observe("inspect_workflow", lambda: coordination_view(snapshot, CoordinationViewInput(project=request.project, detail="standard", max_items=100)))
                 else:
                     raise ValueError("invalid_investigator_action")
                 if time.monotonic() >= deadline_at:
@@ -344,5 +455,5 @@ def local_investigate(
                 warnings.append("investigator_read_request_rejected")
         messages.append({"round": round_number + 1, "action": turn.action, "requests": turn.requests,
                          "result": "reads_returned", "evidence_ids": [item["id"] for item in evidence[evidence_before:]]})
-    return bounded_envelope(envelope("local_investigate", snapshot, _read_only_result({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_budget_exhausted"),
+    return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_budget_exhausted"),
         "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]]), "pinned_identity_digest": pinned_digest}), warnings=[*warnings, "investigation_budget_exhausted"], compact_identity=True), 48 * 1024)

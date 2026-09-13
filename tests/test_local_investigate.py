@@ -7,7 +7,7 @@ from pathlib import Path
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import LocalInvestigateInput, ProjectSnapshot, RepositoryIdentity, ToolStatus, envelope
-from project_control.services.local_investigate import LIMITS, PROTOCOL, SYSTEM_PROMPT, Limits, local_investigate
+from project_control.services.local_investigate import LIMITS, PROTOCOL, SYSTEM_PROMPT, Limits, _initial_route, local_investigate
 
 
 def snapshot(commit: str = "a" * 40) -> ProjectSnapshot:
@@ -19,6 +19,52 @@ def config() -> ProjectControlConfig:
 
 
 class LocalInvestigateTests(unittest.TestCase):
+    def test_deterministic_initial_routing(self) -> None:
+        self.assertEqual(_initial_route("Read src/project_control/app.py"), ("read_source", ["src/project_control/app.py"]))
+        self.assertEqual(_initial_route("Where is observer_analysis implemented?"), ("search_source", ["observer_analysis"]))
+        self.assertEqual(_initial_route("How is PC-LOCAL-INVESTIGATOR/1 implemented?"), ("search_source", ["PC-LOCAL-INVESTIGATOR"]))
+        self.assertEqual(_initial_route("What is task PC-WF2-A03 status?"), ("inspect_task", ["PC-WF2-A03"]))
+        self.assertEqual(_initial_route("Which workflow lanes are ready?"), ("inspect_workflow", []))
+        self.assertEqual(_initial_route("Explain the broad architecture"), ("orient", []))
+
+    def test_narrow_source_seed_preserves_hits_and_populates_metrics(self) -> None:
+        initial = snapshot()
+        captured = []
+        source = envelope("source_context", initial, {
+            "repository": "source", "source_commit": "a" * 40, "source_freshness": "immutable_commit",
+            "targets": [{"kind": "text", "target": "observer_analysis", "matches": [
+                {"path": "src/project_control/observer_analysis.py", "line": 63,
+                 "excerpt": "class SkillsObserverAnalysisProvider:"},
+            ]}],
+            "observation_preconditions": {"large": "x" * 20000},
+        })
+        answer = {"turn": {"action": "answer", "requests": [], "answer": {
+            "summary": "Provider found.", "facts": [{"text": "The provider is defined in observer_analysis.py.", "evidence_ids": ["E1"]}],
+            "inferences": [], "uncertainty": [], "citations": ["E1"]}}, "warm_model_reused": True}
+        def source_read(*args, **kwargs):
+            captured.append((args, kwargs))
+            return source
+        with patch("project_control.services.local_investigate.architecture_context") as orient, \
+             patch("project_control.services.local_investigate.source_context", side_effect=source_read):
+            result = local_investigate(config(), LocalInvestigateInput(
+                project="demo", question="Where is observer_analysis implemented?"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: answer)
+        orient.assert_not_called()
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0][0][2].source_selector, "a" * 40)
+        observed = result.data["evidence_index"][0]["observed"]
+        self.assertEqual(observed["targets"][0]["matches"][0]["path"], "src/project_control/observer_analysis.py")
+        self.assertIn("SkillsObserverAnalysisProvider", observed["targets"][0]["matches"][0]["excerpt"])
+        self.assertNotIn("observation_preconditions", observed)
+        metrics = result.data["metrics"]
+        self.assertEqual((metrics["rounds"], metrics["reads_performed"]), (1, 1))
+        self.assertGreater(metrics["evidence_bytes_read"], 0)
+        self.assertGreater(metrics["model_context_bytes"], 0)
+        self.assertGreaterEqual(metrics["elapsed_ms"], metrics["model_ms"] + metrics["read_ms"])
+        self.assertTrue(metrics["warm_model_reused"])
+        self.assertFalse(result.data["authoritative"])
+        self.assertFalse(result.data["mutation_authority"])
+
     def test_empty_snapshot_returns_structured_read_only_fallback(self) -> None:
         empty = ProjectSnapshot(workspace_id="demo", observed_at="2026-01-01T00:00:00Z", repositories={})
         result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
