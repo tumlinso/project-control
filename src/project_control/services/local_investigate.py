@@ -219,7 +219,9 @@ def _machine_diagnostic(question: str) -> str | None:
         return "services"
     if re.search(r"\b(process|llama|inference)\b", lowered):
         return "processes"
-    if re.search(r"\b(memory|ram|swap)\b", lowered):
+    # /proc/meminfo field names are host facts even though their CamelCase
+    # spelling otherwise looks like a source identifier to the seed router.
+    if re.search(r"\b(memory|ram|swap|memtotal|memavailable|memfree)\b", lowered):
         return "host_memory"
     if re.search(r"\b(disk|storage|filesystem|capacity)\b", lowered):
         return "filesystem_capacity"
