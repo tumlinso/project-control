@@ -69,26 +69,28 @@ from .observer_analysis import ObserverAnalysisRegistry
 
 SERVER_INSTRUCTIONS = (
     "Use project-control to inspect live engineering projects through its read-only architectural, source, "
-    "history, planning, and coordination "
-    "observatory. Use local_investigate for a finished bounded local-model investigation. Start with "
-    "architecture_context for broad questions, project_overview for status, or "
-    "project_delta for change. Use source_context for bounded multi-target source reads and coordination_view for "
-    "todo-authoritative workflow state. Todo semantic workflow owns operational truth; durable export only enriches "
-    "anchored records. The read-only project query tools never claim tasks, mark messages read, advance cursors, "
-    "edit files, run workers or benchmarks, reserve resources, or mutate Git/todo state. terminal_capture is the one "
-    "bounded, sandboxed PTY observation capability; it has no shell or project mutation authority. Cross-project observations "
-    "are independent, and program membership is not architectural authority. Proposal envelopes are inert and "
-    "confer no authority. Prefer compact responses and expand only the exact top-level cursor when decisive "
-    "evidence is missing or stale. Plan coarse outcome packages with explicit invariants, alternatives, and "
-    "acceptance; do not turn ordinary inspect/implement/test steps into durable tasks. Root or an explicitly "
-    "delegated head owns bounded lifecycle, recovery, and integration actions; workers return compact evidence."
+    "history, planning, and coordination observatory. For direct synthesis, use rich reads deliberately: start with "
+    "architecture_context for broad questions, project_overview for status, project_delta for material change, and "
+    "source_context for bounded source evidence. Use local_investigate for a finished bounded autonomous local-model "
+    "investigation. Prefer compact results; request richer projections only when supporting evidence is needed. "
+    "Todo semantic workflow owns operational truth; durable export only enriches anchored records. The read-only project "
+    "query tools never claim tasks, mark messages read, advance cursors, edit files, run workers or benchmarks, reserve "
+    "resources, or mutate Git/todo state. terminal_capture is the one bounded, sandboxed PTY observation capability; it "
+    "has no shell or project mutation authority. Cross-project observations are independent, and program membership is "
+    "not architectural authority. Proposal envelopes are inert and confer no authority. When preparing Todo/bootstrap "
+    "work, compress architectural reasoning into durable intent, constraints, acceptance, and useful references rather "
+    "than procedural microtasks."
 )
 
 CODEX_INSTRUCTIONS = (
     WORKFLOW_INSTRUCTIONS
     + " "
-    + SERVER_INSTRUCTIONS
-    + " Use the workflow tools exposed by the current Project Control Codex profile for mutations."
+    + "Start workflow-first: use current task context and current workflow state before broad repository archaeology. "
+    "Reserve root context and reasoning for execution, integration, and consequential decisions. Delegate bounded "
+    "archaeology or research to cheaper subagents when appropriate; they can use rich Project Control reads for the "
+    "specific question. The root may use rich reads directly when synthesis is genuinely useful. Request richer "
+    "projections deliberately, rather than routinely. Use the workflow tools exposed by the current Project Control "
+    "Codex profile for mutations."
 )
 
 READ_ONLY = ToolAnnotations(

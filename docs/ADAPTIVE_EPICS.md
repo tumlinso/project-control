@@ -1,10 +1,19 @@
 # Adaptive, low-ceremony epics
 
 Use a Todo task for a durable outcome, not for every action an agent can take.
-An effective package states its objective, authority boundary, invariants,
-acceptance evidence, meaningful alternatives, and stop conditions. It can then
-inspect, implement, test, and make ordinary local retries without materializing
-an inspect → implement → test → review chain as separate durable records.
+An effective package gives the eventual Codex root enough architectural
+understanding to execute intelligently: why it matters, the current and
+intended system, decisions and rationale, hard boundaries, risks, acceptance,
+useful references, and deviations that need escalation. It can then inspect,
+implement, test, and make ordinary local retries without materializing an
+inspect → implement → test → review chain as separate durable records.
+
+Create another task only for a meaningful durable boundary: an independently
+useful outcome, dependency, ownership/worktree boundary, parallel stream,
+interface freeze, integration point, materially different risk, or independent
+acceptance boundary. The root chooses ordinary local decomposition, concrete
+APIs, test sequence, and delegated implementation; it is not a dispatcher
+following a precomputed script.
 
 Keep conditional alternatives declarative. Record the decision domain and the
 evidence that selects a branch; materialize work only after the guarded choice
@@ -18,6 +27,22 @@ never silent substitution. Use `source_context` for a bounded set of exact
 paths or symbols. Broad research is worthwhile only when its compact digest is
 cheaper than direct root investigation; include conclusion, source identity,
 re-fetch references, counterevidence, and coverage limits.
+
+Use semantic context fragments as a hierarchy, not a second task plan:
+`run_charter` carries overall purpose, end state, and global boundaries;
+`lane_brief` describes an outcome stream and coordination relationship; and
+`task_brief` gives the durable local outcome, constraints, acceptance, and
+delegated choices. Keep deeper source/design/research references fetchable on
+demand. Generated briefs carry execution context; they do not prescribe
+microtasks.
+
+An authorized root or head may preserve a non-obvious, expensive-to-rediscover,
+future-useful discovery as an authored context note anchored to the relevant
+project, repository, path, symbol, task, run/lane, interface, or decision.
+It is non-authoritative context, not progress, coordination, scratch reasoning,
+or routine test output. Promote a commitment to a decision, invariant, or
+interface instead. Retain source identity when useful so readers can assess
+staleness; do not silently delete stale notes.
 
 Administrative lifecycle is deliberately cheap but remains controlled: a root
 controller, or a parallel head explicitly authorized by that root, may issue a

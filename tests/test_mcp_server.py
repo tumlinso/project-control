@@ -130,7 +130,11 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(set(CODEX_TOOL_NAMES), {tool.name for tool in tools})
         self.assertNotIn("terminal_capture", {tool.name for tool in tools})
         self.assertNotIn("coding-workflow", CODEX_INSTRUCTIONS)
+        self.assertNotIn("local_investigate", CODEX_INSTRUCTIONS)
+        self.assertNotIn("terminal_capture", CODEX_INSTRUCTIONS)
         self.assertIn("workflow tools exposed by the current Project Control Codex profile", CODEX_INSTRUCTIONS)
+        self.assertIn("Delegate bounded archaeology", CODEX_INSTRUCTIONS)
+        self.assertIn("local_investigate", SERVER_INSTRUCTIONS)
         descriptions = {tool.name: tool.description for tool in tools}
         for name in set(CODEX_TOOL_NAMES) - {"next_task", "inspect_task", "coordinate_task", "delegate_task", "collect_delegation", "finish_task"}:
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))

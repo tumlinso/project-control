@@ -83,3 +83,12 @@ must then be launched again.
 Codex does not use this custom app or tunnel; it uses the separately configured
 stdio profile described in `CODEX_SETUP.md`. Deep research may use this app only
 for its read/fetch behavior.
+
+## Observer usage
+
+Use rich direct reads when you will synthesize their differentiated evidence
+yourself. Use `local_investigate` for a bounded autonomous investigation. Start
+compact and request standard, expanded, provenance, or source detail only when
+it changes the decision. When preparing Todo/bootstrap work, do the expensive
+architectural reasoning here and compress it into durable intent, constraints,
+acceptance, rationale, uncertainty, and references—not procedural microtasks.

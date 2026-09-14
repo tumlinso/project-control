@@ -75,6 +75,13 @@ reads only when current-task context is insufficient or the question genuinely
 requires source, architecture, history, impact, performance, or cross-project
 context.
 
+Keep root context and reasoning for execution, integration, and consequential
+decisions. Broad archaeology and research can usually be delegated to cheaper
+subagents; those subagents also have Project Control and should use bounded rich
+reads for their specific question. The root may use rich reads directly when
+their synthesis is genuinely useful. Request richer projections deliberately;
+do not treat every read as an expanded dossier.
+
 Profile selection is a trusted startup choice. `clientInfo`, user-agent strings,
 model identity claims, annotations, and tool arguments cannot select or broaden
 the profile.
