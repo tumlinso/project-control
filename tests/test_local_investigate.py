@@ -59,9 +59,9 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertIn('"id":"E1"', inputs[1]["messages"][-1]["content"])
         self.assertIn('"id":"E2"', inputs[1]["messages"][-1]["content"])
 
-    def test_explicit_parallelism_requires_wide_profile(self) -> None:
-        with self.assertRaisesRegex(ValueError, "requires compute_profile='wide'"):
-            LocalInvestigateInput(project="demo", question="q", compute_profile="narrow", parallelism="tensor")
+    def test_narrow_accepts_diagnostic_parallelism(self) -> None:
+        self.assertEqual(LocalInvestigateInput(project="demo", question="q", compute_profile="narrow", parallelism="layer").parallelism, "layer")
+        self.assertEqual(LocalInvestigateInput(project="demo", question="q", compute_profile="narrow", parallelism="tensor").parallelism, "tensor")
 
     def test_transcript_compaction_preserves_origin_recent_pair_and_state(self) -> None:
         messages = [{"role": "system", "content": "system"}, {"role": "user", "content": "question"}]
@@ -81,7 +81,7 @@ class LocalInvestigateTests(unittest.TestCase):
         initial, inputs = snapshot(), []
         private = "/home/tumlinson/project-control/src/project_control/services/machine_inspection.py"
         turns = iter([
-            {"parallelism": "tensor", "turn": {"action": "continue", "calls": [{"tool": "exec_readonly", "arguments": {
+            {"parallelism": "tensor", "p2p_enabled": True, "topology_order": {"gpu_count": 4, "nvlink_island_sizes": [2, 2], "pair_adjacent": True}, "turn": {"action": "continue", "calls": [{"tool": "exec_readonly", "arguments": {
                 "argv": ["rg", "machine_inspection", private], "cwd": "/home/tumlinson/project-control"}}]}},
             {"parallelism": "tensor", "turn": {"action": "answer", "calls": [], "answer": {"summary": "found", "facts": [
                 {"text": "found", "evidence_ids": ["E1"]}], "inferences": [], "uncertainty": [], "citations": ["E1"]}}},
@@ -96,6 +96,8 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertNotIn(private, str(traced.data["evidence_index"]))
         self.assertEqual(traced.data["trace"]["rounds"][0]["calls"][0]["status"], "accepted")
         self.assertEqual(traced.data["trace"]["parallelism"], "tensor")
+        self.assertTrue(traced.data["trace"]["p2p_enabled"])
+        self.assertEqual(traced.data["trace"]["topology_order"]["nvlink_island_sizes"], [2, 2])
         plain_turns = iter([{"turn": {"action": "continue", "calls": [{"tool": "inspect_workflow", "arguments": {}}]}}, answer("E1")])
         with patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {})):
             plain = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,

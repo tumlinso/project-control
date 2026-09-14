@@ -304,13 +304,6 @@ class LocalInvestigateInput(BaseModel):
     compute_profile: Literal["narrow", "wide"] = "wide"
     parallelism: Literal["default", "layer", "tensor"] = "default"
 
-    @model_validator(mode="after")
-    def validate_parallelism(self) -> "LocalInvestigateInput":
-        if self.parallelism != "default" and self.compute_profile != "wide":
-            raise ValueError("explicit parallelism requires compute_profile='wide'")
-        return self
-
-
 class PerformanceStatusInput(BaseModel):
     project: str
     campaign: str | None = Field(default=None, max_length=256)

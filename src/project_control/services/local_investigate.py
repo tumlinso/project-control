@@ -406,6 +406,8 @@ def local_investigate(
     warm_model_reused: bool | None = None
     model_id: str | None = None
     resolved_parallelism = request.parallelism
+    p2p_enabled: bool | None = None
+    topology_order: dict[str, Any] | None = None
     transcript_compactions = 0
     trajectory: list[dict[str, Any]] = []
 
@@ -429,6 +431,7 @@ def local_investigate(
             payload["trace"] = bounded_payload(redact_output({
                 "protocol": PROTOCOL, "compute_profile": request.compute_profile,
                 "parallelism": resolved_parallelism, "model_id": model_id,
+                "p2p_enabled": p2p_enabled, "topology_order": topology_order,
                 "transcript_compactions": transcript_compactions,
                 "rounds": trajectory,
             }), 12 * 1024)
@@ -538,10 +541,16 @@ def local_investigate(
             model_id = str(raw.get("model_id")) if raw.get("model_id") else model_id
             if isinstance(raw.get("parallelism"), str):
                 resolved_parallelism = raw["parallelism"]
+            if isinstance(raw.get("p2p_enabled"), bool):
+                p2p_enabled = raw["p2p_enabled"]
+            if isinstance(raw.get("topology_order"), dict):
+                topology_order = raw["topology_order"]
             trace_round.update({"model_ms": round(latency, 3), "usage": raw.get("usage", {}),
                                 "model_id": raw.get("model_id"), "warm_model_reused": raw.get("warm_model_reused"),
                                 "compute_profile": raw.get("compute_profile", request.compute_profile),
-                                "parallelism": raw.get("parallelism", resolved_parallelism)})
+                                "parallelism": raw.get("parallelism", resolved_parallelism),
+                                "p2p_enabled": raw.get("p2p_enabled"),
+                                "topology_order": raw.get("topology_order")})
             turn = _parse_turn(raw)
             if turn.working_state is not None:
                 try:
