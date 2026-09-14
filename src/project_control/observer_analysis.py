@@ -52,6 +52,8 @@ class ObserverAnalysisProvider(Protocol):
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]: ...
 
     def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]: ...
+    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str) -> dict[str, Any]: ...
+    def close_session(self, session_id: str) -> None: ...
 
 
 class DisabledObserverAnalysisProvider:
@@ -62,6 +64,12 @@ class DisabledObserverAnalysisProvider:
 
     def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]:
         return {"status": "unavailable", "reason": "local_investigator_disabled"}
+
+    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str) -> dict[str, Any]:
+        return {"status": "unavailable", "reason": "local_investigator_disabled"}
+
+    def close_session(self, session_id: str) -> None:
+        return None
 
 
 class SkillsObserverAnalysisProvider:
@@ -126,6 +134,7 @@ class SkillsObserverAnalysisProvider:
                 "timeout_seconds": float(request.get("timeout_seconds", 90)),
                 "compute_profile": request.get("compute_profile", "wide"),
                 "parallelism": request.get("parallelism", "default"),
+                **({"session_id": request["session_id"]} if request.get("session_id") else {}),
             }
             encoded = json.dumps(backend_request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             if len(encoded.encode("utf-8")) > 256 * 1024:
@@ -136,6 +145,19 @@ class SkillsObserverAnalysisProvider:
             return result
         except Exception as error:
             return {"status": "unavailable", "reason": str(error)[:500]}
+
+    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str) -> dict[str, Any]:
+        try:
+            return self._get_backend().open_observer_sessions(
+                count, compute_profile=compute_profile, parallelism=parallelism)
+        except Exception as error:
+            return {"status": "unavailable", "reason": str(error)[:500]}
+
+    def close_session(self, session_id: str) -> None:
+        try:
+            self._get_backend().close_observer_session(session_id)
+        except Exception:
+            pass
 
     def close(self) -> None:
         """Release the one cached model slot during server shutdown."""
@@ -185,6 +207,23 @@ class ObserverAnalysisRegistry:
             backend = getattr(provider, "_backend", None)
             if backend is not None:
                 backend.poll()
+
+    def open_sessions(self, repo_root: str | Path, *, count: int, compute_profile: str,
+                      parallelism: str) -> dict[str, Any]:
+        key = "local-observer-service"
+        with self._lock:
+            provider = self._providers.get(key)
+            if provider is None:
+                provider = self._factory(str(Path(repo_root).resolve()))
+                self._providers[key] = provider
+        return provider.open_sessions(count, compute_profile=compute_profile, parallelism=parallelism)
+
+    def close_session(self, repo_root: str | Path, session_id: str) -> None:
+        key = "local-observer-service"
+        with self._lock:
+            provider = self._providers.get(key)
+        if provider is not None:
+            provider.close_session(session_id)
 
     def close(self) -> None:
         with self._lock:

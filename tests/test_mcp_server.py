@@ -21,6 +21,7 @@ from starlette.testclient import TestClient
 
 from project_control.app import CODEX_INSTRUCTIONS, PERFORMANCE_PROBE, READ_ONLY, SERVER_INSTRUCTIONS, TERMINAL_OBSERVATION, create_asgi_app, create_mcp, serve_codex
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from project_control.models import envelope
 from project_control.profiles import CODEX_RICH_READ_DESCRIPTION_PREFIX, CODEX_TOOL_NAMES
 
 
@@ -128,6 +129,106 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(schemas["local_investigate"]["properties"]["compute_profile"]["default"], "wide")
         self.assertEqual(schemas["local_investigate"]["properties"]["parallelism"]["enum"], ["default", "layer", "tensor"])
         self.assertEqual(schemas["local_investigate"]["properties"]["parallelism"]["default"], "default")
+        local_investigate_schema = schemas["local_investigate"]
+        self.assertEqual(local_investigate_schema["required"], ["project", "questions"])
+        self.assertEqual(local_investigate_schema["properties"]["questions"]["minItems"], 1)
+        self.assertEqual(local_investigate_schema["properties"]["questions"]["maxItems"], 2)
+        self.assertNotIn("question", local_investigate_schema["properties"])
+        self.assertNotIn("execution", local_investigate_schema["properties"])
+
+    def test_local_investigate_one_question_returns_unified_results(self) -> None:
+        mcp = create_mcp(self.config)
+        registry = getattr(mcp, "_project_control_observer_analysis_registry")
+        calls: list[dict] = []
+
+        def run_branch(_config, request, *, snapshot, snapshot_getter, model_turn):
+            calls.append({"question": request.questions[0], "snapshot": snapshot})
+            return envelope("local_investigate", snapshot,
+                            {"status": "ok", "branch": request.questions[0]})
+
+        with patch("project_control.app.local_investigate_service", side_effect=run_branch), \
+             patch.object(registry, "open_sessions", return_value={"status": "available", "session_ids": ["S-1"]}) as reserve, \
+             patch.object(registry, "close_session") as close:
+            result = asyncio.run(mcp._tool_manager.call_tool(
+                "local_investigate", {"project": "demo", "questions": ["first"]}))
+
+        self.assertEqual([item["question"] for item in result["data"]["results"]], ["first"])
+        self.assertEqual(result["data"]["results"][0]["result"]["data"]["branch"], "first")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["snapshot"].identity_digest(), result["cursor"]["identity_digest"])
+        reserve.assert_not_called()
+        close.assert_not_called()
+
+    def test_local_investigate_two_questions_reserves_two_narrow_sessions_and_isolates_branches(self) -> None:
+        mcp = create_mcp(self.config)
+        registry = getattr(mcp, "_project_control_observer_analysis_registry")
+        branch_calls: list[dict] = []
+        active, maximum = [0], [0]
+        lock = threading.Lock()
+        barrier = threading.Barrier(2)
+
+        def investigate_turn(_root, turn):
+            with lock:
+                active[0] += 1
+                maximum[0] = max(maximum[0], active[0])
+            try:
+                barrier.wait(timeout=2)
+                return {"status": "available", "session_id": turn["session_id"]}
+            finally:
+                with lock:
+                    active[0] -= 1
+
+        def run_branch(_config, request, *, snapshot, snapshot_getter, model_turn):
+            response = model_turn({"messages": [{"role": "user", "content": request.questions[0]}]})
+            branch_calls.append({"question": request.questions[0], "snapshot": snapshot,
+                                 "session_id": response["session_id"]})
+            return envelope("local_investigate", snapshot,
+                            {"status": "ok", "branch": request.questions[0], "session_id": response["session_id"]})
+
+        with patch("project_control.app.local_investigate_service", side_effect=run_branch), \
+             patch.object(registry, "open_sessions", return_value={"status": "available", "session_ids": ["S-a", "S-b"]}) as reserve, \
+             patch.object(registry, "investigate_turn", side_effect=investigate_turn), \
+             patch.object(registry, "close_session") as close:
+            result = asyncio.run(mcp._tool_manager.call_tool(
+                "local_investigate", {"project": "demo", "questions": ["first", "second"], "detail": "trace"}))
+
+        self.assertEqual(maximum[0], 2)
+        self.assertEqual([(item["question"], item["result"]["data"]["session_id"])
+                          for item in result["data"]["results"]], [("first", "S-a"), ("second", "S-b")])
+        self.assertEqual({item["question"] for item in branch_calls}, {"first", "second"})
+        self.assertEqual(len({id(item["snapshot"]) for item in branch_calls}), 1)
+        self.assertTrue(result["data"]["aggregate"]["concurrent"])
+        reserve.assert_called_once()
+        self.assertEqual(close.call_args_list[0].args[-1], "S-a")
+        self.assertEqual(close.call_args_list[1].args[-1], "S-b")
+
+    def test_local_investigate_serializes_when_two_session_reservation_is_unavailable(self) -> None:
+        mcp = create_mcp(self.config)
+        registry = getattr(mcp, "_project_control_observer_analysis_registry")
+        branch_calls: list[str] = []
+
+        def run_branch(_config, request, *, snapshot, snapshot_getter, model_turn):
+            response = model_turn({"messages": [{"role": "user", "content": request.questions[0]}]})
+            branch_calls.append(request.questions[0])
+            return envelope("local_investigate", snapshot,
+                            {"status": "ok", "branch": request.questions[0], "session_id": response["session_id"]})
+
+        with patch("project_control.app.local_investigate_service", side_effect=run_branch), \
+             patch.object(registry, "open_sessions", side_effect=[
+                 {"status": "unavailable", "reason": "two_slots_busy"},
+                 {"status": "available", "session_ids": ["S-1"]},
+                 {"status": "available", "session_ids": ["S-2"]},
+             ]) as reserve, \
+             patch.object(registry, "investigate_turn", side_effect=lambda _root, turn: {"status": "available", "session_id": turn["session_id"]}), \
+             patch.object(registry, "close_session") as close:
+            result = asyncio.run(mcp._tool_manager.call_tool(
+                "local_investigate", {"project": "demo", "questions": ["first", "second"], "detail": "trace"}))
+
+        self.assertEqual(branch_calls, ["first", "second"])
+        self.assertEqual([item["question"] for item in result["data"]["results"]], ["first", "second"])
+        self.assertFalse(result["data"]["aggregate"]["concurrent"])
+        self.assertEqual([call.kwargs["count"] for call in reserve.call_args_list], [2, 1, 1])
+        self.assertEqual([call.args[-1] for call in close.call_args_list], ["S-1", "S-2"])
 
     def test_codex_composes_workflow_and_compact_rich_reads(self) -> None:
         mcp = create_mcp(self.config, profile="codex")
@@ -181,7 +282,7 @@ class MCPServerTests(unittest.TestCase):
         with TestClient(create_asgi_app(self.config)) as client:
             self.assertEqual(client.get("/healthz").status_code, 200)
             self.assertEqual(client.get("/readyz").status_code, 200)
-            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.2", "tool_schema_version": 7})
+            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.2", "tool_schema_version": 8})
         with self.assertRaises(ValueError):
             from project_control.config import ServerConfig
             ServerConfig(host="0.0.0.0")

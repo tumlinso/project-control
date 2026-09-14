@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import time
 from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated, Any, Callable, Literal
 
@@ -38,6 +40,7 @@ from .models import (
     TerminalCaptureInput,
     ToolEnvelope,
     ToolStatus,
+    envelope,
     utc_now,
 )
 from .registry import RegistryError, WorkspaceRegistry
@@ -270,18 +273,78 @@ def create_mcp(
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def local_investigate(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], effort: Literal["quick", "standard", "deep"] = "standard", detail: Literal["standard", "trace"] = "standard", compute_profile: Literal["narrow", "wide"] = "wide", parallelism: Literal["default", "layer", "tensor"] = "default") -> dict[str, Any]:
-        request = LocalInvestigateInput(project=project, question=question, effort=effort, detail=detail, compute_profile=compute_profile, parallelism=parallelism)
+    def local_investigate(project: str, questions: Annotated[list[Annotated[str, Field(min_length=1, max_length=12000)]], Field(min_length=1, max_length=2)], effort: Literal["quick", "standard", "deep"] = "standard", detail: Literal["standard", "trace"] = "standard", compute_profile: Literal["narrow", "wide"] = "wide", parallelism: Literal["default", "layer", "tensor"] = "default") -> dict[str, Any]:
+        request = LocalInvestigateInput(project=project, questions=questions, effort=effort, detail=detail, compute_profile=compute_profile, parallelism=parallelism)
         def operation() -> ToolEnvelope:
             snapshot = runtime.snapshot(project)
             workspace = WorkspaceRegistry(active_config).workspace(project)
             alias = workspace.authority_repository or (sorted(snapshot.repositories)[0] if snapshot.repositories else None)
             root = WorkspaceRegistry(active_config).repository(project, alias).root if alias is not None else None
-            return local_investigate_service(
-                active_config, request, snapshot=snapshot, snapshot_getter=lambda: runtime.snapshot(project),
-                model_turn=lambda turn: ({"status": "unavailable", "reason": "project_has_no_repository"}
-                                         if root is None else observer_analysis_registry.investigate_turn(root, turn)),
-            )
+            def run_branch(branch_question: str, session_id: str | None = None) -> ToolEnvelope:
+                branch_request = request.model_copy(update={
+                    "questions": [branch_question], "compute_profile": (
+                        "narrow" if len(request.questions) > 1 else request.compute_profile)})
+                return local_investigate_service(
+                    active_config, branch_request, snapshot=snapshot,
+                    snapshot_getter=lambda: runtime.snapshot(project),
+                    model_turn=lambda turn: ({"status": "unavailable", "reason": "project_has_no_repository"}
+                        if root is None else observer_analysis_registry.investigate_turn(
+                            root, {**turn, **({"session_id": session_id} if session_id else {})})),
+                )
+            branch_questions = list(request.questions)
+            started = time.monotonic()
+            concurrent = False
+            if root is None:
+                return envelope("local_investigate", snapshot, {"results": [], "status": "unavailable",
+                    "reason": "project_has_no_repository"}, warnings=["project_has_no_repository"])
+            if len(branch_questions) == 1:
+                branches = [run_branch(branch_questions[0])]
+                data: dict[str, Any] = {"results": [{"question": branch_questions[0], "result": {
+                    "status": branches[0].status.value, "data": branches[0].data,
+                    "warnings": branches[0].warnings}}]}
+                if request.detail == "trace":
+                    data["aggregate"] = {"branches": 1, "concurrent": False,
+                        "elapsed_ms": round((time.monotonic() - started) * 1000, 3)}
+                return envelope("local_investigate", snapshot, data, warnings=branches[0].warnings)
+            prepared = observer_analysis_registry.open_sessions(
+                root, count=len(branch_questions), compute_profile="narrow",
+                parallelism=request.parallelism)
+            sessions = [str(item) for item in prepared.get("session_ids", [])]
+            if prepared.get("status") == "available" and len(sessions) == len(branch_questions):
+                concurrent = len(branch_questions) > 1
+                try:
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        futures = [pool.submit(run_branch, branch_question, session_id)
+                                   for branch_question, session_id in zip(branch_questions, sessions, strict=True)]
+                        branches = [future.result() for future in futures]
+                finally:
+                    for session_id in sessions:
+                        observer_analysis_registry.close_session(root, session_id)
+            else:
+                branches = []
+                for branch_question in branch_questions:
+                    prepared = observer_analysis_registry.open_sessions(
+                        root, count=1, compute_profile="narrow", parallelism=request.parallelism)
+                    branch_sessions = [str(item) for item in prepared.get("session_ids", [])]
+                    if prepared.get("status") != "available" or len(branch_sessions) != 1:
+                        unavailable = envelope("local_investigate", snapshot, {"status": "unavailable",
+                            "reason": str(prepared.get("reason", "resource_unavailable"))[:500]},
+                            warnings=["resource_unavailable"])
+                        branches.append(unavailable)
+                        continue
+                    try:
+                        branches.append(run_branch(branch_question, branch_sessions[0]))
+                    finally:
+                        observer_analysis_registry.close_session(root, branch_sessions[0])
+            data: dict[str, Any] = {"results": [
+                {"question": branch_question, "result": {
+                    "status": branch.status.value, "data": branch.data, "warnings": branch.warnings}}
+                for branch_question, branch in zip(branch_questions, branches, strict=True)]}
+            if request.detail == "trace":
+                data["aggregate"] = {"branches": len(branch_questions), "concurrent": concurrent,
+                    "elapsed_ms": round((time.monotonic() - started) * 1000, 3)}
+            return envelope("local_investigate", snapshot, data,
+                            warnings=[warning for branch in branches for warning in branch.warnings])
         return runtime.invoke("local_investigate", project, operation)
 
     @mcp.tool(
@@ -491,7 +554,7 @@ def create_mcp(
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request) -> JSONResponse:
-        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 7})
+        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 8})
 
     if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
         register_workflow_tools(mcp, protocol_factory=workflow_protocol)

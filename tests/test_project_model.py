@@ -53,6 +53,19 @@ def fixture_snapshot() -> ProjectSnapshot:
 
 
 class ProjectModelTests(unittest.TestCase):
+    def test_local_investigate_uses_one_required_questions_list(self) -> None:
+        schema = LocalInvestigateInput.model_json_schema()
+        self.assertEqual(schema["required"], ["project", "questions"])
+        self.assertEqual(schema["properties"]["questions"]["minItems"], 1)
+        self.assertEqual(schema["properties"]["questions"]["maxItems"], 2)
+        self.assertNotIn("question", schema["properties"])
+        self.assertNotIn("execution", schema["properties"])
+        self.assertEqual(LocalInvestigateInput(project="demo", questions=["one"]).questions, ["one"])
+        with self.assertRaises(ValueError):
+            LocalInvestigateInput(project="demo", questions=[])
+        with self.assertRaises(ValueError):
+            LocalInvestigateInput(project="demo", questions=["one", "two", "three"])
+
     def test_v2_high_level_input_contracts_are_bounded_and_additive(self) -> None:
         self.assertEqual(ArchitectureContextInput(project="demo", question="architecture").detail, "standard")
         self.assertEqual(CoordinationViewInput(project="demo").max_items, 100)

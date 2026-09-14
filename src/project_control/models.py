@@ -4,7 +4,7 @@ import json
 import hashlib
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -298,11 +298,25 @@ class LocalInvestigateInput(BaseModel):
     """The deliberately small public request for mediated local investigation."""
 
     project: str
-    question: str = Field(min_length=1, max_length=12_000)
+    questions: list[Annotated[str, Field(min_length=1, max_length=12_000)]] = Field(
+        min_length=1, max_length=2)
     effort: Literal["quick", "standard", "deep"] = "standard"
     detail: Literal["standard", "trace"] = "standard"
     compute_profile: Literal["narrow", "wide"] = "wide"
     parallelism: Literal["default", "layer", "tensor"] = "default"
+
+    @model_validator(mode="after")
+    def select_question_mode(self) -> "LocalInvestigateInput":
+        if any(not isinstance(item, str) or not 1 <= len(item) <= 12_000 for item in self.questions):
+            raise ValueError("each question must contain 1 to 12000 characters")
+        return self
+
+    @property
+    def question(self) -> str:
+        """The one branch question used by the internal investigation engine."""
+        if len(self.questions) != 1:
+            raise ValueError("branch investigation requires one question")
+        return self.questions[0]
 
 class PerformanceStatusInput(BaseModel):
     project: str

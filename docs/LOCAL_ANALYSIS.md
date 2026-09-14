@@ -1,6 +1,6 @@
 # Optional local observer analysis
 
-Project Control exposes `local_investigate(project, question, effort, detail,
+Project Control exposes `local_investigate(project, questions, effort, detail,
 compute_profile, parallelism)` as the preferred observer entry point. A versioned, bounded
 conversational broker validates heterogeneous local-model read requests, executes
 them through read-only services or the isolated `exec_readonly` sandbox, and returns
@@ -20,6 +20,11 @@ split. Split changes reload an incompatible idle service and never interrupt an
 active generation. Unsupported modes fail visibly rather than falling back.
 Local llama.cpp services enable CUDA peer-to-peer and preserve runtime-discovered
 NVLink-pair adjacency in their private device order.
+
+A one-question investigation uses `questions=["..."]`. Supplying two questions
+automatically prefers two concurrent narrow services on disjoint NVLink islands,
+and otherwise runs available work serially. Results retain input order and are
+returned without an additional synthesis stage.
 
 The broker also accepts `inspect_machine` for bounded GPU, topology, process,
 memory, filesystem, Project Control service, kernel, device, log, and runtime
