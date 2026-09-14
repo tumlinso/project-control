@@ -20,7 +20,7 @@ from ..source_index import SourceLexicalIndex, source_path_priority
 from ..subprocesses import CommandError
 from ..worktrees import WorktreeCatalog, WorktreeSelectionError
 from ..retrieval import economical_record
-from ..context_fragments import active as active_fragment, canonical_context_fragments, path_or_symbol_matches, project_fragment
+from ..context_fragments import active as active_fragment, canonical_context_fragments, path_or_symbol_matches, project_fragment, repository_matches
 
 
 def _cursor(identity: str, offset: int) -> str:
@@ -301,6 +301,7 @@ def source_context(
                     project_fragment(fragment, detail=request.detail)
                     for fragment in canonical_context_fragments(snapshot)
                     if fragment.get("kind") == "context_note" and active_fragment(fragment)
+                    and repository_matches(fragment, repository.alias)
                     and path_or_symbol_matches(fragment, target.value, target.kind)
                 ][:30]
         except (SecurityError, OSError, ValueError, CommandError, sqlite3.Error) as exc:

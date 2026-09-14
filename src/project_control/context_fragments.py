@@ -182,6 +182,16 @@ def path_or_symbol_matches(fragment: dict[str, Any], target: str, kind: str) -> 
     return target.casefold() in json.dumps({"anchors": anchors, "content": fragment.get("content")}, default=str).casefold()
 
 
+def repository_matches(fragment: dict[str, Any], repository: str) -> bool:
+    """An explicit virtual repository anchor is a hard source-read boundary."""
+    anchors = fragment.get("anchors") if isinstance(fragment.get("anchors"), dict) else {}
+    values: list[object] = [anchors.get("repository")]
+    items = anchors.get("items") if isinstance(anchors.get("items"), list) else []
+    values.extend(item.get("value") for item in items if item.get("kind") == "repository")
+    selected = {str(value) for value in values if value not in (None, "")}
+    return not selected or repository in selected
+
+
 def project_fragment(fragment: dict[str, Any], *, detail: str = "standard") -> dict[str, Any]:
     note = fragment.get("kind") == "context_note"
     fields = ("id", "kind", "series_key", "version", "run_id", "lane_id", "task_id", "origin_owner", "anchors", "classification", "state", "invalidated_at", "invalidation_revision", "superseded_by", "source_identity", "source_freshness", "content_hash", "created_at", "revision", "authority")

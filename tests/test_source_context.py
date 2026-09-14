@@ -133,6 +133,34 @@ class SourceContextTests(unittest.TestCase):
         self.assertEqual(result.data["stale_or_historical"][0]["authority_label"], "non_authoritative_context")
         self.assertNotIn("source_identity", result.data["stale_or_historical"][0])
 
+    def test_context_note_repository_anchor_does_not_cross_source_repositories(self) -> None:
+        other = Path(self.temp.name) / "other"
+        other.mkdir()
+        git(other, "init", "-b", "main")
+        git(other, "config", "user.name", "Tests")
+        git(other, "config", "user.email", "tests@example.invalid")
+        (other / "src").mkdir()
+        (other / "src" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+        git(other, "add", ".")
+        git(other, "commit", "-m", "fixture")
+        other_head = git(other, "rev-parse", "HEAD").strip()
+        self.config = ProjectControlConfig(workspaces={"demo": WorkspaceConfig(
+            authority_repository="source", repositories={"source": RepositoryConfig(root=self.root), "other": RepositoryConfig(root=other)},
+        )})
+        self.snapshot = self.snapshot.model_copy(update={
+            "repositories": {**self.snapshot.repositories, "other": RepositoryIdentity(commit=other_head, dirty=False)},
+        })
+        self.snapshot.todo_tables["context_fragments"] = [{
+            "id": "NOTE-SOURCE", "kind": "context_note", "content_json": json.dumps({
+                "anchors": [{"kind": "repository", "value": "source"}, {"kind": "directory", "value": "src"}],
+                "content": {"summary": "source only"},
+            }),
+        }]
+        result = source_context(self.config, self.snapshot, SourceContextInput(
+            project="demo", repository="other", targets=[SourceTarget(kind="path", value="src/module.py")], requested_relations=["context_notes"],
+        ))
+        self.assertEqual(result.data["targets"][0]["context_notes"], [])
+
     def test_relation_contract_is_explicit_when_semantic_edges_are_unavailable(self) -> None:
         self.snapshot.todo_tables = {
             "tasks": [{"id": "T", "title": "Own calculate_total"}],
