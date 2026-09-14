@@ -106,6 +106,32 @@ class CoordinationViewTests(unittest.TestCase):
         self.assertNotIn("subordinate_local_children", result.data)
         self.assertIn("identity_digest", result.cursor.model_dump(mode="json"))
 
+    def test_compact_excludes_terminal_runs_lanes_and_queues(self) -> None:
+        snapshot = self.snapshot()
+        workflow = copy.deepcopy(snapshot.todo_workflow)
+        workflow["runs"].append({
+            "id": "RUN-DONE", "status": "completed", "lanes": [{
+                "id": "lane-done", "state": "closed",
+                "queue": [{"task_id": "T-DONE", "state": "completed"}],
+                "dispatch": {"task_id": "T-DONE"},
+            }],
+        })
+        workflow["runs"][0]["lanes"][0]["queue"].append({"task_id": "T-OLD", "state": "completed"})
+        workflow["runs"][0]["lanes"].append({
+            "id": "lane-closed", "state": "closed", "queue": [{"task_id": "T-CLOSED", "state": "completed"}],
+            "dispatch": {"task_id": "T-CLOSED"},
+        })
+        workflow["safe_parallel_groups"] = [["a-child", "T-OLD"], ["T-DONE"]]
+        compact = coordination_view(snapshot.model_copy(update={"todo_workflow": workflow}), CoordinationViewInput(
+            project="demo", detail="compact",
+        ))
+        encoded = json.dumps(compact.data)
+        self.assertNotIn("RUN-DONE", encoded)
+        self.assertNotIn("lane-closed", encoded)
+        self.assertNotIn("T-OLD", encoded)
+        self.assertNotIn("T-DONE", encoded)
+        self.assertIn("T-A", encoded)
+
     def test_compact_scoped_note_can_match_virtual_task_anchor(self) -> None:
         snapshot = self.snapshot()
         snapshot.todo_tables["context_fragments"] = [{

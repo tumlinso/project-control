@@ -211,9 +211,46 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
         # Fragment manifests, workspace history and satisfied rendezvous are
         # useful provenance, but are not current coordination state.
         terminal = {"completed", "complete", "closed", "integrated", "satisfied", "resolved", "cancelled", "superseded"}
+        def is_terminal(item: dict[str, Any]) -> bool:
+            return str(item.get("state") or item.get("status") or "").casefold() in terminal
+
+        # Runs are the compact canonical lane representation.  Project them
+        # before pagination so closed runs, lanes and completed queue entries
+        # cannot consume the current coordination budget.
+        live_lanes: set[tuple[str, str]] = set()
+        live_tasks: set[str] = set()
+        compact_runs = []
+        for run in collections["runs"]:
+            if is_terminal(run):
+                continue
+            lanes = []
+            for lane in run.get("lanes", []):
+                if is_terminal(lane):
+                    continue
+                queue = [item for item in lane.get("serial_queue", []) if not is_terminal(item)]
+                # A terminal queue in an otherwise live lane is history, not
+                # a ready/active handoff.  Preserve the lane only when it has
+                # a live queue or operational state.
+                lane = {**lane, "serial_queue": queue}
+                lanes.append(lane)
+                live_lanes.add((str(run.get("id")), str(lane.get("id"))))
+                live_tasks.update(str(item.get("task_id")) for item in queue if item.get("task_id"))
+            if lanes:
+                compact_runs.append({**run, "lanes": lanes})
+        collections["runs"] = compact_runs
+        collections["dispatches"] = [
+            item for item in collections["dispatches"]
+            if (str(item.get("run_id")), str(item.get("lane_id"))) in live_lanes
+        ]
+        live_parallel_members = {lane_id for _, lane_id in live_lanes} | live_tasks
+        collections["safe_parallel_groups"] = [
+            [task_id for task_id in group if str(task_id) in live_parallel_members]
+            for group in collections["safe_parallel_groups"]
+        ]
+        collections["safe_parallel_groups"] = [group for group in collections["safe_parallel_groups"] if group]
         for name in ("context_fragments", "rendezvous", "workspaces", "patch_artifacts", "integration_queue"):
             collections[name] = [item for item in collections[name]
-                                 if str(item.get("state") or "").casefold() not in terminal]
+                                 if not is_terminal(item)]
     paged = {name: values[offset: offset + request.max_items] for name, values in collections.items()}
     more = any(len(values) > offset + request.max_items for values in collections.values())
     data = {
