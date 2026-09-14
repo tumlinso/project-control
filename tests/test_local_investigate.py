@@ -37,6 +37,15 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(turn.calls[0].tool, "search_source")
         self.assertEqual(turn.calls[0].arguments, {"symbol": "local_investigate"})
 
+    def test_oversized_call_batch_keeps_first_six_valid_calls(self) -> None:
+        turn = _parse_turn({"turn": {"action": "continue", "calls": [
+            {"tool": "inspect_workflow", "arguments": {}} for _ in range(8)
+        ], "working_state": "malformed"}})
+        self.assertEqual(len(turn.calls), 6)
+        self.assertEqual(turn.truncated_calls, 2)
+        self.assertEqual(turn.rejected_calls, 0)
+        self.assertEqual(turn.working_state, "malformed")
+
     def test_v2_heterogeneous_calls_share_one_model_turn_and_conversation(self) -> None:
         initial, inputs = snapshot(), []
         turns = iter([
@@ -131,6 +140,12 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertIn("normally prefer\nsearch_source over orient", SYSTEM_PROMPT)
         self.assertIn("Tests, documentation, benchmarks, and callers", SYSTEM_PROMPT)
         self.assertIn("exact implementation path or symbol", FINAL_SYSTEM_PROMPT)
+        self.assertIn('orient {"question":"broad question"}', SYSTEM_PROMPT)
+        self.assertIn('search_source {"targets":[{"value":"symbol or phrase"}]}', SYSTEM_PROMPT)
+        self.assertIn('read_source {"targets":[{"kind":"path|symbol|subsystem|text"', SYSTEM_PROMPT)
+        self.assertIn('inspect_workflow {}', SYSTEM_PROMPT)
+        self.assertIn('inspect_machine {"diagnostic":', SYSTEM_PROMPT)
+        self.assertIn('exec_readonly {"argv":', SYSTEM_PROMPT)
 
     def test_search_verify_answer_preserves_bounded_evidence_backed_working_state(self) -> None:
         initial, inputs = snapshot(), []
@@ -315,6 +330,26 @@ class LocalInvestigateTests(unittest.TestCase):
         read.assert_called_once()
         self.assertIn("investigator_working_state_rejected", result.warnings)
         self.assertEqual(result.data["trace"]["rounds"][0]["working_state"]["status"], "rejected")
+
+    def test_oversized_batch_executes_six_and_traces_truncation(self) -> None:
+        initial = snapshot()
+        calls = [{"tool": "not_a_tool", "arguments": {"index": index}}
+                 for index in range(2)] + [
+            {"tool": "inspect_workflow", "arguments": {}} for _ in range(8)]
+        turns = iter([{"turn": {"action": "continue", "calls": calls,
+            "working_state": "malformed"}}, answer("E1")])
+        with patch("project_control.services.local_investigate.coordination_view",
+                   return_value=envelope("coordination_view", initial, {})) as read:
+            result = local_investigate(config(), LocalInvestigateInput(
+                project="demo", questions=["q"], effort="quick", detail="trace"),
+                snapshot=initial, snapshot_getter=lambda: initial,
+                model_turn=lambda _: next(turns))
+        self.assertEqual(result.data["status"], "ok")
+        read.assert_called_once()
+        batch = result.data["trace"]["rounds"][0]["call_batch"]
+        self.assertEqual(batch, {"accepted": 6, "truncated": 2, "rejected": 2})
+        self.assertIn("investigator_call_batch_truncated", result.warnings)
+        self.assertIn("investigator_working_state_rejected", result.warnings)
 
     def test_duplicate_read_forces_final_only_turn(self) -> None:
         initial, inputs = snapshot(), []
