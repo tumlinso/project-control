@@ -12,18 +12,21 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 
+# Keep candidate validation tied to the server's one canonical profile
+# contract.  This script runs in the candidate environment, where the
+# installed Project Control package is the thing being qualified.
+from project_control.profiles import (
+    CODEX_TOOL_NAMES,
+    OBSERVER_TOOL_NAMES,
+    RICH_READ_TOOL_NAMES,
+    WORKFLOW_TOOL_NAMES,
+)
 
-OBSERVER_TOOLS = {
-    "project_overview", "project_delta", "project_frontier", "inspect", "evidence",
-    "plan_preview", "agent_status", "performance_status", "architecture_context",
-    "coordination_view", "source_context", "history_trace", "impact_preview",
-    "program_context", "terminal_capture",
-}
-WORKFLOW_TOOLS = {
-    "next_task", "inspect_task", "coordinate_task", "delegate_task",
-    "collect_delegation", "finish_task",
-}
-CODEX_RICH_TOOLS = OBSERVER_TOOLS - {"terminal_capture"}
+
+OBSERVER_TOOLS = frozenset(OBSERVER_TOOL_NAMES)
+WORKFLOW_TOOLS = frozenset(WORKFLOW_TOOL_NAMES)
+CODEX_RICH_TOOLS = frozenset(RICH_READ_TOOL_NAMES)
+CODEX_TOOLS = frozenset(CODEX_TOOL_NAMES)
 
 
 def _schema_hash(schema: dict[str, Any]) -> str:
@@ -56,7 +59,7 @@ async def inspect_profiles(
             codex_inventory = await _inventory(codex)
     observer_names = set(observer_inventory)
     codex_names = set(codex_inventory)
-    expected_codex = WORKFLOW_TOOLS | CODEX_RICH_TOOLS
+    expected_codex = CODEX_TOOLS
     observer_schema_exact = observer_inventory == expected_observer_hashes
     codex_schema_exact = codex_inventory == expected_codex_hashes
     names_exact = observer_names == OBSERVER_TOOLS and codex_names == expected_codex

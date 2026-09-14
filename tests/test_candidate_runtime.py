@@ -19,12 +19,15 @@ WORKFLOW_TOOLS = MODULE.WORKFLOW_TOOLS
 
 
 class CandidateRuntimeTests(unittest.TestCase):
-    def test_exact_profile_counts_and_terminal_is_observer_only(self) -> None:
-        self.assertEqual(len(OBSERVER_TOOLS), 15)
+    def test_exact_profile_counts_follow_canonical_profile_contract(self) -> None:
+        self.assertEqual(len(OBSERVER_TOOLS), 17)
         self.assertEqual(len(WORKFLOW_TOOLS), 6)
-        self.assertEqual(len(CODEX_RICH_TOOLS), 14)
+        self.assertEqual(len(CODEX_RICH_TOOLS), 15)
+        self.assertIn("local_investigate", OBSERVER_TOOLS)
+        self.assertIn("performance_probe", OBSERVER_TOOLS)
+        self.assertIn("performance_probe", CODEX_RICH_TOOLS)
         self.assertNotIn("terminal_capture", CODEX_RICH_TOOLS)
-        self.assertEqual(len(WORKFLOW_TOOLS | CODEX_RICH_TOOLS), 20)
+        self.assertEqual(len(WORKFLOW_TOOLS | CODEX_RICH_TOOLS), 21)
 
 
 if __name__ == "__main__":

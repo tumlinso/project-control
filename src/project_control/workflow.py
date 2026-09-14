@@ -89,23 +89,51 @@ def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50, actionab
         }
     runs = view.get("runs", []) if isinstance(view.get("runs"), list) else []
     active = next((item for item in runs if item.get("id") == view.get("active_run_id")), None)
+    terminal = {"completed", "complete", "closed", "integrated", "satisfied", "resolved", "cancelled", "superseded"}
     active_run = None
+    live_run_id: str | None = None
+    live_lanes: set[str] = set()
+    live_tasks: set[str] = set()
     if isinstance(active, dict):
+        if str(active.get("status") or active.get("state") or "").casefold() not in terminal:
+            live_run_id = str(active.get("id")) if active.get("id") else None
+            for lane in active.get("lanes", []):
+                if not isinstance(lane, dict) or str(lane.get("state") or lane.get("status") or "").casefold() in terminal:
+                    continue
+                if lane.get("id"):
+                    live_lanes.add(str(lane["id"]))
+                for queue_item in lane.get("queue", []):
+                    if isinstance(queue_item, dict) and str(queue_item.get("state") or queue_item.get("status") or "").casefold() not in terminal and queue_item.get("task_id"):
+                        live_tasks.add(str(queue_item["task_id"]))
         active_run = {
             **_pick(active, ("id", "root_task_id", "status", "active_charter_version")),
             "lanes": [_lane(snapshot, item, max_items) for item in list(active.get("lanes", []))[:max_items] if isinstance(item, dict)],
             "lanes_omitted": max(0, len(active.get("lanes", [])) - max_items),
         }
 
+    def current(item: dict[str, Any]) -> bool:
+        """Match the compact coordination projection's live workflow scope."""
+        if not actionable:
+            return True
+        run_id = item.get("run_id")
+        lane_id = item.get("author_lane_id") or item.get("lane_id") or item.get("parent_lane_id")
+        task_id = item.get("task_id") or item.get("parent_task_id")
+        if run_id is not None and str(run_id) != live_run_id:
+            return False
+        if lane_id is not None and str(lane_id) not in live_lanes:
+            return False
+        if task_id is not None and live_tasks and str(task_id) not in live_tasks:
+            return False
+        return True
+
     def records(name: str, fields: tuple[str, ...]) -> list[dict[str, Any]]:
         return [
             _pick(item, fields) for item in list(view.get(name, []))[:max_items]
-            if isinstance(item, dict)
+            if isinstance(item, dict) and current(item)
         ]
 
     # Ordinary workflow consumers need the live control surface, not a ledger
     # replay.  Keep the complete projection for explicit/history readers.
-    terminal = {"completed", "complete", "closed", "integrated", "satisfied", "resolved", "cancelled", "superseded"}
     def live(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not actionable:
             return items

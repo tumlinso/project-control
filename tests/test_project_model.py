@@ -132,6 +132,24 @@ class ProjectModelTests(unittest.TestCase):
         self.assertEqual(result.data["recommended_focus"], ["T1"])
         self.assertLessEqual(len(result.model_dump_json().encode()), 6000 + 2000)
 
+    def test_compact_overview_keeps_current_workflow_and_focus_for_large_state(self) -> None:
+        snapshot = fixture_snapshot().model_copy(deep=True)
+        snapshot.todo_tables["tasks"].extend(
+            {
+                "id": f"CE-LARGE-{index}", "title": "implementation context " + "x" * 600,
+                "status": "planned", "priority": 1000 - index,
+            }
+            for index in range(80)
+        )
+        snapshot.todo_status["ready"].extend({"id": f"CE-LARGE-{index}"} for index in range(80))
+        result = project_overview(snapshot, detail="compact", max_items=100)
+        encoded = result.model_dump_json().encode()
+        self.assertLessEqual(len(encoded), 1800)
+        self.assertIn("workflow", result.data)
+        self.assertIn("recommended_focus", result.data)
+        self.assertNotIn("response_essential_fields_require_expansion", result.warnings)
+        self.assertNotIn("essential_fields_omitted", result.data.get("response_coverage", {}))
+
     def test_frontier_labels_heuristic(self) -> None:
         result = project_frontier(fixture_snapshot())
         self.assertEqual(result.data["ready"][0]["id"], "T2")

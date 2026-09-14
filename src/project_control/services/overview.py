@@ -144,8 +144,16 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
     # only when current performance evidence actually participates in the view.
     cuda_warnings = snapshot.warnings_for("cuda") if performance_attention else []
     warnings = [*snapshot.warnings_for("todo"), *cuda_warnings, *reconciled.warnings, *workflow_warnings(snapshot)]
+    # Compact overview must remain useful even when a large project makes the
+    # optional supporting categories expensive.  Reserve its two decisive
+    # fields before generic payload trimming; bounded_envelope then accounts
+    # for the complete wire envelope without dropping them.
+    if detail == "compact":
+        essentials = {key: data[key] for key in ("workflow", "recommended_focus")}
+        supporting = {key: value for key, value in data.items() if key not in essentials}
+        data = {**bounded_payload(supporting, BUDGETS[detail]), **essentials}
     result = envelope(
-        "project_overview", snapshot, bounded_payload(data, BUDGETS[detail]),
+        "project_overview", snapshot, bounded_payload(data, BUDGETS[detail]) if detail != "compact" else data,
         warnings=list(dict.fromkeys(warnings)), compact_identity=True,
     )
     return bounded_envelope(

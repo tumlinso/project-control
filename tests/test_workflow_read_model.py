@@ -140,6 +140,28 @@ class WorkflowReadModelTests(unittest.TestCase):
         self.assertNotIn("z-parent", encoded)
         self.assertLess(len(encoded.encode()), 2_000)
 
+    def test_historical_open_message_is_not_current_attention(self) -> None:
+        snapshot = self.snapshot.model_copy(deep=True)
+        workflow = snapshot.todo_workflow
+        workflow["runs"].append({
+            "id": "CE-SS1-RUN-V1", "root_task_id": "CE-SS1-ROOT", "status": "completed", "lanes": [{
+                "id": "historical-lane", "role": "implementer", "state": "closed",
+                "queue": [{"position": 1, "task_id": "CE-SS1-OLD", "state": "completed"}],
+            }],
+        })
+        historical = {
+            "id": "CE-SS1-OPEN", "run_id": "CE-SS1-RUN-V1", "author_lane_id": "historical-lane",
+            "task_id": "CE-SS1-OLD", "kind": "question", "blocking": True, "state": "open", "revision": 1,
+        }
+        workflow["blocking_messages"].append(historical)
+        workflow["unresolved_questions"].append(historical)
+
+        overview = project_overview(snapshot, detail="compact", max_items=10)
+        frontier = project_frontier(snapshot, max_ready=10)
+        self.assertNotIn("CE-SS1-OPEN", json.dumps(overview.data))
+        self.assertNotIn("CE-SS1-OLD", overview.data["recommended_focus"])
+        self.assertNotIn("CE-SS1-OPEN", json.dumps(frontier.data))
+
     def test_existing_subsystem_inspection_resolves_lane_hierarchy_and_patches(self) -> None:
         lane = inspect_subject(self.config, self.snapshot, InspectInput(project="demo", kind="subsystem", target="a-child"))
         relations = {(item["relation"], item["type"], item["id"]) for item in lane.data["related"]}
