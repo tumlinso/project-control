@@ -94,14 +94,20 @@ class WorkflowToolTests(unittest.TestCase):
         claimed = asyncio.run(manager.call_tool("next_task", {"repo_root": "/repo", "task_id": "PCU-1"}))
         handle = claimed["workflow_handle"]
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "task"}))
+        asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "context_fragment", "target": "NOTE-1"}))
         asyncio.run(manager.call_tool("coordinate_task", {"workflow_handle": handle, "action": "sync"}))
         asyncio.run(manager.call_tool("delegate_task", {"workflow_handle": handle, "delegated_objective": "bounded"}))
         asyncio.run(manager.call_tool("collect_delegation", {"delegation_handle": "wfd_opaque"}))
         asyncio.run(manager.call_tool("finish_task", {"workflow_handle": handle, "action": "complete"}))
-        self.assertEqual([name for name, _ in protocol.calls], list(WORKFLOW_TOOL_NAMES))
+        self.assertEqual([name for name, _ in protocol.calls], [
+            "next_task", "inspect_task", "inspect_task", "coordinate_task",
+            "delegate_task", "collect_delegation", "finish_task",
+        ])
         self.assertEqual(protocol.calls[1][1]["budget_bytes"], 8192)
-        self.assertEqual(protocol.calls[3][1]["mode"], "auto")
-        self.assertIsNone(protocol.calls[5][1]["disposition"])
+        self.assertEqual(protocol.calls[2][1]["kind"], "context_fragment")
+        self.assertEqual(protocol.calls[2][1]["target"], "NOTE-1")
+        self.assertEqual(protocol.calls[4][1]["mode"], "auto")
+        self.assertIsNone(protocol.calls[6][1]["disposition"])
 
     def test_construction_is_lazy_sticky_and_internal_failures_are_bounded(self) -> None:
         instances: list[FakeProtocol] = []

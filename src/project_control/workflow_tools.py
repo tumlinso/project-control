@@ -147,7 +147,7 @@ def register_workflow_tools(
         workflow_handle: str,
         kind: Literal[
             "task", "source", "evidence", "run", "lane", "decision", "messages",
-            "rendezvous", "workspace", "integration",
+            "rendezvous", "context_fragment", "workspace", "integration",
         ],
         target: str | None = None,
         budget_bytes: int = 8192,

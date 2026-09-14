@@ -108,6 +108,38 @@ class WorkflowReadModelTests(unittest.TestCase):
         self.assertNotIn("raw_log", encoded)
         self.assertLessEqual(len(overview.model_dump_json().encode()), 7000)
 
+    def test_unchanged_delta_omits_workflow_dashboard(self) -> None:
+        result = project_delta(self.snapshot, DeltaSince(todo_revision=42), {})
+        self.assertFalse(result.data["workflow_changed"])
+        self.assertNotIn("workflow", result.data)
+
+    def test_no_current_work_frontier_excludes_terminal_workflow_history(self) -> None:
+        snapshot = self.snapshot.model_copy(deep=True)
+        for task in snapshot.todo_tables["tasks"]:
+            task["status"] = "done"
+        snapshot.todo_status["active_claims"] = []
+        workflow = snapshot.todo_workflow
+        workflow["runs"][0]["status"] = "completed"
+        for lane in workflow["runs"][0]["lanes"]:
+            lane["state"] = "closed"
+            for item in lane["queue"]:
+                item["state"] = "completed"
+        workflow["rendezvous"][0]["state"] = "satisfied"
+        workflow["integration_queue"][0]["state"] = "integrated"
+        workflow["blocking_messages"][0]["state"] = "resolved"
+        workflow["unresolved_questions"] = []
+        workflow["recovery_needed"] = []
+        workflow["safe_parallel_groups"] = [["a-child", "z-parent"]]
+        result = project_frontier(snapshot, max_ready=20)
+        encoded = result.model_dump_json()
+        self.assertEqual(result.data["ready"], [])
+        self.assertNotIn("lane_frontier", result.data)
+        self.assertNotIn("rendezvous", result.data)
+        self.assertNotIn("integration_queue", result.data)
+        self.assertNotIn("a-child", encoded)
+        self.assertNotIn("z-parent", encoded)
+        self.assertLess(len(encoded.encode()), 2_000)
+
     def test_existing_subsystem_inspection_resolves_lane_hierarchy_and_patches(self) -> None:
         lane = inspect_subject(self.config, self.snapshot, InspectInput(project="demo", kind="subsystem", target="a-child"))
         relations = {(item["relation"], item["type"], item["id"]) for item in lane.data["related"]}

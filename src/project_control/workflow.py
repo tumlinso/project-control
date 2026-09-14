@@ -168,9 +168,15 @@ def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50, actionab
         if isinstance(result.get("active_run"), dict):
             run = result["active_run"]
             run["lanes"] = live(list(run.get("lanes", [])))
+            live_members = {str(lane.get("id")) for lane in run["lanes"] if lane.get("id")}
             for lane in run["lanes"]:
                 lane["serial_queue"] = live(list(lane.get("serial_queue", [])))
                 lane["queue_items_omitted"] = 0
+                live_members.update(str(item.get("task_id")) for item in lane["serial_queue"] if item.get("task_id"))
+            result["safe_parallel_groups"] = [
+                [member for member in group if str(member) in live_members]
+                for group in result["safe_parallel_groups"]
+            ]
         result["first_class_agents"] = live(list(result["first_class_agents"]))
         result["subordinate_local_children"] = live(list(result["subordinate_local_children"]))
         result["safe_parallel_groups"] = [group for group in result["safe_parallel_groups"] if group]

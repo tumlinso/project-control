@@ -44,7 +44,7 @@ INPUT_SCHEMA_SHA256 = {
     "performance_status": "c50251ba7af1c1ff5659c218e93f489d8826dc68c330ddaa1b68f9c5219547b7",
     "architecture_context": "18d23a7572db9126d06945dda0eff15f98e8ec5983647ddd62144440e281e81e",
     "coordination_view": "470dae037b5460bec0b8c1d8450525be878b04385d235c8cb3cb7e6cb20b39bb",
-    "source_context": "7f0f61c5d6116b28e30976cd3c95071eb99fab9fae4d7c22e1318fbc1aa8cc97",
+    "source_context": "71022a1bb7666f4009ceda0f65f15a80969ec2fd9d5461e932c00301a5128d87",
     "history_trace": "2089fda1a35f72b6700b2aded9d521b4b31bdb2c21026438f41f34b57a6d3abe",
     "impact_preview": "088c19084ee669c2075554785f5f127113b120cdf5656825d4c492b01db2cc63",
     "program_context": "8dffbb402cec796026659a94db8e550df00c4baeb6e87050f1aabda84e246263",
