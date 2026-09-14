@@ -7,6 +7,7 @@ from ..adapters.todo import TodoReadAdapter, TodoReadError
 from ..models import DeltaSince, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_envelope, bounded_payload
 from ..workflow import workflow_summary, workflow_warnings
+from ..context_fragments import canonical_context_fragments
 
 
 def _category(event_type: str) -> str:
@@ -34,7 +35,7 @@ def _workflow_collection(event_type: str) -> str:
         (("workflow.lane",), "lanes"),
         (("workflow.dispatch",), "dispatches"),
         (("workflow_message", "workflow_messages", "message."), "messages"),
-        (("workflow_context_fragment",), "context_fragments"),
+        (("workflow_context_fragment", "context_fragment.", "publish_context"), "context_fragments"),
         (("workflow_rendezvous",), "rendezvous"),
         (("workflow_workspace", "workspace."), "workspaces"),
         (("workflow_patch", "workflow_artifact", "patch."), "patches"),
@@ -180,6 +181,7 @@ def project_delta(
     semantic_view = dict(semantic_delta)
     if "material_events" in semantic_view:
         semantic_view["material_events"] = semantic_view["material_events"][:max_items] if detail == "implementation" else []
+    note_ids = {str(item.get("id")) for item in canonical_context_fragments(snapshot) if item.get("kind") == "context_note"}
     workflow_events = [
         {
             "revision": item.get("revision"),
@@ -194,6 +196,10 @@ def project_delta(
         and _is_workflow_event(str(item.get("event_type", "")))
         and not any(word in str(item.get("event_type", "")).casefold() for word in ("heartbeat", "pulse", "receipt", "cursor"))
     ]
+    for item in workflow_events:
+        if _workflow_collection(str(item.get("type") or "")) == "context_fragments" and str(item.get("subject")) in note_ids:
+            item["context_kind"] = "context_note"
+            item["authority_label"] = "non_authoritative_context"
     workflow_changes: dict[str, list[dict[str, Any]]] = {}
     for item in workflow_events:
         collection = _workflow_collection(str(item.get("type") or ""))

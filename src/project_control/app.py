@@ -148,7 +148,7 @@ SourceKind = Literal["path", "symbol", "subsystem", "text"]
 SourceSelectorIntent = Literal["architecture", "implementation", "debug", "review", "performance"]
 SourceRelation = Literal[
     "definitions", "references", "callers", "callees", "tests", "build_config_references",
-    "documentation", "recent_changes", "task_ownership", "interfaces", "performance_evidence",
+    "documentation", "recent_changes", "task_ownership", "interfaces", "performance_evidence", "context_notes",
 ]
 
 

@@ -20,6 +20,7 @@ from ..source_index import SourceLexicalIndex, source_path_priority
 from ..subprocesses import CommandError
 from ..worktrees import WorktreeCatalog, WorktreeSelectionError
 from ..retrieval import economical_record
+from ..context_fragments import active as active_fragment, canonical_context_fragments, path_or_symbol_matches, project_fragment
 
 
 def _cursor(identity: str, offset: int) -> str:
@@ -295,6 +296,13 @@ def source_context(
                     if isinstance(record, dict) and relation_token.casefold() in json.dumps(record, sort_keys=True, default=str).casefold()
                 ]
                 item["performance_evidence"] = evidence[:30]
+            if "context_notes" in request.requested_relations:
+                item["context_notes"] = [
+                    project_fragment(fragment, detail=request.detail)
+                    for fragment in canonical_context_fragments(snapshot)
+                    if fragment.get("kind") == "context_note" and active_fragment(fragment)
+                    and path_or_symbol_matches(fragment, target.value, target.kind)
+                ][:30]
         except (SecurityError, OSError, ValueError, CommandError, sqlite3.Error) as exc:
             item.update(status="unavailable", error=str(exc))
             warnings.append("source_target_unavailable")

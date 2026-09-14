@@ -10,8 +10,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-from project_control.models import ProjectSnapshot, RepositoryIdentity, SourceContextInput, SourceTarget
+from project_control.models import EvidenceInput, ProjectSnapshot, RepositoryIdentity, SourceContextInput, SourceTarget
 from project_control.services.source_context import source_context
+from project_control.services.evidence import evidence_for
 from project_control.source_index import SourceLexicalIndex
 
 
@@ -98,6 +99,39 @@ class SourceContextTests(unittest.TestCase):
         self.assertEqual("bounded_git_grep", target["source"])
         self.assertIn("semantic_context_unavailable", target["warnings"])
         self.assertFalse((self.root / ".ctxpp").exists())
+
+    def test_context_note_descendant_anchor_is_non_authoritative_and_staleness_is_visible(self) -> None:
+        self.snapshot.todo_tables["workflow_context_fragments"] = [{
+            "id": "NOTE-1", "kind": "context_note", "series_key": "cuda-layout", "version": 1,
+            "state": "current", "content_json": json.dumps({
+                "authority": "non_authoritative_context",
+                "anchors": [{"kind": "directory", "value": "src"}],
+                "classification": "implementation_insight",
+                "content": {"summary": "layout requires aligned blocks"},
+                "source_identity": {"repository": "source", "commit": "0" * 40},
+            }),
+        }, {
+            "id": "NOTE-OTHER", "kind": "context_note", "content_json": json.dumps({
+                "anchors": [{"kind": "path", "value": "docs"}], "content": {"summary": "unrelated"},
+            }),
+        }]
+        result = self.call([SourceTarget(kind="path", value="src/module.py")], requested_relations=["context_notes"])
+        notes = result.data["targets"][0]["context_notes"]
+        self.assertEqual([note["id"] for note in notes], ["NOTE-1"])
+        self.assertEqual(notes[0]["authority"], "non_authoritative_context")
+        self.assertEqual(notes[0]["source_freshness"], "potentially_stale")
+
+    def test_evidence_summary_keeps_note_finding_and_marks_stale_source(self) -> None:
+        self.snapshot.todo_tables["context_fragments"] = [{
+            "id": "NOTE-E", "kind": "context_note", "content_json": json.dumps({
+                "anchors": [{"kind": "task", "value": "T1"}], "content": {"summary": "preserve block order"},
+                "source_identity": {"repository": "source", "commit": "f" * 40},
+            }),
+        }]
+        result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["context"]))
+        self.assertEqual(result.data["stale_or_historical"][0]["content"]["summary"], "preserve block order")
+        self.assertEqual(result.data["stale_or_historical"][0]["authority_label"], "non_authoritative_context")
+        self.assertNotIn("source_identity", result.data["stale_or_historical"][0])
 
     def test_relation_contract_is_explicit_when_semantic_edges_are_unavailable(self) -> None:
         self.snapshot.todo_tables = {

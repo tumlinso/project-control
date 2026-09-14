@@ -168,7 +168,7 @@ def register_workflow_tools(
     def coordinate_task(
         workflow_handle: str,
         action: Literal[
-            "sync", "fork", "message", "answer", "arrive", "publish_interface",
+            "sync", "fork", "message", "answer", "arrive", "publish_interface", "publish_context",
             "run_gates", "request_integration", "accept_child", "reject_child",
         ],
         payload: dict[str, object] | None = None,

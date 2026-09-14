@@ -58,6 +58,21 @@ class ArchitectureContextTests(unittest.TestCase):
         self.assertNotIn("CP-MATH-17", ids)
         self.assertTrue(all(item["authority_label"] == "missing_evidence" for item in result.data["open_assumptions_or_missing_evidence"]))
 
+    def test_compact_includes_only_query_connected_authored_context(self) -> None:
+        snapshot = cellerator_snapshot()
+        snapshot.todo_tables["workflow_context_fragments"] = [
+            {"id": "NOTE-KERNEL", "kind": "context_note", "content_json": json.dumps({
+                "anchors": [{"kind": "symbol", "value": "Kernel"}], "content": {"summary": "Scheduling keeps warp order"},
+            })},
+            {"id": "NOTE-OTHER", "kind": "context_note", "content_json": json.dumps({
+                "anchors": [{"kind": "symbol", "value": "Other"}], "content": {"summary": "Unrelated caching detail"},
+            })},
+        ]
+        result = architecture_context(snapshot, ArchitectureContextInput(
+            project="cellerator", question="How does Kernel scheduling work?", detail="compact",
+        ))
+        self.assertEqual([item["id"] for item in result.data["non_authoritative_context_notes"]], ["NOTE-KERNEL"])
+
 
 if __name__ == "__main__":
     unittest.main()

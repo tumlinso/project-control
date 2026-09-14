@@ -10,6 +10,7 @@ from ..graph import ProjectGraph
 from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
 from ..workflow import workflow_summary
+from ..context_fragments import active as active_fragment, canonical_context_fragments, matches_subject, project_fragment
 
 
 def _linked(subject: str, item: dict[str, Any], fields: tuple[str, ...]) -> bool:
@@ -139,11 +140,24 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
         "architecture": (("interfaces", "invariants"), "architecture"),
         "decision": (("decisions",), "decision"),
         "message": (("workflow_messages", "messages"), "message"),
-        "context": (("context_fragments", "run_context_fragments"), "context"),
+        "context": (("context_fragments", "run_context_fragments", "workflow_context_fragments"), "context"),
         "workspace": (("workflow_workspaces", "workspaces", "workflow_patch_artifacts"), "workspace"),
         "integration": (("workflow_integration_queue", "integration_requests"), "integration"),
     }
     for requested_kind in sorted(kinds & durable_kinds.keys()):
+        if requested_kind == "context":
+            for record in canonical_context_fragments(snapshot):
+                if not matches_subject(record, request.subject):
+                    continue
+                entry = {"kind": "context", **project_fragment(record, detail="expanded" if request.detail == "provenance" else "standard")}
+                if request.detail == "summary":
+                    entry.pop("source_identity", None)
+                    entry.pop("content_hash", None)
+                entry["authority_label"] = "non_authoritative_context" if record.get("kind") == "context_note" else "durable_export_enrichment"
+                entry["evidence_state"] = "stale" if not active_fragment(record) or record.get("source_freshness") == "potentially_stale" else "current_support"
+                (stale if entry["evidence_state"] == "stale" else support).append(entry)
+                provenance.append(f"todo-context:{record.get('id')}")
+            continue
         tables, label = durable_kinds[requested_kind]
         for table in tables:
             for record in snapshot.todo_tables.get(table, []):

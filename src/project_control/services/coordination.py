@@ -6,6 +6,7 @@ from ..coordination import decode_cursor, encode_cursor, observation_identity, p
 from ..models import CoordinationViewInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_envelope
 from ..workflow import workflow_view
+from ..context_fragments import active as active_fragment, canonical_context_fragments, matches_scope, project_fragment
 
 
 BUDGETS = {"compact": 24 * 1024, "standard": 48 * 1024, "expanded": 96 * 1024}
@@ -62,19 +63,14 @@ def _durable_messages(snapshot: ProjectSnapshot, request: CoordinationViewInput)
 
 def _fragments(snapshot: ProjectSnapshot, request: CoordinationViewInput) -> list[dict[str, Any]]:
     result = []
-    for row in snapshot.todo_tables.get("workflow_context_fragments", []):
-        if not _matches(request, run_id=row.get("run_id"), lane_id=row.get("lane_id"), task_id=row.get("task_id")):
+    for row in canonical_context_fragments(snapshot):
+        if not matches_scope(row, run_id=request.run_id, lane_id=request.lane_id, task_id=request.task_id):
             continue
-        fragment = {
-            **_pick(row, (
-                "id", "run_id", "lane_id", "task_id", "kind", "version", "content_hash",
-                "creation_revision", "created_at", "invalidated_at", "invalidation_revision", "superseded_by",
-            )),
-            "owner_scope": parse_json(row.get("owner_scope_json"), {}),
-            "authority": "durable_export_enrichment",
-        }
-        if request.detail == "expanded":
-            fragment["content"] = parse_json(row.get("content_json"), {})
+        # Compact only returns active authored context directly scoped to the
+        # requested workflow subject; generated manifests belong to richer reads.
+        if request.detail == "compact" and (row.get("kind") != "context_note" or not active_fragment(row) or not (request.run_id or request.lane_id or request.task_id)):
+            continue
+        fragment = project_fragment(row, detail=request.detail)
         result.append(fragment)
     return sorted(result, key=lambda item: (
         str(item.get("run_id", "")), str(item.get("lane_id", "")),

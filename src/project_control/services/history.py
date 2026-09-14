@@ -9,6 +9,7 @@ from ..models import HistoryTraceInput, ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_envelope
 from ..reconcile import ProjectReconciler
 from ..retrieval import authority_label, event_sort_key, material_event, page, records_from_tables
+from ..context_fragments import canonical_context_fragments, matches_subject, project_fragment
 
 
 BUDGETS = {"compact": 16 * 1024, "standard": 48 * 1024, "expanded": 96 * 1024}
@@ -63,8 +64,8 @@ def history_trace(snapshot: ProjectSnapshot, request: HistoryTraceInput) -> Tool
         events.append(_event("todo_event_log", "event", record))
 
     tables = {
-        "decisions": "decision", "interfaces": "interface", "context_fragments": "context_fragment",
-        "run_context_fragments": "context_fragment", "workflow_messages": "message", "messages": "message",
+        "decisions": "decision", "interfaces": "interface",
+        "workflow_messages": "message", "messages": "message",
         "rendezvous_arrivals": "rendezvous_arrival", "workspace_events": "workspace",
         "patch_artifacts": "patch_artifact", "integration_requests": "integration", "handoffs": "handoff",
         "checkpoints": "checkpoint", "gates": "gate", "git_commits": "git_commit",
@@ -73,6 +74,16 @@ def history_trace(snapshot: ProjectSnapshot, request: HistoryTraceInput) -> Tool
         if subject_ids.isdisjoint(_identity(record)):
             continue
         events.append(_event(f"todo_export:{table}", tables[table], record))
+
+    # Aliased context exports are one semantic stream, including authored
+    # findings whose anchor/content is the requested subject.
+    for record in canonical_context_fragments(snapshot):
+        if not matches_subject(record, request.subject):
+            continue
+        event = _event("todo_export:context_fragments", "context_fragment", project_fragment(record, detail="expanded"))
+        event["authority_label"] = record.get("authority")
+        event["context_kind"] = record.get("kind")
+        events.append(event)
 
     workflow = snapshot.todo_workflow if isinstance(snapshot.todo_workflow, dict) else {}
     for name, kind in (("blocking_messages", "message"), ("unresolved_questions", "message"), ("rendezvous", "rendezvous"), ("patch_artifacts", "patch_artifact"), ("integration_queue", "integration")):

@@ -390,7 +390,7 @@ class SourceContextInput(BaseModel):
     intent: Literal["architecture", "implementation", "debug", "review", "performance"] = "implementation"
     requested_relations: list[Literal[
         "definitions", "references", "callers", "callees", "tests", "build_config_references",
-        "documentation", "recent_changes", "task_ownership", "interfaces", "performance_evidence",
+        "documentation", "recent_changes", "task_ownership", "interfaces", "performance_evidence", "context_notes",
     ]] = Field(default_factory=list, max_length=16)
     detail: Literal["compact", "standard", "expanded"] = "standard"
     budget_bytes: int = Field(default=48 * 1024, ge=1024, le=128 * 1024)

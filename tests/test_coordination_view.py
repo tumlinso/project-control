@@ -106,6 +106,20 @@ class CoordinationViewTests(unittest.TestCase):
         self.assertNotIn("subordinate_local_children", result.data)
         self.assertIn("identity_digest", result.cursor.model_dump(mode="json"))
 
+    def test_compact_scoped_note_can_match_virtual_task_anchor(self) -> None:
+        snapshot = self.snapshot()
+        snapshot.todo_tables["context_fragments"] = [{
+            "id": "NOTE-1", "kind": "context_note", "task_id": "OLD-TASK", "content_json": json.dumps({
+                "anchors": [{"kind": "task", "value": "T-A"}], "content": {"summary": "keep interface ordering"},
+            }),
+        }, {
+            "id": "NOTE-PROJECT", "kind": "context_note", "content_json": json.dumps({"content": {"summary": "global"}}),
+        }]
+        scoped = coordination_view(snapshot, CoordinationViewInput(project="demo", task_id="T-A", detail="compact"))
+        self.assertEqual([item["id"] for item in scoped.data["context_fragments"]], ["NOTE-1"])
+        unscoped = coordination_view(snapshot, CoordinationViewInput(project="demo", detail="compact"))
+        self.assertNotIn("context_fragments", unscoped.data)
+
 
 if __name__ == "__main__":
     unittest.main()

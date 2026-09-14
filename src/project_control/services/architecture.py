@@ -11,6 +11,7 @@ from ..normalize import bounded_envelope
 from ..reconcile import ProjectReconciler
 from ..retrieval import economical_record, is_current, page, relevance_priority
 from ..workflow import workflow_view, workflow_warnings
+from ..context_fragments import active as active_fragment, canonical_context_fragments, matches_question, project_fragment
 
 
 BUDGETS = {"compact": 16 * 1024, "standard": 48 * 1024, "expanded": 128 * 1024}
@@ -84,6 +85,13 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
                 "charter": charter, "authority_label": "authoritative_fact", "source": "todo_semantic_workflow",
             })
 
+    context_notes = [
+        project_fragment(fragment, detail=request.detail)
+        for fragment in canonical_context_fragments(snapshot)
+        if fragment.get("kind") == "context_note" and active_fragment(fragment)
+        and matches_question(fragment, request.question)
+    ][:request.max_items]
+
     risks = [
         {"kind": "contradiction", "record": item, "authority_label": "authoritative_fact", "source": "todo_semantic_state"}
         for item in reconciled.contradictions[:request.max_items]
@@ -135,6 +143,7 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
         "tests_gates_and_evidence": entities("gate", "checkpoint", "evidence"),
         "performance_assumptions": entities("cuda_campaign", "cuda_result"),
         "run_and_context_commitments": run_commitments[:request.max_items],
+        "non_authoritative_context_notes": context_notes,
         "boundaries_and_non_goals": [
             {"value": item, "authority_label": "authoritative_fact", "source": "run_charter"}
             for run in workflow.get("runs", []) if isinstance(run, dict)
@@ -183,6 +192,8 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
         }
         if risks:
             data["risks_and_contradictions"] = risks
+        if context_notes:
+            data["non_authoritative_context_notes"] = context_notes
         if not selected:
             data["no_strong_architectural_match"] = True
             data["next_inspection_targets"] = data["next_inspection_targets"] or [

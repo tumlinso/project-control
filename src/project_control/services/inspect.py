@@ -15,6 +15,7 @@ from ..reconcile import ProjectReconciler
 from ..registry import WorkspaceRegistry
 from ..security import SecurityError, read_bounded_text, resolve_registered_path
 from ..subprocesses import CommandError
+from ..context_fragments import canonical_context_fragments, project_fragment
 
 
 TABLES = {
@@ -83,9 +84,11 @@ def inspect_subject(
     resolution = graph.resolve(request.target, expected_types=expected)
     if request.kind in TABLES:
         warnings.extend(snapshot.warnings_for("todo"))
-        rows = snapshot.todo_tables.get(TABLES[request.kind], [])
+        rows = canonical_context_fragments(snapshot) if request.kind == "context_fragment" else snapshot.todo_tables.get(TABLES[request.kind], [])
         matches = [row for row in rows if request.target in {str(row.get("id")), str(row.get("task_id")), str(row.get("owner_task_id")), str(row.get("checkpoint_id")), str(row.get("interface_id"))}]
-        if resolution["status"] == "resolved":
+        if request.kind == "context_fragment":
+            matches = [project_fragment(row, detail="expanded") for row in rows if str(row.get("id")) == request.target]
+        if resolution["status"] == "resolved" and request.kind != "context_fragment":
             entity = resolution["entity"]
             matches = [entity["record"]]
             data.update(
