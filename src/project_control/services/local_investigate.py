@@ -29,6 +29,7 @@ from ..normalize import bounded_envelope, bounded_payload
 
 PROTOCOL = "PC-LOCAL-INVESTIGATOR-TURN/1"
 SYSTEM_PROMPT_VERSION = "PC-LOCAL-INVESTIGATOR/1"
+CAPABILITIES = ("orient", "search_source", "read_source", "inspect", "inspect_workflow", "inspect_machine", "answer")
 SYSTEM_PROMPT = """PC-LOCAL-INVESTIGATOR/1
 You are a read-only investigator. You have no tools, filesystem, shell, Git, MCP,
 Todo, network, repository handle, mutation authority, or ability to delegate.
@@ -381,6 +382,7 @@ def local_investigate(
         must_answer = force_answer or round_number == limits.rounds - 1 or deadline_at - time.monotonic() < 30
         turn_request = {"protocol": PROTOCOL, "system_prompt_version": SYSTEM_PROMPT_VERSION,
             "system_prompt": FINAL_SYSTEM_PROMPT if must_answer else SYSTEM_PROMPT, "question": request.question, "effort": request.effort,
+            "capabilities": CAPABILITIES,
             "max_tokens": {"quick": 1024, "standard": 2048, "deep": 2048}[request.effort],
             "timeout_seconds": min(90.0, max(0.05, deadline_at - time.monotonic())),
             "must_answer": must_answer,

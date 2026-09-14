@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import LocalInvestigateInput, ProjectSnapshot, RepositoryIdentity, envelope
-from project_control.services.local_investigate import LIMITS, PROTOCOL, SYSTEM_PROMPT, Limits, local_investigate
+from project_control.services.local_investigate import CAPABILITIES, LIMITS, PROTOCOL, SYSTEM_PROMPT, Limits, local_investigate
 
 
 def snapshot(commit: str = "a" * 40) -> ProjectSnapshot:
@@ -27,6 +27,14 @@ def answer(evidence_id: str) -> dict:
 
 
 class LocalInvestigateTests(unittest.TestCase):
+    def test_empty_snapshot_returns_structured_read_only_fallback(self) -> None:
+        empty = ProjectSnapshot(workspace_id="demo", observed_at="2026-01-01T00:00:00Z", repositories={})
+        result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
+            snapshot=empty, snapshot_getter=lambda: empty, model_turn=lambda _: self.fail("model must not run"))
+        self.assertEqual(result.data["status"], "partial")
+        self.assertFalse(result.data["authoritative"])
+        self.assertIn("project_has_no_repository", result.warnings)
+
     def test_first_turn_is_model_directed_and_has_no_preselected_evidence(self) -> None:
         initial, inputs = snapshot(), []
         first = {"turn": {"action": "search_source", "requests": [{"targets": [{"value": "machine_inspection"}]}]}}
@@ -40,6 +48,7 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(inputs[0]["evidence"], [])
         self.assertEqual(inputs[0]["issued_evidence"], [])
         self.assertNotIn("working_state", inputs[0])
+        self.assertEqual(inputs[0]["capabilities"], CAPABILITIES)
         self.assertEqual(PROTOCOL, "PC-LOCAL-INVESTIGATOR-TURN/1")
         self.assertIn("first turn can contain no evidence", SYSTEM_PROMPT)
         self.assertIn("candidates, not proof", SYSTEM_PROMPT)
@@ -110,6 +119,74 @@ class LocalInvestigateTests(unittest.TestCase):
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
         self.assertEqual(result.data["status"], "ok")
         self.assertEqual(inspect_machine.call_args.kwargs["diagnostic"], "host_memory")
+
+    def test_successful_answer_is_evidence_linked_and_compact(self) -> None:
+        initial = snapshot()
+        turns = iter([
+            {"turn": {"action": "orient", "requests": [{"question": "q"}]}},
+            {"turn": {"action": "answer", "requests": [], "answer": {
+                "summary": "The broker is read-only.",
+                "facts": [{"text": "Orientation was supplied.", "evidence_ids": ["E1"]}],
+                "inferences": [], "uncertainty": [], "citations": ["E1"]}}},
+        ])
+        orientation = envelope("architecture_context", initial, {"repository": "source", "source_commit": "a" * 40,
+            "targets": [{"path": "src/project_control/app.py", "line_start": 1, "line_end": 20}]})
+        with patch("project_control.services.local_investigate.architecture_context", return_value=orientation):
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
+        self.assertEqual(result.data["status"], "ok")
+        self.assertFalse(result.data["authoritative"])
+        self.assertFalse(result.data["mutation_authority"])
+        self.assertEqual(result.data["evidence_index"][0]["locations"][0]["path"], "src/project_control/app.py")
+        self.assertIn("evidence_digest", result.data["evidence_index"][0])
+        self.assertEqual(result.cursor.identity_digest, initial.identity_digest())
+        self.assertEqual(result.cursor.worktrees, {})
+
+    def test_uncited_or_oversized_final_is_not_accepted(self) -> None:
+        initial = snapshot()
+        seed = {"turn": {"action": "orient", "requests": [{"question": "q"}]}}
+        uncited = {"turn": {"action": "answer", "requests": [], "answer": {
+            "summary": "unsupported", "facts": [], "inferences": [], "uncertainty": [], "citations": []}}}
+        oversized = {"turn": {"action": "answer", "requests": [], "answer": {
+            "summary": "x" * 7999, "facts": [{"text": "y" * 3999, "evidence_ids": ["E1"]} for _ in range(4)],
+            "inferences": [], "uncertainty": [], "citations": ["E1"]}}}
+        orientation = envelope("architecture_context", initial, {"repository": "source"})
+        with patch("project_control.services.local_investigate.architecture_context", return_value=orientation):
+            first_turns, second_turns = iter([seed, uncited]), iter([seed, oversized])
+            first = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,
+                snapshot_getter=lambda: initial, model_turn=lambda _: next(first_turns))
+            second = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,
+                snapshot_getter=lambda: initial, model_turn=lambda _: next(second_turns))
+        self.assertIn("local_model_final_invalid", first.warnings)
+        self.assertIn("local_model_final_invalid", second.warnings)
+
+    def test_fenced_json_batched_reads_and_citation_filtering_remain_validated(self) -> None:
+        initial, calls = snapshot(), []
+        fenced = {"text": "```json\n{\"action\":\"search_source\",\"requests\":[{\"targets\":[{\"value\":\"needle\"}]},{\"targets\":[{\"value\":\"other\"}]}]}\n```"}
+        bad_final = {"turn": {"action": "answer", "requests": [], "answer": {
+            "summary": "done", "facts": [], "inferences": [], "uncertainty": [], "citations": ["E1", "E2", "not-issued"]}}}
+        def read(*args, **kwargs):
+            calls.append(args[2]); return envelope("source_context", initial, {"safe": True})
+        turns = iter([fenced, bad_final])
+        with patch("project_control.services.local_investigate.source_context", side_effect=read):
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(item.source_selector == "a" * 40 for item in calls))
+        self.assertIn("local_model_final_has_unissued_citation", result.warnings)
+
+    def test_bad_model_and_extra_read_parameters_are_clean_partials(self) -> None:
+        initial = snapshot()
+        malformed = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,
+            snapshot_getter=lambda: initial, model_turn=lambda _: {"turn": "not json"})
+        rejected = {"turn": {"action": "inspect_workflow", "requests": [{"hidden": "no"}]}}
+        result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", effort="quick"), snapshot=initial,
+            snapshot_getter=lambda: initial, model_turn=lambda _: rejected)
+        self.assertEqual(malformed.data["status"], "partial")
+        self.assertIn("local_model_turn_invalid_or_unavailable", malformed.warnings)
+        self.assertIn("investigator_read_request_rejected", result.warnings)
+        self.assertNotIn("evidence", result.data)
+        self.assertLess(len(str(result.model_dump(mode="json")).encode()), 48 * 1024 + 4096)
 
     def test_rejects_unissued_working_state(self) -> None:
         initial = snapshot()
