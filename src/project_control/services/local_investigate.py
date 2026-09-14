@@ -513,6 +513,7 @@ def local_investigate(
         trace_round: dict[str, Any] = {"round": round_number + 1, "must_answer": must_answer,
             "model_context_bytes": context_bytes, "calls": [], "evidence_ids": [],
             "transcript_compacted": compacted}
+        raw: dict[str, Any] | None = None
         try:
             model_context_bytes += context_bytes
             rounds_completed += 1
@@ -541,8 +542,14 @@ def local_investigate(
             if must_answer:
                 messages.append({"role": "user", "content": FINAL_SYSTEM_PROMPT})
             messages.append({"role": "assistant", "content": assistant_content})
-        except (Exception, ValidationError, ValueError, json.JSONDecodeError):
+        except (Exception, ValidationError, ValueError, json.JSONDecodeError) as error:
             trace_round["event"] = "model_invalid_or_unavailable"
+            trace_round["parse_failure"] = {
+                "exception_class": type(error).__name__,
+                "reason": str(error)[:500],
+                "model_status": raw.get("status") if isinstance(raw, dict) else None,
+                "response_metadata": raw.get("response_metadata", {}) if isinstance(raw, dict) else {},
+            }
             trajectory.append(trace_round)
             warnings.append("local_model_turn_invalid_or_unavailable")
             return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_turn_invalid_or_unavailable"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=warnings, compact_identity=True), 48 * 1024)

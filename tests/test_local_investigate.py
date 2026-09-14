@@ -275,13 +275,20 @@ class LocalInvestigateTests(unittest.TestCase):
 
     def test_bad_model_and_extra_read_parameters_are_clean_partials(self) -> None:
         initial = snapshot()
-        malformed = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,
-            snapshot_getter=lambda: initial, model_turn=lambda _: {"turn": "not json"})
+        malformed = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", detail="trace"), snapshot=initial,
+            snapshot_getter=lambda: initial, model_turn=lambda _: {"turn": "not json", "status": "available",
+                "response_metadata": {"finish_reason": "tool_calls", "message": {
+                    "content_present": True, "content_characters": 8,
+                    "content_prefix": "not json", "tool_calls": {"type": "array", "length": 1}}}})
         rejected = {"turn": {"action": "inspect_workflow", "requests": [{"hidden": "no"}]}}
         result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", effort="quick"), snapshot=initial,
             snapshot_getter=lambda: initial, model_turn=lambda _: rejected)
         self.assertEqual(malformed.data["status"], "partial")
         self.assertIn("local_model_turn_invalid_or_unavailable", malformed.warnings)
+        failure = malformed.data["trace"]["rounds"][0]["parse_failure"]
+        self.assertEqual(failure["exception_class"], "JSONDecodeError")
+        self.assertEqual(failure["response_metadata"]["finish_reason"], "tool_calls")
+        self.assertEqual(failure["response_metadata"]["message"]["content_prefix"], "not json")
         self.assertIn("investigator_read_request_rejected", result.warnings)
         self.assertNotIn("evidence", result.data)
         self.assertLess(len(str(result.model_dump(mode="json")).encode()), 48 * 1024 + 4096)
