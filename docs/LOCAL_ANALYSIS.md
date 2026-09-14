@@ -1,7 +1,7 @@
 # Optional local observer analysis
 
 Project Control exposes `local_investigate(project, question, effort, detail,
-compute_profile)` as the preferred observer entry point. A versioned, bounded
+compute_profile, parallelism)` as the preferred observer entry point. A versioned, bounded
 conversational broker validates heterogeneous local-model read requests, executes
 them through read-only services or the isolated `exec_readonly` sandbox, and returns
 an evidence-linked answer separated into facts, inferences, and uncertainty.
@@ -14,6 +14,10 @@ runs the configured Qwen3-Coder-30B candidate on one two-GPU island. Switching
 profiles reuses only a compatible idle service; an incompatible idle service is
 evicted and the selected model is reloaded. Active generation is never evicted,
 and unavailable resources return the normal bounded unavailable result.
+Observer calls may set `parallelism` to `layer`, `row`, or `tensor` only with
+the wide profile for diagnostic comparisons; `default` preserves the configured
+split. Split changes reload an incompatible idle service and never interrupt an
+active generation. Unsupported modes fail visibly rather than falling back.
 
 The broker also accepts `inspect_machine` for bounded GPU, topology, process,
 memory, filesystem, Project Control service, kernel, device, log, and runtime

@@ -46,7 +46,7 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
                  mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
                 result = SkillsObserverAnalysisProvider(base / "observed").investigate_turn({
                     "protocol": "PC-LOCAL-INVESTIGATOR-TURN/2", "max_tokens": 123, "timeout_seconds": 12,
-                    "compute_profile": "wide", "messages": [{"role": "system", "content": "system"},
+                    "compute_profile": "wide", "parallelism": "row", "messages": [{"role": "system", "content": "system"},
                         {"role": "user", "content": "question"}, {"role": "assistant", "content": "prior"}],
                 })
             self.assertEqual(result["status"], "available")
@@ -55,6 +55,7 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
             self.assertEqual(captured[0]["messages"][1]["content"], "question")
             self.assertEqual(len(captured[0]["messages"]), 3)
             self.assertEqual(captured[0]["compute_profile"], "wide")
+            self.assertEqual(captured[0]["parallelism"], "row")
             self.assertEqual(captured[0]["max_tokens"], 123)
             self.assertEqual(captured[0]["timeout_seconds"], 12)
 

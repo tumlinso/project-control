@@ -41,14 +41,18 @@ class LocalInvestigateTests(unittest.TestCase):
         ])
         with patch("project_control.services.local_investigate.source_context", return_value=envelope("source_context", initial, {"targets": []})), \
              patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {"active_run_id": "r"})):
-            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", compute_profile="narrow"),
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", compute_profile="wide", parallelism="row"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertEqual(result.data["status"], "ok")
         self.assertEqual(result.data["metrics"]["reads_performed"], 2)
-        self.assertEqual(inputs[0]["compute_profile"], "narrow")
+        self.assertEqual((inputs[0]["compute_profile"], inputs[0]["parallelism"]), ("wide", "row"))
         self.assertEqual([item["role"] for item in inputs[1]["messages"][-2:]], ["assistant", "user"])
         self.assertIn('"id":"E1"', inputs[1]["messages"][-1]["content"])
         self.assertIn('"id":"E2"', inputs[1]["messages"][-1]["content"])
+
+    def test_explicit_parallelism_requires_wide_profile(self) -> None:
+        with self.assertRaisesRegex(ValueError, "requires compute_profile='wide'"):
+            LocalInvestigateInput(project="demo", question="q", compute_profile="narrow", parallelism="tensor")
 
     def test_transcript_compaction_preserves_origin_recent_pair_and_state(self) -> None:
         messages = [{"role": "system", "content": "system"}, {"role": "user", "content": "question"}]
@@ -68,20 +72,21 @@ class LocalInvestigateTests(unittest.TestCase):
         initial, inputs = snapshot(), []
         private = "/home/tumlinson/project-control/src/project_control/services/machine_inspection.py"
         turns = iter([
-            {"turn": {"action": "continue", "calls": [{"tool": "exec_readonly", "arguments": {
+            {"parallelism": "row", "turn": {"action": "continue", "calls": [{"tool": "exec_readonly", "arguments": {
                 "argv": ["rg", "machine_inspection", private], "cwd": "/home/tumlinson/project-control"}}]}},
-            {"turn": {"action": "answer", "calls": [], "answer": {"summary": "found", "facts": [
+            {"parallelism": "row", "turn": {"action": "answer", "calls": [], "answer": {"summary": "found", "facts": [
                 {"text": "found", "evidence_ids": ["E1"]}], "inferences": [], "uncertainty": [], "citations": ["E1"]}}},
         ])
         with patch("project_control.services.local_investigate.exec_readonly", return_value={
             "status": "ok", "argv": ["rg", private], "cwd": "/home/tumlinson/project-control",
             "returncode": 0, "stdout": private, "stderr": "", "elapsed_ms": 1}):
-            traced = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", detail="trace"),
+            traced = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", detail="trace", parallelism="row"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertIn(private, inputs[1]["messages"][-1]["content"])
         self.assertNotIn(private, str(traced.data["trace"]))
         self.assertNotIn(private, str(traced.data["evidence_index"]))
         self.assertEqual(traced.data["trace"]["rounds"][0]["calls"][0]["status"], "accepted")
+        self.assertEqual(traced.data["trace"]["parallelism"], "row")
         plain_turns = iter([{"turn": {"action": "continue", "calls": [{"tool": "inspect_workflow", "arguments": {}}]}}, answer("E1")])
         with patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {})):
             plain = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,

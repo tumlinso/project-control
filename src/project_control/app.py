@@ -270,8 +270,8 @@ def create_mcp(
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def local_investigate(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], effort: Literal["quick", "standard", "deep"] = "standard", detail: Literal["standard", "trace"] = "standard", compute_profile: Literal["narrow", "wide"] = "wide") -> dict[str, Any]:
-        request = LocalInvestigateInput(project=project, question=question, effort=effort, detail=detail, compute_profile=compute_profile)
+    def local_investigate(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], effort: Literal["quick", "standard", "deep"] = "standard", detail: Literal["standard", "trace"] = "standard", compute_profile: Literal["narrow", "wide"] = "wide", parallelism: Literal["default", "layer", "row", "tensor"] = "default") -> dict[str, Any]:
+        request = LocalInvestigateInput(project=project, question=question, effort=effort, detail=detail, compute_profile=compute_profile, parallelism=parallelism)
         def operation() -> ToolEnvelope:
             snapshot = runtime.snapshot(project)
             workspace = WorkspaceRegistry(active_config).workspace(project)
@@ -491,7 +491,7 @@ def create_mcp(
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request) -> JSONResponse:
-        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 5})
+        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 6})
 
     if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
         register_workflow_tools(mcp, protocol_factory=workflow_protocol)

@@ -400,6 +400,7 @@ def local_investigate(
     read_ms = 0.0
     warm_model_reused: bool | None = None
     model_id: str | None = None
+    resolved_parallelism = request.parallelism
     transcript_compactions = 0
     trajectory: list[dict[str, Any]] = []
 
@@ -414,6 +415,7 @@ def local_investigate(
             "read_ms": round(read_ms, 3),
             "warm_model_reused": warm_model_reused,
             "compute_profile": request.compute_profile,
+            "parallelism": resolved_parallelism,
         }
 
     def result_data(data: dict[str, Any]) -> dict[str, Any]:
@@ -421,7 +423,8 @@ def local_investigate(
         if request.detail == "trace":
             payload["trace"] = bounded_payload(redact_output({
                 "protocol": PROTOCOL, "compute_profile": request.compute_profile,
-                "model_id": model_id, "transcript_compactions": transcript_compactions,
+                "parallelism": resolved_parallelism, "model_id": model_id,
+                "transcript_compactions": transcript_compactions,
                 "rounds": trajectory,
             }), 12 * 1024)
         return payload
@@ -518,7 +521,7 @@ def local_investigate(
                 raw = model_turn({"protocol": PROTOCOL, "messages": call_messages,
                     "max_tokens": {"quick": 1024, "standard": 2048, "deep": 2048}[request.effort],
                     "timeout_seconds": min(90.0, max(0.05, deadline_at - time.monotonic())),
-                    "compute_profile": request.compute_profile})
+                    "compute_profile": request.compute_profile, "parallelism": request.parallelism})
             finally:
                 latency = (time.monotonic() - model_started) * 1000
                 model_ms += latency
@@ -527,9 +530,12 @@ def local_investigate(
             if warm_model_reused is None and isinstance(raw.get("warm_model_reused"), bool):
                 warm_model_reused = raw["warm_model_reused"]
             model_id = str(raw.get("model_id")) if raw.get("model_id") else model_id
+            if isinstance(raw.get("parallelism"), str):
+                resolved_parallelism = raw["parallelism"]
             trace_round.update({"model_ms": round(latency, 3), "usage": raw.get("usage", {}),
                                 "model_id": raw.get("model_id"), "warm_model_reused": raw.get("warm_model_reused"),
-                                "compute_profile": raw.get("compute_profile", request.compute_profile)})
+                                "compute_profile": raw.get("compute_profile", request.compute_profile),
+                                "parallelism": raw.get("parallelism", resolved_parallelism)})
             turn = _parse_turn(raw)
             assistant_content = json.dumps(turn.model_dump(mode="json", exclude_none=True), sort_keys=True, separators=(",", ":"))
             if must_answer:
