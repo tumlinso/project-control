@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import LocalInvestigateInput, ProjectSnapshot, RepositoryIdentity, envelope
-from project_control.services.local_investigate import CAPABILITIES, LIMITS, PROTOCOL, SYSTEM_PROMPT, Limits, local_investigate
+from project_control.services.local_investigate import CAPABILITIES, FINAL_SYSTEM_PROMPT, LIMITS, PROTOCOL, SYSTEM_PROMPT, Limits, local_investigate
 
 
 def snapshot(commit: str = "a" * 40) -> ProjectSnapshot:
@@ -52,6 +52,9 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(PROTOCOL, "PC-LOCAL-INVESTIGATOR-TURN/1")
         self.assertIn("first turn can contain no evidence", SYSTEM_PROMPT)
         self.assertIn("candidates, not proof", SYSTEM_PROMPT)
+        self.assertIn("normally prefer\nsearch_source over orient", SYSTEM_PROMPT)
+        self.assertIn("Tests, documentation, benchmarks, and callers", SYSTEM_PROMPT)
+        self.assertIn("exact implementation path or symbol", FINAL_SYSTEM_PROMPT)
 
     def test_search_verify_answer_preserves_bounded_evidence_backed_working_state(self) -> None:
         initial, inputs = snapshot(), []
