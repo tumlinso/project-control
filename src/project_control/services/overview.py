@@ -140,7 +140,10 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
             selected = compact_activity[key]
             if selected:
                 data[key] = selected
-    warnings = [*snapshot.warnings_for("todo", "cuda"), *reconciled.warnings, *workflow_warnings(snapshot)]
+    # CUDA is optional for a general project overview. Surface its condition
+    # only when current performance evidence actually participates in the view.
+    cuda_warnings = snapshot.warnings_for("cuda") if performance_attention else []
+    warnings = [*snapshot.warnings_for("todo"), *cuda_warnings, *reconciled.warnings, *workflow_warnings(snapshot)]
     result = envelope(
         "project_overview", snapshot, bounded_payload(data, BUDGETS[detail]),
         warnings=list(dict.fromkeys(warnings)), compact_identity=True,

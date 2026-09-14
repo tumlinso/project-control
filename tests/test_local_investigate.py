@@ -39,6 +39,11 @@ class LocalInvestigateTests(unittest.TestCase):
             _initial_route("Report the host MemTotal value from machine evidence only."),
             ("inspect_machine", ["host_memory"]),
         )
+        self.assertEqual(
+            _initial_route("Read host memory information and report MemTotal exactly as observed, without unit conversion or inference."),
+            ("inspect_machine", ["host_memory"]),
+        )
+        self.assertEqual(_initial_route("Summarize inference throughput."), ("orient", []))
         self.assertEqual(_initial_route("Give a summary"), ("orient", []))
 
     def test_narrow_source_seed_preserves_hits_and_populates_metrics(self) -> None:

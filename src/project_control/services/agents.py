@@ -54,23 +54,27 @@ def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput) -> ToolEn
                 "confidence": "authoritative",
                 "classification": "subordinate_local_child",
             })
-    local = snapshot.local_worker if request.include_local_services else {"status": "not_requested"}
     data = {
         "first_class_agents": first_class_agents,
-        "subordinate_local_children": children,
         "claim_observations": legacy_claims,
-        "legacy_child_observations": legacy_children if not workflow["available"] else [],
         "active_run_id": workflow.get("active_run_id"),
         "workflow_authority_available": bool(workflow["available"]),
         "stale_or_orphaned": snapshot.todo_status.get("orphaned_claims", []),
-        "local_services": local,
         "observer_jobs": [],
         "observable_only": True,
     }
+    if request.include_children:
+        data["subordinate_local_children"] = children
+        data["legacy_child_observations"] = legacy_children if not workflow["available"] else []
+    if request.include_local_services:
+        data["local_services"] = snapshot.local_worker
     warnings = [] if workflow["available"] else [str(workflow.get("reason") or "agent_state_unavailable")]
-    if not workflow["available"] and local.get("status") != "ok":
+    if not workflow["available"] and request.include_local_services and snapshot.local_worker.get("status") != "ok":
         warnings.append("agent_state_unavailable")
+    provider_warnings = snapshot.warnings_for("todo")
+    if request.include_local_services:
+        provider_warnings.extend(snapshot.warnings_for("worker"))
     return bounded_envelope(
-        envelope("agent_status", snapshot, data, warnings=[*snapshot.warnings_for("todo", "worker"), *warnings], compact_identity=True),
+        envelope("agent_status", snapshot, data, warnings=[*provider_warnings, *warnings], compact_identity=True),
         10000,
     )

@@ -18,9 +18,9 @@ cannot be invoked directly. Trusted startup configuration selects the profile;
 MCP `clientInfo`, user-agent, model claims, annotations, and model-supplied
 arguments do not.
 
-Tool schema version 3 remains the observer compatibility authority: its
-fourteen rich-read names, accepted calls, defaults, meanings, and input schemas
-are frozen, and `terminal_capture` is the additive fifteenth tool. The original
+Tool schema version 4 remains the observer compatibility authority: it preserves
+all version-3 calls while adding `source_context` `context_notes` relations and
+the Codex `coordinate_task` `publish_context` action. The original
 eight version-1 calls remain valid:
 
 1. `project_overview` synthesizes the current program, work, blockers,
@@ -113,7 +113,8 @@ The six version-2 tools are:
 11. `source_context` accepts one registered repository, optional stable worktree
    ID, one to 32 structured path/symbol/subsystem/text targets, working-tree/HEAD
    or explicit-commit selector, intent, requested relations, detail, explicit
-   byte budget, and continuation. It supports bounded line ranges, including
+   byte budget, and continuation; `context_notes` is an optional non-authoritative
+   relation. It supports bounded line ranges, including
    ranges within files larger than 2 MiB, with pre/post source identity and one
    retry or `racy_source_read`. Maximum data is 128 KiB.
 12. `history_trace` accepts a subject, at most one starting revision/time/task/
@@ -192,7 +193,8 @@ canonical Todo `WorkflowProtocol`:
 
 1. `next_task` atomically resumes or claims the current first-class run lane.
 2. `inspect_task` returns bounded, scope-aware current-task context.
-3. `coordinate_task` performs role- and scope-validated typed coordination.
+3. `coordinate_task` performs role- and scope-validated typed coordination,
+   including authorized `publish_context` of non-authoritative reusable findings.
 4. `delegate_task` optionally starts one bounded subordinate local child.
 5. `collect_delegation` nonblockingly collects only the returned opaque handle.
 6. `finish_task` completes, hands off, blocks, or releases the parent task.

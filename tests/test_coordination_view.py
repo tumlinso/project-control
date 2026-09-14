@@ -132,6 +132,19 @@ class CoordinationViewTests(unittest.TestCase):
         self.assertNotIn("T-DONE", encoded)
         self.assertIn("T-A", encoded)
 
+    def test_compact_excludes_stale_open_rows_from_closed_lanes(self) -> None:
+        snapshot = self.snapshot()
+        workflow = copy.deepcopy(snapshot.todo_workflow)
+        for lane in workflow["runs"][0]["lanes"]:
+            lane["state"] = "closed"
+            lane["workspace"] = {"id": f"W-{lane['id']}", "run_id": "RUN-1", "lane_id": lane["id"], "state": "active"}
+        snapshot = snapshot.model_copy(update={"todo_workflow": workflow})
+        compact = coordination_view(snapshot, CoordinationViewInput(project="demo", detail="compact"))
+        encoded = json.dumps(compact.data)
+        self.assertNotIn("M-1", encoded)
+        self.assertNotIn("W-a-child", encoded)
+        self.assertNotIn("runs", compact.data)
+
     def test_compact_scoped_note_can_match_virtual_task_anchor(self) -> None:
         snapshot = self.snapshot()
         snapshot.todo_tables["context_fragments"] = [{

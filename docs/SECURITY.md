@@ -39,7 +39,7 @@ tables, or hold a second capability or authority database. Opaque capability,
 claim, and approval material remains inside Todo and is never logged or emitted
 as ordinary Project Control evidence.
 
-Tool schema v3 adds one explicit non-idempotent observational execution
+Tool schema v3 added one explicit non-idempotent observational execution
 capability, `terminal_capture`. It accepts only a contained executable and cwd
 from a registered repository plus a literal bounded argument vector. It rejects
 absolute paths, `..`, symlink escape, denied paths, non-executable files,

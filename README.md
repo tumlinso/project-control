@@ -45,7 +45,7 @@ returns the rendered PTY screen. Its mutable state is confined to an app-private
 PTY registry and grants no Todo, Git, repository, or workflow authority.
 
 Project Control v2 is the compatibility authority: it preserves the eight v1
-tools and makes richer reads first-class. Project Control 0.3.1/tool schema v3
+tools and makes richer reads first-class. Project Control 0.3.2/tool schema v4
 freezes the original fourteen input contracts. The discovered observer surface
 is exactly seventeen tools:
 
@@ -102,7 +102,8 @@ Normal Codex work starts with the bounded workflow protocol:
 1. `next_task` acquires or resumes the current first-class lane task.
 2. `inspect_task` retrieves bounded current-task context.
 3. `coordinate_task` handles typed synchronization, gates, interfaces,
-   rendezvous, and integration requests.
+   rendezvous, integration requests, and authorized non-authoritative
+   `publish_context` findings.
 
 `delegate_task`, `collect_delegation`, and `finish_task` complete that canonical
 six-tool protocol. Fourteen rich reads and the registered measurement aperture remain available as secondary

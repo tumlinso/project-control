@@ -59,7 +59,7 @@ ChatGPT -> fourteen read-only MCP tools -> synthesis services -> ProjectSnapshot
                                       -> read-only authority adapters
 ```
 
-Tool schema v3 adds a separate, narrow path which does not enter
+Tool schema v3 added a separate, narrow path which does not enter
 `ProjectSnapshot` as authority:
 
 ```text

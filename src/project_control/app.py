@@ -91,7 +91,9 @@ CODEX_INSTRUCTIONS = (
     "archaeology or research to cheaper subagents when appropriate; they can use rich Project Control reads for the "
     "specific question. The root may use rich reads directly when synthesis is genuinely useful. Request richer "
     "projections deliberately, rather than routinely. Use the workflow tools exposed by the current Project Control "
-    "Codex profile for mutations."
+    "Codex profile for mutations. Roots and heads may publish non-obvious, durable reusable findings with "
+    "coordinate_task(action='publish_context'); cheap subagents should return findings to their parent instead. "
+    "Context notes are non-authoritative and never replace decisions, invariants, or interfaces."
 )
 
 READ_ONLY = ToolAnnotations(
@@ -489,7 +491,7 @@ def create_mcp(
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request) -> JSONResponse:
-        return JSONResponse({"name": "project-control", "version": "0.3.1", "tool_schema_version": 3})
+        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 4})
 
     if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
         register_workflow_tools(mcp, protocol_factory=workflow_protocol)

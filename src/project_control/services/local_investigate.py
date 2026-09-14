@@ -217,12 +217,14 @@ def _machine_diagnostic(question: str) -> str | None:
         return "gpu_summary"
     if re.search(r"\b(project control|project-control)\b.*\bservice\b|\bservice\b.*\b(project control|project-control)\b", lowered):
         return "services"
-    if re.search(r"\b(process|llama|inference)\b", lowered):
-        return "processes"
     # /proc/meminfo field names are host facts even though their CamelCase
     # spelling otherwise looks like a source identifier to the seed router.
     if re.search(r"\b(memory|ram|swap|memtotal|memavailable|memfree)\b", lowered):
         return "host_memory"
+    # "inference" alone describes a workload, not a request for its process
+    # table.  Require an explicit process/server observation word.
+    if re.search(r"\b(process(?:es)?|server|llama)\b", lowered):
+        return "processes"
     if re.search(r"\b(disk|storage|filesystem|capacity)\b", lowered):
         return "filesystem_capacity"
     if re.search(r"\b(kernel|host system|system diagnostics)\b", lowered):

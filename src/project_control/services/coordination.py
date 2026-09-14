@@ -248,9 +248,33 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
             for group in collections["safe_parallel_groups"]
         ]
         collections["safe_parallel_groups"] = [group for group in collections["safe_parallel_groups"] if group]
-        for name in ("context_fragments", "rendezvous", "workspaces", "patch_artifacts", "integration_queue"):
+        live_runs = {str(run.get("id")) for run in compact_runs if run.get("id")}
+
+        def relevant_to_live(item: dict[str, Any], *, lane_key: str = "lane_id", task_key: str = "task_id") -> bool:
+            run_id = item.get("run_id")
+            lane_id = item.get(lane_key)
+            task_id = item.get(task_key)
+            if run_id is not None and str(run_id) not in live_runs:
+                return False
+            if lane_id is not None and (str(run_id), str(lane_id)) not in live_lanes:
+                return False
+            if task_id is not None and str(task_id) not in live_tasks:
+                return False
+            return bool(run_id is not None or lane_id is not None or task_id is not None)
+
+        collections["messages"] = [item for item in collections["messages"]
+                                   if relevant_to_live(item, lane_key="author_lane_id")]
+        collections["workspaces"] = [item for item in collections["workspaces"]
+                                     if relevant_to_live(item)]
+        collections["integration_queue"] = [item for item in collections["integration_queue"]
+                                             if relevant_to_live(item, lane_key="integrator_lane_id", task_key="integration_task_id")]
+        # Context notes were already scope-filtered by _fragments(), including
+        # virtual anchors such as a note authored by an older task for a live
+        # successor task. Do not discard those solely by origin provenance.
+        collections["context_fragments"] = [item for item in collections["context_fragments"] if not is_terminal(item)]
+        for name in ("rendezvous", "patch_artifacts"):
             collections[name] = [item for item in collections[name]
-                                 if not is_terminal(item)]
+                                 if not is_terminal(item) and relevant_to_live(item)]
     paged = {name: values[offset: offset + request.max_items] for name, values in collections.items()}
     more = any(len(values) > offset + request.max_items for values in collections.values())
     data = {

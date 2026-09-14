@@ -19,6 +19,7 @@ from project_control.models import (
 from project_control.services.agents import agent_status
 from project_control.services.evidence import evidence_for
 from project_control.services.inspect import inspect_subject
+from project_control.services.overview import project_overview
 from project_control.services.performance import performance_status
 
 
@@ -138,6 +139,20 @@ class QueryServiceTests(unittest.TestCase):
         self.assertNotIn("local_supervisor_capacity", result.data)
         self.assertNotIn("agents", result.data)
         self.assertEqual(result.data["observer_jobs"], [])
+
+    def test_agent_status_omits_unrequested_local_sections_and_warnings(self) -> None:
+        self.snapshot.provider_warnings = {"worker": ["local_worker_state_unavailable"]}
+        result = agent_status(self.snapshot, AgentStatusInput(
+            project="demo", include_children=False, include_local_services=False,
+        ))
+        self.assertNotIn("subordinate_local_children", result.data)
+        self.assertNotIn("local_services", result.data)
+        self.assertNotIn("local_worker_state_unavailable", result.warnings)
+
+    def test_overview_omits_unrequested_optional_cuda_unavailability(self) -> None:
+        self.snapshot.provider_warnings = {"cuda": ["cuda_evidence_unavailable"]}
+        result = project_overview(self.snapshot, detail="compact")
+        self.assertNotIn("cuda_evidence_unavailable", result.warnings)
 
     def test_agent_output_uses_stable_worktree_id_and_omits_process_authority_ids(self) -> None:
         self.snapshot.repositories["source"].worktrees = {
