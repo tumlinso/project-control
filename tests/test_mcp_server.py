@@ -123,6 +123,8 @@ class MCPServerTests(unittest.TestCase):
         self.assertFalse(schemas["impact_preview"]["properties"]["include_proposal_envelope"]["default"])
         self.assertIn("exact", schemas["plan_preview"]["properties"]["detail"]["enum"])
         self.assertIn("exact", schemas["impact_preview"]["properties"]["detail"]["enum"])
+        self.assertEqual(schemas["local_investigate"]["properties"]["detail"]["enum"], ["standard", "trace"])
+        self.assertEqual(schemas["local_investigate"]["properties"]["compute_profile"]["enum"], ["default", "wide"])
 
     def test_codex_composes_workflow_and_compact_rich_reads(self) -> None:
         mcp = create_mcp(self.config, profile="codex")
@@ -176,7 +178,7 @@ class MCPServerTests(unittest.TestCase):
         with TestClient(create_asgi_app(self.config)) as client:
             self.assertEqual(client.get("/healthz").status_code, 200)
             self.assertEqual(client.get("/readyz").status_code, 200)
-            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.2", "tool_schema_version": 4})
+            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.2", "tool_schema_version": 5})
         with self.assertRaises(ValueError):
             from project_control.config import ServerConfig
             ServerConfig(host="0.0.0.0")

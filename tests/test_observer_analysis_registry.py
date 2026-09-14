@@ -45,16 +45,16 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(skills), "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}, clear=False), \
                  mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
                 result = SkillsObserverAnalysisProvider(base / "observed").investigate_turn({
-                    "protocol": "PC-LOCAL-INVESTIGATOR-TURN/1", "system_prompt": "system", "question": "q",
-                    "evidence": [{"id": "E1"}], "max_tokens": 123, "timeout_seconds": 12,
-                    "messages": [{"round": 1}, {"role": "assistant", "content": "prior"}],
+                    "protocol": "PC-LOCAL-INVESTIGATOR-TURN/2", "max_tokens": 123, "timeout_seconds": 12,
+                    "compute_profile": "wide", "messages": [{"role": "system", "content": "system"},
+                        {"role": "user", "content": "question"}, {"role": "assistant", "content": "prior"}],
                 })
             self.assertEqual(result["status"], "available")
-            self.assertEqual(captured[0]["format"], "PC-LOCAL-INVESTIGATOR-TURN/1")
+            self.assertEqual(captured[0]["format"], "PC-LOCAL-INVESTIGATOR-TURN/2")
             self.assertEqual(captured[0]["messages"][0], {"role": "system", "content": "system"})
-            self.assertEqual(captured[0]["messages"][1]["role"], "user")
-            self.assertIn('"messages":[{"round":1}', captured[0]["messages"][1]["content"])
-            self.assertEqual(len(captured[0]["messages"]), 2)
+            self.assertEqual(captured[0]["messages"][1]["content"], "question")
+            self.assertEqual(len(captured[0]["messages"]), 3)
+            self.assertEqual(captured[0]["compute_profile"], "wide")
             self.assertEqual(captured[0]["max_tokens"], 123)
             self.assertEqual(captured[0]["timeout_seconds"], 12)
 

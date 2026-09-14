@@ -50,7 +50,7 @@ performed by Codex:
 5. Run `uv run project-control doctor --tunnel --json`, then enable the tunnel
    client service.
 6. Create a custom ChatGPT app named `project-control` using that tunnel.
-7. Because tool schema v4 changes discovery, reconnect or recreate the custom
+7. Because tool schema v5 changes discovery, reconnect or recreate the custom
    app, then verify discovery returns exactly these seventeen tools:
    `project_overview`, `project_delta`, `project_frontier`, `inspect`,
    `evidence`, `plan_preview`, `agent_status`, `performance_status`,

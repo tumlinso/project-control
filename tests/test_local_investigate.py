@@ -7,7 +7,8 @@ from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import LocalInvestigateInput, ProjectSnapshot, RepositoryIdentity, envelope
-from project_control.services.local_investigate import CAPABILITIES, FINAL_SYSTEM_PROMPT, LIMITS, PROTOCOL, SYSTEM_PROMPT, Limits, local_investigate
+from project_control.services.local_investigate import (CAPABILITIES, FINAL_SYSTEM_PROMPT, LIMITS,
+    PROTOCOL, SYSTEM_PROMPT, TRANSCRIPT_BUDGET, Limits, _compact_transcript, local_investigate)
 
 
 def snapshot(commit: str = "a" * 40) -> ProjectSnapshot:
@@ -27,6 +28,66 @@ def answer(evidence_id: str) -> dict:
 
 
 class LocalInvestigateTests(unittest.TestCase):
+    def test_v2_heterogeneous_calls_share_one_model_turn_and_conversation(self) -> None:
+        initial, inputs = snapshot(), []
+        turns = iter([
+            {"turn": {"action": "continue", "calls": [
+                {"tool": "search_source", "arguments": {"targets": [{"value": "machine_inspection"}]}},
+                {"tool": "inspect_workflow", "arguments": {}},
+            ]}},
+            {"turn": {"action": "answer", "calls": [], "answer": {
+                "summary": "done", "facts": [{"text": "observed", "evidence_ids": ["E1", "E2"]}],
+                "inferences": [], "uncertainty": [], "citations": ["E1", "E2"]}}},
+        ])
+        with patch("project_control.services.local_investigate.source_context", return_value=envelope("source_context", initial, {"targets": []})), \
+             patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {"active_run_id": "r"})):
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", compute_profile="wide"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
+        self.assertEqual(result.data["status"], "ok")
+        self.assertEqual(result.data["metrics"]["reads_performed"], 2)
+        self.assertEqual(inputs[0]["compute_profile"], "wide")
+        self.assertEqual([item["role"] for item in inputs[1]["messages"][-2:]], ["assistant", "user"])
+        self.assertIn('"id":"E1"', inputs[1]["messages"][-1]["content"])
+        self.assertIn('"id":"E2"', inputs[1]["messages"][-1]["content"])
+
+    def test_transcript_compaction_preserves_origin_recent_pair_and_state(self) -> None:
+        messages = [{"role": "system", "content": "system"}, {"role": "user", "content": "question"}]
+        for index in range(8):
+            messages.extend([{"role": "assistant", "content": f"call-{index}"},
+                             {"role": "user", "content": f"TOOL_RESULTS-{index}-" + "x" * 12000}])
+        compacted, changed = _compact_transcript(messages, {"evidence_ids": ["E8"]}, [
+            {"id": f"E{index}", "kind": "inspect", "result": {"tool": "inspect", "status": "ok"}}
+            for index in range(1, 9)])
+        self.assertTrue(changed)
+        self.assertLessEqual(len(__import__("json").dumps(compacted).encode()), TRANSCRIPT_BUDGET)
+        self.assertEqual(compacted[:2], messages[:2])
+        self.assertIn("COMPACTED_HISTORY", compacted[2]["content"])
+        self.assertEqual(compacted[-2:], messages[-2:])
+
+    def test_trace_is_opt_in_and_publicly_redacts_private_exec_evidence(self) -> None:
+        initial, inputs = snapshot(), []
+        private = "/home/tumlinson/project-control/src/project_control/services/machine_inspection.py"
+        turns = iter([
+            {"turn": {"action": "continue", "calls": [{"tool": "exec_readonly", "arguments": {
+                "argv": ["rg", "machine_inspection", private], "cwd": "/home/tumlinson/project-control"}}]}},
+            {"turn": {"action": "answer", "calls": [], "answer": {"summary": "found", "facts": [
+                {"text": "found", "evidence_ids": ["E1"]}], "inferences": [], "uncertainty": [], "citations": ["E1"]}}},
+        ])
+        with patch("project_control.services.local_investigate.exec_readonly", return_value={
+            "status": "ok", "argv": ["rg", private], "cwd": "/home/tumlinson/project-control",
+            "returncode": 0, "stdout": private, "stderr": "", "elapsed_ms": 1}):
+            traced = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", detail="trace"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
+        self.assertIn(private, inputs[1]["messages"][-1]["content"])
+        self.assertNotIn(private, str(traced.data["trace"]))
+        self.assertNotIn(private, str(traced.data["evidence_index"]))
+        self.assertEqual(traced.data["trace"]["rounds"][0]["calls"][0]["status"], "accepted")
+        plain_turns = iter([{"turn": {"action": "continue", "calls": [{"tool": "inspect_workflow", "arguments": {}}]}}, answer("E1")])
+        with patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {})):
+            plain = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,
+                snapshot_getter=lambda: initial, model_turn=lambda _: next(plain_turns))
+        self.assertNotIn("trace", plain.data)
+
     def test_empty_snapshot_returns_structured_read_only_fallback(self) -> None:
         empty = ProjectSnapshot(workspace_id="demo", observed_at="2026-01-01T00:00:00Z", repositories={})
         result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
@@ -45,12 +106,11 @@ class LocalInvestigateTests(unittest.TestCase):
             result = local_investigate(config(), LocalInvestigateInput(project="demo", question="Where is machine inspection owned?"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=model_turn)
         self.assertEqual(result.data["status"], "ok")
-        self.assertEqual(inputs[0]["evidence"], [])
-        self.assertEqual(inputs[0]["issued_evidence"], [])
-        self.assertNotIn("working_state", inputs[0])
-        self.assertEqual(inputs[0]["capabilities"], CAPABILITIES)
-        self.assertEqual(PROTOCOL, "PC-LOCAL-INVESTIGATOR-TURN/1")
-        self.assertIn("first turn can contain no evidence", SYSTEM_PROMPT)
+        self.assertEqual([item["role"] for item in inputs[0]["messages"]], ["system", "user"])
+        self.assertNotIn("TOOL_RESULTS", inputs[0]["messages"][1]["content"])
+        self.assertIn('"capabilities"', inputs[0]["messages"][1]["content"])
+        self.assertEqual(PROTOCOL, "PC-LOCAL-INVESTIGATOR-TURN/2")
+        self.assertIn("capable read-only coding", SYSTEM_PROMPT)
         self.assertIn("candidates, not proof", SYSTEM_PROMPT)
         self.assertIn("normally prefer\nsearch_source over orient", SYSTEM_PROMPT)
         self.assertIn("Tests, documentation, benchmarks, and callers", SYSTEM_PROMPT)
@@ -71,11 +131,10 @@ class LocalInvestigateTests(unittest.TestCase):
             result = local_investigate(config(), LocalInvestigateInput(project="demo", question="Who owns host inspection?", effort="quick"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertEqual(result.data["status"], "ok")
-        self.assertEqual([item["id"] for item in inputs[1]["evidence"]], ["E1"])
-        self.assertEqual([item["id"] for item in inputs[2]["evidence"]], ["E2"])
-        self.assertEqual(inputs[2]["working_state"]["evidence_ids"], ["E1"])
-        self.assertNotIn("result", inputs[2]["issued_evidence"][0])
-        self.assertLess(len(str(inputs[2]["working_state"]).encode()), 8 * 1024)
+        self.assertIn('"id":"E1"', inputs[1]["messages"][-1]["content"])
+        self.assertIn('"id":"E2"', inputs[2]["messages"][-2]["content"])
+        self.assertIn('"evidence_ids":["E1"]', inputs[2]["messages"][-2]["content"])
+        self.assertEqual(inputs[1]["messages"][-2]["role"], "assistant")
         self.assertEqual((result.data["metrics"]["rounds"], result.data["metrics"]["reads_performed"]), (3, 2))
 
     def test_machine_inspection_ownership_verifies_service_not_shared_host_adapter(self) -> None:
@@ -124,7 +183,7 @@ class LocalInvestigateTests(unittest.TestCase):
             result = local_investigate(config(), LocalInvestigateInput(project="demo", question="MemTotal", effort="quick"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertEqual(result.data["status"], "ok")
-        self.assertFalse(inputs[0]["must_answer"])
+        self.assertNotIn(" FINAL", inputs[0]["messages"][-1]["content"])
         self.assertIn("ownership or implementation fact", SYSTEM_PROMPT)
 
     def test_cellerator_geometry_owner_verifies_current_implementation_not_benchmark(self) -> None:
@@ -239,7 +298,7 @@ class LocalInvestigateTests(unittest.TestCase):
             result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertEqual(result.data["status"], "ok")
-        self.assertTrue(inputs[2]["must_answer"])
+        self.assertIn(" FINAL", inputs[2]["messages"][-1]["content"])
 
     def test_freshness_and_time_bounds_remain_clean(self) -> None:
         initial, changed = snapshot(), snapshot("b" * 40)

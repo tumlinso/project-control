@@ -114,22 +114,17 @@ class SkillsObserverAnalysisProvider:
             return compact_packet_fallback(immutable_packet, str(error))
 
     def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Run one inert investigator turn; Project Control retains every read."""
+        """Forward one bounded Project-Control-owned conversational turn."""
         try:
-            system_prompt = request.get("system_prompt")
-            if not isinstance(system_prompt, str) or not system_prompt:
-                raise ValueError("local_investigator_system_prompt_missing")
-            user_context = {key: value for key, value in request.items()
-                            if key not in {"system_prompt", "max_tokens", "timeout_seconds"}}
-            messages: list[dict[str, str]] = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(user_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False)},
-            ]
+            messages = request.get("messages")
+            if not isinstance(messages, list) or not messages:
+                raise ValueError("local_investigator_messages_missing")
             backend_request = {
-                "format": "PC-LOCAL-INVESTIGATOR-TURN/1",
+                "format": "PC-LOCAL-INVESTIGATOR-TURN/2",
                 "messages": messages,
                 "max_tokens": int(request.get("max_tokens", 2048)),
                 "timeout_seconds": float(request.get("timeout_seconds", 90)),
+                "compute_profile": request.get("compute_profile", "default"),
             }
             encoded = json.dumps(backend_request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             if len(encoded.encode("utf-8")) > 256 * 1024:
