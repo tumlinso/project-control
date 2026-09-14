@@ -18,7 +18,9 @@ class ReconciliationTests(unittest.TestCase):
         overview = project_overview(snapshot, detail="compact", max_items=10)
         frontier = project_frontier(snapshot)
         self.assertTrue(overview.data["current_project_state"][0]["complete"])
-        self.assertEqual(frontier.data["critical_path"], [])
+        # Empty optional frontier categories are omitted, rather than emitted
+        # as dashboard noise.
+        self.assertNotIn("critical_path", frontier.data)
         self.assertNotIn("CP-MATH-17", {item["id"] for item in frontier.data["ready"]})
         self.assertEqual(overview.data["architectural_attention"], [])
         self.assertEqual(overview.data["validation_attention"], [])

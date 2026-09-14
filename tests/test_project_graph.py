@@ -47,10 +47,17 @@ class ProjectGraphTests(unittest.TestCase):
             kinds=["cuda", "gates", "worker"],
         )
         result = evidence_for(self.config, snapshot, request)
-        self.assertEqual(result.data["resolution"]["status"], "resolved")
-        self.assertNotIn("no_matching_evidence", result.data["caveats"])
+        # Summary is the ordinary model-facing projection: it keeps decisive
+        # support but intentionally omits graph-resolution/provenance detail.
+        self.assertNotIn("resolution", result.data)
+        self.assertNotIn("no_matching_evidence", result.data.get("caveats", []))
         self.assertIn("current-ce-result", {item.get("id") for item in result.data["support"]})
         self.assertNotIn("old-regression", {item.get("id") for item in result.data["support"]})
+
+        # The same resolution remains available when the caller explicitly
+        # requests the provenance projection.
+        detailed = evidence_for(self.config, snapshot, request.model_copy(update={"detail": "provenance"}))
+        self.assertEqual(detailed.data["resolution"]["status"], "resolved")
 
     def test_multi_seed_contract_preserves_themes_and_is_deterministic(self) -> None:
         snapshot = cellerator_snapshot()
