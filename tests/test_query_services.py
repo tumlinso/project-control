@@ -103,7 +103,7 @@ class QueryServiceTests(unittest.TestCase):
             self.assertNotIn("DIRTY_SYMBOL", json.dumps(result.data["matches"]))
 
     def test_evidence_reports_support_and_provenance(self) -> None:
-        result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["gates", "worker", "git"]))
+        result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["gates", "worker", "git"], detail="provenance"))
         self.assertEqual(result.data["confidence"], "high")
         self.assertIn("todo-gate:G1", result.data["provenance_ids"])
         self.assertNotIn("stdout", json.dumps(result.model_dump()))
@@ -112,7 +112,7 @@ class QueryServiceTests(unittest.TestCase):
         self.snapshot.todo_tables["decisions"] = [{"id": "D1", "task_id": "T1", "state": "accepted", "summary": "Use v2"}]
         self.snapshot.todo_tables["context_fragments"] = [{"id": "CTX1", "task_id": "T1", "state": "invalidated"}]
         result = evidence_for(self.config, self.snapshot, EvidenceInput(
-            project="demo", subject="T1", kinds=["decision", "context"],
+            project="demo", subject="T1", kinds=["decision", "context"], detail="provenance",
         ))
         self.assertEqual(result.data["evidence_state_counts"]["current_support"], 1)
         self.assertEqual(result.data["evidence_state_counts"]["stale"], 1)

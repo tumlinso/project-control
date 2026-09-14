@@ -212,6 +212,12 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
         collections.pop("lane_queues")
         collections.pop("first_class_agents")
         collections.pop("subordinate_local_children")
+        # Fragment manifests, workspace history and satisfied rendezvous are
+        # useful provenance, but are not current coordination state.
+        terminal = {"completed", "complete", "closed", "integrated", "satisfied", "resolved", "cancelled", "superseded"}
+        for name in ("context_fragments", "rendezvous", "workspaces", "patch_artifacts", "integration_queue"):
+            collections[name] = [item for item in collections[name]
+                                 if str(item.get("state") or "").casefold() not in terminal]
     paged = {name: values[offset: offset + request.max_items] for name, values in collections.items()}
     more = any(len(values) > offset + request.max_items for values in collections.values())
     data = {
@@ -236,6 +242,14 @@ def coordination_view(snapshot: ProjectSnapshot, request: CoordinationViewInput)
         },
         "continuation_cursor": encode_cursor("coordination_view", identity, offset + request.max_items) if more else None,
     }
+    if request.detail == "compact":
+        # Global architecture belongs in architecture_context; a scoped
+        # coordination read must not pull it in merely because it exists.
+        data.pop("decisions")
+        data.pop("interfaces")
+        for key in tuple(data):
+            if data[key] in ([], {}, None) and key not in {"active_run_id"}:
+                data.pop(key)
     warnings = snapshot.warnings_for("todo")
     return bounded_envelope(
         envelope("coordination_view", snapshot, data, warnings=warnings, compact_identity=True),

@@ -143,10 +143,27 @@ def performance_status(snapshot: ProjectSnapshot, request: PerformanceStatusInpu
             "campaigns": reconciled.performance["campaigns"],
             "evidence": reconciled.performance["historical_evidence"],
         }
+    elif request.detail == "compact":
+        # Capacity/status glance: omit the fixed empty diagnostic collections
+        # and historical proof objects retained by standard/expanded reads.
+        data = {
+            "campaign": request.campaign,
+            "current_material_regressions": current_regressions[:8],
+            "current_improvements": current_improvements[:8],
+            "latest_current_compatible_measurements": current[:8],
+            "execution_performed": False,
+        }
+        if registered:
+            data["current_architectural_evidence"] = registered[:8]
+        if request.include_host_capacity and snapshot.host:
+            data["host_capacity"] = snapshot.host
+        if registered_warnings:
+            data["unmeasured_assumptions"] = registered_warnings
+        data = {key: value for key, value in data.items() if value not in ([], {}, None)}
     warnings = [*snapshot.warnings_for("cuda", "worker", *("host",) if request.include_host_capacity else ()), *registered_warnings]
     if cuda.get("status") != "ok":
         warnings.append("performance_evidence_unavailable")
-    budget = 12000 if request.detail != "expanded" else 20000
+    budget = 4_096 if request.detail == "compact" else 12000 if request.detail != "expanded" else 20000
     return bounded_envelope(
         envelope("performance_status", snapshot, data, warnings=list(dict.fromkeys(warnings)), compact_identity=True),
         budget,

@@ -274,6 +274,23 @@ def _compact_source_data(data: dict[str, Any], budget: int) -> dict[str, Any]:
         compact["targets"] = targets
     return bounded_payload(compact, budget)
 
+
+def _quick_seed_sufficient(evidence: list[dict[str, Any]]) -> bool:
+    """Avoid a speculative second read when the deterministic seed answered."""
+    if not evidence:
+        return False
+    payload = evidence[-1].get("result", {}).get("data", {})
+    if not isinstance(payload, dict):
+        return False
+    if evidence[-1].get("kind") == "inspect_machine":
+        return payload.get("status") != "partial" and bool(payload.get("diagnostic"))
+    if evidence[-1].get("kind") in {"read_source", "search_source"}:
+        targets = payload.get("targets")
+        return isinstance(targets, list) and any(
+            isinstance(target, dict) and (target.get("excerpt") or target.get("matches")) for target in targets
+        )
+    return False
+
 def _fallback(question: str, evidence: list[dict[str, Any]], reason: str) -> dict[str, Any]:
     ids = [item["id"] for item in evidence[:16]]
     return {"summary": "Local investigation ended before a model-backed conclusion was available.",
@@ -446,6 +463,8 @@ def local_investigate(
         seen_reads.add(_read_signature("orient", {"question": request.question}))
         observe("orient", lambda: architecture_context(snapshot, ArchitectureContextInput(
             project=request.project, question=request.question, repository=repository, detail=detail, max_items=max_items)))
+    if request.effort == "quick" and _quick_seed_sufficient(evidence):
+        force_answer = True
     if time.monotonic() >= deadline_at:
         return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "investigation_time_budget_exhausted"), "evidence_index": _evidence_index(evidence, [item["id"] for item in evidence[:16]])}), warnings=["investigation_time_budget_exhausted"], compact_identity=True), 48 * 1024)
     for round_number in range(limits.rounds):

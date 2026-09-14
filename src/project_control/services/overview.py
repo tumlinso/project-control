@@ -13,7 +13,7 @@ BUDGETS = {"compact": 1800, "standard": 9000, "expanded": 15000}
 
 def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max_items: int = 20) -> ToolEnvelope:
     reconciled = ProjectReconciler(snapshot).reconcile()
-    workflow = workflow_summary(snapshot, max_items=max_items)
+    workflow = workflow_summary(snapshot, max_items=max_items, actionable=True)
 
     def compact(task: dict[str, Any]) -> dict[str, Any]:
         return {key: task.get(key) for key in (
@@ -75,10 +75,6 @@ def project_overview(snapshot: ProjectSnapshot, *, detail: str = "standard", max
         "integration_state": workflow.get("integration_queue", []),
         "historical_state_filtered": reconciled.historical_counts,
         "recommended_focus": focus,
-        "active_tasks": [compact(item) for item in reconciled.active[:max_items]],
-        "ready_tasks": [compact(item) for item in reconciled.ready[:max_items]],
-        "attention_tasks": [compact(item) for item in reconciled.blocked[:max_items]],
-        "recently_completed": [compact(item) for item in reconciled.completed[:max_items]],
         "ranking": {
             "items_considered": len(reconciled.tasks) + len(reconciled.checkpoints) + len(reconciled.gates),
             "items_returned": sum(len(value) for value in (

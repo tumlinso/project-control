@@ -172,6 +172,24 @@ def architecture_context(snapshot: ProjectSnapshot, request: ArchitectureContext
         },
         "pagination": pagination,
     }
+    if request.detail == "compact":
+        # Compact is a query answer, not a smaller architectural dossier.
+        # Surface only connected evidence and an explicit next read when the
+        # lexical signal is weak.
+        data = {
+            "question": request.question,
+            "clusters": selected,
+            "next_inspection_targets": data["next_inspection_targets"],
+        }
+        if risks:
+            data["risks_and_contradictions"] = risks
+        if not selected:
+            data["no_strong_architectural_match"] = True
+            data["next_inspection_targets"] = data["next_inspection_targets"] or [
+                {"kind": "source_context", "target": request.question, "reason": "no_current_query_connected_evidence"}
+            ]
+        if pagination.get("continuation_cursor"):
+            data["pagination"] = pagination
     warnings = [*snapshot.warnings_for("todo"), *reconciled.warnings, *workflow_warnings(snapshot)]
     return bounded_envelope(
         envelope("architecture_context", snapshot, data, warnings=list(dict.fromkeys(warnings)), compact_identity=True),

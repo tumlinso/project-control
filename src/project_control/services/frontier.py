@@ -11,7 +11,7 @@ from ..workflow import workflow_summary, workflow_warnings
 
 def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_blocked: bool = True, include_parallel_groups: bool = True) -> ToolEnvelope:
     reconciled = ProjectReconciler(snapshot).reconcile()
-    workflow = workflow_summary(snapshot, max_items=max_ready)
+    workflow = workflow_summary(snapshot, max_items=max_ready, actionable=True)
     tasks = reconciled.tasks
     ready = reconciled.ready
     ready_ids = [str(item.get("id")) for item in ready]
@@ -138,6 +138,13 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
         } for task in ready[:max_ready]],
         "historical_state_filtered": reconciled.historical_counts,
     }
+    # Empty frontier should be an answer, not a dashboard full of completed
+    # coordination records.  Counts retain the useful historical signal.
+    for key in ("active_claims", "blocked", "parallel_groups", "lane_frontier", "ready_lane_heads",
+                "role_requirements", "blocking_run_messages", "unresolved_questions", "rendezvous",
+                "integration_queue", "recovery_needed", "critical_path", "local_worker_suitability"):
+        if not data[key]:
+            data.pop(key)
     return bounded_envelope(
         envelope(
             "project_frontier", snapshot, bounded_payload(data, 12000),

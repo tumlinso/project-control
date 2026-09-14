@@ -107,18 +107,20 @@ def bounded_envelope(
     encoded = lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
     result = value.model_copy(deep=True)
     result.data = dict(result.data)
+    def fits() -> bool:
+        return len(encoded(result.model_dump(mode="json"))) <= budget_bytes
+
+    if fits():
+        return result
+    # Coverage is useful only when the caller has actually lost material or
+    # requested an expansion.  Keeping it off successful ordinary reads avoids
+    # turning internal budgeting mechanics into model-facing boilerplate.
     result.data.setdefault("response_coverage", {
         "budget_bytes": budget_bytes,
         "measurement": "canonical_json_utf8_full_envelope",
         "expansion_cursor": "top_level.cursor",
         "stale_cursor_behavior": "typed_refresh_required",
     })
-
-    def fits() -> bool:
-        return len(encoded(result.model_dump(mode="json"))) <= budget_bytes
-
-    if fits():
-        return result
     essential = {
         key: deepcopy(result.data[key]) for key in ("response_coverage", *essential_data_keys)
         if key in result.data

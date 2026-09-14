@@ -200,6 +200,18 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
             "absence": int(not support and not stale and not unvalidated),
         },
     }
+    if request.detail == "summary":
+        # Decisive evidence only.  Provenance remains available deliberately
+        # through detail=provenance instead of taxing every narrow lookup.
+        data = {
+            key: value for key, value in data.items()
+            if key not in {"provenance_ids", "evidence_state_counts", "resolution"}
+            and (value not in ([], {}, None) or key in {"support", "contradictions"})
+        }
+    elif request.detail == "bounded_excerpt":
+        data.pop("provenance_ids", None)
+        data.pop("evidence_state_counts", None)
+    # provenance intentionally retains source identities and state counts.
     response_warnings = warnings if warnings else ([] if support or stale else ["evidence_unavailable"])
     return bounded_envelope(
         envelope("evidence", snapshot, data, warnings=list(dict.fromkeys(response_warnings)), compact_identity=True),

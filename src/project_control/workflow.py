@@ -76,7 +76,7 @@ def _lane(snapshot: ProjectSnapshot, record: dict[str, Any], max_items: int) -> 
     }
 
 
-def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50) -> dict[str, Any]:
+def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50, actionable: bool = False) -> dict[str, Any]:
     view = workflow_view(snapshot)
     if not view["available"]:
         return {
@@ -103,7 +103,15 @@ def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50) -> dict[
             if isinstance(item, dict)
         ]
 
-    return {
+    # Ordinary workflow consumers need the live control surface, not a ledger
+    # replay.  Keep the complete projection for explicit/history readers.
+    terminal = {"completed", "complete", "closed", "integrated", "satisfied", "resolved", "cancelled", "superseded"}
+    def live(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not actionable:
+            return items
+        return [item for item in items if str(item.get("state") or item.get("status") or "").casefold() not in terminal]
+
+    result = {
         "available": bool(view["available"]),
         "reason": view.get("reason"),
         "revision": view.get("revision"),
@@ -154,3 +162,16 @@ def workflow_summary(snapshot: ProjectSnapshot, *, max_items: int = 50) -> dict[
         },
         "authority": "todo_semantic_workflow" if view["available"] else "compatibility_fallback",
     }
+    if actionable:
+        for name in ("blocking_messages", "unresolved_questions", "rendezvous", "patch_artifacts", "pending_patches", "integration_queue", "recovery_needed"):
+            result[name] = live(list(result.get(name, [])))
+        if isinstance(result.get("active_run"), dict):
+            run = result["active_run"]
+            run["lanes"] = live(list(run.get("lanes", [])))
+            for lane in run["lanes"]:
+                lane["serial_queue"] = live(list(lane.get("serial_queue", [])))
+                lane["queue_items_omitted"] = 0
+        result["first_class_agents"] = live(list(result["first_class_agents"]))
+        result["subordinate_local_children"] = live(list(result["subordinate_local_children"]))
+        result["safe_parallel_groups"] = [group for group in result["safe_parallel_groups"] if group]
+    return result

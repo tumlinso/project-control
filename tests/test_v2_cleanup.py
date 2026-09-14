@@ -82,7 +82,7 @@ class V2CleanupTests(unittest.TestCase):
                 "gates": [{"id": "G-PENDING", "task_id": "T-DOWN", "status": "pending", "valid": 0}],
             },
         )
-        result = evidence_for(self.config, snapshot, EvidenceInput(project="demo", subject="IFACE-1", kinds=["gates"]))
+        result = evidence_for(self.config, snapshot, EvidenceInput(project="demo", subject="IFACE-1", kinds=["gates"], detail="provenance"))
         self.assertEqual(result.data["contradictions"], [])
         self.assertEqual(result.data["unmeasured_or_unvalidated"][0]["id"], "G-PENDING")
         self.assertEqual(result.data["evidence_state_counts"]["unvalidated"], 1)

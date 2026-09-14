@@ -91,6 +91,21 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(captured[0].detail, "compact")
         self.assertEqual(captured[0].budget_bytes, 4 * 1024)
 
+    def test_quick_sufficient_seed_forces_answer_without_a_second_read(self) -> None:
+        initial = snapshot()
+        inputs = []
+        answer = {"turn": {"action": "answer", "requests": [], "answer": {
+            "summary": "Found.", "facts": [], "inferences": [], "uncertainty": [], "citations": ["E1"]}}}
+        with patch("project_control.services.local_investigate.source_context", return_value=envelope(
+            "source_context", initial, {"targets": [{"matches": [{"path": "x.py", "line": 1}]}]})):
+            result = local_investigate(config(), LocalInvestigateInput(
+                project="demo", question="Where is needle implemented?", effort="quick"),
+                snapshot=initial, snapshot_getter=lambda: initial,
+                model_turn=lambda value: (inputs.append(value) or answer))
+        self.assertEqual(result.data["status"], "ok")
+        self.assertEqual(len(inputs), 1)
+        self.assertTrue(inputs[0]["must_answer"])
+
     def test_empty_snapshot_returns_structured_read_only_fallback(self) -> None:
         empty = ProjectSnapshot(workspace_id="demo", observed_at="2026-01-01T00:00:00Z", repositories={})
         result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"),

@@ -65,7 +65,7 @@ class FullEnvelopeBudgetTests(unittest.TestCase):
         self.assertLessEqual(size(result), 12_288)
         self.assertIn("ready", result.data)
         self.assertEqual(result.cursor.todo_revision, 8)
-        self.assertEqual(result.data["response_coverage"]["measurement"], "canonical_json_utf8_full_envelope")
+        self.assertNotIn("response_coverage", result.data)
 
     def test_oversized_explicit_contract_requires_typed_expansion(self) -> None:
         snapshot = self.snapshot()

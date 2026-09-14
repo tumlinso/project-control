@@ -209,7 +209,6 @@ def project_delta(
         "changes": sorted(events, key=lambda item: (item["category"] == "coordination", -int(item.get("revision") or 0)))[:max_items],
         "git_changes": git_changes,
         "readiness_changed": semantic_readiness_changed or any(item["type"].startswith(("task.", "claim.", "checkpoint.")) for item in events),
-        "workflow": workflow_summary(snapshot),
         "workflow_changed": bool(workflow_events),
         "workflow_changes": {key: value[:max_items] for key, value in sorted(workflow_changes.items())},
         "observation_skew": {
@@ -223,6 +222,10 @@ def project_delta(
             "budget_bytes": 16000,
         },
     }
+    # A delta with no workflow transition must not reproduce an unchanged
+    # workflow dashboard; the observation cursor is sufficient to continue.
+    if workflow_events:
+        data["workflow"] = workflow_summary(snapshot, actionable=True)
     return bounded_envelope(
         envelope(
             "project_delta", snapshot, bounded_payload(data, 16000),

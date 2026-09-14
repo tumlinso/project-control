@@ -59,6 +59,7 @@ from .services.source_context import source_context as source_context_service
 from .services.local_investigate import local_investigate as local_investigate_service
 from .snapshot import SnapshotBuilder
 from .security import redact_output
+from .normalize import bounded_envelope, bounded_payload
 from .terminal import TerminalSessionRegistry
 from .profiles import MCPProfile, ProfiledFastMCP
 from .mutation_tools import register_mutation_tools
@@ -437,6 +438,7 @@ def create_mcp(
 
         def operation() -> ToolEnvelope:
             snapshot = runtime.snapshot(project)
+            compact_project, compact_cursor = snapshot.compact_identity()
             if request.executable is not None:
                 result = runtime.terminals.launch(
                     workspace_id=project,
@@ -459,14 +461,16 @@ def create_mcp(
                     cols=request.cols,
                     kill_after_capture=request.kill_after_capture,
                 )
-            return ToolEnvelope(
+            # Terminal screens can be large, while normal observer reads only
+            # need a bounded result and refreshable observation identity.
+            return bounded_envelope(ToolEnvelope(
                 tool="terminal_capture",
                 status=ToolStatus.OK,
-                project=snapshot.identity(),
-                data=result.as_dict(),
+                project=compact_project,
+                data=bounded_payload(result.as_dict(), 8_000),
                 warnings=[],
-                cursor=snapshot.cursor(),
-            )
+                cursor=compact_cursor,
+            ), 8_192)
 
         return runtime.invoke("terminal_capture", project, operation)
 
