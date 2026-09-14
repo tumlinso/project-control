@@ -129,12 +129,12 @@ class _Request(BaseModel):
     action: Literal["continue", "answer"]
     calls: list[_Call] = Field(default_factory=list, max_length=6)
     answer: dict[str, Any] | None = None
-    working_state: _WorkingState | None = None
+    working_state: Any | None = None
 
     @model_validator(mode="after")
     def action_shape_is_exact(self) -> "_Request":
         if self.action == "answer":
-            if self.answer is None or self.calls or self.working_state is not None:
+            if self.answer is None or self.calls:
                 raise ValueError("answer_turn_shape_invalid")
         elif self.answer is not None or not self.calls:
             raise ValueError("read_turn_shape_invalid")
@@ -543,6 +543,23 @@ def local_investigate(
                                 "compute_profile": raw.get("compute_profile", request.compute_profile),
                                 "parallelism": raw.get("parallelism", resolved_parallelism)})
             turn = _parse_turn(raw)
+            if turn.working_state is not None:
+                try:
+                    candidate_state = _WorkingState.model_validate(turn.working_state).model_dump(mode="json")
+                    state_ids = set(candidate_state.get("evidence_ids", []))
+                    state_ids.update(evidence_id for finding in candidate_state.get("findings", [])
+                                     for evidence_id in finding.get("evidence_ids", []))
+                    issued = {item["id"] for item in evidence}
+                    if _json_size(candidate_state) > 8 * 1024 or not state_ids.issubset(issued):
+                        raise ValueError("working_state_unissued_or_too_large")
+                except (ValidationError, ValueError):
+                    warnings.append("investigator_working_state_rejected")
+                    trace_round["working_state"] = {"status": "rejected"}
+                    turn.working_state = None
+                else:
+                    working_state = candidate_state
+                    turn.working_state = candidate_state
+                    trace_round["working_state"] = {"status": "accepted", "bytes": _json_size(candidate_state)}
             assistant_content = json.dumps(turn.model_dump(mode="json", exclude_none=True), sort_keys=True, separators=(",", ":"))
             if must_answer:
                 messages.append({"role": "user", "content": FINAL_SYSTEM_PROMPT})
@@ -587,17 +604,6 @@ def local_investigate(
                 warnings.append("local_model_final_too_large")
                 return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "partial", "answer": _fallback(request.question, evidence, "local_model_final_too_large"), "evidence_index": []}), warnings=warnings, compact_identity=True), 48 * 1024)
             return bounded_envelope(envelope("local_investigate", snapshot, result_data({"status": "ok", "answer": answer, "evidence_index": index, "rounds": round_number + 1, "pinned_identity_digest": pinned_digest}), warnings=warnings, compact_identity=True), 48 * 1024, essential_data_keys=("answer", "evidence_index", "metrics"))
-        if turn.working_state is not None:
-            candidate_state = turn.working_state.model_dump(mode="json")
-            state_ids = set(candidate_state.get("evidence_ids", []))
-            state_ids.update(evidence_id for finding in candidate_state.get("findings", []) for evidence_id in finding.get("evidence_ids", []))
-            issued = {item["id"] for item in evidence}
-            if _json_size(candidate_state) > 8 * 1024 or not state_ids.issubset(issued):
-                warnings.append("investigator_working_state_rejected")
-                trace_round["working_state"] = {"status": "rejected"}
-            else:
-                working_state = candidate_state
-                trace_round["working_state"] = {"status": "accepted", "bytes": _json_size(candidate_state)}
         if not turn.calls or reads_performed >= limits.reads or used_bytes >= limits.bytes:
             warnings.append("investigation_read_budget_exhausted")
             trace_round["event"] = "read_budget_exhausted"

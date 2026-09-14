@@ -14,7 +14,7 @@ runs the configured Qwen3-Coder-30B candidate on one two-GPU island. Switching
 profiles reuses only a compatible idle service; an incompatible idle service is
 evicted and the selected model is reloaded. Active generation is never evicted,
 and unavailable resources return the normal bounded unavailable result.
-Observer calls may set `parallelism` to `layer`, `row`, or `tensor` only with
+Observer calls may set `parallelism` to `layer` or `tensor` only with
 the wide profile for diagnostic comparisons; `default` preserves the configured
 split. Split changes reload an incompatible idle service and never interrupt an
 active generation. Unsupported modes fail visibly rather than falling back.

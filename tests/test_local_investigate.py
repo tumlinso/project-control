@@ -50,11 +50,11 @@ class LocalInvestigateTests(unittest.TestCase):
         ])
         with patch("project_control.services.local_investigate.source_context", return_value=envelope("source_context", initial, {"targets": []})), \
              patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {"active_run_id": "r"})):
-            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", compute_profile="wide", parallelism="row"),
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", compute_profile="wide", parallelism="tensor"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertEqual(result.data["status"], "ok")
         self.assertEqual(result.data["metrics"]["reads_performed"], 2)
-        self.assertEqual((inputs[0]["compute_profile"], inputs[0]["parallelism"]), ("wide", "row"))
+        self.assertEqual((inputs[0]["compute_profile"], inputs[0]["parallelism"]), ("wide", "tensor"))
         self.assertEqual([item["role"] for item in inputs[1]["messages"][-2:]], ["assistant", "user"])
         self.assertIn('"id":"E1"', inputs[1]["messages"][-1]["content"])
         self.assertIn('"id":"E2"', inputs[1]["messages"][-1]["content"])
@@ -81,21 +81,21 @@ class LocalInvestigateTests(unittest.TestCase):
         initial, inputs = snapshot(), []
         private = "/home/tumlinson/project-control/src/project_control/services/machine_inspection.py"
         turns = iter([
-            {"parallelism": "row", "turn": {"action": "continue", "calls": [{"tool": "exec_readonly", "arguments": {
+            {"parallelism": "tensor", "turn": {"action": "continue", "calls": [{"tool": "exec_readonly", "arguments": {
                 "argv": ["rg", "machine_inspection", private], "cwd": "/home/tumlinson/project-control"}}]}},
-            {"parallelism": "row", "turn": {"action": "answer", "calls": [], "answer": {"summary": "found", "facts": [
+            {"parallelism": "tensor", "turn": {"action": "answer", "calls": [], "answer": {"summary": "found", "facts": [
                 {"text": "found", "evidence_ids": ["E1"]}], "inferences": [], "uncertainty": [], "citations": ["E1"]}}},
         ])
         with patch("project_control.services.local_investigate.exec_readonly", return_value={
             "status": "ok", "argv": ["rg", private], "cwd": "/home/tumlinson/project-control",
             "returncode": 0, "stdout": private, "stderr": "", "elapsed_ms": 1}):
-            traced = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", detail="trace", parallelism="row"),
+            traced = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", detail="trace", parallelism="tensor"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertIn(private, inputs[1]["messages"][-1]["content"])
         self.assertNotIn(private, str(traced.data["trace"]))
         self.assertNotIn(private, str(traced.data["evidence_index"]))
         self.assertEqual(traced.data["trace"]["rounds"][0]["calls"][0]["status"], "accepted")
-        self.assertEqual(traced.data["trace"]["parallelism"], "row")
+        self.assertEqual(traced.data["trace"]["parallelism"], "tensor")
         plain_turns = iter([{"turn": {"action": "continue", "calls": [{"tool": "inspect_workflow", "arguments": {}}]}}, answer("E1")])
         with patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {})):
             plain = local_investigate(config(), LocalInvestigateInput(project="demo", question="q"), snapshot=initial,
@@ -302,14 +302,17 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertNotIn("evidence", result.data)
         self.assertLess(len(str(result.model_dump(mode="json")).encode()), 48 * 1024 + 4096)
 
-    def test_rejects_unissued_working_state(self) -> None:
+    def test_malformed_working_state_does_not_invalidate_valid_calls(self) -> None:
         initial = snapshot()
-        invalid = {"turn": {"action": "inspect_workflow", "requests": [{}], "working_state": {
-            "findings": [{"text": "unsupported", "evidence_ids": ["E999"]}], "unresolved_questions": [], "evidence_ids": ["E999"]}}}
-        with patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {})):
-            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", effort="quick"),
-                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: invalid)
+        turns = iter([{"turn": {"action": "continue", "calls": [
+            {"tool": "inspect_workflow", "arguments": {}}], "working_state": "malformed"}}, answer("E1")])
+        with patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {})) as read:
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", effort="quick", detail="trace"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
+        self.assertEqual(result.data["status"], "ok")
+        read.assert_called_once()
         self.assertIn("investigator_working_state_rejected", result.warnings)
+        self.assertEqual(result.data["trace"]["rounds"][0]["working_state"]["status"], "rejected")
 
     def test_duplicate_read_forces_final_only_turn(self) -> None:
         initial, inputs = snapshot(), []
