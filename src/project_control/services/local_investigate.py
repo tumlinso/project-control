@@ -40,7 +40,8 @@ exec_readonly for source, filesystem, Git, and host archaeology. Use structured 
 for workflow authority, architecture, context notes, provenance, or registered machine
 facts that shell inspection cannot reconstruct reliably. Writes, network, secret access,
 privilege escalation, and delegation are unavailable and forbidden.
-Return one JSON object. Continue with up to six heterogeneous calls:
+Return one JSON object. `action` may only be `continue` or `answer`; the specific
+operation belongs in `calls[].tool`. Continue with up to six heterogeneous calls:
 {"action":"continue","calls":[{"tool":"exec_readonly","arguments":{"argv":["rg","-n","symbol","."],"cwd":"/absolute/path","timeout_seconds":5}},{"tool":"inspect","arguments":{"kind":"path","target":"src/file.py"}}],"working_state":{"findings":[{"text":"...","evidence_ids":["E1"]}],"unresolved_questions":[],"evidence_ids":["E1"]}}
 Available tools: exec_readonly, orient, search_source, read_source, inspect,
 inspect_workflow, inspect_machine. A source call may contain its existing batched targets.
@@ -350,9 +351,13 @@ def _parse_turn(raw: dict[str, Any]) -> _Request:
     # a rolling runtime cutover. New prompts and conversations are V2 only.
     if isinstance(value, dict) and value.get("action") not in {"continue", "answer"}:
         action = value.get("action")
-        value = {"action": "continue", "calls": [
-            {"tool": action, "arguments": item} for item in value.get("requests", [])
-        ], "working_state": value.get("working_state")}
+        if isinstance(value.get("calls"), list):
+            value = {**value, "action": "continue"}
+            value.pop("requests", None)
+        else:
+            value = {"action": "continue", "calls": [
+                {"tool": action, "arguments": item} for item in value.get("requests", [])
+            ], "working_state": value.get("working_state")}
     elif isinstance(value, dict) and value.get("action") == "answer" and "calls" not in value:
         value = {**value, "calls": []}
         value.pop("requests", None)

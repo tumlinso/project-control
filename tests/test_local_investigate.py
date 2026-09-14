@@ -8,7 +8,7 @@ from unittest.mock import patch
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import LocalInvestigateInput, ProjectSnapshot, RepositoryIdentity, envelope
 from project_control.services.local_investigate import (CAPABILITIES, FINAL_SYSTEM_PROMPT, LIMITS,
-    PROTOCOL, SYSTEM_PROMPT, TRANSCRIPT_BUDGET, Limits, _compact_transcript, local_investigate)
+    PROTOCOL, SYSTEM_PROMPT, TRANSCRIPT_BUDGET, Limits, _compact_transcript, _parse_turn, local_investigate)
 
 
 def snapshot(commit: str = "a" * 40) -> ProjectSnapshot:
@@ -28,6 +28,15 @@ def answer(evidence_id: str) -> dict:
 
 
 class LocalInvestigateTests(unittest.TestCase):
+    def test_hybrid_v1_action_preserves_v2_calls(self) -> None:
+        turn = _parse_turn({"text": '{"action":"search_source","calls":[{"tool":"search_source",'
+            '"arguments":{"symbol":"local_investigate"}}],"working_state":'
+            '{"findings":[],"unresolved_questions":["Which file implements local_investigate?"],'
+            '"evidence_ids":[]}}'})
+        self.assertEqual(turn.action, "continue")
+        self.assertEqual(turn.calls[0].tool, "search_source")
+        self.assertEqual(turn.calls[0].arguments, {"symbol": "local_investigate"})
+
     def test_v2_heterogeneous_calls_share_one_model_turn_and_conversation(self) -> None:
         initial, inputs = snapshot(), []
         turns = iter([
