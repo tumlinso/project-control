@@ -1,12 +1,19 @@
 # Optional local observer analysis
 
-Project Control exposes `local_investigate(project, question, effort)` as the
-preferred observer entry point. A versioned, bounded broker supplies initial
-architecture context, validates the local model's structured read requests,
-executes them through Project Control's existing read-only services, and returns
+Project Control exposes `local_investigate(project, question, effort, detail,
+compute_profile)` as the preferred observer entry point. A versioned, bounded
+conversational broker validates heterogeneous local-model read requests, executes
+them through read-only services or the isolated `exec_readonly` sandbox, and returns
 an evidence-linked answer separated into facts, inferences, and uncertainty.
 `quick`, `standard`, and `deep` impose hard round, read, byte, and time ceilings;
 source and project identity are pinned and drift returns `refresh_required`.
+
+`compute_profile="wide"` is the default and runs the configured Qwen3-Coder-Next
+candidate on one topology-derived four-GPU bundle. `compute_profile="narrow"`
+runs the configured Qwen3-Coder-30B candidate on one two-GPU island. Switching
+profiles reuses only a compatible idle service; an incompatible idle service is
+evicted and the selected model is reloaded. Active generation is never evicted,
+and unavailable resources return the normal bounded unavailable result.
 
 The broker also accepts `inspect_machine` for bounded GPU, topology, process,
 memory, filesystem, Project Control service, kernel, device, log, and runtime
@@ -16,9 +23,10 @@ roots including home, `/mnt`, `/proc`, and `/sys`. Traversal, symlink escape,
 special files, process secret surfaces, credential stores, private keys, and
 oversized or binary reads are rejected; returned text is redacted and bounded.
 External diagnostics run unprivileged in a no-network, read-only bubblewrap
-sandbox with private scratch directories and resource ceilings. The interface
-exposes no shell, caller-selected argv, privilege, socket handle, or mutation
-surface.
+sandbox with private scratch directories and resource ceilings. The internal
+`exec_readonly` action permits model-selected argv in a broader read-only,
+no-network bubblewrap sandbox; it is not a public MCP tool and provides no
+privilege, host device, socket, or mutation surface.
 
 The lower-level observer-analysis provider remains an internal primitive. It
 passes an immutable JSON evidence packet (at most 64 KiB and 64 evidence IDs)

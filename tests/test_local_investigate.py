@@ -41,11 +41,11 @@ class LocalInvestigateTests(unittest.TestCase):
         ])
         with patch("project_control.services.local_investigate.source_context", return_value=envelope("source_context", initial, {"targets": []})), \
              patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {"active_run_id": "r"})):
-            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", compute_profile="wide"),
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="q", compute_profile="narrow"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertEqual(result.data["status"], "ok")
         self.assertEqual(result.data["metrics"]["reads_performed"], 2)
-        self.assertEqual(inputs[0]["compute_profile"], "wide")
+        self.assertEqual(inputs[0]["compute_profile"], "narrow")
         self.assertEqual([item["role"] for item in inputs[1]["messages"][-2:]], ["assistant", "user"])
         self.assertIn('"id":"E1"', inputs[1]["messages"][-1]["content"])
         self.assertIn('"id":"E2"', inputs[1]["messages"][-1]["content"])

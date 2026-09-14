@@ -124,7 +124,8 @@ class MCPServerTests(unittest.TestCase):
         self.assertIn("exact", schemas["plan_preview"]["properties"]["detail"]["enum"])
         self.assertIn("exact", schemas["impact_preview"]["properties"]["detail"]["enum"])
         self.assertEqual(schemas["local_investigate"]["properties"]["detail"]["enum"], ["standard", "trace"])
-        self.assertEqual(schemas["local_investigate"]["properties"]["compute_profile"]["enum"], ["default", "wide"])
+        self.assertEqual(schemas["local_investigate"]["properties"]["compute_profile"]["enum"], ["narrow", "wide"])
+        self.assertEqual(schemas["local_investigate"]["properties"]["compute_profile"]["default"], "wide")
 
     def test_codex_composes_workflow_and_compact_rich_reads(self) -> None:
         mcp = create_mcp(self.config, profile="codex")

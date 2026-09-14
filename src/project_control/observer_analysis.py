@@ -124,7 +124,7 @@ class SkillsObserverAnalysisProvider:
                 "messages": messages,
                 "max_tokens": int(request.get("max_tokens", 2048)),
                 "timeout_seconds": float(request.get("timeout_seconds", 90)),
-                "compute_profile": request.get("compute_profile", "default"),
+                "compute_profile": request.get("compute_profile", "wide"),
             }
             encoded = json.dumps(backend_request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             if len(encoded.encode("utf-8")) > 256 * 1024:

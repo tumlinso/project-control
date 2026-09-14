@@ -301,7 +301,7 @@ class LocalInvestigateInput(BaseModel):
     question: str = Field(min_length=1, max_length=12_000)
     effort: Literal["quick", "standard", "deep"] = "standard"
     detail: Literal["standard", "trace"] = "standard"
-    compute_profile: Literal["default", "wide"] = "default"
+    compute_profile: Literal["narrow", "wide"] = "wide"
 
 
 class PerformanceStatusInput(BaseModel):

@@ -270,7 +270,7 @@ def create_mcp(
         annotations=READ_ONLY,
         structured_output=True,
     )
-    def local_investigate(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], effort: Literal["quick", "standard", "deep"] = "standard", detail: Literal["standard", "trace"] = "standard", compute_profile: Literal["default", "wide"] = "default") -> dict[str, Any]:
+    def local_investigate(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], effort: Literal["quick", "standard", "deep"] = "standard", detail: Literal["standard", "trace"] = "standard", compute_profile: Literal["narrow", "wide"] = "wide") -> dict[str, Any]:
         request = LocalInvestigateInput(project=project, question=question, effort=effort, detail=detail, compute_profile=compute_profile)
         def operation() -> ToolEnvelope:
             snapshot = runtime.snapshot(project)
