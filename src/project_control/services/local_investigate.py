@@ -190,6 +190,11 @@ _WORKFLOW_WORDS = re.compile(r"\b(run|task|lane|claim|workflow|gate|integration|
 _PATH = re.compile(r"(?<![\w.-])([\w./-]+\.(?:py|md|toml|json|ya?ml|c|cc|cpp|cu|cuh|h|hpp|sh))(?![\w.-])", re.I)
 _IDENTIFIER = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b|\b[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]+)+\b")
 _TASK_ID = re.compile(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+){1,}\b")
+_SEARCH_STOPWORDS = frozenset({
+    "give", "show", "find", "describe", "explain", "list", "where", "what", "which", "does", "from", "with",
+    "that", "this", "how", "source", "file", "code", "implemented", "implementation", "project", "control",
+    "please", "about", "tell", "need", "want", "current", "details", "information",
+})
 
 def _machine_diagnostic(question: str) -> str | None:
     """Recognize only explicit host-observation questions; no model inference."""
@@ -224,14 +229,18 @@ def _machine_diagnostic(question: str) -> str | None:
 
 def _initial_route(question: str) -> tuple[str, list[str]]:
     """Choose one cheap deterministic evidence seed without model inference."""
+    # A host question can naturally include source-shaped kernel names such as
+    # MemTotal. Explicit machine intent is stronger than incidental spelling.
+    diagnostic = _machine_diagnostic(question)
+    if diagnostic:
+        return "inspect_machine", [diagnostic]
     paths = list(dict.fromkeys(_PATH.findall(question)))[:4]
     identifiers = list(dict.fromkeys(_IDENTIFIER.findall(question)))[:4]
     if paths:
         return "read_source", paths
     if identifiers or _SOURCE_WORDS.search(question):
-        search_terms = identifiers or [word for word in re.findall(r"[A-Za-z][A-Za-z0-9_-]{3,}", question) if word.casefold() not in {
-            "where", "what", "which", "does", "from", "with", "that", "this", "how", "source", "file", "code", "implemented", "implementation", "project", "control",
-        }][:4]
+        search_terms = identifiers or [word for word in re.findall(r"[A-Za-z][A-Za-z0-9_-]{3,}", question)
+                                       if word.casefold() not in _SEARCH_STOPWORDS][:4]
         return ("search_source", search_terms) if search_terms else ("orient", [])
     task_ids = list(dict.fromkeys(_TASK_ID.findall(question)))[:1]
     if task_ids:
@@ -239,9 +248,6 @@ def _initial_route(question: str) -> tuple[str, list[str]]:
     # Workflow wording remains authoritative over generic status vocabulary.
     if _WORKFLOW_WORDS.search(question):
         return "inspect_workflow", []
-    diagnostic = _machine_diagnostic(question)
-    if diagnostic:
-        return "inspect_machine", [diagnostic]
     return "orient", []
 
 def _compact_source_data(data: dict[str, Any], budget: int) -> dict[str, Any]:

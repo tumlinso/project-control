@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ..config import ProjectControlConfig
+from ..adapters.host import host_gpu_summary, host_memory_values
 from ..models import ProjectSnapshot, ToolEnvelope, envelope
 from ..normalize import bounded_envelope
 from ..security import SecurityError, redact_output, redact_text
@@ -307,11 +308,7 @@ def machine_inspection(
                 raise SecurityError("filesystem_request_missing")
             data["filesystem"] = _filesystem_inspection(config, project, filesystem)
         elif diagnostic == "gpu_summary":
-            raw = command_runner.run([
-                "nvidia-smi", "--query-gpu=index,name,driver_version,memory.total,memory.free,utilization.gpu",
-                "--format=csv,noheader,nounits",
-            ], cwd=Path("/"), timeout=2.0).stdout
-            data["devices"] = _gpu_csv(raw, ("index", "name", "driver_version", "memory_total_mib", "memory_free_mib", "utilization_percent"))
+            data["devices"] = host_gpu_summary(command_runner)
         elif diagnostic == "gpu_topology":
             raw = command_runner.run(["nvidia-smi", "topo", "-m"], cwd=Path("/"), timeout=2.0).stdout
             data["topology_rows"], data["nvlink_pairs"] = _gpu_topology(raw)
@@ -322,12 +319,7 @@ def machine_inspection(
             ], cwd=Path("/"), timeout=2.0, check=False).stdout
             data["processes"] = _gpu_csv(raw, ("process_name", "used_gpu_memory_mib"))
         elif diagnostic == "host_memory":
-            values: dict[str, str] = {}
-            for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
-                key, _, value = line.partition(":")
-                if key in {"MemTotal", "MemAvailable", "SwapTotal", "SwapFree"}:
-                    values[key] = value.strip()[:64]
-            data["memory"] = values
+            data["memory"] = host_memory_values(include_swap=True)
         elif diagnostic == "filesystem_capacity":
             workspace = config.workspaces[project]
             roots = [(f"repository:{alias}", item.root) for alias, item in sorted(workspace.repositories.items())]

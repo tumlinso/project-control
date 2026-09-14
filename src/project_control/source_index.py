@@ -15,6 +15,29 @@ MAX_INDEX_FILE_BYTES = 2 * 1024 * 1024
 MAX_INDEX_FILES = 20_000
 
 
+def source_path_priority(path: str, *, prefer_current: bool = True) -> tuple[int, str]:
+    """Give ordinary retrieval a stable current-source-first ordering.
+
+    Historical material remains searchable; callers explicitly asking for it can
+    turn off this presentation preference.  Keeping this primitive here makes
+    the private index and Git fallback agree about what an ordinary source read
+    should show first.
+    """
+    normalized = path.replace("\\", "/").casefold()
+    parts = tuple(part for part in normalized.split("/") if part)
+    if not prefer_current:
+        return (0, normalized)
+    archived = any(part in {"archive", "archives", "archived", "history", "historical", "planning", "plans", "wf2"}
+                   for part in parts)
+    if archived or any("archive" in part or "histor" in part for part in parts):
+        return (4, normalized)
+    if any(part in {"test", "tests"} or part.startswith("test_") for part in parts):
+        return (1, normalized)
+    if Path(normalized).suffix in {".md", ".markdown", ".rst", ".toml", ".yaml", ".yml", ".json", ".cmake"}:
+        return (2, normalized)
+    return (0, normalized)
+
+
 @dataclass(frozen=True)
 class LexicalMatch:
     path: str
@@ -77,17 +100,25 @@ class SourceLexicalIndex:
         except sqlite3.Error:
             return False
 
-    def search(self, query: str, *, offset: int = 0, limit: int = 50) -> list[LexicalMatch]:
+    def search(self, query: str, *, offset: int = 0, limit: int = 50, prefer_current: bool = True) -> list[LexicalMatch]:
         tokens = re.findall(r"[A-Za-z0-9_]{2,128}", query)
         if not tokens or not self.database.is_file():
             return []
         expression = " OR ".join(f'"{token}"' for token in tokens[:16])
         connection = sqlite3.connect(f"file:{self.database}?mode=ro", uri=True)
         try:
+            # Pull a modest candidate overage before applying the shared path
+            # policy; otherwise alphabetically early archives can consume the
+            # entire FTS page before current implementation is considered.
             rows = connection.execute(
                 "SELECT path,line,content,bm25(documents) FROM documents WHERE documents MATCH ? ORDER BY bm25(documents),path,line LIMIT ? OFFSET ?",
-                (expression, max(1, min(limit, 200)), max(0, offset)),
+                (expression, max(1, min(limit * 8, 800)), 0),
             ).fetchall()
         finally:
             connection.close()
-        return [LexicalMatch(str(path), int(line), str(content), float(score)) for path, line, content, score in rows]
+        ordered = sorted(rows, key=lambda row: (
+            source_path_priority(str(row[0]), prefer_current=prefer_current)[0],
+            float(row[3]), str(row[0]), int(row[1]),
+        ))
+        page = ordered[max(0, offset):max(0, offset) + max(1, min(limit, 200))]
+        return [LexicalMatch(str(path), int(line), str(content), float(score)) for path, line, content, score in page]

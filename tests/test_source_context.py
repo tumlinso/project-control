@@ -135,6 +135,20 @@ class SourceContextTests(unittest.TestCase):
         self.assertTrue(any(self.cache.rglob("index.sqlite3")))
         self.assertFalse(any(self.root.rglob("index.sqlite3")))
 
+    def test_ordinary_search_prefers_current_source_and_subsystem_exposes_shape(self) -> None:
+        (self.root / "archive").mkdir()
+        (self.root / "archive" / "wf2-plan.md").write_text("calculate_total planning history\n", encoding="utf-8")
+        git(self.root, "add", "archive/wf2-plan.md")
+        git(self.root, "commit", "-m", "archive fixture")
+        result = self.call([
+            SourceTarget(kind="text", value="calculate_total"),
+            SourceTarget(kind="subsystem", value="calculate_total"),
+        ])
+        text, subsystem = result.data["targets"]
+        self.assertEqual("src/module.py", text["matches"][0]["path"])
+        self.assertEqual("src/module.py", subsystem["structure"]["files"][0]["path"])
+        self.assertIn("src", [item["path"] for item in subsystem["structure"]["directories"]])
+
     def test_commit_selector_ignores_dirty_worktree(self) -> None:
         head = git(self.root, "rev-parse", "HEAD").strip()
         (self.root / "src" / "module.py").write_text("DIRTY = True\n", encoding="utf-8")

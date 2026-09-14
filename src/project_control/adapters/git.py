@@ -7,6 +7,7 @@ from typing import Iterable
 import time
 
 from ..security import SecurityError, is_denied, read_bounded_text
+from ..source_index import source_path_priority
 from ..subprocesses import CommandError, FixedCommandRunner
 
 
@@ -200,6 +201,7 @@ class GitReadAdapter:
         deny_patterns: Iterable[str] = (),
         revision: str | None = None,
         deadline: float | None = None,
+        prefer_current: bool = True,
     ) -> list[dict[str, object]]:
         """Return bounded source matches from the worktree or one immutable commit.
 
@@ -249,6 +251,7 @@ class GitReadAdapter:
         # Read candidates under the same containment and size policy as source
         # excerpts, and stop as soon as the global match budget is satisfied.
         needles = pattern.splitlines()
+        candidates: list[str] = []
         for relative in result.stdout.split("\0"):
             if not relative:
                 continue
@@ -260,6 +263,11 @@ class GitReadAdapter:
                 if not relative.startswith(prefix):
                     continue
                 relative = relative[len(prefix):]
+            candidates.append(relative)
+        # Git returns path order. Rank candidates before opening them so a
+        # large archive cannot crowd current implementation out of a bounded
+        # ordinary query. Explicit historical callers retain path ordering.
+        for relative in sorted(candidates, key=lambda item: source_path_priority(item, prefer_current=prefer_current)):
             try:
                 candidate = Path(relative)
                 if candidate.is_absolute() or ".." in candidate.parts or is_denied(candidate, list(deny_patterns)):

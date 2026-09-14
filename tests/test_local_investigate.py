@@ -33,6 +33,9 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(_initial_route("What kernel system diagnostics are available?"), ("inspect_machine", ["system"]))
         self.assertEqual(_initial_route("Which workflow task status is ready?"), ("inspect_workflow", []))
         self.assertEqual(_initial_route("Explain the broad architecture"), ("orient", []))
+        self.assertEqual(_initial_route("Give the current host MemTotal and free memory"), ("inspect_machine", ["host_memory"]))
+        self.assertEqual(_initial_route("Show host memory for MemTotal"), ("inspect_machine", ["host_memory"]))
+        self.assertEqual(_initial_route("Give a summary"), ("orient", []))
 
     def test_narrow_source_seed_preserves_hits_and_populates_metrics(self) -> None:
         initial = snapshot()

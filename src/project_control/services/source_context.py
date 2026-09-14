@@ -16,7 +16,7 @@ from ..models import ProjectSnapshot, SourceContextInput, ToolEnvelope, envelope
 from ..normalize import bounded_envelope
 from ..registry import WorkspaceRegistry
 from ..security import SecurityError, is_allowlisted_text_path, is_denied, redact, redact_text, resolve_registered_path
-from ..source_index import SourceLexicalIndex
+from ..source_index import SourceLexicalIndex, source_path_priority
 from ..subprocesses import CommandError
 from ..worktrees import WorktreeCatalog, WorktreeSelectionError
 from ..retrieval import economical_record
@@ -115,6 +115,30 @@ def _workflow_mapping(snapshot: ProjectSnapshot, root: Path) -> list[dict[str, A
     return mappings
 
 
+def _explicit_historical_target(value: str) -> bool:
+    """Only a deliberate historical selector disables ordinary source rank."""
+    return bool(re.search(r"(?:^|[\\/\s_-])(archive|archives|archived|history|historical|planning|plans|wf2)(?:$|[\\/\s_-])", value, re.I))
+
+
+def _subsystem_orientation(matches: list[dict[str, Any]]) -> dict[str, Any]:
+    """Bounded file/directory shape for a subsystem request, not just hits."""
+    files: dict[str, int] = {}
+    directories: dict[str, int] = {}
+    for match in matches:
+        path = str(match.get("path", ""))
+        if not path:
+            continue
+        files[path] = files.get(path, 0) + 1
+        parent = Path(path).parent.as_posix()
+        directories[parent] = directories.get(parent, 0) + 1
+    return {
+        "files": [{"path": path, "match_count": count} for path, count in sorted(
+            files.items(), key=lambda item: (-item[1], source_path_priority(item[0]), item[0]))[:16]],
+        "directories": [{"path": path, "match_count": count} for path, count in sorted(
+            directories.items(), key=lambda item: (-item[1], item[0]))[:12]],
+    }
+
+
 def source_context(
     config: ProjectControlConfig,
     snapshot: ProjectSnapshot,
@@ -175,6 +199,7 @@ def source_context(
             warnings.append("source_read_deadline_exhausted")
             break
         item: dict[str, Any] = {"kind": target.kind, "target": target.value}
+        prefer_current = not _explicit_historical_target(target.value)
         try:
             if target.kind == "path":
                 if revision is None:
@@ -203,20 +228,24 @@ def source_context(
                         "status": "partial",
                         "source": "bounded_git_grep",
                         "freshness": "immutable_commit",
-                        "matches": git.grep(target.value, max_items=30, deny_patterns=deny, revision=revision, deadline=deadline),
+                        "matches": git.grep(target.value, max_items=30, deny_patterns=deny, revision=revision, deadline=deadline, prefer_current=prefer_current),
                         "warnings": ["semantic_context_unavailable_for_immutable_commit"],
                     }
                 item.update(semantic)
                 warnings.extend(semantic.get("warnings", []))
             elif lexical is not None:
-                matches = lexical.search(target.value, offset=offset, limit=50)
+                matches = lexical.search(target.value, offset=offset, limit=50, prefer_current=prefer_current)
                 item.update(source="private_lexical_index", matches=[match.__dict__ for match in matches])
             else:
                 item.update(
                     source="bounded_git_grep",
                     freshness="immutable_commit" if revision is not None else "working_tree",
-                    matches=git.grep(target.value, max_items=50, deny_patterns=deny, revision=revision, deadline=deadline),
+                    matches=git.grep(target.value, max_items=50, deny_patterns=deny, revision=revision, deadline=deadline, prefer_current=prefer_current),
                 )
+            if target.kind == "subsystem":
+                base = item.get("matches", [])
+                if isinstance(base, list):
+                    item["structure"] = _subsystem_orientation(base)
             if "recent_changes" in request.requested_relations and target.kind == "path":
                 item["recent_changes"] = git.changed_path_commits(target.value, 12)
             relation_token = Path(target.value).stem if target.kind == "path" else target.value

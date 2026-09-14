@@ -207,6 +207,17 @@ class AdapterContractTests(unittest.TestCase):
             {"path": "valid.txt", "line": 3, "excerpt": "needle again"},
         ])
 
+    def test_git_grep_prefers_current_source_over_archived_planning(self) -> None:
+        (self.root / "src").mkdir()
+        (self.root / "archive").mkdir()
+        (self.root / "src" / "current.py").write_text("needle\n")
+        (self.root / "archive" / "wf2-plan.md").write_text("needle\n")
+        run(["git", "add", "."], self.root)
+        matches = GitReadAdapter(self.root).grep("needle")
+        self.assertEqual([item["path"] for item in matches], ["src/current.py", "archive/wf2-plan.md"])
+        historical = GitReadAdapter(self.root).grep("needle", prefer_current=False)
+        self.assertEqual([item["path"] for item in historical], ["archive/wf2-plan.md", "src/current.py"])
+
     def test_todo_uses_current_interpreter_and_safe_state_environment(self) -> None:
         runner = SequenceRunner([(0, {"ok": True, "code": "success", "data": {"project_revision": 1}})])
         adapter = TodoReadAdapter(self.root, TODO, runner=runner)
