@@ -127,8 +127,8 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(schemas["local_investigate"]["properties"]["detail"]["enum"], ["standard", "trace"])
         self.assertEqual(schemas["local_investigate"]["properties"]["compute_profile"]["enum"], ["narrow", "wide"])
         self.assertEqual(schemas["local_investigate"]["properties"]["compute_profile"]["default"], "wide")
-        self.assertEqual(schemas["local_investigate"]["properties"]["parallelism"]["enum"], ["default", "layer", "tensor"])
-        self.assertEqual(schemas["local_investigate"]["properties"]["parallelism"]["default"], "default")
+        self.assertEqual(schemas["local_investigate"]["properties"]["parallelism"]["enum"], ["layer", "tensor"])
+        self.assertEqual(schemas["local_investigate"]["properties"]["parallelism"]["default"], "layer")
         local_investigate_schema = schemas["local_investigate"]
         self.assertEqual(local_investigate_schema["required"], ["project", "questions"])
         self.assertEqual(local_investigate_schema["properties"]["questions"]["minItems"], 1)
@@ -282,7 +282,7 @@ class MCPServerTests(unittest.TestCase):
         with TestClient(create_asgi_app(self.config)) as client:
             self.assertEqual(client.get("/healthz").status_code, 200)
             self.assertEqual(client.get("/readyz").status_code, 200)
-            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.2", "tool_schema_version": 8})
+            self.assertEqual(client.get("/version").json(), {"name": "project-control", "version": "0.3.2", "tool_schema_version": 9})
         with self.assertRaises(ValueError):
             from project_control.config import ServerConfig
             ServerConfig(host="0.0.0.0")

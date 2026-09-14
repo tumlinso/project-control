@@ -303,7 +303,7 @@ class LocalInvestigateInput(BaseModel):
     effort: Literal["quick", "standard", "deep"] = "standard"
     detail: Literal["standard", "trace"] = "standard"
     compute_profile: Literal["narrow", "wide"] = "wide"
-    parallelism: Literal["default", "layer", "tensor"] = "default"
+    parallelism: Literal["layer", "tensor"] = "layer"
 
     @model_validator(mode="after")
     def select_question_mode(self) -> "LocalInvestigateInput":
