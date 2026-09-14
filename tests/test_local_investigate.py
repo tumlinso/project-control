@@ -79,7 +79,10 @@ class LocalInvestigateTests(unittest.TestCase):
         initial, calls = snapshot(), []
         turns = iter([
             {"turn": {"action": "search_source", "requests": [{"targets": [{"value": "machine inspection ownership"}]}]}},
-            {"turn": {"action": "read_source", "requests": [{"targets": [{"kind": "path", "value": "src/project_control/services/machine_inspection.py", "line_start": 1, "line_end": 80}]}]}}, answer("E2")])
+            {"turn": {"action": "read_source", "requests": [{"targets": [{"kind": "path", "value": "src/project_control/services/machine_inspection.py", "line_start": 1, "line_end": 80}]}]}},
+            {"turn": {"action": "answer", "requests": [], "answer": {
+                "summary": "done", "facts": [{"text": "The machine_inspection service owns host machine inspection.", "evidence_ids": ["E2"]}],
+                "inferences": [], "uncertainty": [], "citations": ["E2"]}}}])
         search = envelope("source_context", initial, {"targets": [{"matches": [
             {"path": "src/project_control/adapters/host.py", "line": 1, "excerpt": "class HostReadAdapter"},
             {"path": "src/project_control/services/machine_inspection.py", "line": 1, "excerpt": "def machine_inspection"}]}]})
@@ -92,6 +95,34 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(result.data["status"], "ok")
         self.assertEqual(calls[0].targets[0].kind, "text")
         self.assertEqual(calls[1].targets[0].value, "src/project_control/services/machine_inspection.py")
+
+    def test_search_only_ownership_fact_is_rejected_until_verified(self) -> None:
+        initial = snapshot()
+        turns = iter([
+            {"turn": {"action": "search_source", "requests": [{"targets": [{"value": "machine inspection"}]}]}},
+            {"turn": {"action": "answer", "requests": [], "answer": {
+                "summary": "done", "facts": [{"text": "The shared host adapter owns machine inspection implementation.", "evidence_ids": ["E1"]}],
+                "inferences": [], "uncertainty": [], "citations": ["E1"]}}},
+        ])
+        with patch("project_control.services.local_investigate.source_context", return_value=envelope("source_context", initial, {"targets": [{"matches": [
+            {"path": "src/project_control/adapters/host.py", "line": 1, "excerpt": "class HostReadAdapter"}]}]})):
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="Who owns host inspection?"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda _: next(turns))
+        self.assertEqual(result.data["status"], "partial")
+        self.assertIn("local_model_final_ownership_claim_requires_verification", result.warnings)
+
+    def test_hard_deadline_does_not_prematurely_force_final_turn(self) -> None:
+        initial, inputs = snapshot(), []
+        turns = iter([
+            {"turn": {"action": "inspect_machine", "requests": [{"diagnostic": "host_memory"}]}}, answer("E1"),
+        ])
+        with patch.dict(LIMITS, {"quick": Limits(3, 8, 64 * 1024, 20, 8)}), \
+             patch("project_control.services.local_investigate.machine_inspection", return_value=envelope("machine_inspection", initial, {"diagnostic": "host_memory"})):
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", question="MemTotal", effort="quick"),
+                snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
+        self.assertEqual(result.data["status"], "ok")
+        self.assertFalse(inputs[0]["must_answer"])
+        self.assertIn("ownership or implementation fact", SYSTEM_PROMPT)
 
     def test_cellerator_geometry_owner_verifies_current_implementation_not_benchmark(self) -> None:
         initial, calls = snapshot(), []
