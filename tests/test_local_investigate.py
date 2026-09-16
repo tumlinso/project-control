@@ -8,7 +8,8 @@ from unittest.mock import patch
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import LocalInvestigateInput, ProjectSnapshot, RepositoryIdentity, envelope
 from project_control.services.local_investigate import (CAPABILITIES, FINAL_SYSTEM_PROMPT, LIMITS,
-    PROTOCOL, SYSTEM_PROMPT, TRANSCRIPT_BUDGET, Limits, _compact_transcript, _parse_turn, local_investigate)
+    PROTOCOL, SYSTEM_PROMPT, TRANSCRIPT_BUDGET, Limits, _bounded_private, _compact_transcript,
+    _parse_turn, local_investigate)
 
 
 def snapshot(commit: str = "a" * 40) -> ProjectSnapshot:
@@ -45,6 +46,27 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertEqual(turn.truncated_calls, 2)
         self.assertEqual(turn.rejected_calls, 0)
         self.assertEqual(turn.working_state, "malformed")
+
+    def test_normal_batch_salvages_valid_sibling_calls(self) -> None:
+        turn = _parse_turn({"turn": {"action": "continue", "calls": [
+            {"tool": "inspect_workflow", "arguments": {}},
+            {"tool": "search_source", "targets": [{"value": "flattened"}]},
+            {"tool": "inspect", "arguments": {"kind": "path", "target": "src/a.py"}},
+        ]}})
+        self.assertEqual([call.tool for call in turn.calls], ["inspect_workflow", "inspect"])
+        self.assertEqual(turn.rejected_calls, 1)
+        self.assertEqual(turn.truncated_calls, 0)
+
+    def test_private_compaction_makes_strict_progress_for_257_character_strings(self) -> None:
+        value = {"nested": {"payload": "x" * 257, "other": ["y" * 257]}}
+        bounded = _bounded_private(value, 128)
+        self.assertLessEqual(len(__import__("json").dumps(bounded, sort_keys=True, separators=(",", ":")).encode()), 128)
+        self.assertNotEqual(bounded, value)
+
+    def test_prompt_examples_always_nest_tool_arguments(self) -> None:
+        self.assertIn('{"tool":"search_source","arguments":{"targets"', SYSTEM_PROMPT)
+        self.assertIn('{"tool":"inspect","arguments":{"kind"', SYSTEM_PROMPT)
+        self.assertNotIn('search_source {"targets"', SYSTEM_PROMPT)
 
     def test_v2_heterogeneous_calls_share_one_model_turn_and_conversation(self) -> None:
         initial, inputs = snapshot(), []
@@ -140,12 +162,12 @@ class LocalInvestigateTests(unittest.TestCase):
         self.assertIn("normally prefer\nsearch_source over orient", SYSTEM_PROMPT)
         self.assertIn("Tests, documentation, benchmarks, and callers", SYSTEM_PROMPT)
         self.assertIn("exact implementation path or symbol", FINAL_SYSTEM_PROMPT)
-        self.assertIn('orient {"question":"broad question"}', SYSTEM_PROMPT)
-        self.assertIn('search_source {"targets":[{"value":"symbol or phrase"}]}', SYSTEM_PROMPT)
-        self.assertIn('read_source {"targets":[{"kind":"path|symbol|subsystem|text"', SYSTEM_PROMPT)
-        self.assertIn('inspect_workflow {}', SYSTEM_PROMPT)
-        self.assertIn('inspect_machine {"diagnostic":', SYSTEM_PROMPT)
-        self.assertIn('exec_readonly {"argv":', SYSTEM_PROMPT)
+        self.assertIn('{"tool":"orient","arguments":{"question":"broad question"}}', SYSTEM_PROMPT)
+        self.assertIn('{"tool":"search_source","arguments":{"targets":[{"value":"symbol or phrase"}]}}', SYSTEM_PROMPT)
+        self.assertIn('{"tool":"read_source","arguments":{"targets":[{"kind":"path|symbol|subsystem|text"', SYSTEM_PROMPT)
+        self.assertIn('{"tool":"inspect_workflow","arguments":{}}', SYSTEM_PROMPT)
+        self.assertIn('{"tool":"inspect_machine","arguments":{"diagnostic":', SYSTEM_PROMPT)
+        self.assertIn('{"tool":"exec_readonly","arguments":{"argv":', SYSTEM_PROMPT)
 
     def test_search_verify_answer_preserves_bounded_evidence_backed_working_state(self) -> None:
         initial, inputs = snapshot(), []

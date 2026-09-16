@@ -45,13 +45,15 @@ operation belongs in `calls[].tool`. Continue with up to six heterogeneous calls
 {"action":"continue","calls":[{"tool":"exec_readonly","arguments":{"argv":["rg","-n","symbol","."],"cwd":"/absolute/path","timeout_seconds":5}},{"tool":"inspect","arguments":{"kind":"path","target":"src/file.py"}}],"working_state":{"findings":[{"text":"...","evidence_ids":["E1"]}],"unresolved_questions":[],"evidence_ids":["E1"]}}
 Available tools: exec_readonly, orient, search_source, read_source, inspect,
 inspect_workflow, inspect_machine. Exact argument shapes (no aliases):
-orient {"question":"broad question"}
-search_source {"targets":[{"value":"symbol or phrase"}]}
-read_source {"targets":[{"kind":"path|symbol|subsystem|text","value":"target","line_start":1,"line_end":80}]}
-inspect {"kind":"task|interface|checkpoint|decision|dependency|symbol|path|subsystem|run|lane|dispatch|message|rendezvous|context_fragment|workspace|patch|integration|gate|invariant|artifact|commit|test","target":"identifier"}
-inspect_workflow {}
-inspect_machine {"diagnostic":"gpu_summary|gpu_topology|gpu_processes|host_memory|filesystem_capacity|services|processes|system|pcie_devices|storage_block|network_state|project_control_logs|versions|proc_sys|filesystem","filesystem":{"root":"repository|home|mnt|opt|srv|var_log|var_lib|etc|usr_local|proc|sys","repository":"alias only when root=repository","operation":"list|stat|read|search","path":"relative path","query":"required only for search"}}
-exec_readonly {"argv":["rg","-n","symbol","."],"cwd":"/absolute/path","timeout_seconds":5}
+Each call is always {"tool":"NAME","arguments":{...}}; never put arguments beside
+`tool`. Use these complete call objects:
+{"tool":"orient","arguments":{"question":"broad question"}}
+{"tool":"search_source","arguments":{"targets":[{"value":"symbol or phrase"}]}}
+{"tool":"read_source","arguments":{"targets":[{"kind":"path|symbol|subsystem|text","value":"target","line_start":1,"line_end":80}]}}
+{"tool":"inspect","arguments":{"kind":"task|interface|checkpoint|decision|dependency|symbol|path|subsystem|run|lane|dispatch|message|rendezvous|context_fragment|workspace|patch|integration|gate|invariant|artifact|commit|test","target":"identifier"}}
+{"tool":"inspect_workflow","arguments":{}}
+{"tool":"inspect_machine","arguments":{"diagnostic":"gpu_summary|gpu_topology|gpu_processes|host_memory|filesystem_capacity|services|processes|system|pcie_devices|storage_block|network_state|project_control_logs|versions|proc_sys|filesystem","filesystem":{"root":"repository|home|mnt|opt|srv|var_log|var_lib|etc|usr_local|proc|sys","repository":"alias only when root=repository","operation":"list|stat|read|search","path":"relative path","query":"required only for search"}}}
+{"tool":"exec_readonly","arguments":{"argv":["rg","-n","symbol","."],"cwd":"/absolute/path","timeout_seconds":5}}
 A source call may contain its existing batched targets.
 When several independent observations reduce uncertainty, request them together. Use
 another turn when the next observation depends on the prior result. Tool results are
@@ -231,6 +233,7 @@ def _bounded_private(value: dict[str, Any], budget: int) -> dict[str, Any]:
     """Bound inert model context without applying public path/output suppression."""
     clean = deepcopy(value)
     while _json_size(clean) > budget:
+        before = _json_size(clean)
         lists: list[list[Any]] = []
         strings: list[tuple[dict[str, Any], str, str]] = []
         def visit(node: Any) -> None:
@@ -243,15 +246,29 @@ def _bounded_private(value: dict[str, Any], budget: int) -> dict[str, Any]:
                 for item in node: visit(item)
         visit(clean)
         longest = max(strings, key=lambda item: len(item[2]), default=None)
-        if longest is not None and len(longest[2]) > 256:
+        if longest is not None and longest[2]:
             parent, key, text = longest
-            parent[key] = text[:max(256, len(text) // 2)] + "…"
-            continue
+            # The replacement must shrink the *serialized* payload.  In
+            # particular, a 257-character value plus an escaped ellipsis can
+            # otherwise remain exactly the same size forever.
+            replacement = text[:max(0, len(text) // 2 - 3)] + "..."
+            if _json_size({"value": replacement}) >= _json_size({"value": text}):
+                replacement = ""
+            parent[key] = replacement
+            if _json_size(clean) < before:
+                continue
+            parent[key] = ""
+            if _json_size(clean) < before:
+                continue
         collection = max(lists, key=len, default=None)
         if collection:
             collection.pop()
-            continue
-        return {"truncated": True}
+            if _json_size(clean) < before:
+                continue
+        # There is no remaining value that can be shortened.  This is a
+        # terminal replacement, not another no-progress compaction attempt.
+        marker: dict[str, Any] = {"truncated": True}
+        return marker if _json_size(marker) <= budget else {}
     return clean
 
 def _read_signature(action: str, params: dict[str, Any]) -> str:
@@ -373,7 +390,7 @@ def _parse_turn(raw: dict[str, Any]) -> _Request:
         value.pop("requests", None)
     truncated_calls = 0
     rejected_calls = 0
-    if isinstance(value, dict) and isinstance(value.get("calls"), list) and len(value["calls"]) > 6:
+    if isinstance(value, dict) and isinstance(value.get("calls"), list):
         accepted: list[dict[str, Any]] = []
         for raw_call in value["calls"]:
             try:

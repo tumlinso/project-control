@@ -149,6 +149,38 @@ class QueryServiceTests(unittest.TestCase):
         self.assertNotIn("local_services", result.data)
         self.assertNotIn("local_worker_state_unavailable", result.warnings)
 
+    def test_agent_status_prefers_existing_observer_backend_over_missing_daemon_state(self) -> None:
+        self.snapshot.provider_warnings = {"worker": ["local_worker_state_unavailable"]}
+        result = agent_status(self.snapshot, AgentStatusInput(project="demo"), observer_backend={
+            "status": "ok", "source": "observer_analysis_backend", "running": True,
+            "healthy": True, "draining": False, "capacity": 2,
+            "active_leases": 1, "active_admissions": 0,
+            "slots": [{"slot": 0, "state": "ready", "leased": True}],
+            "confidence": "in_process_backend",
+        })
+        self.assertEqual(result.data["local_services"]["source"], "observer_analysis_backend")
+        self.assertTrue(result.data["local_services"]["running"])
+        self.assertNotIn("local_worker_state_unavailable", result.warnings)
+
+    def test_agent_status_retains_healthy_daemon_with_unstarted_observer_registry(self) -> None:
+        self.snapshot.local_worker = {"status": "ok", "source": "existing_supervisor_state", "running": True}
+        result = agent_status(self.snapshot, AgentStatusInput(project="demo"), observer_backend={
+            "status": "ok", "source": "observer_analysis_registry", "running": False,
+            "healthy": False, "draining": False, "capacity": None,
+            "active_leases": 0, "active_admissions": 0, "slots": [],
+            "confidence": "in_process_registry",
+        })
+        self.assertEqual(result.data["local_services"]["source"], "observer_analysis_registry")
+        self.assertEqual(result.data["local_services"]["daemon_supervisor"]["source"], "existing_supervisor_state")
+
+    def test_agent_status_retains_daemon_unavailable_warning_for_partial_observer_status(self) -> None:
+        self.snapshot.provider_warnings = {"worker": ["local_worker_state_unavailable"]}
+        result = agent_status(self.snapshot, AgentStatusInput(project="demo"), observer_backend={
+            "status": "partial", "source": "observer_analysis_backend",
+            "warnings": ["observer_backend_status_unavailable"],
+        })
+        self.assertIn("local_worker_state_unavailable", result.warnings)
+
     def test_overview_omits_unrequested_optional_cuda_unavailability(self) -> None:
         self.snapshot.provider_warnings = {"cuda": ["cuda_evidence_unavailable"]}
         result = project_overview(self.snapshot, detail="compact")

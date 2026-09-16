@@ -18,7 +18,8 @@ def _heartbeat_age(expires_at: str | None) -> int | None:
         return None
 
 
-def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput) -> ToolEnvelope:
+def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput,
+                 *, observer_backend: dict[str, Any] | None = None) -> ToolEnvelope:
     workflow = workflow_summary(snapshot, max_items=100)
     first_class_agents = list(workflow.get("first_class_agents", [])) if workflow["available"] else []
     lane_worktrees = {
@@ -67,13 +68,30 @@ def agent_status(snapshot: ProjectSnapshot, request: AgentStatusInput) -> ToolEn
         data["subordinate_local_children"] = children
         data["legacy_child_observations"] = legacy_children if not workflow["available"] else []
     if request.include_local_services:
-        data["local_services"] = snapshot.local_worker
+        # The observer backend is in-process and deliberately has no daemon
+        # snapshot.  Prefer its existing (never started for status) state over
+        # a missing legacy supervisor file, while retaining a healthy daemon
+        # snapshot when one is present.
+        local_services = observer_backend or snapshot.local_worker
+        if observer_backend is not None and snapshot.local_worker.get("status") == "ok":
+            local_services = {
+                **observer_backend,
+                "daemon_supervisor": snapshot.local_worker,
+            }
+        data["local_services"] = local_services
     warnings = [] if workflow["available"] else [str(workflow.get("reason") or "agent_state_unavailable")]
-    if not workflow["available"] and request.include_local_services and snapshot.local_worker.get("status") != "ok":
+    local_status = (observer_backend or snapshot.local_worker).get("status")
+    if not workflow["available"] and request.include_local_services and local_status != "ok":
         warnings.append("agent_state_unavailable")
     provider_warnings = snapshot.warnings_for("todo")
     if request.include_local_services:
-        provider_warnings.extend(snapshot.warnings_for("worker"))
+        worker_warnings = snapshot.warnings_for("worker")
+        # A missing daemon state file is not a warning when an already-live
+        # in-process observer backend supplied the local service state.
+        if observer_backend is not None and observer_backend.get("status") == "ok":
+            worker_warnings = [item for item in worker_warnings
+                               if item != "local_worker_state_unavailable"]
+        provider_warnings.extend(worker_warnings)
     return bounded_envelope(
         envelope("agent_status", snapshot, data, warnings=[*provider_warnings, *warnings], compact_identity=True),
         10000,

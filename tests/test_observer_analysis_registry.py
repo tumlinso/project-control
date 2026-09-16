@@ -29,6 +29,37 @@ class _Provider:
 
 
 class ObserverAnalysisRegistryTests(unittest.TestCase):
+    def test_status_never_creates_provider_or_backend(self):
+        _Provider.created = 0
+        registry = ObserverAnalysisRegistry(_Provider)
+        result = registry.status()
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["source"], "observer_analysis_registry")
+        self.assertFalse(result["running"])
+        self.assertEqual(_Provider.created, 0)
+
+    def test_status_reports_existing_backend_compactly(self):
+        class Backend:
+            def observer_status(self):
+                return {
+                    "running": True, "healthy": True, "draining": False,
+                    "capacity": 2, "active_leases": 1, "active_admissions": 0,
+                    "slots": [{"state": "ready", "leased": True,
+                               "endpoint": "/private/endpoint", "gpu_uuids": ["private"]}],
+                }
+
+            def status(self):
+                raise AssertionError("observer_status should be preferred")
+
+        registry = ObserverAnalysisRegistry(_Provider)
+        provider = _Provider("/tmp/observer")
+        provider._backend = Backend()
+        registry._providers["local-observer-service"] = provider
+        result = registry.status()
+        self.assertEqual(result["source"], "observer_analysis_backend")
+        self.assertTrue(result["running"])
+        self.assertEqual(result["slots"], [{"slot": 0, "state": "ready", "leased": True}])
+        self.assertNotIn("endpoint", str(result))
     def test_investigator_turn_is_translated_to_skills_chat_contract(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

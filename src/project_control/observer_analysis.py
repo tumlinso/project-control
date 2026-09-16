@@ -225,6 +225,70 @@ class ObserverAnalysisRegistry:
         if provider is not None:
             provider.close_session(session_id)
 
+    def status(self) -> dict[str, Any]:
+        """Return a compact snapshot of an already-created observer backend.
+
+        Status must never cause local-worker import, backend construction, model
+        admission, or service start.  The daemon snapshot remains the fallback
+        for callers that have not used observer analysis in this process.
+        """
+        with self._lock:
+            provider = self._providers.get("local-observer-service")
+            backend = getattr(provider, "_backend", None) if provider is not None else None
+        if backend is None:
+            return {
+                "status": "ok",
+                "source": "observer_analysis_registry",
+                "observed_state": "not_started",
+                "running": False,
+                "healthy": False,
+                "draining": False,
+                "capacity": None,
+                "active_leases": 0,
+                "active_admissions": 0,
+                "slots": [],
+                "confidence": "in_process_registry",
+            }
+        # Newer backends may expose a cheap, non-probing observer snapshot;
+        # retain ``status`` for installed/runtime compatibility.
+        status = getattr(backend, "observer_status", None)
+        if not callable(status):
+            status = getattr(backend, "status", None)
+        if not callable(status):
+            return {"status": "partial", "source": "observer_analysis_backend",
+                    "warnings": ["observer_backend_status_unavailable"]}
+        try:
+            value = status()
+        except Exception:
+            return {"status": "partial", "source": "observer_analysis_backend",
+                    "warnings": ["observer_backend_status_unavailable"]}
+        if not isinstance(value, dict):
+            return {"status": "partial", "source": "observer_analysis_backend",
+                    "warnings": ["observer_backend_status_invalid"]}
+        slots = []
+        for index, slot in enumerate(value.get("slots", [])):
+            if not isinstance(slot, dict):
+                continue
+            slots.append({
+                "slot": index,
+                "state": slot.get("state", "unknown"),
+                "leased": bool(slot.get("leased", False)),
+            })
+        return {
+            "status": "ok",
+            "source": "observer_analysis_backend",
+            "observed_state": "running" if value.get("running") else "not_running",
+            "running": bool(value.get("running", False)),
+            "healthy": bool(value.get("healthy", False)),
+            "draining": bool(value.get("draining", False)),
+            "capacity": value.get("capacity") if isinstance(value.get("capacity"), int) else None,
+            "active_leases": value.get("active_leases"),
+            "active_admissions": (value.get("active_admissions")
+                                  if isinstance(value.get("active_admissions"), int) else None),
+            "slots": slots,
+            "confidence": "in_process_backend",
+        }
+
     def close(self) -> None:
         with self._lock:
             providers, self._providers = list(self._providers.values()), {}

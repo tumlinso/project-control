@@ -381,7 +381,11 @@ def create_mcp(
     )
     def agent_status(project: str, include_children: bool = True, include_local_services: bool = True) -> dict[str, Any]:
         request = AgentStatusInput(project=project, include_children=include_children, include_local_services=include_local_services)
-        return runtime.invoke("agent_status", project, lambda: agent_status_service(runtime.snapshot(project), request))
+        def operation() -> ToolEnvelope:
+            snapshot = runtime.snapshot(project)
+            observer_backend = observer_analysis_registry.status() if request.include_local_services else None
+            return agent_status_service(snapshot, request, observer_backend=observer_backend)
+        return runtime.invoke("agent_status", project, operation)
 
     @mcp.tool(
         description="Summarize existing CUDA campaigns, comparable measurements, regressions, contamination, worker slots, and optional host capacity without executing work.",
