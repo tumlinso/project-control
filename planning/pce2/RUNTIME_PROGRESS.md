@@ -92,5 +92,36 @@ result shape, and confirms the disposable authority's Git and Todo identities
 remain unchanged.
 
 Focused independent review found no remaining material correctness issue.
-The tests bind the local Skills source; a separately packaged paired release
-is not yet qualified. No deployment or live donor mutation was performed.
+The original development fixture did not qualify a separately packaged paired
+release; the activated follow-up below supplies that bounded release evidence.
+
+## Activated maintenance-host follow-up
+
+The bounded maintenance route now has an owner CLI preparation surface:
+`project-control admin prepare-maintenance --repo ROOT --task TASK --recipient PRINCIPAL`.
+It returns the exact opaque mandate and an allowlisted, identity-derived
+same-runtime operator launch packet. The operator is a trusted startup-bound
+Codex stdio MCP server; an external tool-capable host starts it and makes the
+public `maintain_execution` call. Project Control does not create a model
+launcher or select/claim the implementer's work.
+
+The authorization replay path now retains the already verified signed payload
+with its receipt, so both first execution and same-principal receipt replay
+recommend `next_task(repo_root, task_id)` for the exact repaired task.
+
+Candidate `/home/tumlinson/.local/share/project-control/candidates/pce2-maintenance-ab630b1`
+was built from Project Control `ab630b110afdb1340cb6e53762aa3906ff9b0976`
+and Skills `f4d544476d7cc047a9a8d15e31a6d657f093ef53`; its identity digest is
+`66e58bc15a4ec901c6ef2f612c60907a485b0ab69997b75047aa6adbd5769a85` and
+manifest SHA-256 is
+`60eb7bccbd44ebbf89906a7de893dfe3d2ed99db24f97973470fc29b06c911cc`.
+The installed candidate passed `tests.test_maintenance_journey` in 4.461
+seconds with isolated XDG state and frozen release binding. Atomic shared
+launcher cutover and user-service restart succeeded; live PID `129124`
+verified the manifest/digest, `/healthz` and `/readyz` returned 200, and
+readiness reported 10 workspaces. Rollback is retained at
+`/home/tumlinson/.local/state/project-control/activations/pce2-maintenance-20260920T162008Z`.
+
+This qualifies separate issuer, operator, and implementer process transfer for
+the bounded same-task recovery journey. Full PCE2 remains open; NF1A remains
+paused.
