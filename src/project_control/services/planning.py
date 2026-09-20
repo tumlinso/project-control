@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from ..adapters.git import GitReadAdapter
@@ -140,7 +141,18 @@ def _planning_context(snapshot: ProjectSnapshot, objective: str | None = None) -
     }
 
 
-def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, request: PlanPreviewInput) -> ToolEnvelope:
+TodoPlanReader = Callable[[Path], tuple[Mapping[str, Any], Mapping[str, Any]]]
+SnapshotRefresher = Callable[[], ProjectSnapshot]
+
+
+def plan_preview(
+    config: ProjectControlConfig,
+    snapshot: ProjectSnapshot,
+    request: PlanPreviewInput,
+    *,
+    todo_plan_reader: TodoPlanReader | None = None,
+    snapshot_refresher: SnapshotRefresher | None = None,
+) -> ToolEnvelope:
     if request.mode == "context":
         budget = 10000 if request.detail == "standard" else 6000
         return bounded_envelope(
@@ -157,10 +169,19 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     workspace = registry.workspace(request.project)
     if not workspace.authority_repository:
         return envelope("plan_preview", snapshot, {"mode": request.mode, "valid": False}, warnings=["todo_authority_unavailable"])
-    skills_root = resolve_skills_root(config, request.project)
-    if skills_root is None:
-        return envelope("plan_preview", snapshot, {"mode": request.mode, "valid": False}, warnings=["skills_root_unavailable"])
-    todo_script = skills_root / "todo-orchestrator" / "scripts" / "todo.py"
+    # Do not make preview discover, initialize, or substitute an authority.
+    # A missing authority observation is a failed precondition, even when a
+    # legacy script happens to be present on disk.
+    if snapshot.todo_revision is None:
+        return envelope("plan_preview", snapshot, {"mode": request.mode, "valid": False}, warnings=["todo_authority_unavailable"])
+    if todo_plan_reader is not None and snapshot_refresher is None:
+        raise ValueError("bound Todo plan preview requires a snapshot refresher")
+    todo_script: Path | None = None
+    if todo_plan_reader is None:
+        skills_root = resolve_skills_root(config, request.project)
+        if skills_root is None:
+            return envelope("plan_preview", snapshot, {"mode": request.mode, "valid": False}, warnings=["skills_root_unavailable"])
+        todo_script = skills_root / "todo-orchestrator" / "scripts" / "todo.py"
     root = registry.repository(request.project, workspace.authority_repository).root
     proposal = request.proposal or {}
     proposal_envelope: ProposalEnvelope | None = None
@@ -184,8 +205,8 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     encoded = json.dumps(proposal, sort_keys=True, indent=2).encode("utf-8")
     digest = hashlib.sha256(encoded).hexdigest()
     before_identity = _identities(registry, request.project)
-    before_revision = _todo_revision(root, todo_script)
-    todo_adapter = TodoReadAdapter(root, todo_script)
+    before_revision = snapshot.todo_revision if todo_plan_reader is not None else _todo_revision(root, todo_script)
+    todo_adapter = TodoReadAdapter(root, todo_script) if todo_plan_reader is None else None
     temporary_path: Path | None = None
     try:
         descriptor, name = tempfile.mkstemp(prefix="proposal-", suffix=".json", dir=_app_temp_directory())
@@ -195,12 +216,20 @@ def plan_preview(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
-        validate_json = todo_adapter.plan_read("validate", temporary_path)
-        diff_json = todo_adapter.plan_read("diff", temporary_path)
+        if todo_plan_reader is not None:
+            validate_json, diff_json = todo_plan_reader(temporary_path)
+        else:
+            assert todo_adapter is not None
+            validate_json = todo_adapter.plan_read("validate", temporary_path)
+            diff_json = todo_adapter.plan_read("diff", temporary_path)
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
-    after_revision = _todo_revision(root, todo_script)
+    after_revision = (
+        snapshot_refresher().todo_revision
+        if todo_plan_reader is not None
+        else _todo_revision(root, todo_script)
+    )
     after_identity = _identities(registry, request.project)
     if before_revision != after_revision or before_identity != after_identity:
         raise MutationDetected("plan preview changed registered project authority")

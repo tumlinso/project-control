@@ -17,6 +17,7 @@ from project_control.runtime_identity import (
     bind_runtime,
     locate_skills_root,
     package_fingerprint,
+    runtime_diagnostics,
     validate_runtime,
 )
 
@@ -94,6 +95,32 @@ class RuntimeIdentityTests(unittest.TestCase):
             (self.source / "changed.py").write_text("CHANGED = True\n", encoding="utf-8")
             with self.assertRaises(RuntimeIdentityError):
                 validate_runtime(identity)
+
+    def test_runtime_diagnostics_reports_configuration_without_guessing_a_root(self) -> None:
+        result = runtime_diagnostics({})
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["reason"], "runtime_not_configured")
+        self.assertEqual(result["supported_action"], "configure_verified_runtime")
+        self.assertEqual(result["required_environment"], [CANONICAL_ROOT_VARIABLE])
+
+    def test_runtime_diagnostics_returns_verified_identity_without_environment(self) -> None:
+        with patch.dict(sys.modules, {"todo_orchestrator": self.module}):
+            result = runtime_diagnostics(self.env(API_SECRET="must-not-appear"))
+        self.assertEqual(result["status"], "verified")
+        self.assertEqual(result["identity"]["skills_root"], str(self.root))
+        self.assertEqual(result["supported_action"], "use_configured_runtime")
+        self.assertNotIn("launch_environment", result)
+        self.assertNotIn("must-not-appear", str(result))
+
+    def test_runtime_diagnostics_preserves_a_mismatch_as_attention_required(self) -> None:
+        result = runtime_diagnostics(
+            self.env(**{CANONICAL_FINGERPRINT_VARIABLE: "0" * 64}),
+            binder=lambda environment: bind_runtime(environment),
+        )
+        self.assertEqual(result["status"], "attention_required")
+        self.assertEqual(result["reason"], "runtime_identity_mismatch")
+        self.assertEqual(result["supported_action"], "restart_verified_runtime")
+        self.assertIn("configured Todo source changed", result["cause"])
 
 
 if __name__ == "__main__":

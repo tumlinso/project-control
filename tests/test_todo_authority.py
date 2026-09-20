@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from project_control.adapters.todo import TodoReadAdapter
-from project_control.app import Runtime
+from project_control.app import Runtime, create_mcp
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from project_control.models import PlanPreviewInput, ProjectSnapshot, RepositoryIdentity
+from project_control.services.planning import plan_preview
 from project_control.snapshot import SnapshotBuilder
 from project_control.todo_authority import (
     REQUIRED_TODO_READ_CAPABILITIES,
@@ -179,6 +184,113 @@ class TodoAuthorityTests(unittest.TestCase):
         self.assertIs(adapter.read_port, port)
         self.assertIsNone(adapter.todo_script)
         self.assertIn("export", [item[0] for item in port.calls])
+
+    def test_bound_runtime_plan_reader_uses_native_read_only_service(self) -> None:
+        port = FakeReadPort(self.skills_root)
+        service_module = types.ModuleType("todo_orchestrator.service")
+        services: list[object] = []
+
+        class Service:
+            def __init__(self, root, *, read_only):
+                self.root = root
+                self.read_only = read_only
+                services.append(self)
+
+            def plan_validate(self, path):
+                return {"valid": True, "path": path}
+
+            def plan_diff(self, path):
+                return {"add": [], "update": []}
+
+        service_module.Service = Service
+        binding = Mock()
+        with patch("project_control.app.todo_read_port_factory", return_value=lambda _root: port), \
+             patch("project_control.app.initialize_workflow_binding", return_value=binding), \
+             patch.dict(sys.modules, {"todo_orchestrator.service": service_module}):
+            runtime = Runtime(self.config)
+            result = runtime.todo_plan_reader("fixture")(Path(self.temporary.name) / "proposal.json")
+        self.assertTrue(result[0]["ok"])
+        self.assertTrue(result[0]["data"]["valid"])
+        self.assertEqual(len(services), 1)
+        self.assertTrue(services[0].read_only)
+        self.assertEqual(services[0].root, self.repo)
+        self.assertGreaterEqual(binding.validate.call_count, 3)
+
+    def test_public_plan_preview_uses_bound_reader_and_preserves_source(self) -> None:
+        port = FakeReadPort(self.skills_root)
+        calls: list[Path] = []
+
+        def reader(path: Path):
+            calls.append(path)
+            return (
+                {"ok": True, "data": {"valid": True, "dependency_errors": [], "scope_conflicts": [], "interface_errors": [], "warnings": []}},
+                {"ok": True, "data": {"add": [], "update": []}},
+            )
+
+        before = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
+        with patch("project_control.app.todo_read_port_factory", return_value=lambda _root: port), \
+             patch("project_control.app.Runtime.todo_plan_reader", return_value=reader):
+            mcp = create_mcp(self.config)
+            result = asyncio.run(mcp._tool_manager.call_tool("plan_preview", {
+                "project": "fixture", "mode": "validate", "proposal": {"schema_version": 2, "tasks": []},
+            }))
+        after = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
+        self.assertTrue(result["data"]["valid"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(before, after)
+
+    def test_preview_missing_authority_returns_before_constructing_reader(self) -> None:
+        snapshot = ProjectSnapshot(
+            workspace_id="fixture", observed_at="2026-09-20T00:00:00Z",
+            repositories={"source": RepositoryIdentity(commit="a" * 40, dirty=False)},
+        )
+        reader = Mock(side_effect=AssertionError("reader must not run"))
+        before = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
+        result = plan_preview(
+            self.config, snapshot,
+            PlanPreviewInput(project="fixture", mode="validate", proposal={}),
+            todo_plan_reader=reader,
+        )
+        after = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
+        self.assertFalse(result.data["valid"])
+        self.assertIn("todo_authority_unavailable", result.warnings)
+        reader.assert_not_called()
+        self.assertEqual(before, after)
+
+    def test_public_preview_skips_reader_for_context_and_missing_authority(self) -> None:
+        missing = ProjectSnapshot(
+            workspace_id="fixture", observed_at="2026-09-20T00:00:00Z",
+            repositories={"source": RepositoryIdentity(commit="a" * 40, dirty=False)},
+        )
+        before = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
+        with patch("project_control.app.todo_read_port_factory", return_value=None):
+            mcp = create_mcp(self.config)
+        runtime = getattr(mcp, "_project_control_runtime")
+        with patch.object(runtime, "snapshot", return_value=missing), \
+             patch.object(runtime, "todo_plan_reader", side_effect=AssertionError("reader must not construct")) as reader:
+            context = asyncio.run(mcp._tool_manager.call_tool("plan_preview", {
+                "project": "fixture", "mode": "context",
+            }))
+            unavailable = asyncio.run(mcp._tool_manager.call_tool("plan_preview", {
+                "project": "fixture", "mode": "validate", "proposal": {},
+            }))
+        after = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
+        self.assertEqual(context["data"]["mode"], "context")
+        self.assertIn("todo_authority_unavailable", unavailable["warnings"])
+        reader.assert_not_called()
+        self.assertEqual(before, after)
+
+    def test_bound_preview_requires_paired_refresh(self) -> None:
+        snapshot = ProjectSnapshot(
+            workspace_id="fixture", observed_at="2026-09-20T00:00:00Z", todo_revision=7,
+            repositories={"source": RepositoryIdentity(commit="a" * 40, dirty=False)},
+        )
+        with self.assertRaisesRegex(ValueError, "snapshot refresher"):
+            plan_preview(
+                self.config, snapshot,
+                PlanPreviewInput(project="fixture", mode="validate", proposal={}),
+                todo_plan_reader=lambda _path: ({}, {}),
+            )
 
     def test_read_port_contract_mismatch_fails_closed_without_subprocess_fallback(self) -> None:
         script = self.skills_root / "todo-orchestrator" / "scripts" / "todo.py"

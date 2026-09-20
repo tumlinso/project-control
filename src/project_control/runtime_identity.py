@@ -26,6 +26,58 @@ CANONICAL_FINGERPRINT_VARIABLE = "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT"
 LEGACY_FINGERPRINT_VARIABLE = "CODING_WORKFLOW_RUNTIME_FINGERPRINT"
 
 
+def runtime_diagnostics(
+    environment: Mapping[str, str] = os.environ,
+    *,
+    binder: Callable[[Mapping[str, str]], "RuntimeIdentity"] | None = None,
+) -> dict[str, object]:
+    """Describe the one supported workflow runtime without changing it.
+
+    This is deliberately a diagnostic, not a launcher. It identifies one
+    verified runtime or reports the failing layer without selecting packages,
+    changing imports, or exposing ambient process environment.
+    """
+
+    bind = binder or bind_runtime
+    try:
+        identity = bind(environment)
+    except RuntimeIdentityError as exc:
+        configured = bool(
+            environment.get(CANONICAL_ROOT_VARIABLE)
+            or environment.get(LEGACY_ROOT_VARIABLE)
+            or environment.get(RELEASE_MANIFEST_VARIABLE)
+            or environment.get(RELEASE_DIGEST_VARIABLE)
+        )
+        if not configured:
+            return {
+                "status": "unavailable",
+                "reason": "runtime_not_configured",
+                "cause": str(exc),
+                "supported_action": "configure_verified_runtime",
+                "required_environment": [CANONICAL_ROOT_VARIABLE],
+            }
+        action = "restart_verified_runtime"
+        if exc.observed == "not importable":
+            action = "install_paired_candidate"
+        elif exc.observed == "missing":
+            action = "verify_configured_skills_root"
+        elif exc.observed == "incomplete release binding":
+            action = "configure_complete_release_binding"
+        return {
+            "status": "attention_required",
+            "reason": exc.code,
+            "cause": str(exc),
+            "expected": exc.expected,
+            "observed": exc.observed,
+            "supported_action": action,
+        }
+    return {
+        "status": "verified",
+        "identity": identity.public(),
+        "supported_action": "use_configured_runtime",
+    }
+
+
 class RuntimeIdentityError(RuntimeError):
     """The configured and imported Todo runtimes do not have one identity."""
 

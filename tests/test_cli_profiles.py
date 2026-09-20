@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +21,35 @@ def _preconditions_fixture():
 
 
 class ProfileCliTests(unittest.TestCase):
+    def test_public_doctor_reports_safe_runtime_and_executor_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "todo-orchestrator" / "todo_orchestrator"
+            source.mkdir(parents=True)
+            (source / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+            module = types.ModuleType("todo_orchestrator")
+            module.__file__ = str(source / "__init__.py")
+            environment = {
+                "PROJECT_CONTROL_SKILLS_ROOT": str(root),
+                "API_SECRET": "must-not-appear",
+            }
+            with patch.dict(os.environ, environment, clear=True), \
+                 patch.dict(sys.modules, {"todo_orchestrator": module}), \
+                 patch("project_control.cli.load_config", return_value=ProjectControlConfig()), \
+                 patch("project_control.cli.BubblewrapSandbox.probe_diagnostics", return_value={"installed": False, "ready": False}), \
+                 patch("project_control.cli._terminal_service_constraints", return_value={"compatible": None}), \
+                 patch("sys.stdout", new_callable=io.StringIO) as output:
+                self.assertEqual(main(["doctor", "--json"]), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["workflow_runtime"]["status"], "verified")
+        self.assertNotIn("must-not-appear", output.getvalue())
+        self.assertEqual(
+            result["executor_capabilities"]["local_worker_observation_adapter"]["reason"],
+            "observer_only_local_worker_adapter",
+        )
+        self.assertEqual(
+            result["executor_capabilities"]["local_worker_observation_adapter"]["status"], "observation_only",
+        )
     def test_plan_compile_writes_native_plan_and_bounded_summary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

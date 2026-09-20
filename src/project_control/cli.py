@@ -14,6 +14,7 @@ from .preledger import PreledgerError
 from .registry import RegistryError, WorkspaceRegistry
 from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
 from .terminal import BubblewrapSandbox
+from .runtime_identity import runtime_diagnostics
 
 
 def _live_link(value: str) -> tuple[str, Path]:
@@ -298,6 +299,25 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
             "ready": bool(probe["ready"] and service_compatible is not False),
             "probe": probe,
             "service_constraints": service_constraints,
+        },
+        # This validates one import/runtime identity without opening an
+        # authority. It does not expose ambient environment values or launch a
+        # process.
+        "workflow_runtime": runtime_diagnostics(),
+        # Project Control can observe the existing local-worker supervisor but
+        # owns no tool-capable launcher. This says nothing about an executor
+        # configured by Todo itself.
+        "executor_capabilities": {
+            "local_worker_observation_adapter": {
+                "status": "observation_only",
+                "reason": "observer_only_local_worker_adapter",
+                "supported_action": "consult_todo_executor_capabilities",
+            },
+            "project_control_tool_capable_launcher": {
+                "status": "unavailable",
+                "reason": "no_project_control_owned_tool_capable_launcher",
+                "supported_action": "use_configured_todo_executor",
+            },
         },
     }
     try:

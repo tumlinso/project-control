@@ -66,7 +66,7 @@ from .normalize import bounded_envelope, bounded_payload
 from .terminal import TerminalSessionRegistry
 from .profiles import MCPProfile, ProfiledFastMCP
 from .mutation_tools import register_mutation_tools
-from .workflow_binding import todo_read_port_factory, workflow_protocol
+from .workflow_binding import initialize_workflow_binding, todo_read_port_factory, workflow_protocol
 from .workflow_tools import WORKFLOW_INSTRUCTIONS, register_workflow_tools
 from .observer_analysis import ObserverAnalysisRegistry
 
@@ -182,6 +182,44 @@ class Runtime:
 
     def snapshot(self, project: str, *, host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
         return self.builder.build(project, include_host=host, campaign=campaign)
+
+    def todo_plan_reader(self, project: str):
+        """Use Todo's verified in-process plan service when this Runtime is bound.
+
+        The fallback preview path remains for unbound compatibility setups. A
+        bound Runtime must not select a second Todo script just to preview.
+        """
+
+        if self.todo_read_port_factory is None:
+            return None
+        workspace = self.builder.registry.workspace(project)
+        if not workspace.authority_repository:
+            return None
+        root = self.builder.registry.repository(project, workspace.authority_repository).root
+        binding = initialize_workflow_binding()
+        binding.validate()
+        from todo_orchestrator.service import Service
+
+        service = Service(root, read_only=True)
+
+        def read(plan_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+            binding.validate()
+            validation = service.plan_validate(str(plan_path))
+            diff = service.plan_diff(str(plan_path))
+            binding.validate()
+
+            def envelope_result(value: object) -> dict[str, Any]:
+                # Todo's in-process Service returns its native payload, while
+                # the compatibility CLI returns {ok, data}. Keep the existing
+                # preview consumer on one envelope without changing what Todo
+                # validates or diffs.
+                if isinstance(value, dict) and isinstance(value.get("data"), dict) and "ok" in value:
+                    return value
+                return {"ok": True, "data": dict(value) if isinstance(value, dict) else {}}
+
+            return envelope_result(validation), envelope_result(diff)
+
+        return read
 
     def failure(self, tool: str, project: str, status: ToolStatus, warning: str) -> dict[str, Any]:
         observed = utc_now()
@@ -372,7 +410,24 @@ def create_mcp(
     )
     def plan_preview(project: str, mode: PlanMode, objective: Annotated[str | None, Field(max_length=4000)] = None, proposal: dict[str, Any] | None = None, detail: PlanDetail = "standard") -> dict[str, Any]:
         request = PlanPreviewInput(project=project, mode=mode, objective=objective, proposal=proposal, detail=detail)
-        return runtime.invoke("plan_preview", project, lambda: plan_preview_service(active_config, runtime.snapshot(project), request))
+        def operation() -> ToolEnvelope:
+            snapshot = runtime.snapshot(project)
+            workspace = runtime.builder.registry.workspace(project)
+            reader = None
+            refresher = None
+            if (
+                request.mode != "context"
+                and snapshot.todo_revision is not None
+                and workspace.authority_repository is not None
+            ):
+                reader = runtime.todo_plan_reader(project)
+                if reader is not None:
+                    refresher = lambda: runtime.snapshot(project)
+            return plan_preview_service(
+                active_config, snapshot, request,
+                todo_plan_reader=reader, snapshot_refresher=refresher,
+            )
+        return runtime.invoke("plan_preview", project, operation)
 
     @mcp.tool(
         description="Report observable todo agents, claims, child attempts, stale state, and existing local services without starting or inferring activity.",

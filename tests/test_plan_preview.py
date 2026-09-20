@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+from project_control.app import create_mcp
 from project_control.models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, RepositoryIdentity, WorktreeIdentity
 from project_control.services.planning import plan_preview
 
@@ -97,6 +99,50 @@ class PlanPreviewTests(unittest.TestCase):
         self.assertIn("observation_preconditions", handed.data["handoff"])
         self.assertNotIn("observation_preconditions", validated.data)
         self.assertFalse(any(self.cache.rglob("proposal-*.json")))
+
+    def test_bound_mcp_validate_and_handoff_use_real_todo_service(self) -> None:
+        """Exercise the bound public route against this disposable authority."""
+
+        before = self.identities()
+        child = """
+import asyncio
+import json
+import sys
+from pathlib import Path
+from project_control.app import create_mcp
+from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
+
+root = Path(sys.argv[1])
+skills = Path(sys.argv[2])
+config = ProjectControlConfig(skills_root=skills, workspaces={
+    'demo': WorkspaceConfig(authority_repository='source', repositories={
+        'source': RepositoryConfig(root=root),
+    }),
+})
+proposal = {'schema_version': 2, 'project': {'name': 'Fixture'}, 'invariants': [], 'locks': [], 'interfaces': [], 'tasks': []}
+mcp = create_mcp(config)
+validated = asyncio.run(mcp._tool_manager.call_tool('plan_preview', {
+    'project': 'demo', 'mode': 'validate', 'proposal': proposal,
+}))
+handed = asyncio.run(mcp._tool_manager.call_tool('plan_preview', {
+    'project': 'demo', 'mode': 'handoff', 'proposal': proposal, 'objective': 'Test',
+}))
+print(json.dumps({'validated': validated, 'handed': handed}, sort_keys=True))
+"""
+        environment = dict(os.environ)
+        environment["PROJECT_CONTROL_SKILLS_ROOT"] = str(SKILLS)
+        environment["PYTHONPATH"] = str(SKILLS / "todo-orchestrator") + os.pathsep + environment.get("PYTHONPATH", "")
+        environment["XDG_CACHE_HOME"] = str(self.cache)
+        completed = subprocess.run(
+            [sys.executable, "-c", child, str(self.root), str(SKILLS)],
+            cwd=self.root, env=environment, text=True, capture_output=True, check=True,
+        )
+        result = json.loads(completed.stdout)
+        after = self.identities()
+        self.assertTrue(result["validated"]["data"]["valid"])
+        self.assertEqual(result["validated"]["data"]["mutation_guard"], "unchanged")
+        self.assertIn("handoff", result["handed"]["data"])
+        self.assertEqual(before, after)
 
     def test_proposal_limit_is_enforced(self) -> None:
         with self.assertRaises(ValueError):

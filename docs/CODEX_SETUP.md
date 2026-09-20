@@ -18,6 +18,13 @@ fingerprints. The legacy
 `CODING_WORKFLOW_SKILLS_ROOT` name is accepted only during the bounded
 compatibility window and emits a deprecation warning.
 
+`project-control doctor --json` reports whether the configured runtime was
+verified and, when it was not, the failing layer and a supported configuration,
+installation, or restart action. It never emits ambient environment values or
+launches a process. Its local-worker entry describes Project Control's
+observation adapter only; it does not claim the availability of a Todo-managed
+executor.
+
 Before registration, candidate validation must prove:
 
 - runtime package and frozen source match the digest-pinned manifest;
