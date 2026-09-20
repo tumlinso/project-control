@@ -169,6 +169,20 @@ class ProjectModelTests(unittest.TestCase):
         self.assertIn("heuristic", result.data["critical_path_basis"])
         self.assertEqual(result.data["blocked"][0]["immediate_blockers"], ["T2"])
 
+    def test_frontier_omits_completed_prerequisite_and_reports_task_recovery(self) -> None:
+        snapshot = fixture_snapshot().model_copy(deep=True)
+        snapshot.todo_tables["task_dependencies"] = [{"task_id": "T3", "prerequisite_task_id": "T0"}]
+        snapshot.todo_workflow = {
+            "available": True, "revision": 8, "runs": [], "first_class_agents": [], "local_children": [],
+            "blocking_messages": [], "unresolved_questions": [], "rendezvous": [], "patch_artifacts": [],
+            "pending_patches": [], "integration_queue": [],
+            "recovery_needed": [{"kind": "workspace", "id": "W-T3", "task_id": "T3", "reason": "dirty"}],
+            "safe_parallel_groups": [],
+        }
+        result = project_frontier(snapshot)
+        blocked = next(item for item in result.data["blocked"] if item["id"] == "T3")
+        self.assertEqual(blocked["immediate_blockers"], ["W-T3"])
+
     def test_superseded_cp_math_task_cannot_enter_current_frontier(self) -> None:
         snapshot = fixture_snapshot()
         tables = dict(snapshot.todo_tables)

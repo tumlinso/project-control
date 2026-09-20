@@ -130,6 +130,32 @@ questions and research may use rich reads directly without a task or claim.
 When more than one ready run needs attention, pass its `run_id` to `next_task`
 to choose the run focus; omit it for the normal workflow choice.
 
+If `next_task` returns `status="needs_context"`, its committed workflow handle
+remains valid. Follow `context_receipt.next_call` exactly: it is an
+`inspect_task(kind="context_fragment")` call with the handle, fragment target,
+and budget already supplied. A small fragment keeps the ordinary expanded
+`content` response. A larger one returns readable `page.content` canonical JSON
+text with `page.next_target`; repeat the same call with that target until it is
+`null`. The cursor is bound to the fragment revision and content hash. A
+`coordinate_task(action="sync")` payload may include `cursor` and
+`known_fragments` to receive the actual message cursor and changed fragment
+references without re-sending the whole context capsule.
+
+`coordinate_task(action="run_gates")` accepts an optional
+`payload.effect`: use `"validate"` for validation or
+`"integrate_and_validate"` for the lane-owned integration path followed by
+validation. The action policy returned with the workflow handle remains the
+authority for whether that action is available.
+
+`delegate_task` accepts `mode="readonly"` or `mode="writable"` and optional
+repository-relative `source_targets`. A writable child requires explicit,
+existing, narrower source targets within the parent’s authorized scope.
+Readonly delegation may use the parent’s readable scope when targets are
+omitted. A parent that creates a child is responsible for its disposition:
+call `coordinate_task(action="accept_child", payload={"child_execution_id":
+...})` for an accepted result, or `reject_child` with its required `reason`.
+Only the owning parent claim can make that decision.
+
 The main thread owns reasoning, synthesis, strategy, architecture, scope
 changes, consequential tradeoffs, and final acceptance. Subagents gather
 evidence or execute tightly scoped assignments, then report findings and

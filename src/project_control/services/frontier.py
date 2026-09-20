@@ -45,6 +45,30 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
         for item in snapshot.todo_tables.get("task_dependencies", []) if item.get("checkpoint_id")
     }
 
+    checkpoints = {str(item.get("id")): item for item in reconciled.checkpoints if item.get("id")}
+    interfaces = {str(item.get("id")): item for item in snapshot.todo_tables.get("interfaces", []) if item.get("id")}
+
+    def dependency_unmet(identifier: str) -> bool:
+        """Use the reconciled current state, never the mere presence of an edge."""
+        task = tasks.get(identifier)
+        if task is not None:
+            return str(task.get("effective_state")) != "done"
+        checkpoint = checkpoints.get(identifier)
+        if checkpoint is not None:
+            return str(checkpoint.get("effective_state")) != "reached"
+        interface = interfaces.get(identifier)
+        if interface is not None:
+            return str(interface.get("state")) not in {"frozen", "complete", "reached"}
+        # An unresolved canonical reference is itself an unmet prerequisite.
+        return True
+
+    recovery_by_task: dict[str, list[str]] = defaultdict(list)
+    for item in workflow.get("recovery_needed", []):
+        if not isinstance(item, dict) or not item.get("task_id"):
+            continue
+        identifier = str(item.get("id") or item.get("attempt_id") or item.get("kind") or "recovery")
+        recovery_by_task[str(item["task_id"])].append(identifier)
+
     def conflict(left: str, right: str) -> bool:
         return bool(
             any(paths_overlap(a, b) for a in scopes[left] for b in scopes[right])
@@ -69,7 +93,9 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
     if include_blocked:
         for task_id, task in tasks.items():
             if task.get("effective_state") == "blocked":
-                blocked.append({"id": task_id, "title": task.get("title"), "immediate_blockers": dependencies.get(task_id, [])})
+                blockers = [item for item in dependencies.get(task_id, []) if dependency_unmet(item)]
+                blockers.extend(recovery_by_task.get(task_id, []))
+                blocked.append({"id": task_id, "title": task.get("title"), "immediate_blockers": list(dict.fromkeys(blockers))})
     active_claims = [
         {"task_id": item.get("task_id"), "observed_state": "active", "source": "todo_status"}
         for item in snapshot.todo_status.get("active_claims", [])

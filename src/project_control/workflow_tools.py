@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Literal, Protocol
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from .normalize import bounded_payload
+
 if TYPE_CHECKING:  # Avoid selecting a Todo installation before runtime identity verification.
     from todo_orchestrator.workflow.protocol import WorkflowProtocol
 
@@ -133,12 +135,19 @@ def register_workflow_tools(
                     "status": "attention_required",
                     "reason": code,
                     "allowed_actions": [],
-                    "recommended_next_call": "next_task",
+                    "recommended_next_call": None,
                     "warnings": [],
                 }
                 details = getattr(error, "details", None)
+                if details is not None:
+                    result["details"] = bounded_payload({"details": details}, 1024).get("details")
+                message = getattr(error, "message", None)
+                if isinstance(message, str) and message:
+                    result["message"] = message[:512]
                 if code == "runtime_identity_mismatch" and isinstance(details, dict):
                     result["compatibility"] = details
+                if code.startswith(("runtime_", "workflow_owner_", "owner_")):
+                    result["required_decision"] = "repair the reported runtime or owner binding before retrying"
                 return result
             return {
                 "protocol_version": _protocol_version(),
@@ -146,7 +155,7 @@ def register_workflow_tools(
                 "reason": "unexpected_internal_failure",
                 "diagnostic_id": diagnostic_id(),
                 "allowed_actions": [],
-                "recommended_next_call": "next_task",
+                "recommended_next_call": None,
                 "warnings": [],
             }
 
@@ -215,12 +224,14 @@ def register_workflow_tools(
         workflow_handle: str,
         delegated_objective: str,
         mode: Literal["auto", "readonly", "writable"] = "auto",
+        source_targets: list[str] | None = None,
     ) -> dict[str, object]:
         return invoke(
             "delegate_task",
             workflow_handle=workflow_handle,
             delegated_objective=delegated_objective,
             mode=mode,
+            source_targets=source_targets,
         )
 
     @server.tool(

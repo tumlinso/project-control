@@ -102,7 +102,10 @@ class WorkflowToolTests(unittest.TestCase):
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "task"}))
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "context_fragment", "target": "NOTE-1"}))
         asyncio.run(manager.call_tool("coordinate_task", {"workflow_handle": handle, "action": "sync"}))
-        asyncio.run(manager.call_tool("delegate_task", {"workflow_handle": handle, "delegated_objective": "bounded"}))
+        asyncio.run(manager.call_tool("delegate_task", {
+            "workflow_handle": handle, "delegated_objective": "bounded",
+            "source_targets": ["src/exact.py"],
+        }))
         asyncio.run(manager.call_tool("collect_delegation", {"delegation_handle": "wfd_opaque"}))
         asyncio.run(manager.call_tool("finish_task", {"workflow_handle": handle, "action": "complete"}))
         self.assertEqual([name for name, _ in protocol.calls], [
@@ -114,6 +117,7 @@ class WorkflowToolTests(unittest.TestCase):
         self.assertEqual(protocol.calls[2][1]["kind"], "context_fragment")
         self.assertEqual(protocol.calls[2][1]["target"], "NOTE-1")
         self.assertEqual(protocol.calls[4][1]["mode"], "auto")
+        self.assertEqual(protocol.calls[4][1]["source_targets"], ["src/exact.py"])
         self.assertIsNone(protocol.calls[6][1]["disposition"])
 
     def test_construction_is_lazy_sticky_and_internal_failures_are_bounded(self) -> None:
@@ -153,6 +157,20 @@ class WorkflowToolTests(unittest.TestCase):
         self.assertEqual(result["status"], "attention_required")
         self.assertEqual(result["compatibility"], IdentityError.details)
         self.assertNotIn("traceback", json.dumps(result))
+
+    def test_typed_errors_keep_bounded_details_without_a_generic_retry_loop(self) -> None:
+        class GateError(Exception):
+            code = "invalid_required_gate"
+            message = "gate path is required"
+            details = {"gate_id": "G-1", "missing": ["path"], "raw": "x" * 4000}
+
+        server = create_workflow_mcp(protocol_factory=lambda: (_ for _ in ()).throw(GateError()))
+        result = asyncio.run(server._tool_manager.call_tool("next_task", {"repo_root": "/repo"}))
+        self.assertEqual(result["reason"], "invalid_required_gate")
+        self.assertEqual(result["message"], "gate path is required")
+        self.assertEqual(result["details"]["gate_id"], "G-1")
+        self.assertIsNone(result["recommended_next_call"])
+        self.assertLessEqual(len(json.dumps(result).encode()), 2048)
 
     def test_adapter_contains_no_mcp_client_subprocess_or_kernel_logic(self) -> None:
         source = (Path(__file__).parents[1] / "src" / "project_control" / "workflow_tools.py").read_text(
