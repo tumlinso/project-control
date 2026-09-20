@@ -67,7 +67,12 @@ from .terminal import TerminalSessionRegistry
 from .profiles import MCPProfile, ProfiledFastMCP
 from .mutation_tools import register_mutation_tools
 from .workflow_binding import initialize_workflow_binding, todo_read_port_factory, workflow_protocol
-from .workflow_tools import WORKFLOW_INSTRUCTIONS, register_workflow_tools
+from .workflow_tools import (
+    WORKFLOW_INSTRUCTIONS,
+    codex_maintenance_host,
+    register_maintenance_tool,
+    register_workflow_tools,
+)
 from .observer_analysis import ObserverAnalysisRegistry
 
 
@@ -617,6 +622,8 @@ def create_mcp(
 
     if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
         register_workflow_tools(mcp, protocol_factory=workflow_protocol)
+    if selected_profile is MCPProfile.CODEX:
+        register_maintenance_tool(mcp, host=codex_maintenance_host())
     if selected_profile is MCPProfile.MUTATOR:
         register_mutation_tools(mcp, active_config)
 

@@ -14,7 +14,9 @@ from pydantic import ValidationError
 from project_control.workflow_core.profiles import WorkProfile
 from project_control.workflow_core.recovery import (
     RecoveryAuthorizationError,
+    issue_maintenance_recovery_authorization,
     issue_root_recovery_authorization,
+    revoke_maintenance_recovery_authorization,
     run_authorized_recovery,
 )
 from project_control.workflow_core.retirement import RetirementRequest, retire_run_batch
@@ -24,6 +26,7 @@ class _Paths:
     def __init__(self, root: Path):
         self.state_dir = root
         self.db_file = root / "authority.sqlite3"
+        self.repo_root = root
 
 
 class _Service:
@@ -131,6 +134,51 @@ class WorkflowCoreTests(unittest.TestCase):
             with self.assertRaisesRegex(RecoveryAuthorizationError, "stale"):
                 run_authorized_recovery(service, engine, authorization_id=str(issued["authorization_id"]), reason="root delegated")
             self.assertEqual(engine.executed, 0)
+
+    def test_maintenance_authorization_binds_principal_and_replays_receipt(self):
+        with TemporaryDirectory() as temporary:
+            service, engine = _Service(Path(temporary)), _Engine()
+            issued = issue_maintenance_recovery_authorization(
+                service, engine, task_id="STALE", recipient_principal="operator-a", expires_seconds=60,
+            )
+            with self.assertRaisesRegex(RecoveryAuthorizationError, "principal_mismatch"):
+                run_authorized_recovery(
+                    service, engine, authorization_id=str(issued["authorization_id"]),
+                    reason="maintenance", recipient_principal="operator-b",
+                )
+            first = run_authorized_recovery(
+                service, engine, authorization_id=str(issued["authorization_id"]),
+                reason="maintenance", recipient_principal="operator-a",
+            )
+            replay = run_authorized_recovery(
+                service, engine, authorization_id=str(issued["authorization_id"]),
+                reason="maintenance", recipient_principal="operator-a",
+            )
+            self.assertEqual(first, replay)
+            self.assertEqual(engine.executed, 1)
+
+    def test_maintenance_authorization_can_be_revoked_before_execution(self):
+        with TemporaryDirectory() as temporary:
+            service, engine = _Service(Path(temporary)), _Engine()
+            issued = issue_maintenance_recovery_authorization(
+                service, engine, task_id="STALE", recipient_principal="operator-a", expires_seconds=60,
+            )
+            revoke_maintenance_recovery_authorization(service, authorization_id=str(issued["authorization_id"]))
+            with self.assertRaisesRegex(RecoveryAuthorizationError, "revoked"):
+                run_authorized_recovery(
+                    service, engine, authorization_id=str(issued["authorization_id"]),
+                    reason="maintenance", recipient_principal="operator-a",
+                )
+
+    def test_unknown_authorization_does_not_create_private_state_directory(self):
+        with TemporaryDirectory() as temporary:
+            service, engine = _Service(Path(temporary)), _Engine()
+            with self.assertRaisesRegex(RecoveryAuthorizationError, "not_found"):
+                run_authorized_recovery(
+                    service, engine, authorization_id="rca_missing", reason="maintenance",
+                    recipient_principal="operator-a",
+                )
+            self.assertFalse((Path(temporary) / "project-control-recovery-authorizations").exists())
 
 
 if __name__ == "__main__":

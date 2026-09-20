@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 from project_control.workflow_tools import (
     WORKFLOW_INSTRUCTIONS,
     WORKFLOW_TOOL_NAMES,
+    MaintenanceHostContext,
     create_workflow_mcp,
+    register_maintenance_tool,
     register_workflow_tools,
 )
 
@@ -155,6 +157,24 @@ class WorkflowToolTests(unittest.TestCase):
         self.assertNotIn("subprocess", source)
         self.assertNotIn("sqlite3", source)
         self.assertNotIn("WorkflowKernel", source)
+
+    def test_maintenance_tool_uses_startup_bound_principal_only(self) -> None:
+        calls: list[dict[str, object]] = []
+        server = FastMCP("maintenance-test")
+        register_maintenance_tool(
+            server,
+            host=MaintenanceHostContext("trusted-operator"),
+            handler=lambda **arguments: calls.append(arguments) or {"status": "maintained"},
+        )
+        result = asyncio.run(server._tool_manager.call_tool(
+            "maintain_execution", {"repo_root": "/repo", "authorization_id": "rca_opaque"},
+        ))
+        self.assertEqual(result["status"], "maintained")
+        self.assertEqual(calls, [{
+            "repo_root": "/repo", "authorization_id": "rca_opaque", "recipient_principal": "trusted-operator",
+        }])
+        schema = asyncio.run(server.list_tools())[0].inputSchema
+        self.assertNotIn("recipient_principal", schema["properties"])
 
 
 if __name__ == "__main__":

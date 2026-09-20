@@ -242,7 +242,7 @@ class MCPServerTests(unittest.TestCase):
         self.assertIn("Delegate bounded archaeology", CODEX_INSTRUCTIONS)
         self.assertIn("local_investigate", SERVER_INSTRUCTIONS)
         descriptions = {tool.name: tool.description for tool in tools}
-        for name in set(CODEX_TOOL_NAMES) - {"next_task", "inspect_task", "coordinate_task", "delegate_task", "collect_delegation", "finish_task"}:
+        for name in set(CODEX_TOOL_NAMES) - {"next_task", "inspect_task", "coordinate_task", "delegate_task", "collect_delegation", "finish_task", "maintain_execution"}:
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
 
     def test_performance_probe_is_observer_and_codex_only_not_local_model_action(self) -> None:

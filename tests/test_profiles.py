@@ -19,6 +19,7 @@ project_control.__path__.insert(0, str(SOURCE_ROOT / "project_control"))
 from project_control.profiles import (
     CODEX_RICH_READ_DESCRIPTION_PREFIX,
     CODEX_TOOL_NAMES,
+    MAINTENANCE_TOOL_NAME,
     MUTATION_TOOL_NAMES,
     MUTATOR_TOOL_NAMES,
     OBSERVER_TOOL_NAMES,
@@ -44,7 +45,7 @@ def _handler(value: str = "ok") -> dict[str, str]:
 
 def _server(profile: MCPProfile) -> ProfiledFastMCP:
     server = ProfiledFastMCP("project-control", profile=profile)
-    for name in OBSERVER_TOOL_NAMES + WORKFLOW_TOOL_NAMES + MUTATION_TOOL_NAMES:
+    for name in OBSERVER_TOOL_NAMES + WORKFLOW_TOOL_NAMES + (MAINTENANCE_TOOL_NAME,) + MUTATION_TOOL_NAMES:
         server.add_tool(_handler, name=name, description=f"{name} description", structured_output=True)
     return server
 
@@ -52,13 +53,13 @@ def _server(profile: MCPProfile) -> ProfiledFastMCP:
 class ProfilePolicyTests(unittest.TestCase):
     def test_contract_tool_sets_are_exact_and_distinct(self) -> None:
         self.assertEqual(17, len(OBSERVER_TOOL_NAMES))
-        self.assertEqual(21, len(CODEX_TOOL_NAMES))
+        self.assertEqual(22, len(CODEX_TOOL_NAMES))
         self.assertEqual(22, len(MUTATOR_TOOL_NAMES))
         self.assertEqual(15, len(RICH_READ_TOOL_NAMES))
         self.assertEqual(6, len(WORKFLOW_TOOL_NAMES))
         self.assertEqual(set(RICH_READ_TOOL_NAMES) | {"local_investigate"}, set(OBSERVER_TOOL_NAMES) - {"terminal_capture"})
-        self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES))
-        self.assertEqual(set(MUTATOR_TOOL_NAMES), set(CODEX_TOOL_NAMES) | {"apply_plan"})
+        self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES) | {MAINTENANCE_TOOL_NAME})
+        self.assertEqual(set(MUTATOR_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES) | {"apply_plan"})
         self.assertNotIn("terminal_capture", MUTATOR_TOOL_NAMES)
 
     def test_profile_and_transport_are_explicit_startup_configuration(self) -> None:
@@ -100,6 +101,7 @@ class ProfileRegistrationTests(unittest.TestCase):
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
         for name in WORKFLOW_TOOL_NAMES:
             self.assertEqual(f"{name} description", descriptions[name])
+        self.assertEqual(f"{MAINTENANCE_TOOL_NAME} description", descriptions[MAINTENANCE_TOOL_NAME])
         asyncio.run(validate_profile_registration(server))
 
     def test_mutator_registers_exact_codex_surface_plus_apply_plan(self) -> None:

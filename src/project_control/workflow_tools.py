@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import secrets
 from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from mcp.server.fastmcp import FastMCP
@@ -26,6 +28,8 @@ WORKFLOW_TOOL_NAMES = (
     "collect_delegation",
     "finish_task",
 )
+
+MAINTENANCE_TOOL_NAME = "maintain_execution"
 
 WORKFLOW_INSTRUCTIONS = (
     "For substantial repository work, use Project Control's workflow tools as the ordinary "
@@ -49,6 +53,18 @@ _READ_ONLY = ToolAnnotations(
     idempotentHint=True,
     openWorldHint=False,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class MaintenanceHostContext:
+    """Trusted startup binding; the model never supplies this principal."""
+
+    recipient_principal: str
+
+
+def codex_maintenance_host() -> MaintenanceHostContext:
+    """The Codex stdio startup owns this fixed local maintenance identity."""
+    return MaintenanceHostContext(recipient_principal="project-control-codex-host")
 
 
 class _WorkflowProtocolPort(Protocol):
@@ -169,7 +185,7 @@ def register_workflow_tools(
         workflow_handle: str,
         action: Literal[
             "sync", "fork", "message", "answer", "arrive", "publish_interface", "publish_context",
-            "run_gates", "request_integration", "accept_child", "reject_child",
+            "run_gates", "bind_required_gates", "request_integration", "accept_child", "reject_child",
         ],
         payload: dict[str, object] | None = None,
     ) -> dict[str, object]:
@@ -224,6 +240,39 @@ def register_workflow_tools(
         )
 
     return WORKFLOW_TOOL_NAMES
+
+
+def register_maintenance_tool(
+    server: FastMCP,
+    *,
+    host: MaintenanceHostContext,
+    handler: Callable[..., dict[str, object]] | None = None,
+) -> str:
+    """Register the sole principal-bound recovery route for the Codex host."""
+    active_handler = handler
+
+    def invoke(repo_root: str, authorization_id: str) -> dict[str, object]:
+        if active_handler is not None:
+            return active_handler(
+                repo_root=repo_root, authorization_id=authorization_id,
+                recipient_principal=host.recipient_principal,
+            )
+        from .admin import maintain_execution
+
+        return maintain_execution(
+            Path(repo_root), authorization_id=authorization_id,
+            recipient_principal=host.recipient_principal,
+        )
+
+    @server.tool(
+        description="Resume one clean stopped execution using a host-issued, principal-bound maintenance mandate.",
+        annotations=_MUTATING,
+        structured_output=True,
+    )
+    def maintain_execution(repo_root: str, authorization_id: str) -> dict[str, object]:
+        return invoke(repo_root, authorization_id)
+
+    return MAINTENANCE_TOOL_NAME
 
 
 def create_workflow_mcp(

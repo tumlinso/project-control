@@ -37,7 +37,7 @@ def inspect_recovery(repo: str | Path, task_id: str | None = None) -> dict[str, 
     from todo_orchestrator.workflow.admin import inspect_owner_recovery
     from todo_orchestrator.workflow.recovery import RecoveryEngine
 
-    service = Service(repo, mutation_mode="self_debug")
+    service = Service(repo, mutation_mode="self_debug", read_only=True)
     engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]))
     return inspect_owner_recovery(engine, task_id)
 
@@ -78,6 +78,46 @@ def issue_root_delegated_recovery(
     service = Service(repo, mutation_mode="self_debug")
     engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
     return issue_root_recovery_authorization(service, engine, task_id=task_id, expires_seconds=expires_seconds)
+
+
+def prepare_maintenance_assignment(
+    repo: str | Path,
+    *,
+    task_id: str,
+    recipient_principal: str,
+    expires_seconds: int = 300,
+) -> dict[str, object]:
+    """Prepare, but never launch, one principal-bound recovery assignment.
+
+    This host-only helper is deliberately absent from CLI and MCP registration.
+    It gives an existing tool-capable host the complete next invocation without
+    pretending that Project Control owns a launcher.
+    """
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.recovery import RecoveryEngine
+    from .workflow_core.recovery import issue_maintenance_recovery_authorization
+
+    service = Service(repo, mutation_mode="self_debug", read_only=True)
+    engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
+    grant = issue_maintenance_recovery_authorization(
+        service, engine, task_id=task_id, recipient_principal=recipient_principal,
+        expires_seconds=expires_seconds,
+    )
+    return {
+        "status": "launch_required",
+        "executor": {"class": "tool_capable_maintenance_operator", "principal": recipient_principal},
+        "assignment": {
+            "objective": "Resume the named clean stopped execution through approved recovery.",
+            "scope": {"project_uuid": str(service.project["project_uuid"]), "task_id": task_id},
+            "constraints": ["preserve_all_no_repository_mutation", "fresh_kernel_inspection_required"],
+            "grant_reference": grant["authorization_id"],
+            "next_public_call": {
+                "tool": "maintain_execution",
+                "arguments": {"repo_root": str(Path(repo).resolve()), "authorization_id": grant["authorization_id"]},
+            },
+        },
+    }
 
 
 def retire_run_batch(repo: str | Path, request_file: str | Path, *, apply: bool, confirmation: str | None) -> dict[str, object]:
@@ -165,6 +205,48 @@ def recover_authorized(repo: str | Path, *, authorization_id: str, reason: str) 
     service = Service(repo, mutation_mode="self_debug")
     engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
     return run_authorized_recovery(service, engine, authorization_id=authorization_id, reason=reason)
+
+
+def maintain_execution(
+    repo: str | Path,
+    *,
+    authorization_id: str,
+    recipient_principal: str,
+) -> dict[str, object]:
+    """Run one host-bound maintenance mandate and return the ordinary resume call."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.recovery import RecoveryEngine
+    from .workflow_core.recovery import inspect_maintenance_recovery_authorization, run_authorized_recovery
+
+    # A foreign, absent or stale target must fail before writable Service
+    # construction, which otherwise initializes its authority database.
+    readonly_service = Service(repo, mutation_mode="self_debug", read_only=True)
+    readonly_engine = RecoveryEngine(readonly_service.db, readonly_service.paths.repo_root, str(readonly_service.project["project_uuid"]), actor_identity="root-authorized-delegate")
+    preflight = inspect_maintenance_recovery_authorization(
+        readonly_service, readonly_engine, authorization_id=authorization_id,
+        recipient_principal=recipient_principal,
+    )
+    if "completed_receipt" in preflight:
+        receipt = dict(preflight["completed_receipt"])
+        return {
+            "status": "maintained", "receipt": receipt,
+            "recommended_next_call": {"tool": "next_task", "arguments": {"repo_root": str(Path(repo).resolve())}},
+        }
+    service = Service(repo, mutation_mode="self_debug")
+    engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
+    receipt = run_authorized_recovery(
+        service, engine, authorization_id=authorization_id,
+        reason="authorized delegated maintenance", recipient_principal=recipient_principal,
+    )
+    return {
+        "status": "maintained",
+        "receipt": receipt,
+        "recommended_next_call": {
+            "tool": "next_task",
+            "arguments": {"repo_root": str(Path(repo).resolve())},
+        },
+    }
 
 
 def _git(repo: Path, *args: str) -> str:
