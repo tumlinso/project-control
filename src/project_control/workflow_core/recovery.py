@@ -75,6 +75,11 @@ def plan_fingerprint(plan: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical(plan)).hexdigest()
 
 
+def recovery_effect_fingerprint(plan: dict[str, Any]) -> str:
+    """Bind every recovery effect while allowing only revision churn to refresh."""
+    return plan_fingerprint({key: value for key, value in plan.items() if key != "authority_revision"})
+
+
 def _authority_revision(service: object, plan: dict[str, Any]) -> int | None:
     """Use the kernel plan revision when supplied, otherwise its live DB revision."""
     revision = plan.get("authority_revision")
@@ -135,7 +140,7 @@ def issue_maintenance_recovery_authorization(
     *,
     task_id: str,
     recipient_principal: str,
-    expires_seconds: int = 300,
+    expires_seconds: int = 1800,
 ) -> dict[str, str | int]:
     """Issue an exact recovery mandate for one trusted startup-bound operator.
 
@@ -143,7 +148,7 @@ def issue_maintenance_recovery_authorization(
     carries an explicit recipient and keeps its completed receipt privately so
     a lost reply is safe to replay by that same recipient.
     """
-    if not recipient_principal or len(recipient_principal) > 160:
+    if not recipient_principal or len(recipient_principal) > 160 or expires_seconds < 1 or expires_seconds > 86400:
         raise RecoveryAuthorizationError("recovery_authorization_invalid_principal")
     delegated_plan = engine.inspect(task_id)
     if not getattr(engine, "delegated_effects_are_exact")(delegated_plan, task_id):
@@ -152,7 +157,7 @@ def issue_maintenance_recovery_authorization(
     if not isinstance(continuation, dict) or not isinstance(continuation.get("run_id"), str):
         raise RecoveryAuthorizationError("recovery_authorization_unsafe_target")
     issued = issue_root_recovery_authorization(
-        service, engine, task_id=task_id, expires_seconds=expires_seconds,
+        service, engine, task_id=task_id,
     )
     root = _state_dir(service, create=False)
     path = root / f"{issued['authorization_id']}.json"
@@ -162,12 +167,14 @@ def issue_maintenance_recovery_authorization(
         "format": "project-control-recovery-authorization-v2",
         "recipient_principal": recipient_principal,
         "continuation": continuation,
+        "effect_fingerprint": recovery_effect_fingerprint(delegated_plan),
+        "expires_at": (_now() + timedelta(seconds=expires_seconds)).isoformat(),
     })
     _replace(path, {
         "payload": payload,
         "signature": hmac.new(_key(root), _canonical(payload), hashlib.sha256).hexdigest(),
     })
-    return issued
+    return {**issued, "expires_at": payload["expires_at"]}
 
 
 def _read_record(root: Path, authorization_id: str) -> tuple[Path, dict[str, Any], dict[str, Any], str]:
@@ -286,7 +293,10 @@ def run_authorized_recovery(
         if not isinstance(task_id, str):
             raise RecoveryAuthorizationError("recovery_authorization_invalid")
         fresh = engine.inspect(task_id)
-        if fresh.get("blockers") or _authority_revision(service, fresh) != payload.get("authority_revision") or plan_fingerprint(fresh) != payload.get("plan_fingerprint"):
+        if format_version.endswith("v2"):
+            if fresh.get("blockers") or recovery_effect_fingerprint(fresh) != payload.get("effect_fingerprint"):
+                raise RecoveryAuthorizationError("recovery_authorization_stale")
+        elif fresh.get("blockers") or _authority_revision(service, fresh) != payload.get("authority_revision") or plan_fingerprint(fresh) != payload.get("plan_fingerprint"):
             raise RecoveryAuthorizationError("recovery_authorization_stale")
         # Consume only after success, preserving retryability on contention
         # while preventing a second successful execution.

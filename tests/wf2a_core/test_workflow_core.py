@@ -233,6 +233,34 @@ class WorkflowCoreTests(unittest.TestCase):
                     reason="maintenance", recipient_principal="operator-a",
                 )
 
+    def test_maintenance_authorization_refreshes_only_revision_churn(self):
+        with TemporaryDirectory() as temporary:
+            service, engine = _Service(Path(temporary)), _Engine()
+            issued = issue_maintenance_recovery_authorization(
+                service, engine, task_id="STALE", recipient_principal="operator-a",
+            )
+            engine.plan["authority_revision"] = 8
+            result = run_authorized_recovery(
+                service, engine, authorization_id=str(issued["authorization_id"]),
+                reason="maintenance", recipient_principal="operator-a",
+            )
+            self.assertEqual(result["status"], "recovered")
+            self.assertEqual(engine.executed, 1)
+
+    def test_maintenance_authorization_refuses_material_effect_change(self):
+        with TemporaryDirectory() as temporary:
+            service, engine = _Service(Path(temporary)), _Engine()
+            issued = issue_maintenance_recovery_authorization(
+                service, engine, task_id="STALE", recipient_principal="operator-a",
+            )
+            engine.plan["actions"].append({"kind": "release_resource", "id": "other", "task_id": "STALE"})
+            with self.assertRaisesRegex(RecoveryAuthorizationError, "stale"):
+                run_authorized_recovery(
+                    service, engine, authorization_id=str(issued["authorization_id"]),
+                    reason="maintenance", recipient_principal="operator-a",
+                )
+            self.assertEqual(engine.executed, 0)
+
     def test_unknown_authorization_does_not_create_private_state_directory(self):
         with TemporaryDirectory() as temporary:
             service, engine = _Service(Path(temporary)), _Engine()
