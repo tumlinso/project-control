@@ -1,16 +1,50 @@
 # Bounded PCE2 candidate
 
-This record preserves the earlier bounded qualification and the current
-maintenance-host release. Neither completes all six PCE2 outcomes or all 24
-acceptance groups. NF1A remains paused.
+This record preserves the bounded releases below. They do not complete all
+six PCE2 outcomes or all 24 acceptance groups. NF1A remains paused.
 
-## Exact candidate
+## Current guidance and run-focus release
+
+Activated on 2026-09-20 from Project Control
+`56da5f34426b9d607cb568a17a5f004a267a5ad6` and Skills
+`6cf647f66bdd37668dfa219f7c7816192aae5c65`:
+
+- Candidate: `/home/tumlinson/.local/share/project-control/candidates/pce2-focus-56da5f3`.
+- Candidate identity: `e9d6de3ea3cf142f81d0021a198e2ecfaf4239c7ab74f79fab6772701a7cad4d`.
+- Manifest SHA-256: `ed99177ad31cfa06ca4d29d533a6201301704786b46b04fcc6c26c58b04c7d67`.
+- Rollback record: `/home/tumlinson/.local/state/project-control/activations/pce2-focus-20260920T171604Z`.
+
+The short assessment in `REMAINING_SCOPE.md` selected this bounded follow-up.
+Guidance permits direct read-only research, uses inspection only for missing
+context, and explains completion's required validation. Durable server
+instructions assign reasoning, synthesis and meaningful decisions to the main
+thread; subagents gather evidence, execute tightly scoped assignments and
+report back for direction. `collect_delegation` is correctly annotated as
+mutating. Optional `next_task(run_id=...)` constrains both resume and claim;
+ambiguous task-only focus returns choices without a committed mutation, with
+the check repeated inside the claim transaction.
+
+Code commits are PC `11d5ad5` and Skills `27c59e9`. Focused validation passed:
+21 PC tool/profile tests, 18 Skills protocol tests and 12 lane-resume tests.
+The installed paired candidate passed the public entry/bind/complete journey
+with explicit run focus (1 test, 2.219 seconds). Fresh stdio discovery verified
+the optional run selector, mutating collection annotation, and main-thread
+reasoning instruction. The live service's manifest/digest matched this
+candidate; health and readiness returned HTTP 200 (10 workspaces). Root
+performed release cutover and final integration; previous qualification was
+reused rather than repeated. Existing MCP connections need reconnect to load
+the new schema and instructions.
+
+The maintenance evidence below belongs to the previous release and is
+retained as supporting evidence, not represented as a newly repeated test.
+
+## Previous maintenance candidate
 
 - Historical bounded candidate: Project Control
   `f4160ce4e274bbfb82c71d7db8330cf9db3002ac`, Skills
   `9cf3c019d98568fb5e355e972a488cf623f354f7`, identity digest
   `0a15f5e6b41af1d738ea1fcde0c021b99c63702daefd59f6630ff82f982b2025`.
-- Current maintenance candidate:
+- Maintenance candidate:
   `/home/tumlinson/.local/share/project-control/candidates/pce2-maintenance-ab630b1`;
   Project Control `ab630b110afdb1340cb6e53762aa3906ff9b0976`, Skills
   `f4d544476d7cc047a9a8d15e31a6d657f093ef53`, candidate identity digest
@@ -18,14 +52,14 @@ acceptance groups. NF1A remains paused.
   manifest SHA-256
   `60eb7bccbd44ebbf89906a7de893dfe3d2ed99db24f97973470fc29b06c911cc`.
 
-## Activation
+## Previous maintenance activation
 
-The current candidate is activated through the digest-checked atomic shared
+The maintenance candidate was activated through the digest-checked atomic shared
 launcher replacement. The retained rollback record is
 `/home/tumlinson/.local/state/project-control/activations/pce2-maintenance-20260920T162008Z`.
 
 The effective user service unit was preserved and restarted successfully. Live
-PID `129124` resolves to the current manifest/digest; `/healthz` and `/readyz`
+PID `129124` resolved to that manifest/digest; `/healthz` and `/readyz`
 returned HTTP 200, with readiness reporting 10 workspaces. Existing connected
 Codex MCP clients require reconnect; the active stdio process cannot be
 hot-switched. Ordinary Codex remains fail-closed for maintenance until a
@@ -38,7 +72,7 @@ launcher remains available for rollback.
 
 The historical candidate Python ran `tests.test_pce2_workflow_journey` and
 `tests.test_maintenance_journey` together: **2 tests passed in 4.219 seconds**.
-The current installed candidate ran `tests.test_maintenance_journey`: **1 test
+The maintenance candidate ran `tests.test_maintenance_journey`: **1 test
 passed in 4.461 seconds** with frozen release binding and isolated XDG state.
 
 1. Ordinary entry supplies its work packet without recommending a mandatory
@@ -51,7 +85,7 @@ passed in 4.461 seconds** with frozen release binding and isolated XDG state.
    repaired task. No post-recovery lane edits or private completion helper are
    used. Assignment reports `launch_required`; no model launcher is invented.
 
-The current qualification uses separate issuer CLI, trusted operator MCP, and
+The maintenance qualification used separate issuer CLI, trusted operator MCP, and
 ordinary implementer MCP processes. It exercises the emitted verified launch
 packet and the exact returned same-task `next_task` recommendation. This is not
 evidence that a paid model or installed external agent launcher was exercised:

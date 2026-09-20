@@ -33,6 +33,12 @@ The source observations below explain the selection; they are not a request
 to implement every remaining acceptance group. Release evidence records which
 selected changes have shipped.
 
+All three selected changes are now implemented and activated: PC `11d5ad5`
+and Skills `27c59e9`. `BOUNDED_CANDIDATE.md` records the paired release and
+focused checks. The findings below describe the assessment's starting state;
+the remaining implementation candidate is deliberate delegation context,
+when a concrete task needs it. This does not close the original full package.
+
 ## Ranked findings
 
 1. **Exact run focus and no wrong claim.** Add optional `run_id` alongside
