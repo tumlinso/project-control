@@ -299,9 +299,32 @@ def maintain_execution(
             service = Service(repo, mutation_mode="self_debug")
             receipt = run_authorized_supersession(service, authorization_id=authorization_id, recipient_principal=recipient_principal)
         successor_run_id = receipt.get("intended_run_id")
+        next_arguments: dict[str, object] | None = None
+        if isinstance(successor_run_id, str):
+            current = Service(repo, mutation_mode="self_debug", read_only=True)
+            from todo_orchestrator.workflow.service import assess_continuation
+            with current.db.read() as conn:
+                preserved_ids = receipt.get("preserved_workspace_ids")
+                preferred = [str(item) for item in preserved_ids] if isinstance(preserved_ids, list) and all(isinstance(item, str) for item in preserved_ids) else []
+                preferred_clause = "AND w.id IN (" + ",".join("?" for _ in preferred) + ")" if preferred else ""
+                row = conn.execute(
+                    "SELECT lt.task_id,l.id AS lane_id,w.id AS workspace_id FROM workflow_lane_tasks lt JOIN workflow_lanes l ON l.id=lt.lane_id "
+                    "LEFT JOIN workflow_workspaces w ON w.run_id=l.run_id AND w.lane_id=l.id "
+                    "WHERE l.run_id=? AND lt.state='queued' " + preferred_clause + " ORDER BY l.id,lt.position LIMIT 1",
+                    (successor_run_id, *preferred),
+                ).fetchone()
+                if row is None and preferred:
+                    row = conn.execute(
+                        "SELECT lt.task_id,l.id AS lane_id,w.id AS workspace_id FROM workflow_lane_tasks lt JOIN workflow_lanes l ON l.id=lt.lane_id "
+                        "LEFT JOIN workflow_workspaces w ON w.run_id=l.run_id AND w.lane_id=l.id "
+                        "WHERE l.run_id=? AND lt.state='queued' ORDER BY l.id,lt.position LIMIT 1", (successor_run_id,),
+                    ).fetchone()
+                assessment = assess_continuation(conn, run_id=successor_run_id, lane_id=str(row["lane_id"]), task_id=str(row["task_id"]), workspace_id=str(row["workspace_id"]) if row is not None and row["workspace_id"] else None) if row is not None else {"status": "blocked", "blockers": [{"kind": "run", "state": "no_queued_task"}]}
+            if row is not None and assessment["status"] == "ready":
+                next_arguments = {"repo_root": str(Path(repo).resolve()), "run_id": successor_run_id, "task_id": str(row["task_id"])}
         return {"status": "superseded", "receipt": receipt, "replayed": replayed,
-                "continuation": {"status": "ready", "run_id": successor_run_id} if isinstance(successor_run_id, str) else {"status": "blocked"},
-                "recommended_next_call": {"tool": "next_task", "arguments": {"run_id": successor_run_id}} if isinstance(successor_run_id, str) else None}
+                "continuation": assessment if isinstance(successor_run_id, str) else {"status": "blocked"},
+                "recommended_next_call": {"tool": "next_task", "arguments": next_arguments} if next_arguments else None}
     from todo_orchestrator.workflow.recovery import RecoveryEngine
     from .workflow_core.recovery import inspect_maintenance_recovery_authorization, run_authorized_recovery
 
