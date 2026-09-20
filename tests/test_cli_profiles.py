@@ -165,7 +165,7 @@ class ProfileCliTests(unittest.TestCase):
                 "--recipient", "operator-a", "--expires", "60",
             ]), 0)
         prepare.assert_called_once_with(
-            "/repo", task_id="A", recipient_principal="operator-a", expires_seconds=60,
+            "/repo", task_id="A", run_id=None, recipient_principal="operator-a", expires_seconds=60,
         )
         self.assertEqual({**assignment, "operator_launch": launch}, json.loads(output.getvalue()))
 

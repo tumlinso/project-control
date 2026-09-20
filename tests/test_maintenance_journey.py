@@ -43,12 +43,13 @@ try:
     # plus V2Repo's disposable authority locator.
     issuer_environment = {
         'PROJECT_CONTROL_SKILLS_ROOT': sys.argv[1],
-        'PYTHONPATH': os.pathsep.join([str(Path.cwd() / 'src'), str(Path(sys.argv[1]) / 'todo-orchestrator')]),
         'TODO_ORCHESTRATOR_STATE_DIR': str(fixture.repo.state_root),
     }
-    for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST'):
-        if key in os.environ:
+    if os.environ.get('PROJECT_CONTROL_RELEASE_MANIFEST'):
+        for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST'):
             issuer_environment[key] = os.environ[key]
+    else:
+        issuer_environment['PYTHONPATH'] = os.pathsep.join([str(Path.cwd() / 'src'), str(Path(sys.argv[1]) / 'todo-orchestrator')])
     issued = subprocess.run([
         sys.executable, '-m', 'project_control.cli', 'admin', 'prepare-maintenance',
         '--repo', str(fixture.repo.root), '--task', 'A', '--recipient', 'test-operator-a',

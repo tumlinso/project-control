@@ -41,7 +41,12 @@ try:
         conn.execute("INSERT INTO workflow_lane_tasks(lane_id,position,task_id,state,enqueued_at,revision) VALUES('LANE',0,'A','queued','now',?)", (revision,))
         conn.execute("INSERT INTO workflow_dispatches(id,lane_id,session_id,claim_id,workspace_id,state,context_version,heartbeat_at,hostname,pid,created_at,revision) VALUES('DISPATCH','LANE',?,?,?,'active',1,'2000-01-01T00:00:00Z',?,999999,'now',?)", (session_id, claim_id, workspace['workspace_id'], socket.gethostname(), revision))
     repo.service.db.mutate(actor_session_id=None, entity_type='fixture', entity_id='A', event_type='fixture.dispatch', payload={}, operation=seed_dispatch)
-    env = {'PROJECT_CONTROL_SKILLS_ROOT': sys.argv[1], 'TODO_ORCHESTRATOR_STATE_DIR': str(repo.state_root), 'PYTHONPATH': os.pathsep.join([str(Path.cwd() / 'src'), str(Path(sys.argv[1]) / 'todo-orchestrator')])}
+    env = {'PROJECT_CONTROL_SKILLS_ROOT': sys.argv[1], 'TODO_ORCHESTRATOR_STATE_DIR': str(repo.state_root)}
+    if os.environ.get('PROJECT_CONTROL_RELEASE_MANIFEST'):
+        for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST'):
+            env[key] = os.environ[key]
+    else:
+        env['PYTHONPATH'] = os.pathsep.join([str(Path.cwd() / 'src'), str(Path(sys.argv[1]) / 'todo-orchestrator')])
     issued = subprocess.run([sys.executable, '-m', 'project_control.cli', 'admin', 'prepare-maintenance', '--repo', str(repo.root), '--task', 'A', '--recipient', 'test-operator-a'], cwd=str(Path.cwd()), env=env, text=True, capture_output=True, check=False)
     assert issued.returncode == 0, issued.stderr
     assignment = json.loads(issued.stdout)
@@ -84,7 +89,11 @@ try:
  dirty=Path(ws['worktree_path'])/'retained.txt'; dirty.write_text('preserve\n'); before=dirty.read_bytes()
  def dispatch(conn,rev): conn.execute("INSERT INTO workflow_lane_tasks(lane_id,position,task_id,state,enqueued_at,revision) VALUES('LANE',0,'A','queued','n',?)",(rev,)); conn.execute("INSERT INTO workflow_dispatches(id,lane_id,session_id,claim_id,workspace_id,state,context_version,heartbeat_at,hostname,pid,created_at,revision) VALUES('D','LANE',?,?,?,'active',1,'2000',?,999999,'n',?)",(c['session']['agent_id'],c['claim']['claim_id'],ws['workspace_id'],socket.gethostname(),rev))
  repo.service.db.mutate(actor_session_id=None,entity_type='f',entity_id='d',event_type='f',payload={},operation=dispatch)
- env={'PROJECT_CONTROL_SKILLS_ROOT':sys.argv[1],'TODO_ORCHESTRATOR_STATE_DIR':str(repo.state_root),'PYTHONPATH':os.pathsep.join([str(Path.cwd()/'src'),str(Path(sys.argv[1])/'todo-orchestrator')])}; result=subprocess.run([sys.executable,'-m','project_control.cli','admin','prepare-maintenance','--repo',str(repo.root),'--task','A','--run','RUN','--recipient','op'],cwd=str(Path.cwd()),env=env,text=True,capture_output=True); assert result.returncode != 0, result.stderr; assert 'cannot bind the selected run' in result.stderr, result.stderr; assert dirty.read_bytes()==before
+ env={'PROJECT_CONTROL_SKILLS_ROOT':sys.argv[1],'TODO_ORCHESTRATOR_STATE_DIR':str(repo.state_root)}
+ if os.environ.get('PROJECT_CONTROL_RELEASE_MANIFEST'):
+  for key in ('PROJECT_CONTROL_RELEASE_MANIFEST','PROJECT_CONTROL_RELEASE_DIGEST'): env[key]=os.environ[key]
+ else: env['PYTHONPATH']=os.pathsep.join([str(Path.cwd()/'src'),str(Path(sys.argv[1])/'todo-orchestrator')])
+ result=subprocess.run([sys.executable,'-m','project_control.cli','admin','prepare-maintenance','--repo',str(repo.root),'--task','A','--run','RUN','--recipient','op'],cwd=str(Path.cwd()),env=env,text=True,capture_output=True); assert result.returncode != 0, result.stderr; assert 'cannot bind the selected run' in result.stderr, result.stderr; assert dirty.read_bytes()==before
 finally: repo.close()
 '''
         environment = dict(os.environ)

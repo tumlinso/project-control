@@ -13,7 +13,7 @@ from project_control.workflow_core.recovery import (
 )
 
 
-SKILLS = Path("/home/tumlinson/.agents/skills")
+SKILLS = Path(os.environ.get("PROJECT_CONTROL_SKILLS_ROOT", "/home/tumlinson/.agents/skills"))
 
 
 @unittest.skipUnless((SKILLS / "todo-orchestrator/tests/test_workflow_recovery.py").is_file(), "Todo recovery fixture unavailable")
