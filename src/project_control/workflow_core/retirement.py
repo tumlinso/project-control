@@ -20,6 +20,7 @@ class RetirementRequest(BaseModel):
     expected_fingerprint: str = Field(min_length=1)
     expected_tasks: dict[str, dict[str, Any]] = Field(min_length=1)
     dispositions: dict[str, str] = Field(min_length=1)
+    preserved_work_handoffs: list[dict[str, Any]] = Field(default_factory=list)
     reason: str = Field(min_length=1, max_length=1000)
 
 

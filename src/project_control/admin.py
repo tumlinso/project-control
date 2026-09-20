@@ -84,6 +84,7 @@ def prepare_maintenance_assignment(
     repo: str | Path,
     *,
     task_id: str,
+    run_id: str | None = None,
     recipient_principal: str,
     expires_seconds: int = 300,
 ) -> dict[str, object]:
@@ -100,6 +101,27 @@ def prepare_maintenance_assignment(
 
     service = Service(repo, mutation_mode="self_debug", read_only=True)
     engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
+    continuation = engine.delegated_continuation(engine.inspect(task_id))
+    with service.db.read() as conn:
+        memberships = [str(row["run_id"]) for row in conn.execute(
+            "SELECT DISTINCT l.run_id FROM workflow_lane_tasks lt "
+            "JOIN workflow_lanes l ON l.id=lt.lane_id JOIN workflow_runs r ON r.id=l.run_id "
+            "WHERE lt.task_id=? AND r.status='active' ORDER BY l.run_id",
+            (task_id,),
+        )]
+    if run_id is None:
+        inferred = continuation.get("run_id") if isinstance(continuation, dict) else None
+        if isinstance(inferred, str) and inferred in memberships:
+            run_id = inferred
+        elif len(memberships) == 1:
+            run_id = memberships[0]
+        else:
+            choices = ", ".join(memberships) or "none"
+            raise ValueError(f"maintenance run selection required for {task_id}; use --run ({choices})")
+    elif run_id not in memberships:
+        raise ValueError(f"maintenance task {task_id} is not an active member of run {run_id}")
+    if not isinstance(continuation, dict) or continuation.get("run_id") != run_id:
+        raise ValueError("maintenance recovery cannot bind the selected run to one exact continuation")
     grant = issue_maintenance_recovery_authorization(
         service, engine, task_id=task_id, recipient_principal=recipient_principal,
         expires_seconds=expires_seconds,
@@ -109,7 +131,7 @@ def prepare_maintenance_assignment(
         "executor": {"class": "tool_capable_maintenance_operator", "principal": recipient_principal},
         "assignment": {
             "objective": "Resume the named clean stopped execution through approved recovery.",
-            "scope": {"project_uuid": str(service.project["project_uuid"]), "task_id": task_id},
+            "scope": {"project_uuid": str(service.project["project_uuid"]), "run_id": run_id, "task_id": task_id},
             "constraints": ["preserve_all_no_repository_mutation", "fresh_kernel_inspection_required"],
             "grant_reference": grant["authorization_id"],
             "next_public_call": {
@@ -195,6 +217,56 @@ def prepare_retire_run_batch(repo: str | Path, intent_file: str | Path, output_f
             "apply_confirmation": RETIRE_RUN_BATCH_CONFIRMATION}
 
 
+def prepare_supersession_assignment(repo: str | Path, intent_file: str | Path, *, recipient_principal: str, expires_seconds: int = 1800) -> dict[str, object]:
+    """Owner-only preparation of one complete source-run supersession grant."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.retirement import _fingerprint, _task_digest, TERMINAL, TERMINAL_LANE_TASK_STATES
+    from todo_orchestrator.runtime.source import capture_source_identity
+    from .workflow_core.retirement import RetirementRequest
+    from .workflow_core.supersession import issue_supersession_authorization
+    try:
+        intent = json.loads(Path(intent_file).read_text(encoding="utf-8"))
+        allowed = {"source_run_id", "successor_run_id", "reason", "preserved_work_handoffs"}
+        if not isinstance(intent, dict) or set(intent) - allowed or not {"source_run_id", "successor_run_id", "reason"} <= set(intent):
+            raise ValueError("supersession intent requires source_run_id, successor_run_id, reason, and optional preserved_work_handoffs")
+        requested_handoffs = intent.get("preserved_work_handoffs", [])
+        if not isinstance(requested_handoffs, list):
+            raise ValueError("preserved_work_handoffs must be a list")
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid supersession intent file: {exc}") from exc
+    service = Service(repo, mutation_mode="self_debug")
+    with service.db.read() as conn:
+        source_id, successor_id = str(intent["source_run_id"]), str(intent["successor_run_id"])
+        source = conn.execute("SELECT status FROM workflow_runs WHERE id=?", (source_id,)).fetchone()
+        successor = conn.execute("SELECT status FROM workflow_runs WHERE id=?", (successor_id,)).fetchone()
+        if source is None or successor is None or source["status"] not in {"active", "attention_required"} or successor["status"] != "active":
+            raise ValueError("source/successor runs are not eligible")
+        members = conn.execute(
+            "SELECT lt.task_id,lt.state,t.status FROM workflow_lane_tasks lt JOIN workflow_lanes l ON l.id=lt.lane_id JOIN tasks t ON t.id=lt.task_id WHERE l.run_id=?",
+            (source_id,),
+        ).fetchall()
+        task_ids = sorted({str(row["task_id"]) for row in members if str(row["state"]) not in TERMINAL_LANE_TASK_STATES or str(row["status"]) not in TERMINAL})
+        if not task_ids:
+            raise ValueError("source run has no unfinished task membership")
+        rows = {str(row["id"]): row for row in conn.execute("SELECT * FROM tasks WHERE id IN (" + ",".join("?" for _ in task_ids) + ")", task_ids)}
+        handoffs: list[dict[str, object]] = []
+        for item in requested_handoffs:
+            if not isinstance(item, dict) or set(item) != {"source_workspace_id", "source_lane_id", "successor_lane_id", "successor_task_id", "adopt_dirty"} or not isinstance(item["adopt_dirty"], bool):
+                raise ValueError("preserved handoff intent must name source workspace/lane, successor lane/task, and adopt_dirty")
+            workspace = conn.execute("SELECT repository_identity,base_commit,worktree_path FROM workflow_workspaces WHERE id=? AND run_id=? AND lane_id=?", (item["source_workspace_id"], source_id, item["source_lane_id"])).fetchone()
+            if workspace is None or not workspace["worktree_path"]:
+                raise ValueError("preserved handoff source workspace is unavailable")
+            try:
+                identity = capture_source_identity(Path(str(workspace["worktree_path"])))
+            except Exception as exc:
+                raise ValueError("preserved handoff source Git identity is unavailable") from exc
+            handoffs.append({**item, "repository_identity": str(workspace["repository_identity"]), "expected_base_commit": str(workspace["base_commit"]), "expected_head": identity["git_head"], "expected_content_fingerprint": identity["fingerprint"]})
+        request = RetirementRequest(source_run_id=source_id, successor_run_id=successor_id, expected_project_uuid=str(service.project["project_uuid"]), expected_revision=int(conn.execute("SELECT value FROM meta WHERE key='project_revision'").fetchone()[0]), expected_fingerprint=_fingerprint(conn), expected_tasks={task_id: {"status": str(rows[task_id]["status"]), "version": int(rows[task_id]["version"]), "revision": int(rows[task_id]["revision"]), "row_digest": _task_digest(rows[task_id])} for task_id in task_ids}, dispositions={task_id: "superseded" for task_id in task_ids}, preserved_work_handoffs=handoffs, reason=str(intent["reason"]))
+    grant = issue_supersession_authorization(service, request=request, recipient_principal=recipient_principal, expires_seconds=expires_seconds)
+    return {"status": "launch_required", "executor": {"class": "tool_capable_maintenance_operator", "principal": recipient_principal}, "assignment": {"objective": "Apply the prepared exact run supersession.", "scope": {"source_run_id": source_id, "successor_run_id": successor_id}, "grant_reference": grant["authorization_id"], "next_public_call": {"tool": "maintain_execution", "arguments": {"repo_root": str(Path(repo).resolve()), "authorization_id": grant["authorization_id"]}}}}
+
+
 def recover_authorized(repo: str | Path, *, authorization_id: str, reason: str) -> dict[str, object]:
     """Run the single-use authorization; no model-held root capability exists."""
     _runtime_identity()
@@ -213,9 +285,23 @@ def maintain_execution(
     authorization_id: str,
     recipient_principal: str,
 ) -> dict[str, object]:
-    """Run one host-bound maintenance mandate and return the ordinary resume call."""
+    """Run one host-bound maintenance mandate and report current continuation."""
     _runtime_identity()
     from todo_orchestrator.service import Service
+    if authorization_id.startswith("ssa_"):
+        from .workflow_core.supersession import inspect_supersession_authorization, run_authorized_supersession
+        readonly_service = Service(repo, mutation_mode="self_debug", read_only=True)
+        preflight = inspect_supersession_authorization(readonly_service, authorization_id=authorization_id, recipient_principal=recipient_principal)
+        replayed = "completed_receipt" in preflight
+        if replayed:
+            receipt = dict(preflight["completed_receipt"])
+        else:
+            service = Service(repo, mutation_mode="self_debug")
+            receipt = run_authorized_supersession(service, authorization_id=authorization_id, recipient_principal=recipient_principal)
+        successor_run_id = receipt.get("intended_run_id")
+        return {"status": "superseded", "receipt": receipt, "replayed": replayed,
+                "continuation": {"status": "ready", "run_id": successor_run_id} if isinstance(successor_run_id, str) else {"status": "blocked"},
+                "recommended_next_call": {"tool": "next_task", "arguments": {"run_id": successor_run_id}} if isinstance(successor_run_id, str) else None}
     from todo_orchestrator.workflow.recovery import RecoveryEngine
     from .workflow_core.recovery import inspect_maintenance_recovery_authorization, run_authorized_recovery
 
@@ -227,30 +313,76 @@ def maintain_execution(
         readonly_service, readonly_engine, authorization_id=authorization_id,
         recipient_principal=recipient_principal,
     )
-    if "completed_receipt" in preflight:
+    replayed = "completed_receipt" in preflight
+    payload = preflight["payload"]
+    if replayed:
         receipt = dict(preflight["completed_receipt"])
-        payload = preflight["payload"]
-        return {
-            "status": "maintained", "receipt": receipt,
-            "recommended_next_call": {
-                "tool": "next_task",
-                "arguments": {"repo_root": str(Path(repo).resolve()), "task_id": payload["task_id"]},
-            },
-        }
-    service = Service(repo, mutation_mode="self_debug")
-    engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
-    receipt = run_authorized_recovery(
-        service, engine, authorization_id=authorization_id,
-        reason="authorized delegated maintenance", recipient_principal=recipient_principal,
+    else:
+        service = Service(repo, mutation_mode="self_debug")
+        engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
+        receipt = run_authorized_recovery(
+            service, engine, authorization_id=authorization_id,
+            reason="authorized delegated maintenance", recipient_principal=recipient_principal,
+        )
+
+    continuation = receipt.get("continuation", payload.get("continuation"))
+    if not isinstance(continuation, dict):
+        return {"status": "maintained", "receipt": receipt, "replayed": replayed,
+                "continuation": {"status": "blocked", "blockers": [{"kind": "owner", "state": "continuation_unavailable"}]},
+                "recommended_next_call": None}
+    required = {"run_id", "lane_id", "workspace_id", "expected_base_commit", "expected_head", "stage"}
+    if set(continuation) != required or continuation.get("run_id") != payload.get("continuation", {}).get("run_id"):
+        return {"status": "maintained", "receipt": receipt, "replayed": replayed,
+                "continuation": {"status": "blocked", "blockers": [{"kind": "owner", "state": "continuation_invalid"}]},
+                "recommended_next_call": None}
+
+    workspace_result: dict[str, object] | None = None
+    workspace_blocker: dict[str, object] | None = None
+    if continuation["stage"] == "resume_quarantined_workspace":
+        workspace_id = continuation["workspace_id"]
+        if not all(isinstance(continuation.get(key), str) for key in ("run_id", "lane_id", "expected_base_commit", "expected_head")) or not isinstance(workspace_id, str):
+            workspace_blocker = {"kind": "workspace", "state": "continuation_invalid"}
+        else:
+            service = Service(repo, mutation_mode="self_debug")
+            with service.db.read() as conn:
+                current = conn.execute("SELECT state FROM workflow_workspaces WHERE id=?", (workspace_id,)).fetchone()
+            if current is not None and current["state"] == "quarantined":
+                from todo_orchestrator.models import TodoError
+                from todo_orchestrator.workflow.service import repository_identity
+                from todo_orchestrator.workflow.workspaces import WorkspaceService
+
+                workspaces = WorkspaceService(
+                    service.db, managed_root=service.paths.state_dir / "workflow-workspaces",
+                    repository_identity_resolver=lambda root: repository_identity(root, str(service.project["project_uuid"])),
+                )
+                try:
+                    workspace_result = workspaces.resume_quarantined_workspace(
+                        repository_root=service.paths.repo_root,
+                        repository_identity=repository_identity(service.paths.repo_root, str(service.project["project_uuid"])),
+                        run_id=continuation["run_id"], lane_id=continuation["lane_id"], workspace_id=workspace_id,
+                        expected_base_commit=continuation["expected_base_commit"], expected_head=continuation["expected_head"],
+                    )
+                except TodoError as exc:
+                    workspace_blocker = {"kind": "workspace", "state": exc.code, "message": exc.message}
+
+    readonly = Service(repo, mutation_mode="self_debug", read_only=True)
+    from todo_orchestrator.workflow.service import assess_continuation
+    with readonly.db.read() as conn:
+        assessment = assess_continuation(
+            conn, run_id=str(continuation["run_id"]), lane_id=str(continuation["lane_id"]),
+            task_id=str(payload["task_id"]), workspace_id=continuation["workspace_id"] if isinstance(continuation["workspace_id"], str) else None,
+        )
+    if workspace_result is not None:
+        assessment["workspace_resume"] = workspace_result
+    if workspace_blocker is not None:
+        assessment["status"] = "blocked"
+        assessment.setdefault("blockers", []).append(workspace_blocker)
+    next_call = (
+        {"tool": "next_task", "arguments": {"repo_root": str(Path(repo).resolve()), "task_id": payload["task_id"], "run_id": continuation["run_id"]}}
+        if assessment["status"] == "ready" else None
     )
-    return {
-        "status": "maintained",
-        "receipt": receipt,
-        "recommended_next_call": {
-            "tool": "next_task",
-            "arguments": {"repo_root": str(Path(repo).resolve()), "task_id": preflight["payload"]["task_id"]},
-        },
-    }
+    return {"status": "maintained", "receipt": receipt, "replayed": replayed,
+            "continuation": assessment, "recommended_next_call": next_call}
 
 
 def _git(repo: Path, *args: str) -> str:

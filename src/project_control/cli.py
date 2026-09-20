@@ -147,8 +147,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     prepare_maintenance.add_argument("--repo", required=True)
     prepare_maintenance.add_argument("--task", required=True)
+    prepare_maintenance.add_argument("--run")
     prepare_maintenance.add_argument("--recipient", required=True)
     prepare_maintenance.add_argument("--expires", type=int, default=300)
+    prepare_supersession = admin_commands.add_parser("prepare-supersession")
+    prepare_supersession.add_argument("--repo", required=True)
+    prepare_supersession.add_argument("--intent", required=True)
+    prepare_supersession.add_argument("--recipient", required=True)
+    prepare_supersession.add_argument("--expires", type=int, default=1800)
     retire_batch = admin_commands.add_parser("retire-run-batch")
     retire_batch.add_argument("--repo", required=True)
     retire_batch.add_argument("--request", required=True)
@@ -431,6 +437,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 prepare_retire_run_batch,
                 retire_run_batch,
                 prepare_maintenance_assignment,
+                prepare_supersession_assignment,
             )
 
             if args.admin_command == "selective-replan":
@@ -462,13 +469,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 from .maintenance_host import operator_launch_command
 
                 assignment = prepare_maintenance_assignment(
-                    args.repo, task_id=args.task, recipient_principal=args.recipient,
+                    args.repo, task_id=args.task, run_id=args.run, recipient_principal=args.recipient,
                     expires_seconds=args.expires,
                 )
                 print(json.dumps({
                     **assignment,
                     "operator_launch": operator_launch_command(args.recipient),
                 }, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "prepare-supersession":
+                from .maintenance_host import operator_launch_command
+                assignment = prepare_supersession_assignment(args.repo, args.intent, recipient_principal=args.recipient, expires_seconds=args.expires)
+                print(json.dumps({**assignment, "operator_launch": operator_launch_command(args.recipient)}, sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "retire-run-batch":
                 result = retire_run_batch(args.repo, args.request, apply=args.apply, confirmation=args.confirm)
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
