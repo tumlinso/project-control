@@ -18,8 +18,8 @@ lane/task, and `adopt_dirty: true` when retained material work is explicitly
 accepted. The host derives complete unfinished source membership and Git
 identity; callers never assemble row digests or a raw mutation request. The
 operator supplies only the opaque grant to `maintain_execution`. Its successful
-or replayed receipt returns exact `next_task` arguments (`repo_root`, `run_id`,
-and `task_id`); use those unchanged. Changed source bytes, a false identity, a
+or replayed receipt reassesses readiness and returns exact `next_task` arguments
+(`repo_root`, `run_id`, and `task_id`) only when ready; use those unchanged. Changed source bytes, a false identity, a
 missing dirty adoption, foreign live membership, or active source artifacts
 refuse without cleanup.
 

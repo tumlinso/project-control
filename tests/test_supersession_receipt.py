@@ -15,7 +15,7 @@ from project_control.workflow_core.supersession import run_authorized_supersessi
 class SupersessionReceiptTests(unittest.TestCase):
     def test_real_retirement_replays_canonical_receipt_after_projection_failure_and_expiry(self) -> None:
         from project_control import admin
-        from test_supersession_journey import SupersessionJourneyTests
+        from tests.test_supersession_journey import SupersessionJourneyTests
 
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
