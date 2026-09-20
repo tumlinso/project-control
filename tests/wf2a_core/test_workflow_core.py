@@ -41,7 +41,7 @@ class _Engine:
     def __init__(self):
         self.plan = {
             "project_uuid": self.project_uuid, "task_id": "STALE", "authority_revision": 7,
-            "status": "recovery_needed", "actions": [{"kind": "release_claim", "id": "c"}],
+            "status": "recovery_needed", "actions": [{"kind": "release_claim", "id": "c", "task_id": "STALE", "lane_id": "lane"}],
             "blockers": [], "warnings": [], "file_policy": "preserve_all_no_repository_mutation",
         }
         self.executed = 0
@@ -51,10 +51,25 @@ class _Engine:
             raise AssertionError(task_id)
         return dict(self.plan)
 
-    def execute(self, plan, reason):
+    def delegated_effects_are_exact(self, plan, task_id):
+        return plan["task_id"] == task_id and not plan["blockers"]
+
+    def delegated_continuation(self, plan):
+        return {"run_id": "run", "lane_id": "lane", "workspace_id": None,
+                "expected_base_commit": None, "expected_head": None, "stage": "assess_next_task"}
+
+    def recovery_result_for_request(self, request_id):
+        return None
+
+    def execute(self, plan, reason, **kwargs):
         self.executed += 1
         self.assert_plan = plan
-        return {"status": "recovered", "reason": reason}
+        result = {"status": "recovered", "reason": reason}
+        if kwargs.get("recovery_request_id"):
+            result["recovery_request_id"] = kwargs["recovery_request_id"]
+        if kwargs.get("recovery_continuation"):
+            result["continuation"] = kwargs["recovery_continuation"]
+        return result
 
 
 class _RetirementService:
@@ -163,6 +178,47 @@ class WorkflowCoreTests(unittest.TestCase):
             )
             self.assertEqual("STALE", inspected["payload"]["task_id"])
             self.assertEqual(first, inspected["completed_receipt"])
+
+    def test_maintenance_replays_canonical_result_after_receipt_projection_failure(self):
+        class CommitThenProjectEngine(_Engine):
+            def __init__(self):
+                super().__init__()
+                self.committed = {}
+
+            def execute(self, plan, reason, **kwargs):
+                result = super().execute(plan, reason, **kwargs)
+                self.committed[result["recovery_request_id"]] = dict(result)
+                return result
+
+            def recovery_result_for_request(self, request_id):
+                return self.committed.get(request_id)
+
+        with TemporaryDirectory() as temporary:
+            service, engine = _Service(Path(temporary)), CommitThenProjectEngine()
+            issued = issue_maintenance_recovery_authorization(
+                service, engine, task_id="STALE", recipient_principal="operator-a", expires_seconds=60,
+            )
+            from project_control.workflow_core import recovery as recovery_module
+            original_replace = recovery_module._replace
+            failed = False
+            def fail_once(path, value):
+                nonlocal failed
+                if value.get("completed_receipt") is not None and not failed:
+                    failed = True
+                    raise OSError("receipt projection interrupted")
+                return original_replace(path, value)
+            with patch.object(recovery_module, "_replace", side_effect=fail_once):
+                with self.assertRaisesRegex(OSError, "receipt projection interrupted"):
+                    run_authorized_recovery(
+                        service, engine, authorization_id=str(issued["authorization_id"]),
+                        reason="maintenance", recipient_principal="operator-a",
+                    )
+                replay = run_authorized_recovery(
+                    service, engine, authorization_id=str(issued["authorization_id"]),
+                    reason="maintenance", recipient_principal="operator-a",
+                )
+            self.assertEqual(engine.executed, 1)
+            self.assertEqual(replay, engine.committed[str(issued["authorization_id"])])
 
     def test_maintenance_authorization_can_be_revoked_before_execution(self):
         with TemporaryDirectory() as temporary:

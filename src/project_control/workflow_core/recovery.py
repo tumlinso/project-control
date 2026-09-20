@@ -145,6 +145,12 @@ def issue_maintenance_recovery_authorization(
     """
     if not recipient_principal or len(recipient_principal) > 160:
         raise RecoveryAuthorizationError("recovery_authorization_invalid_principal")
+    delegated_plan = engine.inspect(task_id)
+    if not getattr(engine, "delegated_effects_are_exact")(delegated_plan, task_id):
+        raise RecoveryAuthorizationError("recovery_authorization_unsafe_target")
+    continuation = getattr(engine, "delegated_continuation")(delegated_plan)
+    if not isinstance(continuation, dict) or not isinstance(continuation.get("run_id"), str):
+        raise RecoveryAuthorizationError("recovery_authorization_unsafe_target")
     issued = issue_root_recovery_authorization(
         service, engine, task_id=task_id, expires_seconds=expires_seconds,
     )
@@ -155,6 +161,7 @@ def issue_maintenance_recovery_authorization(
     payload.update({
         "format": "project-control-recovery-authorization-v2",
         "recipient_principal": recipient_principal,
+        "continuation": continuation,
     })
     _replace(path, {
         "payload": payload,
@@ -247,6 +254,20 @@ def run_authorized_recovery(
     with project_recovery_lock(database_path):
         path, record, payload, signature = _read_record(root, authorization_id)
         if format_version.endswith("v2"):
+            # The signed target and principal remain mandatory even when a
+            # prior DB commit outlived this private receipt projection.
+            if (payload.get("project_uuid") != str(getattr(engine, "project_uuid"))
+                    or payload.get("repository_root") != str(Path(getattr(getattr(service, "paths"), "repo_root")).resolve())):
+                raise RecoveryAuthorizationError("recovery_authorization_target_mismatch")
+            if not hmac.compare_digest(str(payload.get("recipient_principal", "")), str(recipient_principal)):
+                raise RecoveryAuthorizationError("recovery_authorization_principal_mismatch")
+            if record.get("revoked") is True:
+                raise RecoveryAuthorizationError("recovery_authorization_revoked")
+            canonical_result = getattr(engine, "recovery_result_for_request")(authorization_id)
+            if canonical_result is not None:
+                if record.get("completed_receipt") != canonical_result:
+                    _replace(path, {"payload": payload, "signature": signature, "completed_receipt": canonical_result})
+                return canonical_result
             checked = inspect_maintenance_recovery_authorization(
                 service, engine, authorization_id=authorization_id, recipient_principal=str(recipient_principal),
             )
@@ -269,7 +290,13 @@ def run_authorized_recovery(
             raise RecoveryAuthorizationError("recovery_authorization_stale")
         # Consume only after success, preserving retryability on contention
         # while preventing a second successful execution.
-        result = engine.execute(fresh, reason)
+        result = engine.execute(
+            fresh,
+            reason,
+            recovery_request_id=authorization_id if format_version.endswith("v2") else None,
+            delegated_task_id=task_id if format_version.endswith("v2") else None,
+            recovery_continuation=payload.get("continuation") if format_version.endswith("v2") else None,
+        )
         if format_version.endswith("v2"):
             _replace(path, {"payload": payload, "signature": signature, "completed_receipt": dict(result)})
         else:
