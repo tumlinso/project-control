@@ -25,6 +25,38 @@ launches a process. Its local-worker entry describes Project Control's
 observation adapter only; it does not claim the availability of a Todo-managed
 executor.
 
+## Bounded maintenance hosts
+
+The Codex profile exposes `maintain_execution`, but an ordinary unconfigured
+server cannot execute it. Trusted host startup must bind a distinct operator
+principal:
+
+```python
+from project_control.app import create_mcp
+from project_control.workflow_tools import trusted_maintenance_context
+
+server = create_mcp(
+    profile="codex",
+    maintenance_host=trusted_maintenance_context("operator-a"),
+)
+```
+
+The host-only `project_control.admin.prepare_maintenance_assignment` helper
+issues an exact-target mandate for that recipient. Its `launch_required`
+assignment includes the public next call; it does not claim to start an agent.
+The operator supplies the repository and opaque grant reference, not a role or
+principal. Observer and mutator profiles do not expose this operation. This
+tool boundary does not provide OS isolation from arbitrary same-user Python.
+
+For an active task, `coordinate_task(action="bind_required_gates", payload={
+"gates": [...]})` adds required gates without replacing the plan. Existing gate
+definitions and evidence are preserved; an identical serial binding is a
+no-op. Gate paths must be within the task's declared readable or owned scope.
+Completion performs required validation, so an extra `run_gates` call is only
+needed when earlier validation is useful. File-check evidence can be reused
+when its observed inputs are unchanged; command and managed-workspace gates
+still require fresh execution.
+
 Before registration, candidate validation must prove:
 
 - runtime package and frozen source match the digest-pinned manifest;
