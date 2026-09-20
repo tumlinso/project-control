@@ -1,0 +1,37 @@
+{
+  "format": "pce2-cross-authority-dependencies",
+  "schema_version": 1,
+  "edges": [
+    {
+      "producer": "SK-PCE2-OPERATE",
+      "consumer": "PC-PCE2-SURFACE",
+      "contract": "Canonical assessment/action projection; acceptable defaults and schema/role consistency"
+    },
+    {
+      "producer": "SK-PCE2-MAINTAIN",
+      "consumer": "PC-PCE2-SURFACE",
+      "contract": "Scoped mandate, semantic maintenance requests, effects and replay receipts"
+    },
+    {
+      "producer": "SK-PCE2-COLLABORATE",
+      "consumer": "PC-PCE2-SURFACE",
+      "contract": "Objective-scoped delegation, executor assignment and immutable delivery semantics"
+    },
+    {
+      "producer": "SK-PCE2-OPERATE",
+      "consumer": "PC-PCE2-QUALIFY",
+      "contract": "Executed current evidence for ordinary journeys"
+    },
+    {
+      "producer": "SK-PCE2-MAINTAIN",
+      "consumer": "PC-PCE2-QUALIFY",
+      "contract": "Executed grant/lifecycle/liveness scenarios"
+    },
+    {
+      "producer": "SK-PCE2-COLLABORATE",
+      "consumer": "PC-PCE2-QUALIFY",
+      "contract": "Executed delegation/delivery scenarios"
+    }
+  ],
+  "enforcement": "These are explicit handoff contracts, not fabricated local task edges. The receiving owner checks producer commit/test evidence before accepting completion. One shared coordinator can serialize across both local lanes. Final qualification must verify all scenario evidence; a local epic closing is not overall release acceptance."
+}

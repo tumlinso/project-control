@@ -1,0 +1,447 @@
+{
+  "format": "pce2-source-evidence",
+  "review_date": "2026-09-20",
+  "sources": [
+    {
+      "id": "S01",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/workflow_tools.py",
+      "lines": "82–209",
+      "finding": "Generic typed errors discard most details and suggest next_task. Coordination action payload is an opaque dict at the MCP schema. Collection is annotated read-only.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S02",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/protocol.py",
+      "lines": "111–154;179–330;335–420",
+      "finding": "Action-specific fields are known internally. Default next-call recommendations form next→inspect→coordinate loops. allowed_actions often contains generic tool lists. Running children are normalized to idle with operation_status. Full-envelope size enforcement happens after the kernel returns.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S03",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "lines": "392–541",
+      "finding": "next_task already composes context after its transaction, yet recommends inspection. Without explicit task it searches active runs in creation order. Workspace preparation failures are returned as root_only actions. Existing same-owner resume renews a claim.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S04",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/capabilities.py",
+      "lines": "214–265;334–369;377–406",
+      "finding": "Capabilities enforce claim lineage. Coordinator and integrator default operations include delegate_task; compare the different role action table. A maintenance mandate cannot merely be an old claim handle if it must repair that claim.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S05",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/roles.py",
+      "lines": "17–53",
+      "finding": "Coordinator and integrator omit delegate_child, which the kernel requires for delegation. Coordinator and implementer/specialist capabilities also differ from role checks for particular coordination actions. Resolve by a shared policy, not broad grants.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S06",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "lines": "945–1070",
+      "finding": "_child_scope selects the first sorted file under an authorized directory, or the first of multiple paths. Objective is not used for target selection. auto goes to the write-scope branch. Child packet is passed empty source references/gates and a generic constraint. Launch follows child authorization; collection records candidates with a mutation.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S07",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/context_fragments.py",
+      "lines": "850–898",
+      "finding": "Child packet requires a strict spatial subset, not merely no authority amplification. It has explicit inputs for constraints, source references, gates and interface facts that the caller can use.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S08",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/workflow_binding.py",
+      "lines": "52–105",
+      "finding": "Inspected initializer constructs WorkflowKernel with locator/runtime_guard and does not bind local_worker_adapter or ctxpp_adapter.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S09",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "lines": "70–100;615–632;961–981",
+      "finding": "Kernel adapters default to None. Source/delegation paths return fallback states when those adapters are absent. This establishes the inspected binding behavior, not the status of every possible deployed runtime.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S10",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "lines": "635–638;690–709",
+      "finding": "sync forwards to MessageService but does not forward the cursor/known_fragments fields accepted by the protocol. fork creates/enqueues a lane; this excerpt does not launch an agent process.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S11",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/context_fragments.py",
+      "lines": "480–635",
+      "finding": "Hierarchical charter/lane/task composition and known-manifest deltas already exist. Safety-bearing content is retained, with bounded expansion. Context is budgeted separately from the outer workflow envelope.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S12",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "lines": "550–632",
+      "finding": "Some inspection routes enumerate whole-run workspace/integration data and then enforce a byte cap; source inspection has an adapter fallback. No shared guarantees on useful bounded next actions are apparent in this path.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S13",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "lines": "795–886;1068–1150",
+      "finding": "run_gates can apply/finalize integration, execute required gates in the integration loop, then execute task gates again. finish_task also invokes each completion gate. This is a concrete risk of redundant gate work and surprising operation effects, not a measured GPU cost.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S14",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/gates.py",
+      "lines": "145–265",
+      "finding": "Canonical gate execution already fingerprints inputs and supports named child evidence acceptance. No ordinary current-evidence fast path is visible in this inspected acquisition portion. Reuse requires verifying the complete evidence contract, not assuming a passed flag suffices.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S15",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/services/frontier.py",
+      "lines": "15–101",
+      "finding": "Blocked-task immediate_blockers are built from all dependency edges rather than only unsatisfied ones.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S16",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/services/planning.py",
+      "lines": "150–191",
+      "finding": "Plan preview resolves a configured Skills script and constructs its own TodoReadAdapter route, unlike the process-wide verified workflow binding.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S17",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/workflow_core/recovery.py",
+      "lines": "65–153",
+      "finding": "An opaque one-use scoped recovery authorization exists; it depends on an authority revision and a safe inspection. Its issuer is an internal root/head entry, not an externally authenticated grant API by itself.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S18",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/admin.py",
+      "lines": "82–158",
+      "finding": "Retirement prepare derives exact rows/fingerprints but model-facing use still requires an intent file and a request file; preview parses/summarizes rather than proving every eligibility condition.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S19",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "docs/ADAPTIVE_EPICS.md",
+      "lines": "1–52",
+      "finding": "Existing intended workflow is outcome-sized, adaptive, delegation-aware and low-ceremony. The revision should realize that design, not add procedural microtasks.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S20",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/app.py",
+      "lines": "76–102",
+      "finding": "Instructions favor workflow-first escalation and root/head context publication. They can become ritualized despite already allowing deliberate rich reads.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S21",
+      "repository": "project-control",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "path": "src/project_control/profiles.py",
+      "lines": "23–120",
+      "finding": "Observer/codex/mutator are trusted startup tool allowlists. Tool exposure is not sufficient per-operation authorization; no new root-only model taxonomy is necessary.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S22",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/tests/test_workflow_lane_resume.py",
+      "lines": "1–123",
+      "finding": "Disposable V2Repo plus real WorkflowKernel/WorkflowProtocol and isolated locator provide a reusable no-model fixture; same-owner lease renewal is already tested.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    },
+    {
+      "id": "S23",
+      "repository": "skills",
+      "commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/adapters/local_worker.py",
+      "lines": "1–37",
+      "finding": "Existing local-worker adapter is bounded and nonblocking. Its worker type is not a general tool-capable maintenance agent.",
+      "method": "Project Control source_context; current tracked source read on 2026-09-20; not executed"
+    }
+  ],
+  "retained_findings": [
+    {
+      "id": "PCE1-E04",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/workflow/recovery.py",
+      "lines_or_time": "330-510;553-610",
+      "observation": "Generic recovery quarantines workspaces; receipt unconditionally says resume=next_task. Generic inspect plan lacks authority_revision; execute transaction checks that revision only when present.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E05",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/retirement.py",
+      "lines_or_time": "53-165",
+      "observation": "Exact selected nonterminal tasks, source/successor presence, stale authority checks, quiescence and task-consumer checks. Selection need only be a subset of source lane tasks; the source run is nevertheless cancelled. Queue update is keyed by task IDs, not source run.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E06",
+      "repository": "project-control",
+      "path_or_query": "src/project_control/admin.py",
+      "lines_or_time": "83-155",
+      "observation": "Retirement preview parses and summarizes the request without exercising kernel eligibility. Preparation derives exact rows but constructs Service without explicit read_only=True.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E07",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/service.py",
+      "lines_or_time": "65-100;135-178;274-299",
+      "observation": "Writable construction initializes schema and can restore a missing DB from snapshot. mutate commits before refresh. Retirement has an exact-retry receipt route.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E08",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/workflow/workspaces.py",
+      "lines_or_time": "322-575",
+      "observation": "Existing base reconciliation supports clean quarantined/contract_split participants, preserves worktree contents, checks ancestry, and restricts consumed artifact changes.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E09",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/tests/test_contract_split_reactivation_review.py",
+      "lines_or_time": "1-73",
+      "observation": "Already contains tests for clean contract-split reactivation, dirty selected workspace rejection, preserving sibling workspaces and rejecting absent bases. Tests read, not executed in this review.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E10",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/git_state.py",
+      "lines_or_time": "13-58",
+      "observation": "Existing material-dirt and integration-diff helpers exclude generated projections. dirty_paths returns [] when Git status fails.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E11",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/plan.py",
+      "lines_or_time": "324-362;683-719",
+      "observation": "Native apply upserts incoming tasks, increments versions and clears/rebuilds task details. plan_diff lists all existing incoming task IDs as updates. Selective replan refuses any claim history or lane workspace.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E12",
+      "repository": "project-control",
+      "path_or_query": "src/project_control/mutation.py",
+      "lines_or_time": "86-105;220-315",
+      "observation": "Verified read-only service for validation, canonical transaction for apply, optimistic revision check and empty-diff no-op wrapper.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E13",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "lines_or_time": "173-199;1069-1102",
+      "observation": "Automatic isolated-merge artifact publication is restricted to the final task in a lane and reached after required completion gates; delivery is coupled to completion.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E14",
+      "repository": "project-control",
+      "path_or_query": "src/project_control/admin.py",
+      "lines_or_time": "1015-1065",
+      "observation": "Administrative integration path requires a sealed complete producer schedule. This is a batch-specific contract, not a universal integration route.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E15",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/background/host.py",
+      "lines_or_time": "25-50;159-220",
+      "observation": "Separate host-global owner/reservation authority; stale dead-owner sweeps and a narrow current-service-owner reconciliation already exist.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E16",
+      "repository": "skills",
+      "path_or_query": "cuda/scripts/cuda_controller.py",
+      "lines_or_time": "1242-1264;1345-1355",
+      "observation": "Foreground execution spans host reservation, local foreground intent and a marker, with finally cleanup. This does not establish cleanup after every abnormal termination.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E17",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/background/store.py",
+      "lines_or_time": "17-80;97-105",
+      "observation": "Separate sidecar reservation/intent tables. Process liveness helper collapses OSError to False; permission/unavailability classification must be tested before reuse for privileged cleanup.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E18",
+      "repository": "project-control",
+      "path_or_query": "src/project_control/runtime_identity.py",
+      "lines_or_time": "1-160",
+      "observation": "Pinned release manifest/digest and strict development binding already exist; fingerprint and legacy/canonical variable conflict checks are deliberate.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E19",
+      "repository": "project-control",
+      "path_or_query": "src/project_control/workflow_binding.py",
+      "lines_or_time": "45-151",
+      "observation": "One process-wide verified binding, no hot rebinding; bound frozen root metadata provided to the read-port resolver.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E21",
+      "repository": "project-control",
+      "path_or_query": "src/project_control/adapters/todo.py",
+      "lines_or_time": "380-510",
+      "observation": "Observation acquires workflow, semantic state, status and export separately, reports skew; export has size limits. Shared read snapshots and bounded targeted reads are preferable to masking missing data.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E22",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/semantic/workflow.py",
+      "lines_or_time": "274-352",
+      "observation": "Workspace recovery attention list omits quarantined in this query; active_run_id is selected from actionable runs or the first active run, not an explicit sole current-program designation.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E26",
+      "repository": "skills",
+      "path_or_query": "todo-orchestrator/todo_orchestrator/plan.py",
+      "lines_or_time": "34-281",
+      "observation": "Native validator accepts plan schema 3 with one root lane per run, local task references and repository-relative scopes; task/epic kinds and role/workspace enums inspected.",
+      "source_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E27",
+      "repository": "project-control",
+      "path_or_query": "src/project_control/cli.py",
+      "lines_or_time": "96-155",
+      "observation": "Existing CLI: doctor --json; plan compile/validate/apply; admin recovery and prepare/retire-run-batch. No current root_control command is assumed.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    },
+    {
+      "id": "PCE1-E28",
+      "repository": "project-control",
+      "path_or_query": "packaging/candidate_runtime.py",
+      "lines_or_time": "38-75",
+      "observation": "Existing packaged-profile inventory/schema checks; extend rather than rebuild release machinery.",
+      "source_commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "method": "Retained PCE1 source finding; both tracked repository commits were re-observed unchanged in this pass. This is not a fresh execution or replay of the historical incident."
+    }
+  ],
+  "observations": [
+    {
+      "id": "O01",
+      "tool": "project_overview",
+      "project": "project-control",
+      "observed_at": "2026-09-20T12:17:18Z",
+      "commit": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+      "authority": "unavailable",
+      "warning": "todo_read_database_open_failed"
+    },
+    {
+      "id": "O02",
+      "tool": "program_context",
+      "observed_at": "2026-09-20T12:22:02Z–2026-09-20T12:22:04Z",
+      "projects": {
+        "cellerator": {
+          "commit": "a091ccfca808bd1eda3f2f833d30e016b69b21fd",
+          "revision": 7326,
+          "default_active_run": "compat-v2",
+          "warning": "todo_export_output_too_large"
+        },
+        "glasshelix": {
+          "commit": "398e3adcf2e2bccac30707fa7a538788ac6dc4a8",
+          "revision": null,
+          "authority": "unavailable"
+        }
+      }
+    },
+    {
+      "id": "O03",
+      "tool": "local_investigate",
+      "project": "skills",
+      "observed_at": "2026-09-20T12:19:23Z",
+      "status": "partial",
+      "finding": "One bounded two-question scout did not establish a tool-capable first-class launcher. No repeated scout loop; source reads supplied the verified findings."
+    }
+  ],
+  "limitations": [
+    "Read-only source inspection; no product regression suite or models were executed.",
+    "The inspected Project Control and Skills tracked commits match PCE1. Other candidate/deployed runtimes were not exhaustively inventoried.",
+    "A production tool-capable Codex launch API was not established by this pass. Design must not pretend fork or an authorization receipt is a running agent.",
+    "Project Control and GlassHelix authority-open failures were observed, not diagnosed as corruption."
+  ]
+}
