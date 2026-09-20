@@ -176,6 +176,17 @@ class WorkflowToolTests(unittest.TestCase):
         schema = asyncio.run(server.list_tools())[0].inputSchema
         self.assertNotIn("recipient_principal", schema["properties"])
 
+    def test_unconfigured_maintenance_host_fails_closed_before_handler(self) -> None:
+        server = FastMCP("maintenance-unconfigured")
+        register_maintenance_tool(
+            server, host=None,
+            handler=lambda **_arguments: self.fail("unconfigured host reached maintenance handler"),
+        )
+        result = asyncio.run(server._tool_manager.call_tool(
+            "maintain_execution", {"repo_root": "/repo", "authorization_id": "rca_opaque"},
+        ))
+        self.assertEqual("maintenance_host_unconfigured", result["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

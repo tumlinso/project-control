@@ -69,7 +69,7 @@ from .mutation_tools import register_mutation_tools
 from .workflow_binding import initialize_workflow_binding, todo_read_port_factory, workflow_protocol
 from .workflow_tools import (
     WORKFLOW_INSTRUCTIONS,
-    codex_maintenance_host,
+    MaintenanceHostContext,
     register_maintenance_tool,
     register_workflow_tools,
 )
@@ -254,6 +254,7 @@ def create_mcp(
     config: ProjectControlConfig | None = None,
     *,
     profile: MCPProfile | str = MCPProfile.OBSERVER,
+    maintenance_host: MaintenanceHostContext | None = None,
 ) -> ProfiledFastMCP:
     active_config = config or load_config()
     runtime = Runtime(active_config)
@@ -623,7 +624,7 @@ def create_mcp(
     if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
         register_workflow_tools(mcp, protocol_factory=workflow_protocol)
     if selected_profile is MCPProfile.CODEX:
-        register_maintenance_tool(mcp, host=codex_maintenance_host())
+        register_maintenance_tool(mcp, host=maintenance_host)
     if selected_profile is MCPProfile.MUTATOR:
         register_mutation_tools(mcp, active_config)
 

@@ -62,9 +62,11 @@ class MaintenanceHostContext:
     recipient_principal: str
 
 
-def codex_maintenance_host() -> MaintenanceHostContext:
-    """The Codex stdio startup owns this fixed local maintenance identity."""
-    return MaintenanceHostContext(recipient_principal="project-control-codex-host")
+def trusted_maintenance_context(principal: str) -> MaintenanceHostContext:
+    """Construct the context once in trusted host startup, never from a tool call."""
+    if not principal or len(principal) > 160:
+        raise ValueError("maintenance_host_principal_invalid")
+    return MaintenanceHostContext(recipient_principal=principal)
 
 
 class _WorkflowProtocolPort(Protocol):
@@ -245,13 +247,20 @@ def register_workflow_tools(
 def register_maintenance_tool(
     server: FastMCP,
     *,
-    host: MaintenanceHostContext,
+    host: MaintenanceHostContext | None,
     handler: Callable[..., dict[str, object]] | None = None,
 ) -> str:
     """Register the sole principal-bound recovery route for the Codex host."""
     active_handler = handler
 
     def invoke(repo_root: str, authorization_id: str) -> dict[str, object]:
+        if host is None:
+            return {
+                "status": "attention_required",
+                "reason": "maintenance_host_unconfigured",
+                "allowed_actions": [],
+                "recommended_next_call": None,
+            }
         if active_handler is not None:
             return active_handler(
                 repo_root=repo_root, authorization_id=authorization_id,
