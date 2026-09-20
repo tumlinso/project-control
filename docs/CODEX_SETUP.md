@@ -120,20 +120,23 @@ It also exposes fourteen rich reads plus one registered measurement aperture:
 `terminal_capture` is observer-only and is neither discovered nor invocable in
 the Codex profile.
 
-For ordinary work, call `next_task` first, use `inspect_task` for bounded
-current-task context, and use `coordinate_task` for typed synchronization.
-Delegate only a bounded subordinate child and collect only its returned opaque
-handle. Use `finish_task` for every first-class disposition. Escalate to rich
-reads only when current-task context is insufficient or the question genuinely
-requires source, architecture, history, impact, performance, or cross-project
-context.
+For substantial work, call `next_task` first. When its context is ready,
+proceed; use `inspect_task` only for missing needed current-task context, and
+use `coordinate_task` for typed synchronization. Delegate only a bounded
+subordinate child and collect only its returned opaque handle. Use
+`finish_task` for every first-class disposition: it runs required gates, so
+use `run_gates` separately only when earlier validation is useful. Read-only
+questions and research may use rich reads directly without a task or claim.
+When more than one ready run needs attention, pass its `run_id` to `next_task`
+to choose the run focus; omit it for the normal workflow choice.
 
-Keep root context and reasoning for execution, integration, and consequential
-decisions. Broad archaeology and research can usually be delegated to cheaper
-subagents; those subagents also have Project Control and should use bounded rich
-reads for their specific question. The root may use rich reads directly when
-their synthesis is genuinely useful. Request richer projections deliberately;
-do not treat every read as an expanded dossier.
+The main thread owns reasoning, synthesis, strategy, architecture, scope
+changes, consequential tradeoffs, and final acceptance. Subagents gather
+evidence or execute tightly scoped assignments, then report findings and
+blockers at meaningful checkpoints. The main thread resolves uncertainty and
+tradeoffs, provides direction, and subagents wait before consequential changes.
+Delegate archaeology or research to cheaper subagents when appropriate, and
+request richer projections deliberately rather than routinely.
 
 Profile selection is a trusted startup choice. `clientInfo`, user-agent strings,
 model identity claims, annotations, and tool arguments cannot select or broaden

@@ -33,9 +33,11 @@ MAINTENANCE_TOOL_NAME = "maintain_execution"
 
 WORKFLOW_INSTRUCTIONS = (
     "For substantial repository work, use Project Control's workflow tools as the ordinary "
-    "workflow protocol. Start with next_task, use inspect_task for bounded current-task "
-    "context, and use coordinate_task for synchronization. Rich Project Control reads are "
-    "secondary escalation tools when current-task context is insufficient. First-class Codex "
+    "workflow protocol. Start with next_task; when its context is ready, proceed. Use "
+    "inspect_task only for missing needed current-task context, and use coordinate_task for "
+    "synchronization. Read-only questions and research may use rich Project Control reads "
+    "directly without a task or claim. Finish_task runs required gates, so use run_gates "
+    "separately only when earlier validation is useful. First-class Codex "
     "agents receive durable run lanes and roles. Local workers are subordinate bounded children "
     "of one parent claim and never act as first-class lanes. Delegation is nonblocking. Opaque "
     "handles are the only model-facing authorization."
@@ -153,8 +155,17 @@ def register_workflow_tools(
         annotations=_MUTATING,
         structured_output=True,
     )
-    def next_task(repo_root: str, task_id: str | None = None) -> dict[str, object]:
-        return invoke("next_task", repo_root=repo_root, task_id=task_id)
+    def next_task(
+        repo_root: str,
+        task_id: str | None = None,
+        run_id: str | None = None,
+    ) -> dict[str, object]:
+        arguments: dict[str, object] = {"repo_root": repo_root}
+        if task_id is not None:
+            arguments["task_id"] = task_id
+        if run_id is not None:
+            arguments["run_id"] = run_id
+        return invoke("next_task", **arguments)
 
     @server.tool(
         description="Read one bounded, scope-aware workflow or source context target.",
@@ -214,7 +225,7 @@ def register_workflow_tools(
 
     @server.tool(
         description="Nonblockingly collect a candidate result from one subordinate child.",
-        annotations=_READ_ONLY,
+        annotations=_MUTATING,
         structured_output=True,
     )
     def collect_delegation(delegation_handle: str) -> dict[str, object]:

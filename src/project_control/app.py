@@ -94,14 +94,11 @@ SERVER_INSTRUCTIONS = (
 CODEX_INSTRUCTIONS = (
     WORKFLOW_INSTRUCTIONS
     + " "
-    + "Start workflow-first: use current task context and current workflow state before broad repository archaeology. "
-    "Reserve root context and reasoning for execution, integration, and consequential decisions. Delegate bounded "
-    "archaeology or research to cheaper subagents when appropriate; they can use rich Project Control reads for the "
-    "specific question. The root may use rich reads directly when synthesis is genuinely useful. Request richer "
-    "projections deliberately, rather than routinely. Use the workflow tools exposed by the current Project Control "
-    "Codex profile for mutations. Roots and heads may publish non-obvious, durable reusable findings with "
-    "coordinate_task(action='publish_context'); cheap subagents should return findings to their parent instead. "
-    "Context notes are non-authoritative and never replace decisions, invariants, or interfaces."
+    + "Main thread owns reasoning, synthesis, strategy, architecture, scope changes, tradeoffs, and final acceptance. "
+    "Subagents gather evidence or execute tightly scoped assignments, reporting findings and blockers at meaningful "
+    "checkpoints. Main thread resolves uncertainty and tradeoffs, gives direction, and subagents wait before "
+    "consequential changes. Delegate bounded archaeology or research to cheaper subagents when appropriate. Use the "
+    "workflow tools exposed by the current Project Control Codex profile for mutations."
 )
 
 READ_ONLY = ToolAnnotations(

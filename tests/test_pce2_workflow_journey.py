@@ -33,7 +33,9 @@ try:
     manager = create_mcp(ProjectControlConfig(), profile="codex")._tool_manager
     def call(name, arguments):
         return asyncio.run(manager.call_tool(name, arguments))
-    claimed = call("next_task", {"repo_root": str(root), "task_id": "A"})
+    claimed = call("next_task", {
+        "repo_root": str(root), "task_id": "A", "run_id": "compat-v2",
+    })
     assert claimed["status"] == "claimed", claimed
     assert claimed["recommended_next_call"] is None, claimed
     handle = claimed["workflow_handle"]

@@ -74,13 +74,15 @@ class WorkflowToolTests(unittest.TestCase):
         }
         self.assertEqual(actual_hashes, expected_hashes)
         for tool in tools:
-            readonly = tool.name in {"inspect_task", "collect_delegation"}
+            readonly = tool.name == "inspect_task"
             self.assertEqual(tool.annotations.readOnlyHint, readonly)
             self.assertEqual(tool.annotations.idempotentHint, readonly)
             self.assertFalse(tool.annotations.destructiveHint)
             self.assertFalse(tool.annotations.openWorldHint)
         self.assertIn("Start with next_task", WORKFLOW_INSTRUCTIONS)
-        self.assertIn("secondary escalation", WORKFLOW_INSTRUCTIONS)
+        self.assertIn("when its context is ready, proceed", WORKFLOW_INSTRUCTIONS)
+        self.assertIn("directly without a task or claim", WORKFLOW_INSTRUCTIONS)
+        self.assertIn("Finish_task runs required gates", WORKFLOW_INSTRUCTIONS)
         self.assertNotIn("coding-workflow as", WORKFLOW_INSTRUCTIONS)
 
     def test_registration_composes_into_an_existing_server(self) -> None:
@@ -93,7 +95,9 @@ class WorkflowToolTests(unittest.TestCase):
         protocol = FakeProtocol()
         server = create_workflow_mcp(protocol)
         manager = server._tool_manager
-        claimed = asyncio.run(manager.call_tool("next_task", {"repo_root": "/repo", "task_id": "PCU-1"}))
+        claimed = asyncio.run(manager.call_tool("next_task", {
+            "repo_root": "/repo", "task_id": "PCU-1", "run_id": "PCU-RUN-1",
+        }))
         handle = claimed["workflow_handle"]
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "task"}))
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "context_fragment", "target": "NOTE-1"}))
@@ -106,6 +110,7 @@ class WorkflowToolTests(unittest.TestCase):
             "delegate_task", "collect_delegation", "finish_task",
         ])
         self.assertEqual(protocol.calls[1][1]["budget_bytes"], 8192)
+        self.assertEqual(protocol.calls[0][1]["run_id"], "PCU-RUN-1")
         self.assertEqual(protocol.calls[2][1]["kind"], "context_fragment")
         self.assertEqual(protocol.calls[2][1]["target"], "NOTE-1")
         self.assertEqual(protocol.calls[4][1]["mode"], "auto")

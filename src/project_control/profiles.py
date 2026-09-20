@@ -65,8 +65,8 @@ CODEX_TOOL_NAMES = WORKFLOW_TOOL_NAMES + (MAINTENANCE_TOOL_NAME,) + RICH_READ_TO
 MUTATOR_TOOL_NAMES = WORKFLOW_TOOL_NAMES + RICH_READ_TOOL_NAMES + MUTATION_TOOL_NAMES
 
 CODEX_RICH_READ_DESCRIPTION_PREFIX = (
-    "Secondary escalation read: use after the bounded workflow protocol when "
-    "current-task context is insufficient. "
+    "Read-only project context: use directly for questions or research, or during "
+    "substantial work when current-task context needs it. "
 )
 
 
