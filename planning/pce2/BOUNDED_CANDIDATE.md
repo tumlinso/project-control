@@ -1,8 +1,8 @@
 # Bounded PCE2 candidate
 
 This candidate qualifies two specific public journeys. It does not complete
-all six PCE2 outcomes or all 24 acceptance groups. Deployment is not activated;
-NF1A remains paused.
+all six PCE2 outcomes or all 24 acceptance groups. It is activated as the
+shared Project Control release; NF1A remains paused.
 
 ## Exact candidate
 
@@ -13,8 +13,28 @@ NF1A remains paused.
 - Runtime binding: that candidate's `release-manifest.json`, its SHA-256,
   frozen `runtime-skills`, and `bin/python`.
 
+## Activation
+
+The candidate is activated through the digest-checked atomic shared launcher
+replacement at `/home/tumlinson/.local/state/project-control/activations/pce2-20260920T154146Z`.
+Its activation-manifest digest is
+`aec624ff1be0c64155d6716e811d99c46bcef7679b1b85dd2f7bcbae3d2f226e`;
+this is activation evidence, distinct from the candidate identity digest above.
+
+The preceding launcher was retained for rollback. The effective user service
+unit was preserved, `systemctl --user restart project-control.service`
+succeeded, and PID `105531` resolves to the candidate manifest. `/healthz`,
+`/readyz`, and `/version` returned HTTP 200; readiness reported 10 workspaces.
+A fresh stdio client through `/home/tumlinson/.local/bin/project-control codex`
+discovered 22 tools, the `bind_required_gates` schema, no `terminal_capture`,
+and the intended unconfigured-host response from `maintain_execution`.
+Existing connected Codex MCP clients require reconnect; the active stdio
+process cannot be hot-switched. Maintenance remains unavailable until trusted
+host startup supplies an operator context.
+
 The two earlier inactive build directories are superseded and are not the
-qualified candidate above. No existing release or service was replaced.
+qualified candidate above. The candidate replaced the shared launcher only
+after the recorded checks; the prior launcher remains available for rollback.
 
 ## Executed public journeys
 

@@ -61,8 +61,9 @@ Before registration, candidate validation must prove:
 
 - runtime package and frozen source match the digest-pinned manifest;
 - rebinding, skew, missing packages, and ambiguous packages fail closed;
-- stdio discovery returns exactly 21 tools;
-- the six workflow input schemas match the existing canonical protocol;
+- stdio discovery returns exactly 22 tools;
+- the six workflow schemas, including the reviewed `bind_required_gates`
+  coordination action, match the current canonical protocol;
 - workflow writes and rich reads observe the same Todo project UUID, revision,
   and authority fingerprint; and
 - no implementation path creates an MCP client or launches an MCP subprocess.
@@ -84,6 +85,10 @@ The Codex profile exposes these six workflow tools:
 - `delegate_task`
 - `collect_delegation`
 - `finish_task`
+
+It separately exposes `maintain_execution`, a startup-bound maintenance tool.
+It remains unavailable until the Codex server receives a trusted maintenance
+host context; it is not an ordinary workflow claim operation.
 
 It also exposes fourteen rich reads plus one registered measurement aperture:
 
