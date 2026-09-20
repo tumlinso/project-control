@@ -201,7 +201,10 @@ def inspect_maintenance_recovery_authorization(
     if completed is not None:
         if not isinstance(completed, dict):
             raise RecoveryAuthorizationError("recovery_authorization_invalid")
-        return {"completed_receipt": dict(completed)}
+        # The receipt is replayable only for this already-verified grant.  Keep
+        # its signed target alongside it so callers can produce the same exact
+        # ordinary resume recommendation after a lost response.
+        return {"payload": payload, "completed_receipt": dict(completed)}
     try:
         expires_at = datetime.fromisoformat(str(payload["expires_at"]))
     except (KeyError, TypeError, ValueError) as exc:

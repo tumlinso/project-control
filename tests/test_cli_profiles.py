@@ -147,6 +147,28 @@ class ProfileCliTests(unittest.TestCase):
         inspect.assert_called_once_with("/repo", None)
         self.assertEqual(json.loads(output.getvalue()), {"status": "safe"})
 
+    def test_prepare_maintenance_emits_only_fixed_operator_launch(self) -> None:
+        assignment = {
+            "status": "launch_required",
+            "assignment": {"grant_reference": "rca_exact"},
+        }
+        launch = {
+            "executable": "/verified/python",
+            "arguments": ["-m", "project_control.maintenance_host", "operator", "--principal", "operator-a"],
+            "environment": {"PROJECT_CONTROL_SKILLS_ROOT": "/verified/skills"},
+        }
+        with patch("project_control.admin.prepare_maintenance_assignment", return_value=assignment) as prepare, \
+             patch("project_control.maintenance_host.operator_launch_command", return_value=launch), \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "prepare-maintenance", "--repo", "/repo", "--task", "A",
+                "--recipient", "operator-a", "--expires", "60",
+            ]), 0)
+        prepare.assert_called_once_with(
+            "/repo", task_id="A", recipient_principal="operator-a", expires_seconds=60,
+        )
+        self.assertEqual({**assignment, "operator_launch": launch}, json.loads(output.getvalue()))
+
     def test_admin_workspace_preparation_is_exposed_by_main_cli(self) -> None:
         prepared = {"status": "prepared", "prepared": [{"lane_id": "L-A"}]}
         with patch("project_control.admin.prepare_run_workspaces", return_value=prepared) as prepare, \

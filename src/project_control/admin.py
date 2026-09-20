@@ -87,11 +87,11 @@ def prepare_maintenance_assignment(
     recipient_principal: str,
     expires_seconds: int = 300,
 ) -> dict[str, object]:
-    """Prepare, but never launch, one principal-bound recovery assignment.
+    """Prepare one principal-bound recovery assignment.
 
-    This host-only helper is deliberately absent from CLI and MCP registration.
-    It gives an existing tool-capable host the complete next invocation without
-    pretending that Project Control owns a launcher.
+    This owner-only helper is deliberately absent from MCP registration.
+    It gives an existing tool-capable host the complete next invocation.  The
+    public CLI adds a deterministic, same-runtime operator launch packet.
     """
     _runtime_identity()
     from todo_orchestrator.service import Service
@@ -229,9 +229,13 @@ def maintain_execution(
     )
     if "completed_receipt" in preflight:
         receipt = dict(preflight["completed_receipt"])
+        payload = preflight["payload"]
         return {
             "status": "maintained", "receipt": receipt,
-            "recommended_next_call": {"tool": "next_task", "arguments": {"repo_root": str(Path(repo).resolve())}},
+            "recommended_next_call": {
+                "tool": "next_task",
+                "arguments": {"repo_root": str(Path(repo).resolve()), "task_id": payload["task_id"]},
+            },
         }
     service = Service(repo, mutation_mode="self_debug")
     engine = RecoveryEngine(service.db, service.paths.repo_root, str(service.project["project_uuid"]), actor_identity="root-authorized-delegate")
@@ -244,7 +248,7 @@ def maintain_execution(
         "receipt": receipt,
         "recommended_next_call": {
             "tool": "next_task",
-            "arguments": {"repo_root": str(Path(repo).resolve())},
+            "arguments": {"repo_root": str(Path(repo).resolve()), "task_id": preflight["payload"]["task_id"]},
         },
     }
 

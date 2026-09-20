@@ -142,6 +142,13 @@ def _parser() -> argparse.ArgumentParser:
     delegated_recovery.add_argument("--repo", required=True)
     delegated_recovery.add_argument("--authorization", required=True)
     delegated_recovery.add_argument("--reason", required=True)
+    prepare_maintenance = admin_commands.add_parser(
+        "prepare-maintenance", help="issue one bounded maintenance assignment and operator launch packet"
+    )
+    prepare_maintenance.add_argument("--repo", required=True)
+    prepare_maintenance.add_argument("--task", required=True)
+    prepare_maintenance.add_argument("--recipient", required=True)
+    prepare_maintenance.add_argument("--expires", type=int, default=300)
     retire_batch = admin_commands.add_parser("retire-run-batch")
     retire_batch.add_argument("--repo", required=True)
     retire_batch.add_argument("--request", required=True)
@@ -423,6 +430,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 recover_authorized,
                 prepare_retire_run_batch,
                 retire_run_batch,
+                prepare_maintenance_assignment,
             )
 
             if args.admin_command == "selective-replan":
@@ -450,6 +458,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             elif args.admin_command == "recover-authorized":
                 result = recover_authorized(args.repo, authorization_id=args.authorization, reason=args.reason)
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "prepare-maintenance":
+                from .maintenance_host import operator_launch_command
+
+                assignment = prepare_maintenance_assignment(
+                    args.repo, task_id=args.task, recipient_principal=args.recipient,
+                    expires_seconds=args.expires,
+                )
+                print(json.dumps({
+                    **assignment,
+                    "operator_launch": operator_launch_command(args.recipient),
+                }, sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "retire-run-batch":
                 result = retire_run_batch(args.repo, args.request, apply=args.apply, confirmation=args.confirm)
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))

@@ -41,12 +41,21 @@ server = create_mcp(
 )
 ```
 
-The host-only `project_control.admin.prepare_maintenance_assignment` helper
-issues an exact-target mandate for that recipient. Its `launch_required`
-assignment includes the public next call; it does not claim to start an agent.
-The operator supplies the repository and opaque grant reference, not a role or
-principal. Observer and mutator profiles do not expose this operation. This
-tool boundary does not provide OS isolation from arbitrary same-user Python.
+An owner prepares a mandate and the exact stdio operator command with:
+
+```bash
+project-control admin prepare-maintenance --repo /path/to/repo --task TASK-ID --recipient operator-a
+```
+
+The JSON response contains the principal-bound opaque grant and a fixed
+same-runtime `operator_launch` command. Start that command as the trusted host
+and have its MCP client make the recorded public `maintain_execution` call.
+The server never chooses work or invokes the grant by itself; after it returns
+the receipt, a separate implementer uses the returned exact `next_task`
+recommendation for the same task. The operator supplies the repository and
+opaque grant reference, not a role or principal. Observer and mutator profiles
+do not expose this operation. This tool boundary does not provide OS isolation
+from arbitrary same-user Python.
 
 For an active task, `coordinate_task(action="bind_required_gates", payload={
 "gates": [...]})` adds required gates without replacing the plan. Existing gate

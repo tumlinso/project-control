@@ -667,9 +667,13 @@ def serve(*, host: str | None = None, port: int | None = None) -> int:
     return 0
 
 
-def _serve_stdio(profile: MCPProfile) -> int:
+def _serve_stdio(
+    profile: MCPProfile,
+    *,
+    maintenance_host: MaintenanceHostContext | None = None,
+) -> int:
     """Run stdio MCP and release any cached observer model on EOF/error."""
-    mcp = create_mcp(profile=profile)
+    mcp = create_mcp(profile=profile, maintenance_host=maintenance_host)
     try:
         mcp.run(transport="stdio")
     finally:
@@ -681,7 +685,16 @@ def serve_codex() -> int:
     """Run the explicitly selected Codex profile over stdio."""
 
     return _serve_stdio(MCPProfile.CODEX)
-    return 0
+
+
+def serve_maintenance_operator(principal: str) -> int:
+    """Run a Codex stdio server bound to one trusted host principal."""
+    from .workflow_tools import trusted_maintenance_context
+
+    return _serve_stdio(
+        MCPProfile.CODEX,
+        maintenance_host=trusted_maintenance_context(principal),
+    )
 
 
 def serve_mutator() -> int:

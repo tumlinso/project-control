@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from project_control.workflow_core.profiles import WorkProfile
 from project_control.workflow_core.recovery import (
     RecoveryAuthorizationError,
+    inspect_maintenance_recovery_authorization,
     issue_maintenance_recovery_authorization,
     issue_root_recovery_authorization,
     revoke_maintenance_recovery_authorization,
@@ -156,6 +157,12 @@ class WorkflowCoreTests(unittest.TestCase):
             )
             self.assertEqual(first, replay)
             self.assertEqual(engine.executed, 1)
+            inspected = inspect_maintenance_recovery_authorization(
+                service, engine, authorization_id=str(issued["authorization_id"]),
+                recipient_principal="operator-a",
+            )
+            self.assertEqual("STALE", inspected["payload"]["task_id"])
+            self.assertEqual(first, inspected["completed_receipt"])
 
     def test_maintenance_authorization_can_be_revoked_before_execution(self):
         with TemporaryDirectory() as temporary:

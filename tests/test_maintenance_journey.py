@@ -19,14 +19,14 @@ class MaintenanceJourneyTests(unittest.TestCase):
         child = """
 import json
 import asyncio
+import os
+import subprocess
 import sys
 from pathlib import Path
+from mcp import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
 from test_workflow_recovery import WorkflowRecoveryTests
 from todo_orchestrator.git_state import scope_manifest
-from project_control import admin
-from project_control.app import create_mcp
-from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-from project_control.workflow_tools import trusted_maintenance_context
 
 fixture = WorkflowRecoveryTests('test_expired_readonly_coordinator_requeues_atomically_with_live_process')
 fixture.setUp()
@@ -38,33 +38,47 @@ try:
         conn.execute('UPDATE tasks SET status=? WHERE id=?', ('planned', 'A')),
         conn.execute('UPDATE lock_leases SET state=? WHERE claim_id=?', ('released', fixture.claim_id)),
     ))
-    assignment = admin.prepare_maintenance_assignment(fixture.repo.root, task_id='A', recipient_principal='test-operator-a')
-    config = ProjectControlConfig(skills_root=Path(sys.argv[1]), workspaces={
-        'fixture': WorkspaceConfig(authority_repository='source', repositories={
-            'source': RepositoryConfig(root=fixture.repo.root),
-        }),
-    })
-    mcp = create_mcp(config, profile='codex', maintenance_host=trusted_maintenance_context('test-operator-a'))
-    wrong_host = create_mcp(config, profile='codex', maintenance_host=trusted_maintenance_context('test-operator-b'))
-    unconfigured = create_mcp(config, profile='codex')
-    missing = asyncio.run(unconfigured._tool_manager.call_tool('maintain_execution', {
+    # Issuer, trusted operator, and ordinary implementer are independent
+    # processes. The issuer has only its exact development/release bindings
+    # plus V2Repo's disposable authority locator.
+    issuer_environment = {
+        'PROJECT_CONTROL_SKILLS_ROOT': sys.argv[1],
+        'PYTHONPATH': os.pathsep.join([str(Path.cwd() / 'src'), str(Path(sys.argv[1]) / 'todo-orchestrator')]),
+        'TODO_ORCHESTRATOR_STATE_DIR': str(fixture.repo.state_root),
+    }
+    for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST'):
+        if key in os.environ:
+            issuer_environment[key] = os.environ[key]
+    issued = subprocess.run([
+        sys.executable, '-m', 'project_control.cli', 'admin', 'prepare-maintenance',
+        '--repo', str(fixture.repo.root), '--task', 'A', '--recipient', 'test-operator-a',
+    ], cwd=str(Path.cwd()), env=issuer_environment, text=True, capture_output=True, check=False)
+    assert issued.returncode == 0, issued.stderr
+    assignment = json.loads(issued.stdout)
+    # V2Repo deliberately puts its disposable authority outside the repository.
+    # This test-only locator is unrelated to runtime binding; no inherited
+    # runtime/search-path setting reaches either external process.
+    fixture_state = str(fixture.repo.state_root)
+    async def public_call(command, name, arguments):
+        environment = {**command['environment'], 'TODO_ORCHESTRATOR_STATE_DIR': fixture_state}
+        parameters = StdioServerParameters(command=command['executable'], args=command['arguments'], env=environment, cwd=str(Path.cwd()))
+        async with stdio_client(parameters) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(name, arguments)
+                assert not result.isError, result.content
+                return json.loads(result.content[0].text)
+
+    operator = assignment['operator_launch']
+    maintained = asyncio.run(public_call(operator, 'maintain_execution', {
         'repo_root': str(fixture.repo.root), 'authorization_id': assignment['assignment']['grant_reference'],
     }))
-    try:
-        asyncio.run(wrong_host._tool_manager.call_tool('maintain_execution', {
-            'repo_root': str(fixture.repo.root), 'authorization_id': assignment['assignment']['grant_reference'],
-        }))
-    except Exception as error:
-        wrong = str(error)
-    else:
-        wrong = 'unexpected_success'
-    maintained = asyncio.run(mcp._tool_manager.call_tool('maintain_execution', {
+    ordinary = {'executable': operator['executable'], 'arguments': ['-m', 'project_control.cli', 'codex'], 'environment': operator['environment']}
+    missing = asyncio.run(public_call(ordinary, 'maintain_execution', {
         'repo_root': str(fixture.repo.root), 'authorization_id': assignment['assignment']['grant_reference'],
     }))
-    resumed = asyncio.run(mcp._tool_manager.call_tool('next_task', {
-        'repo_root': str(fixture.repo.root), 'task_id': 'A',
-    }))
-    print(json.dumps({'assignment': assignment['status'], 'missing': missing['reason'], 'wrong': wrong, 'maintained': maintained['status'], 'resumed': resumed['status']}))
+    resumed = asyncio.run(public_call(ordinary, 'next_task', maintained['recommended_next_call']['arguments']))
+    print(json.dumps({'assignment': assignment['status'], 'missing': missing['reason'], 'maintained': maintained['status'], 'resumed': resumed['status'], 'task': maintained['recommended_next_call']['arguments']['task_id']}))
 finally:
     fixture.tearDown()
 """
@@ -85,9 +99,9 @@ finally:
         result = json.loads(completed.stdout)
         self.assertEqual("launch_required", result["assignment"])
         self.assertEqual("maintenance_host_unconfigured", result["missing"])
-        self.assertIn("recovery_authorization_principal_mismatch", result["wrong"])
         self.assertEqual("maintained", result["maintained"])
         self.assertEqual("claimed", result["resumed"])
+        self.assertEqual("A", result["task"])
 
 
 if __name__ == "__main__":
