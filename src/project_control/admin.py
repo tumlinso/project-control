@@ -235,7 +235,7 @@ def prepare_supersession_assignment(repo: str | Path, intent_file: str | Path, *
             raise ValueError("preserved_work_handoffs must be a list")
     except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
         raise ValueError(f"invalid supersession intent file: {exc}") from exc
-    service = Service(repo, mutation_mode="self_debug")
+    service = Service(repo, mutation_mode="self_debug", read_only=True)
     with service.db.read() as conn:
         source_id, successor_id = str(intent["source_run_id"]), str(intent["successor_run_id"])
         source = conn.execute("SELECT status FROM workflow_runs WHERE id=?", (source_id,)).fetchone()

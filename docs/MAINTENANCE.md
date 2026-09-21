@@ -23,6 +23,11 @@ or replayed receipt reassesses readiness and returns exact `next_task` arguments
 missing dirty adoption, foreign live membership, or active source artifacts
 refuse without cleanup.
 
+An adopted `isolated_merge` producer must have exactly one unfinished
+integrator or validator task declared by the successor run. That task becomes
+the producer's integration destination; absent or ambiguous destinations refuse
+the replacement before retirement.
+
 Supersession binds the reviewed authority revision and fingerprint. If the
 authority changes before application, it refuses and the owner prepares a new
 assignment; it never refreshes a signed replacement request automatically.
