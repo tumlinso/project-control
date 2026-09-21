@@ -200,7 +200,7 @@ def inspect_maintenance_recovery_authorization(
     if not authorization_id.startswith("rca_") or "/" in authorization_id or "\\" in authorization_id:
         raise RecoveryAuthorizationError("recovery_authorization_invalid")
     root = _state_dir(service, create=False)
-    _, record, payload, _ = _read_record(root, authorization_id)
+    path, record, payload, signature = _read_record(root, authorization_id)
     if payload.get("format") != "project-control-recovery-authorization-v2":
         raise RecoveryAuthorizationError("recovery_authorization_legacy_only")
     if not recipient_principal or not hmac.compare_digest(str(payload.get("recipient_principal", "")), recipient_principal):
@@ -211,13 +211,21 @@ def inspect_maintenance_recovery_authorization(
         raise RecoveryAuthorizationError("recovery_authorization_target_mismatch")
     if record.get("revoked") is True:
         raise RecoveryAuthorizationError("recovery_authorization_revoked")
+    # The kernel audit is the replay authority.  A private receipt is only a
+    # projection, so a committed result must remain replayable after its
+    # projection write fails and the grant later expires.
+    canonical_result = getattr(engine, "recovery_result_for_request")(authorization_id)
+    if canonical_result is not None:
+        if record.get("completed_receipt") != canonical_result:
+            _replace(path, {
+                "payload": payload, "signature": signature,
+                "completed_receipt": canonical_result,
+            })
+        return {"payload": payload, "completed_receipt": dict(canonical_result)}
     completed = record.get("completed_receipt")
     if completed is not None:
         if not isinstance(completed, dict):
             raise RecoveryAuthorizationError("recovery_authorization_invalid")
-        # The receipt is replayable only for this already-verified grant.  Keep
-        # its signed target alongside it so callers can produce the same exact
-        # ordinary resume recommendation after a lost response.
         return {"payload": payload, "completed_receipt": dict(completed)}
     try:
         expires_at = datetime.fromisoformat(str(payload["expires_at"]))
@@ -321,9 +329,28 @@ def revoke_maintenance_recovery_authorization(service: object, *, authorization_
     root = _state_dir(service, create=False)
     from todo_orchestrator.workflow.recovery import project_recovery_lock
     with project_recovery_lock(Path(getattr(getattr(service, "paths"), "db_file"))):
-        path, record, payload, _ = _read_record(root, authorization_id)
+        path, record, payload, signature = _read_record(root, authorization_id)
         if payload.get("format") != "project-control-recovery-authorization-v2":
             raise RecoveryAuthorizationError("recovery_authorization_legacy_only")
+        # A completed private projection can be lost after the canonical audit
+        # commits.  Never revoke a mandate that has already taken effect.
+        canonical_result = None
+        database = getattr(service, "db", None)
+        if database is not None:
+            with database.read() as conn:
+                rows = conn.execute(
+                    "SELECT result_json FROM workflow_recovery_audit WHERE proposed_plan_json LIKE ? ORDER BY created_at DESC",
+                    (f'%\"recovery_request_id\":\"{authorization_id}\"%',),
+                ).fetchall()
+            for row in rows:
+                candidate = json.loads(str(row["result_json"]))
+                if isinstance(candidate, dict) and candidate.get("recovery_request_id") == authorization_id:
+                    canonical_result = candidate
+                    break
+        if canonical_result is not None:
+            if record.get("completed_receipt") != canonical_result:
+                _replace(path, {"payload": payload, "signature": signature, "completed_receipt": canonical_result})
+            raise RecoveryAuthorizationError("recovery_authorization_completed")
         if record.get("completed_receipt") is not None:
             raise RecoveryAuthorizationError("recovery_authorization_completed")
         _replace(path, {**record, "revoked": True})
