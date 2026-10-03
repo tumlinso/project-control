@@ -12,6 +12,7 @@ license = { text = "Proprietary" }
 dependencies = [
   "mcp[cli]>=1.0,<2",
   "pydantic>=2.10,<3",
+  "PyYAML>=6,<7",
   "pyte>=0.8.2,<1",
   "starlette>=0.41,<1",
   "uvicorn>=0.32,<1",

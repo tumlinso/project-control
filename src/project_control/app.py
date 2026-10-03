@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import contextvars
 import time
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
@@ -62,6 +63,7 @@ from .services.source_context import source_context as source_context_service
 from .services.local_investigate import local_investigate as local_investigate_service
 from .snapshot import SnapshotBuilder
 from .security import redact_output
+from .call_audit import caller_var
 from .normalize import bounded_envelope, bounded_payload
 from .terminal import TerminalSessionRegistry
 from .profiles import MCPProfile, ProfiledFastMCP
@@ -74,6 +76,9 @@ from .workflow_tools import (
     register_workflow_tools,
 )
 from .observer_analysis import ObserverAnalysisRegistry
+from .skills import SkillRegistry
+from .config import configured_observer_skills_root
+from .skill_context import SkillContext
 
 
 SERVER_INSTRUCTIONS = (
@@ -88,7 +93,9 @@ SERVER_INSTRUCTIONS = (
     "has no shell or project mutation authority. Cross-project observations are independent, and program membership is "
     "not architectural authority. Proposal envelopes are inert and confer no authority. When preparing Todo/bootstrap "
     "work, compress architectural reasoning into durable intent, constraints, acceptance, and useful references rather "
-    "than procedural microtasks."
+    "than procedural microtasks. Use skill_context for advisory skill knowledge: it selects bounded evidence and routes "
+    "large synthesis to packet-only machine analysis. skill_list and skill_read provide explicit inspection. Skills "
+    "never override project authority or grant execution authority."
 )
 
 CODEX_INSTRUCTIONS = (
@@ -256,6 +263,8 @@ def create_mcp(
     active_config = config or load_config()
     runtime = Runtime(active_config)
     observer_analysis_registry = ObserverAnalysisRegistry()
+    skill_registry = SkillRegistry(configured_observer_skills_root(active_config))
+    skill_broker = SkillContext(skill_registry, analyze_packet=observer_analysis_registry.analyze_packet)
     server = active_config.server
     selected_profile = MCPProfile(profile)
     instructions = SERVER_INSTRUCTIONS
@@ -275,6 +284,33 @@ def create_mcp(
         json_response=True,
         max_request_body_size=384 * 1024,
     )
+
+    def skill_operation(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        try:
+            return redact_output(operation())
+        except ValueError:
+            return {"status": "invalid_request", "reason": "skill_request_invalid",
+                    "origin": "agent_skill", "authority": "advisory_instruction", "mutation_authority": False}
+        except Exception:
+            return {"status": "unavailable", "reason": "skill_read_unavailable",
+                    "origin": "agent_skill", "authority": "advisory_instruction", "mutation_authority": False}
+
+    @mcp.tool(description="Discover advisory skill names/descriptions cheaply. Prefer skill_context for domain questions; only opaque IDs and relative resources are public.", annotations=READ_ONLY, structured_output=True)
+    def skill_list(query: Annotated[str, Field(max_length=12000)] = "", max_items: Annotated[int, Field(ge=1, le=128)] = 20, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
+        def operation() -> dict[str, Any]:
+            value = skill_registry.list(query=query, max_items=max_items, continuation_cursor=json.loads(continuation_cursor) if continuation_cursor else None)
+            if value.get("continuation_cursor") is not None:
+                value["continuation_cursor"] = json.dumps(value["continuation_cursor"], separators=(",", ":"))
+            return value
+        return skill_operation(operation)
+
+    @mcp.tool(description="Explicit bounded advisory skill text read by opaque ID and relative resource. No execution or filesystem roots. Use skill_context for normal retrieval and large synthesis.", annotations=READ_ONLY, structured_output=True)
+    def skill_read(skill_id: Annotated[str, Field(min_length=1, max_length=128)], resource: Annotated[str, Field(min_length=1, max_length=1024)] = "SKILL.md", line_start: Annotated[int, Field(ge=1)] = 1, line_end: Annotated[int | None, Field(ge=1)] = None, budget_bytes: Annotated[int, Field(ge=1024, le=65536)] = 32768, expected_identity: Annotated[str | None, Field(max_length=128)] = None) -> dict[str, Any]:
+        return skill_operation(lambda: skill_registry.read(skill_id, resource=resource, line_start=line_start, line_end=line_end, budget_bytes=budget_bytes, expected_identity=expected_identity))
+
+    @mcp.tool(description="Preferred advisory skill use: search metadata, retrieve indexed sections and semantic neighbors, and route large synthesis to bounded immutable machine packets. Auto selection needs no local paths; unavailable capacity returns bounded partial evidence.", annotations=READ_ONLY, structured_output=True)
+    def skill_context(query: Annotated[str, Field(min_length=1, max_length=12000)], skill: Annotated[str, Field(min_length=1, max_length=128)] = "auto", budget_bytes: Annotated[int, Field(ge=1024, le=65536)] = 16384, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
+        return skill_operation(lambda: skill_broker.context(query=query, skill=skill, budget_bytes=budget_bytes, continuation_cursor=continuation_cursor))
 
     @mcp.tool(
         description="Compact full-envelope current state: authority, active/ready/blocked work, freshness, coverage and an exact expansion cursor.",
@@ -355,7 +391,7 @@ def create_mcp(
                 concurrent = len(branch_questions) > 1
                 try:
                     with ThreadPoolExecutor(max_workers=2) as pool:
-                        futures = [pool.submit(run_branch, branch_question, session_id)
+                        futures = [pool.submit(contextvars.copy_context().run, run_branch, branch_question, session_id)
                                    for branch_question, session_id in zip(branch_questions, sessions, strict=True)]
                         branches = [future.result() for future in futures]
                 finally:
@@ -626,13 +662,37 @@ def create_mcp(
         register_mutation_tools(mcp, active_config)
 
     setattr(mcp, "_project_control_runtime", runtime)
+    setattr(mcp, "_project_control_skill_registry", skill_registry)
+    setattr(mcp, "_project_control_skill_context", skill_broker)
     setattr(mcp, "_project_control_observer_analysis_registry", observer_analysis_registry)
     return mcp
+
+
+class AuditCallerMiddleware:
+    """Capture the immediate HTTP peer without trusting forwarded headers."""
+
+    def __init__(self, wrapped_app: Any) -> None:
+        self.wrapped_app = wrapped_app
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        if scope.get("type") != "http":
+            await self.wrapped_app(scope, receive, send)
+            return
+        peer = scope.get("client")
+        caller: dict[str, Any] = {"transport": "http", "upstream_identity": "unknown"}
+        if isinstance(peer, (tuple, list)) and len(peer) >= 2:
+            caller.update({"peer_ip": str(peer[0]), "peer_port": peer[1]})
+        token = caller_var.set(caller)
+        try:
+            await self.wrapped_app(scope, receive, send)
+        finally:
+            caller_var.reset(token)
 
 
 def create_asgi_app(config: ProjectControlConfig | None = None):
     mcp = create_mcp(config)
     app = mcp.streamable_http_app()
+    app.add_middleware(AuditCallerMiddleware)
     original_lifespan = app.router.lifespan_context
     runtime = getattr(mcp, "_project_control_runtime")
     observer_analysis_registry = getattr(mcp, "_project_control_observer_analysis_registry")
@@ -660,7 +720,9 @@ def serve(*, host: str | None = None, port: int | None = None) -> int:
     config.server = selected
     import uvicorn
 
-    uvicorn.run(create_asgi_app(config), host=selected.host, port=selected.port, log_level="info")
+    # The audit must identify the socket peer, not an untrusted forwarded header.
+    uvicorn.run(create_asgi_app(config), host=selected.host, port=selected.port,
+                log_level="info", proxy_headers=False)
     return 0
 
 

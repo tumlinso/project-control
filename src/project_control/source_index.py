@@ -56,13 +56,9 @@ class SourceLexicalIndex:
 
     def build(self, root: Path, tracked_paths: Iterable[str], deny_patterns: list[str]) -> dict[str, int]:
         root = root.resolve(strict=True)
-        connection = sqlite3.connect(self.database)
-        try:
-            connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-            connection.execute("CREATE VIRTUAL TABLE IF NOT EXISTS documents USING fts5(path UNINDEXED, line UNINDEXED, content)")
-            connection.execute("DELETE FROM documents")
-            indexed_files = indexed_lines = 0
+        indexed_files = [0]
+
+        def validated_rows():
             for relative in sorted(set(tracked_paths))[:MAX_INDEX_FILES]:
                 rel = Path(relative)
                 if is_denied(rel, deny_patterns) or not is_allowlisted_text_path(rel):
@@ -77,13 +73,36 @@ class SourceLexicalIndex:
                     text = payload.decode("utf-8")
                 except (OSError, UnicodeDecodeError, ValueError):
                     continue
-                rows = [(relative, number, redact_text(line)[:2000]) for number, line in enumerate(text.splitlines(), 1) if line.strip()]
-                connection.executemany("INSERT INTO documents(path,line,content) VALUES(?,?,?)", rows)
-                indexed_files += 1
-                indexed_lines += len(rows)
+                indexed_files[0] += 1
+                yield from ((relative, number, redact_text(line)[:2000])
+                            for number, line in enumerate(text.splitlines(), 1) if line.strip())
+
+        result = self.build_rows(validated_rows())
+        result["files"] = indexed_files[0]
+        return result
+
+    def build_rows(self, rows: Iterable[tuple[str, int, str]]) -> dict[str, int]:
+        """Index prevalidated inert text; callers own resource confinement.
+
+        An IMMEDIATE transaction serializes writers for the same identity and
+        publishes the complete row set atomically to concurrent readers.
+        """
+        connection = sqlite3.connect(self.database, timeout=30)
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            connection.execute("CREATE VIRTUAL TABLE IF NOT EXISTS documents USING fts5(path UNINDEXED, line UNINDEXED, content)")
+            connection.execute("DELETE FROM documents")
+            paths: set[str] = set()
+            count = 0
+            for path, line, content in rows:
+                connection.execute("INSERT INTO documents(path,line,content) VALUES(?,?,?)", (path, line, redact_text(content)[:2000]))
+                paths.add(path)
+                count += 1
             connection.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('complete','1')")
             connection.commit()
-            return {"files": indexed_files, "lines": indexed_lines}
+            return {"files": len(paths), "lines": count}
         finally:
             connection.close()
 

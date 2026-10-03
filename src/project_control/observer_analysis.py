@@ -6,8 +6,12 @@ import json
 import importlib
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Any, Protocol
+
+from .call_audit import call_id_var, summarize_messages, write_event
+from .security import redact_output_text
 
 
 def observer_analysis_state_root() -> Path:
@@ -82,8 +86,9 @@ class SkillsObserverAnalysisProvider:
 
     available = True
 
-    def __init__(self, repo_root: str | Path):
-        self._repo_root = Path(repo_root)
+    def __init__(self, repo_root: str | Path | None = None):
+        # Kept for compatibility; observed roots never initialize the backend.
+        self._repo_root = Path(repo_root) if repo_root is not None else None
         self._backend: Any | None = None
 
     def _get_backend(self) -> Any:
@@ -106,27 +111,41 @@ class SkillsObserverAnalysisProvider:
         return self._backend
 
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]:
+        started = time.monotonic()
+        outcome = "unavailable"
         try:
             encoded = json.dumps(immutable_packet, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             # JSON round-trip makes the backend's input an inert, bounded copy.
             if len(encoded.encode("utf-8")) > 64 * 1024:
                 raise ValueError("observer_packet_invalid_or_too_large")
             packet = json.loads(encoded)
+            write_event({"event": "model_request", "phase": "started", "call_id": call_id_var.get(),
+                         "operation": "observer_analyze", "packet_keys": sorted(packet)[:24],
+                         "packet_bytes": len(encoded.encode("utf-8"))})
             result = self._get_backend().analyze_observer_packet(packet)
             if not isinstance(result, dict):
                 raise ValueError("observer_provider_invalid_result")
             result["authoritative"] = False
             result["mutation_authority"] = False
+            outcome = "returned"
             return result
         except Exception as error:
             return compact_packet_fallback(immutable_packet, str(error))
+        finally:
+            write_event({"event": "model_request", "phase": "finished", "call_id": call_id_var.get(),
+                         "operation": "observer_analyze", "outcome": outcome,
+                         "duration_ms": round((time.monotonic() - started) * 1000, 1)})
 
     def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]:
         """Forward one bounded Project-Control-owned conversational turn."""
+        started = time.monotonic()
+        outcome = "unavailable"
         try:
             messages = request.get("messages")
             if not isinstance(messages, list) or not messages:
                 raise ValueError("local_investigator_messages_missing")
+            write_event({"event": "model_request", "phase": "started", "call_id": call_id_var.get(),
+                         "operation": "investigate_turn", "messages": summarize_messages(messages)})
             backend_request = {
                 "format": "PC-LOCAL-INVESTIGATOR-TURN/2",
                 "messages": messages,
@@ -142,9 +161,14 @@ class SkillsObserverAnalysisProvider:
             result = self._get_backend().run_observer_turn(json.loads(encoded))
             if not isinstance(result, dict):
                 raise ValueError("local_investigator_invalid_result")
+            outcome = "returned" if result.get("status") == "available" else "unavailable"
             return result
         except Exception as error:
             return {"status": "unavailable", "reason": str(error)[:500]}
+        finally:
+            write_event({"event": "model_request", "phase": "finished", "call_id": call_id_var.get(),
+                         "operation": "investigate_turn", "outcome": outcome,
+                         "duration_ms": round((time.monotonic() - started) * 1000, 1)})
 
     def open_sessions(self, count: int, *, compute_profile: str, parallelism: str) -> dict[str, Any]:
         try:
@@ -192,6 +216,65 @@ class ObserverAnalysisRegistry:
                 # Idle slots are intentionally reusable; polling releases them
                 # deterministically after TTL/preemption without a second
                 # provider or GPU reservation.
+                backend.poll()
+
+    def analyze_packet(self, packet: dict[str, Any]) -> dict[str, Any]:
+        """Analyze inert skill evidence without a repository or workflow binding."""
+        try:
+            if not isinstance(packet, dict) or not isinstance(packet.get("source_identity"), dict):
+                raise ValueError("observer_packet_invalid")
+            encoded = json.dumps(packet, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            if len(encoded.encode("utf-8")) > 64 * 1024:
+                raise ValueError("observer_packet_invalid_or_too_large")
+            allowed = {"format", "query", "source_identity", "evidence", "origin", "authority", "mutation_authority"}
+            if set(packet) - allowed:
+                raise ValueError("observer_packet_invalid")
+            forbidden = {"root", "repo_root", "path", "command", "command_line", "tools", "workflow_handle", "capabilities"}
+            def validate(value: Any) -> None:
+                if isinstance(value, dict):
+                    if forbidden.intersection(value):
+                        raise ValueError("observer_packet_capability_forbidden")
+                    for child in value.values():
+                        validate(child)
+                elif isinstance(value, list):
+                    for child in value:
+                        validate(child)
+            validate(packet)
+            if any(isinstance(value, str) and Path(value).is_absolute()
+                   for value in packet["source_identity"].values()):
+                raise ValueError("observer_packet_private_identity_forbidden")
+            rows = packet.get("evidence")
+            if not isinstance(rows, list) or not rows or len(rows) > 64 or any(
+                not isinstance(row, dict) or not isinstance(row.get("id"), str) for row in rows
+            ):
+                raise ValueError("observer_packet_evidence_invalid")
+            if len({row["id"] for row in rows}) != len(rows):
+                raise ValueError("observer_packet_evidence_invalid")
+            frozen = json.loads(encoded)
+        except (TypeError, ValueError):
+            return {"status": "unavailable", "reason": "observer_packet_invalid",
+                    "authoritative": False, "mutation_authority": False}
+        key = "local-observer-service"
+        with self._lock:
+            provider = self._providers.get(key)
+            if provider is None:
+                provider = self._factory(None)
+                self._providers[key] = provider
+        try:
+            result = provider.analyze(frozen)
+            if isinstance(result, dict) and result.get("status") == "unavailable":
+                reason = result.get("reason")
+                safe_reason = redact_output_text(reason)[:500] if isinstance(reason, str) else "observer_provider_unavailable"
+                return compact_packet_fallback(frozen, safe_reason)
+            ids = {row["id"] for row in rows}
+            if not isinstance(result, dict) or not isinstance(result.get("evidence_ids"), list) or any(
+                not isinstance(item, str) or item not in ids for item in result["evidence_ids"]
+            ) or (result.get("status") == "available" and not result["evidence_ids"]):
+                return compact_packet_fallback(frozen, "observer_provider_invalid_evidence")
+            return {**result, "authoritative": False, "mutation_authority": False}
+        finally:
+            backend = getattr(provider, "_backend", None)
+            if backend is not None:
                 backend.poll()
 
     def investigate_turn(self, repo_root: str | Path, request: dict[str, Any]) -> dict[str, Any]:

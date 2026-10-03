@@ -29,6 +29,7 @@ DEFAULT_DENY_PATTERNS = (
 
 CANONICAL_SKILLS_ROOT_ENV = "PROJECT_CONTROL_SKILLS_ROOT"
 LEGACY_SKILLS_ROOT_ENV = "CODING_WORKFLOW_SKILLS_ROOT"
+OBSERVER_SKILLS_ROOT_ENV = "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT"
 
 
 class RepositoryConfig(BaseModel):
@@ -124,6 +125,7 @@ class ProjectControlConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: int = 2
     skills_root: Path | None = None
+    observer_skills_root: Path = Field(default_factory=lambda: Path.home() / ".agents" / "skills")
     server: ServerConfig = Field(default_factory=ServerConfig)
     workspaces: dict[str, WorkspaceConfig] = Field(default_factory=dict)
     programs: dict[str, ProgramConfig] = Field(default_factory=dict)
@@ -177,6 +179,21 @@ def configured_skills_root(
     return config.skills_root
 
 
+def configured_observer_skills_root(
+    config: ProjectControlConfig,
+    environment: Mapping[str, str] = os.environ,
+) -> Path:
+    """Resolve advisory knowledge configuration, independently of runtime identity.
+
+    Do not follow symlinks here: the registry verifies the configured directory.
+    A nonexistent root is allowed and produces an unavailable observer provider.
+    """
+    root = Path(environment.get(OBSERVER_SKILLS_ROOT_ENV) or config.observer_skills_root).expanduser()
+    if not root.is_absolute():
+        raise ValueError("observer skill root must be absolute")
+    return Path(os.path.abspath(root))
+
+
 def ensure_private_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(path, 0o700)
@@ -206,6 +223,7 @@ def render_config(config: ProjectControlConfig) -> str:
     lines = [f"schema_version = {config.schema_version}"]
     if config.skills_root:
         lines.append(f"skills_root = {_quote(str(config.skills_root))}")
+    lines.append(f"observer_skills_root = {_quote(str(config.observer_skills_root))}")
     lines.extend([
         "",
         "[server]",

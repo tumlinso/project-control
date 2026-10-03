@@ -70,7 +70,7 @@ Before registration, candidate validation must prove:
 
 - runtime package and frozen source match the digest-pinned manifest;
 - rebinding, skew, missing packages, and ambiguous packages fail closed;
-- stdio discovery returns exactly 22 tools;
+- stdio discovery returns exactly 25 tools;
 - the six workflow schemas, including the reviewed `bind_required_gates`
   coordination action, match the current canonical protocol;
 - workflow writes and rich reads observe the same Todo project UUID, revision,

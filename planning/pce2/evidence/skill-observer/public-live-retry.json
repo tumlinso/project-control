@@ -1,0 +1,162 @@
+{
+  "cases": [
+    {
+      "case": "discovery_instruction_read",
+      "instruction_identity": "d0ffb0a4fa5009439775bff94fc5194cd3885869f3c05b55297b0d7fea6470d0",
+      "metadata_identity": "03e7321e95f2108f8fda8d0d9b203069f22cfacfcf76c42e682ab2de688d738e",
+      "name": "cuda",
+      "skill": "skill-05409665e2e47957"
+    },
+    {
+      "case": "discovery_instruction_read",
+      "instruction_identity": "df885bf1871092d5f5b0defaaf775aa1f5d805f1026e6337f2085af02fc4043b",
+      "metadata_identity": "877df684865b787c9abc784d9ccc45a41d4d8e1cb3a2e8c363ac2d9c8584e62c",
+      "name": "cpp-context-compiler",
+      "skill": "skill-e9ffbbf58d77a715"
+    },
+    {
+      "case": "atlas_supporting_read",
+      "identity": "48b0fa8ccae495a5b84b108c942bea78d49853d5fc7b0062807b574ef0465fb6",
+      "skill": "skill-05409665e2e47957"
+    },
+    {
+      "case": "small_public_direct",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 3,
+        "total_sections": 3
+      },
+      "fixture": true,
+      "route": "direct",
+      "skill": "skill-4a24aee58eb5c154"
+    },
+    {
+      "case": "cuda_indexed",
+      "continuation": false,
+      "corpus_identity": "352d1fe72b23f3541ef5c761a171f1f2c6d3a6192e2752713742e886869f5ef1",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 14,
+        "total_sections": 14
+      },
+      "evidence_ids": [
+        "e-05311d00f973b127343a8fed",
+        "e-b3fdbdc163266a741ba67b44",
+        "e-82fe6790b07c3aeb043b38c1",
+        "e-651403c1369624ae0d871138",
+        "e-5bb865c4d76bc22c72f3e146",
+        "e-64ce635578736a4f682bbfe2",
+        "e-628bfa79d9038d351ccb76bd",
+        "e-6f891ee12216ff6ab82faab3",
+        "e-b67af6d5a00288946e72ce5b",
+        "e-b7220b0a89cc3447fe6bc6ca",
+        "e-2d337e8bd104777c13c6c884",
+        "e-6f9e8184ef6f29b3a9e4b33a",
+        "e-21c328ac5c279b9e4b613c41",
+        "e-56233f71900177e2bb6f9833"
+      ],
+      "query": "FP8",
+      "relationships": 0,
+      "response_bytes": 12810,
+      "route": "indexed",
+      "route_reason": {
+        "broad_query": false,
+        "relevant_bytes": 7024,
+        "relevant_resources": 8
+      },
+      "skill": "skill-05409665e2e47957",
+      "status": "available"
+    },
+    {
+      "case": "cpp_indexed",
+      "continuation": false,
+      "corpus_identity": "9ec8c33933c168b982cef2f4a6667d01081f5971a218bb8125d2d8da5b0041cd",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 6,
+        "total_sections": 6
+      },
+      "evidence_ids": [
+        "e-82ca6db08f23db67db0258da",
+        "e-bc5ad8114155c13b200769e3",
+        "e-8d67d97bbc5d116014c49302",
+        "e-20a247668a83d49ffb9ae9a4",
+        "e-d024f0723082bb641af2dbf5",
+        "e-00a990edbd408434ad3d7413"
+      ],
+      "query": "authoring",
+      "relationships": 0,
+      "response_bytes": 9595,
+      "route": "indexed",
+      "route_reason": {
+        "broad_query": false,
+        "relevant_bytes": 7059,
+        "relevant_resources": 4
+      },
+      "skill": "skill-e9ffbbf58d77a715",
+      "status": "available"
+    },
+    {
+      "case": "atlas_machine_auto",
+      "continuation": true,
+      "corpus_identity": "352d1fe72b23f3541ef5c761a171f1f2c6d3a6192e2752713742e886869f5ef1",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 2,
+        "total_sections": 180
+      },
+      "evidence_ids": [
+        "e-2dafceefbc38d64f54d34892",
+        "e-b17baa5c1a53e52843783cdd"
+      ],
+      "query": "overview V100 atlas prerequisites NVLink",
+      "relationships": 13,
+      "response_bytes": 5402,
+      "route": "machine",
+      "route_reason": {
+        "broad_query": true,
+        "relevant_bytes": 164276,
+        "relevant_resources": 90
+      },
+      "skill": "skill-05409665e2e47957",
+      "status": "unavailable"
+    }
+  ],
+  "elapsed_seconds": 14.962,
+  "live_calls": 1,
+  "machine_mode": "one_live_packet",
+  "packets": [
+    {
+      "bytes": 49262,
+      "evidence_count": 31,
+      "mode": "live",
+      "packet_sha256": "3c1454e951ace83f2829ebbaadeab50411215688b621e14e81c8fec24a159ecd",
+      "provider_result": {
+        "evidence_ids": [
+          "e-2dafceefbc38d64f54d34892",
+          "e-b17baa5c1a53e52843783cdd",
+          "e-1a2a6b18f437b6950fc38ab4",
+          "e-d09533d495c297ad89c83202",
+          "e-e422c5e1234892712c488622",
+          "e-a9ed91de24a21fbc3f50056a",
+          "e-22dbdb08baa3accafcd10f0a",
+          "e-0c0b28ef5fca7b4ea8cdbe99"
+        ],
+        "fallback": "authoritative_compact_envelope",
+        "mutation_authority": false,
+        "provider": "llama-server",
+        "reason": "resource_unavailable: no disjoint runtime-discovered GPU island is available; retryable=false",
+        "status": "unavailable"
+      },
+      "source_identity": {
+        "corpus_identity": "352d1fe72b23f3541ef5c761a171f1f2c6d3a6192e2752713742e886869f5ef1",
+        "skill_id": "skill-05409665e2e47957"
+      }
+    }
+  ],
+  "public_api": "FastMCP.call_tool",
+  "qualification_limits": [
+    "One live packet maximum; subsequent packets explicitly unavailable.",
+    "No corpus completeness or scientific validation claim."
+  ]
+}

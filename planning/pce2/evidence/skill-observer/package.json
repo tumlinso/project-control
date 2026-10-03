@@ -1,0 +1,11 @@
+{
+  "activated": false,
+  "candidate_name": "skill-observer-20261003-r2",
+  "committed": false,
+  "project_control_fingerprint": "2d50225fdbc2817cad7ba037c5be70a52c8a7443ead789f3a6f709b77b20f5e3",
+  "release_manifest_sha256": "f867a99274d9be02ee196e1b4614ffad425da11c7149dc915a075574cf3ede71",
+  "source_baseline": "cb19ab81aedecb3c289a124dd8100b8291c95561",
+  "todo_runtime_fingerprint": "15521b1576eab3f0f8aec70519cd2d06f52396db6d48b3a681d5bfb9e6a3464d",
+  "wheel": "project_control-0.3.2-py3-none-any.whl",
+  "wheel_sha256": "a6c7c124a0468921fae0e3371e2b09b02b314b8e49734057460d62e6bfdacc14"
+}

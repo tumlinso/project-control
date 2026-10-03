@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import time
+import uuid
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
@@ -10,6 +13,8 @@ from typing import Any, Callable, Mapping, Sequence
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
+
+from .call_audit import call_id_var, caller_var, summarize_arguments, write_event
 
 
 class ProfileConfigurationError(ValueError):
@@ -39,6 +44,9 @@ RICH_READ_TOOL_NAMES = (
     "architecture_context",
     "coordination_view",
     "source_context",
+    "skill_list",
+    "skill_read",
+    "skill_context",
     "history_trace",
     "impact_preview",
     "program_context",
@@ -183,8 +191,29 @@ class ProfiledFastMCP(FastMCP):
         )
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Sequence[Any] | dict[str, Any]:
-        self._profile_policy.require_allowed(name)
-        return await super().call_tool(name, arguments)
+        call_id = uuid.uuid4().hex
+        token = call_id_var.set(call_id)
+        caller = caller_var.get() or {"transport": "stdio", "parent_pid": os.getppid()}
+        started = time.monotonic()
+        write_event({"event": "tool_call", "phase": "started", "call_id": call_id,
+                     "tool": name, "profile": self.profile.value, "caller": caller,
+                     "arguments": (summarize_arguments(arguments) if isinstance(arguments, Mapping)
+                                   else {"invalid_argument_type": type(arguments).__name__})})
+        try:
+            self._profile_policy.require_allowed(name)
+            result = await super().call_tool(name, arguments)
+        except Exception:
+            write_event({"event": "tool_call", "phase": "finished", "call_id": call_id,
+                         "tool": name, "profile": self.profile.value, "outcome": "raised",
+                         "duration_ms": round((time.monotonic() - started) * 1000, 1)})
+            raise
+        else:
+            write_event({"event": "tool_call", "phase": "finished", "call_id": call_id,
+                         "tool": name, "profile": self.profile.value, "outcome": "returned",
+                         "duration_ms": round((time.monotonic() - started) * 1000, 1)})
+            return result
+        finally:
+            call_id_var.reset(token)
 
 
 async def enumerate_tool_schemas(server: FastMCP) -> dict[str, dict[str, Any]]:

@@ -29,6 +29,57 @@ class _Provider:
 
 
 class ObserverAnalysisRegistryTests(unittest.TestCase):
+    def test_packet_only_route_uses_inert_copy_and_no_observed_root(self):
+        captured = []
+        class PacketProvider(_Provider):
+            def analyze(self, packet):
+                captured.append(packet)
+                packet["evidence"][0]["content"] = "backend edit"
+                return {"status": "available", "summary": "bounded finding", "evidence_ids": ["ev-1"]}
+        packet = {"query": "Volta", "source_identity": {"skill": "skill-123", "corpus": "digest"},
+                  "origin": "agent_skill", "authority": "advisory_instruction", "mutation_authority": False,
+                  "evidence": [{"id": "ev-1", "resource": "references/volta.md", "content": "original"}]}
+        registry = ObserverAnalysisRegistry(PacketProvider)
+        result = registry.analyze_packet(packet)
+        self.assertEqual(result["status"], "available")
+        self.assertEqual(packet["evidence"][0]["content"], "original")
+        self.assertIsNone(registry._providers["local-observer-service"].root)
+        self.assertFalse(result["mutation_authority"])
+        self.assertEqual(captured[0]["source_identity"], packet["source_identity"])
+
+    def test_packet_only_preserves_unavailable_backend_reason(self):
+        class BusyProvider(_Provider):
+            def analyze(self, packet):
+                return {"status": "unavailable", "reason": "observer_provider_busy", "provider": "llama-server"}
+        packet = {"source_identity": {"skill": "skill-123"}, "evidence": [{"id": "ev-1", "content": "bounded"}]}
+        result = ObserverAnalysisRegistry(BusyProvider).analyze_packet(packet)
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["reason"], "observer_provider_busy")
+        self.assertEqual(result["provider"], "llama-server")
+        self.assertEqual(result["evidence_ids"], ["ev-1"])
+        class PrivateProvider(_Provider):
+            def analyze(self, packet):
+                return {"status": "unavailable", "reason": "failure at /home/private/service sk_abcdefghijklmnopqrstuv"}
+        private = ObserverAnalysisRegistry(PrivateProvider).analyze_packet(packet)
+        self.assertNotIn("/home/private", private["reason"])
+        self.assertNotIn("sk_abcdefghijkl", private["reason"])
+
+    def test_packet_only_rejects_capabilities_size_and_invalid_citations(self):
+        class BadProvider(_Provider):
+            def analyze(self, packet):
+                return {"status": "available", "summary": "bad", "evidence_ids": ["outside"]}
+        registry = ObserverAnalysisRegistry(BadProvider)
+        packet = {"source_identity": {"skill": "skill-123"}, "evidence": [{"id": "ev-1", "content": "bounded"}]}
+        result = registry.analyze_packet(packet)
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["evidence_ids"], ["ev-1"])
+        for invalid in ({**packet, "tools": []}, {**packet, "source_identity": {"root": "/private"}},
+                        {**packet, "evidence": [{"id": "ev-1", "content": "x" * 65536}]}):
+            with self.subTest(packet_keys=list(invalid)):
+                fresh = ObserverAnalysisRegistry(BadProvider)
+                self.assertEqual(fresh.analyze_packet(invalid)["status"], "unavailable")
+                self.assertEqual(fresh._providers, {})
+
     def test_status_never_creates_provider_or_backend(self):
         _Provider.created = 0
         registry = ObserverAnalysisRegistry(_Provider)

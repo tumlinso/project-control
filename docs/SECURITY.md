@@ -99,6 +99,14 @@ directories with owner-only permissions and are never project authority.
 The derived lexical cache is disposable and lives only under
 `$XDG_CACHE_HOME/project-control/`; no cache is written into a repository,
 Git-common directory, todo state, or `.ctxpp`.
+The call audit uses owner-only `call-audit/calls.jsonl` under that cache, with
+a 256 MiB active-file limit and five backups (about 1.5 GiB maximum). It records
+tool names, immediate peer or stdio
+parent, bounded argument summaries, and correlated local-model request
+summaries. It never stores full messages, responses, or HTTP headers. Short
+question excerpts are best-effort redacted and may still contain an
+unrecognized secret; treat the audit files as sensitive. A tunnel caller's
+original identity remains unknown unless independently verified elsewhere.
 Terminal results receive the same redaction after VT rendering and expose only
 the screen framebuffer plus bounded lifecycle metadata—not raw PTY bytes,
 stdout/stderr, transcripts, commands, host paths, environment, or PID.

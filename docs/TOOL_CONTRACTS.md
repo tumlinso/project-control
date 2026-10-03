@@ -4,14 +4,16 @@ Project Control exposes three exact profile-specific tool sets. No profile
 publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
 or a generic shell.
 
-The **observer** profile exposes exactly 17 tools over loopback Streamable HTTP:
-fifteen read-only tools, one registered measurement aperture, and `terminal_capture`. It registers no
-workflow mutation tool. The **codex** profile exposes exactly 21 tools over
-stdio: fourteen read-only Project Control tools plus the measurement aperture and six
-canonical workflow tools `next_task`, `inspect_task`, `coordinate_task`,
-`delegate_task`, `collect_delegation`, and `finish_task`.
-The **mutator** profile exposes exactly 22 tools over local stdio: the Codex
-21-tool surface plus `apply_plan`. It does not expose `terminal_capture`.
+The **observer** profile exposes exactly 20 tools over loopback Streamable HTTP:
+eighteen read-only tools, one registered measurement aperture, and
+`terminal_capture`. It registers no workflow mutation tool. The **codex** profile
+exposes exactly 25 tools over stdio: seventeen read-only tools, the measurement
+aperture, six canonical workflow tools (`next_task`, `inspect_task`,
+`coordinate_task`, `delegate_task`, `collect_delegation`, `finish_task`), and
+`maintain_execution`. The **mutator** profile exposes exactly 25 tools over local
+stdio: seventeen read-only tools, the measurement aperture, six canonical
+workflow tools, and `apply_plan`. Neither stdio profile exposes
+`terminal_capture`; `local_investigate` is observer-only.
 
 Both registration and invocation are allowlisted. A name hidden from a profile
 cannot be invoked directly. Trusted startup configuration selects the profile;
@@ -285,3 +287,26 @@ The observer transport is stateless Streamable HTTP with JSON responses at
 prompts. Operational liveness,
 readiness, and immutable release identity are available outside the MCP tool
 surface at `/healthz`, `/readyz`, and `/version`.
+
+## Advisory skill tools
+
+All three read profiles expose `skill_list`, `skill_read`, and `skill_context`
+with read-only annotations. They return bounded skill-specific dictionaries,
+without project/Todo snapshot binding. Existing tool inputs remain unchanged.
+Native MCP resources/prompts remain empty.
+
+`skill_list(query="", max_items=20, continuation_cursor=None)` discovers names,
+descriptions, opaque IDs, resource names and freshness. `skill_read(skill_id,
+resource="SKILL.md", line_start=1, line_end=None, budget_bytes=32768,
+expected_identity=None)` provides explicit bounded text inspection.
+`skill_context(query, skill="auto", budget_bytes=16384,
+continuation_cursor=None)` is normal domain use: shared indexed section retrieval,
+bounded semantic expansion, and Project-Control-owned machine routing.
+
+Skills always carry `origin: agent_skill`, `authority: advisory_instruction`,
+`mutation_authority: false`. Public calls never accept underlying roots or
+backend selectors. The separate advisory root never affects verified execution
+runtime/Todo identity. Machine synthesis accepts only bounded immutable selected
+evidence packets and validates citations; it grants no skill filesystem access.
+See [SKILLS.md](SKILLS.md) for configuration, budgets, public usage, and explicit
+administrative atlas ingestion.

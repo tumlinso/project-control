@@ -1,18 +1,20 @@
 # project-control
 
 `project-control` is the sole model-facing product for observing and coordinating
-registered engineering workspaces. It composes two separately enforced MCP
+registered engineering workspaces. It composes three separately enforced MCP
 profiles over one implementation:
 
 - **observer** is the existing loopback Streamable HTTP service for ChatGPT. It
-  exposes exactly 17 tools and is permanently project-read-only; its explicit
+  exposes exactly 20 tools and is permanently project-read-only; its explicit
   `performance_probe` aperture writes only app-private measurement evidence.
 - **codex** is a stdio server registered as `project-control`. It exposes the
-  canonical six Todo workflow tools plus fourteen rich Project Control reads and
-  the registered `performance_probe` aperture. It does not expose
+  canonical six Todo workflow tools, seventeen rich Project Control reads,
+  the registered `performance_probe` aperture, and `maintain_execution`
+  (25 tools). It does not expose
   `terminal_capture`.
 - **mutator** is a separately selected local stdio profile exposing the Codex
-  surface plus `apply_plan`. It is intended for ledger/bootstrap control
+  workflow/read surface plus `apply_plan` (25 tools), without
+  `maintain_execution`. It is intended for ledger/bootstrap control
   changes and does not replace ordinary task claims.
 
 Todo Orchestrator remains the sole transactional workflow kernel and SQLite

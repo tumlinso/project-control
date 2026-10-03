@@ -133,6 +133,11 @@ def _parser() -> argparse.ArgumentParser:
 
     admin = commands.add_parser("admin")
     admin_commands = admin.add_subparsers(dest="admin_command", required=True)
+    ingest_skill = admin_commands.add_parser("ingest-skill-archive")
+    ingest_skill.add_argument("--skill", required=True)
+    ingest_skill.add_argument("--resource", required=True)
+    ingest_skill.add_argument("--destination", required=True)
+    ingest_skill.add_argument("--apply", action="store_true")
     recover = admin_commands.add_parser("recover")
     recover.add_argument("--repo", required=True)
     recover.add_argument("--task")
@@ -431,6 +436,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result, sort_keys=True))
             return 0
         if args.command == "admin":
+            if args.admin_command == "ingest-skill-archive":
+                from .config import configured_observer_skills_root
+                from .skills import SkillRegistry
+                from .skill_ingestion import ingest_skill_archive
+
+                registry = SkillRegistry(configured_observer_skills_root(load_config()))
+                result = ingest_skill_archive(
+                    registry, args.skill, args.resource, args.destination, apply=args.apply,
+                )
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+                return 0
             from .admin import (
                 advance_producer_wave,
                 inspect_recovery,

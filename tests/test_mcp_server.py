@@ -31,10 +31,13 @@ EXPECTED = {
     "performance_probe",
     "architecture_context", "coordination_view", "source_context", "history_trace",
     "impact_preview", "program_context", "local_investigate",
-    "terminal_capture",
+    "terminal_capture", "skill_list", "skill_read", "skill_context",
 }
 
 INPUT_SCHEMA_SHA256 = {
+    "skill_list": "aa854e1014272cf198ae0ba303bd8e5a54b75d97f87f1a8d2b7c07828021f28b",
+    "skill_read": "d577cf49379930ec0cca5d037dc0f36eb5bb5081bbefb1bb0d6c921f814f091d",
+    "skill_context": "14f45c64ae736b0967708103fa76f806dc233e58aa5901fc92e133f9e11ef25a",
     "project_overview": "42e86341f8b3869562c721e1cbd7f3e9f025a87f14182feb860b5e2763590b83",
     "project_delta": "cc68d06bd9a500c977ce74628f02a6362f44ac4413d5c43c0603a75a4cbf3214",
     "project_frontier": "ad4c2888841c1395c612fe56427a8a6f6b36454aafe0eea1301ea5d2cea56061",
@@ -96,7 +99,7 @@ class MCPServerTests(unittest.TestCase):
             self.assertFalse(tool.annotations.openWorldHint)
         schema_bytes = len(json.dumps([tool.model_dump(mode="json") for tool in tools], sort_keys=True).encode())
         self.assertLess(schema_bytes, 38000)
-        self.assertLess(len(SERVER_INSTRUCTIONS), 1500)
+        self.assertLess(len(SERVER_INSTRUCTIONS), 1800)
         required_prefix = "Use project-control to inspect live engineering projects through its read-only"
         self.assertTrue(SERVER_INSTRUCTIONS.startswith(required_prefix))
         schemas = {tool.name: tool.inputSchema for tool in tools}
@@ -135,6 +138,35 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(local_investigate_schema["properties"]["questions"]["maxItems"], 2)
         self.assertNotIn("question", local_investigate_schema["properties"])
         self.assertNotIn("execution", local_investigate_schema["properties"])
+
+    def test_skill_tools_need_no_project_or_filesystem_root(self) -> None:
+        advisory = Path(self.temporary.name) / "advisory"
+        skill = advisory / "cuda-review"
+        (skill / "references").mkdir(parents=True)
+        (skill / "SKILL.md").write_text("---\nname: cuda-review\ndescription: CUDA review guidance\n---\n# Review\nConsult references/volta.md.\n")
+        (skill / "references" / "volta.md").write_text("# Volta\nUse bounded V100 evidence.\n")
+        config = ProjectControlConfig(observer_skills_root=advisory)
+        with patch.dict("os.environ", {}, clear=True):
+            mcp = create_mcp(config)
+        tools = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+        for name in ("skill_list", "skill_read", "skill_context"):
+            self.assertTrue(tools[name].annotations.readOnlyHint)
+            self.assertFalse({"root", "project", "repository", "backend"} & set(tools[name].inputSchema["properties"]))
+        listing = asyncio.run(mcp._tool_manager.call_tool("skill_list", {"query": "CUDA"}))
+        self.assertEqual(len(listing["skills"]), 1)
+        skill_id = listing["skills"][0]["id"]
+        for resource in ("SKILL.md", "references/volta.md"):
+            result = asyncio.run(mcp._tool_manager.call_tool("skill_read", {"skill_id": skill_id, "resource": resource}))
+            self.assertEqual(result["origin"], "agent_skill")
+            self.assertEqual(result["authority"], "advisory_instruction")
+            self.assertFalse(result["mutation_authority"])
+            self.assertNotIn(str(advisory), json.dumps(result))
+            self.assertTrue(result["content"])
+        result = asyncio.run(mcp._tool_manager.call_tool("skill_context", {"query": "Volta", "skill": skill_id}))
+        self.assertEqual(result["route"], "direct")
+        self.assertTrue(result["evidence"])
+        escaped = asyncio.run(mcp._tool_manager.call_tool("skill_read", {"skill_id": skill_id, "resource": "../secret"}))
+        self.assertEqual(escaped["status"], "invalid_request")
 
     def test_local_investigate_one_question_returns_unified_results(self) -> None:
         mcp = create_mcp(self.config)
@@ -275,7 +307,7 @@ class MCPServerTests(unittest.TestCase):
     def test_codex_server_uses_stdio_transport(self) -> None:
         with patch("project_control.app.create_mcp") as create:
             self.assertEqual(serve_codex(), 0)
-        create.assert_called_once_with(profile=ANY)
+        create.assert_called_once_with(profile=ANY, maintenance_host=None)
         create.return_value.run.assert_called_once_with(transport="stdio")
 
     def test_health_ready_version_and_nonloopback_refusal(self) -> None:

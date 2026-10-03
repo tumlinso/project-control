@@ -1,0 +1,28 @@
+{
+  "ingestion": {
+    "applied": true,
+    "archive": "references/architectures/volta/V100_SXM2_Circuit_Bending_Atlas.zip",
+    "archive_sha256": "f592a89480cd90df3451b79601fa5492f588f13579acae6b511a7ae3619c2345",
+    "decompressed_bytes": 945820,
+    "destination": "references/architectures/volta/v100_atlas",
+    "extracted_resources": 216,
+    "members": 221,
+    "relationships": 929,
+    "semantic_resources": 237,
+    "skill_id": "skill-05409665e2e47957",
+    "skipped_prototypes": [
+      "benchmarks/capability_probe.cpp",
+      "tools/read_atlas.py",
+      "tools/refresh_manifest.py",
+      "tools/semantic_checks.py",
+      "tools/validate_atlas.py"
+    ],
+    "status": "ingested",
+    "unresolved_relationships": []
+  },
+  "integration_owner": "root",
+  "integration_reason": "authorized cross-workspace corpus publication; child implementation remained in Project Control",
+  "runtime_identity_unchanged": true,
+  "todo_runtime_fingerprint_after": "15521b1576eab3f0f8aec70519cd2d06f52396db6d48b3a681d5bfb9e6a3464d",
+  "todo_runtime_fingerprint_before": "15521b1576eab3f0f8aec70519cd2d06f52396db6d48b3a681d5bfb9e6a3464d"
+}

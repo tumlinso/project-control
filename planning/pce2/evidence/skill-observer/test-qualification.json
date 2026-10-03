@@ -1,0 +1,51 @@
+{
+  "initial_full_suite": {
+    "command": "PYTHONPATH=src:<trusted-todo-runtime> .venv/bin/python -m pytest -q",
+    "passed": 531,
+    "failed": 3,
+    "skipped": 1,
+    "subtests_passed": 40,
+    "seconds": 80.03,
+    "failures": [
+      {
+        "test": "tests/test_candidate_runtime.py::CandidateRuntimeTests::test_exact_profile_counts_follow_canonical_profile_contract",
+        "reason": "stale observer tool count: expected17 actual20",
+        "classification": "implementation regression; assigned to surface owner"
+      },
+      {
+        "test": "tests/wf2_acceptance/v/test_pc_wf2_v01.py::WF2Acceptance::test_full_original_tests_and_new_scenario_inventory_are_reported_separately",
+        "reason": "WF2_BINDINGS is required for pinned runtime validation",
+        "classification": "external pinned qualification configuration unavailable"
+      },
+      {
+        "test": "tests/wf2_acceptance/v/test_pc_wf2_v01.py::WF2Acceptance::test_harness_catches_a_deliberately_changed_status_and_missing_event",
+        "reason": "WF2_BINDINGS is required for pinned runtime validation",
+        "classification": "external pinned qualification configuration unavailable"
+      }
+    ]
+  },
+  "final_regression_suite": {
+    "command": "PYTHONPATH=src:<trusted-todo-runtime> .venv/bin/python -m pytest -q --ignore=tests/wf2_acceptance/v/test_pc_wf2_v01.py",
+    "passed": 536,
+    "skipped": 1,
+    "subtests_passed": 40,
+    "failed": 0,
+    "seconds": 79.54,
+    "excluded": "Two pinned WF2 acceptance tests requiring unavailable WF2_BINDINGS. Initial full-suite failure evidence retained.",
+    "qualification_timing": "Includes operational inventory and stale packet fixes; final real-corpus read performance change qualified separately."
+  },
+  "live_backend_attempts": [
+    {
+      "receipt": "public-live.json",
+      "calls": 1,
+      "reason": "observer_provider_invalid_evidence",
+      "interpretation": "Bridge masked unavailable upstream reason; no inference-failure conclusion."
+    },
+    {
+      "receipt": "public-live-retry.json",
+      "calls": 1,
+      "reason": "resource_unavailable: no disjoint runtime-discovered GPU island is available; retryable=false",
+      "interpretation": "Live synthesis unqualified because admission lacked resources. Bounded unavailable response preserved."
+    }
+  ]
+}
