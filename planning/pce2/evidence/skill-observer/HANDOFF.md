@@ -7,10 +7,25 @@ and are not imported or invoked by this machinery.
 
 ## Test package and public use
 
-The isolated candidate is `/home/tumlinson/.local/share/project-control/candidates/skill-observer-20261003-r2`.
-Its native stdio launcher is `bin/project-control-release codex`. The running service
-has not been changed. The source remains uncommitted for review; earlier edits are
-preserved. A wheel and review bundle are in `dist/skill-observer-20261003/`.
+The original isolated test candidate is `/home/tumlinson/.local/share/project-control/candidates/skill-observer-20261003-r2`.
+Its native stdio launcher is `bin/project-control-release codex`. The implementation
+is now committed and pushed as Project Control `905baff` and Skills `714d0d7`.
+Earlier untracked review packages and the archive sidecar remain preserved.
+A wheel and review bundle are in `dist/skill-observer-20261003/`.
+
+The live shared launcher now selects the committed-source candidate
+`/home/tumlinson/.local/share/project-control/candidates/skill-observer-905baff-20261003`.
+The service was restarted successfully, and the old launcher is preserved for rollback.
+Live `/healthz`, `/readyz`, and `/version` return 200. HTTP discovery exposes 20
+observer tools; shared-launcher stdio exposes 25 Codex tools. Public discovery,
+instruction reads, atlas supporting reads, and C++ indexed retrieval passed.
+
+Live atlas machine testing reached inference after restart: the earlier GPU-capacity
+failure no longer appeared. Synthesis failed with `observer_provider_malformed_output`.
+The result remained bounded (5,502 bytes), with two fallback evidence entries and a
+retry continuation; zero sections were falsely reported as analyzed. Successful live
+synthesis is still unqualified. See `live-deployment/http-public.json` and
+`live-deployment/stdio-public.json`. No unrelated GPU task was terminated.
 
 The public read tools are:
 
@@ -67,9 +82,10 @@ without filesystem roots, commands, tools, or workflow handles. All content is
 
 ## Next testing
 
-Use the isolated launcher to test the three tools without activating the live service.
-When permitted machine capacity is available, rerun the public live qualification
-script with `--live-machine`; it limits inference to one selected packet.
+The live service now exposes the three tools. Investigate the machine backend's
+malformed response before claiming successful synthesis. The public live qualification
+script with `--live-machine` limits inference to one selected packet; the separate
+live HTTP script exercises the activated service without backend substitution.
 Corpus editorial cleanup and removal of old routing prototypes remain a separate
 future pass. Shared machine routing is implemented, not deferred to that pass.
 

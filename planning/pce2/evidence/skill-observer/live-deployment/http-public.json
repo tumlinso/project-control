@@ -1,0 +1,140 @@
+{
+  "backend_substitution": false,
+  "cases": [
+    {
+      "case": "discovery_instruction_read",
+      "identity": "d0ffb0a4fa5009439775bff94fc5194cd3885869f3c05b55297b0d7fea6470d0",
+      "metadata_identity": "03e7321e95f2108f8fda8d0d9b203069f22cfacfcf76c42e682ab2de688d738e",
+      "name": "cuda",
+      "skill": "skill-05409665e2e47957"
+    },
+    {
+      "case": "discovery_instruction_read",
+      "identity": "df885bf1871092d5f5b0defaaf775aa1f5d805f1026e6337f2085af02fc4043b",
+      "metadata_identity": "877df684865b787c9abc784d9ccc45a41d4d8e1cb3a2e8c363ac2d9c8584e62c",
+      "name": "cpp-context-compiler",
+      "skill": "skill-e9ffbbf58d77a715"
+    },
+    {
+      "case": "atlas_supporting_read",
+      "identity": "48b0fa8ccae495a5b84b108c942bea78d49853d5fc7b0062807b574ef0465fb6"
+    },
+    {
+      "case": "cpp_indexed",
+      "corpus_identity": "9ec8c33933c168b982cef2f4a6667d01081f5971a218bb8125d2d8da5b0041cd",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 6,
+        "total_sections": 6
+      },
+      "response_bytes": 9595,
+      "route": "indexed",
+      "route_reason": {
+        "broad_query": false,
+        "relevant_bytes": 7059,
+        "relevant_resources": 4
+      },
+      "status": "available"
+    },
+    {
+      "case": "atlas_machine_auto",
+      "continuation": true,
+      "corpus_identity": "352d1fe72b23f3541ef5c761a171f1f2c6d3a6192e2752713742e886869f5ef1",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 2,
+        "total_sections": 184
+      },
+      "evidence_ids": [
+        "e-2dafceefbc38d64f54d34892",
+        "e-b17baa5c1a53e52843783cdd"
+      ],
+      "reason": "observer_provider_malformed_output",
+      "response_bytes": 5502,
+      "route": "machine",
+      "route_reason": {
+        "broad_query": true,
+        "relevant_bytes": 164247,
+        "relevant_resources": 90
+      },
+      "status": "unavailable",
+      "summaries": [
+        {
+          "evidence_ids": [
+            "e-2dafceefbc38d64f54d34892",
+            "e-b17baa5c1a53e52843783cdd",
+            "e-1a2a6b18f437b6950fc38ab4",
+            "e-d09533d495c297ad89c83202",
+            "e-e422c5e1234892712c488622",
+            "e-a9ed91de24a21fbc3f50056a",
+            "e-22dbdb08baa3accafcd10f0a",
+            "e-0c0b28ef5fca7b4ea8cdbe99"
+          ],
+          "reason": "observer_provider_malformed_output",
+          "status": "unavailable",
+          "uncertainty": "deterministic packet extract; local model analysis unavailable"
+        }
+      ],
+      "summary_identity": "703af0cdbe684467fd8247a4b07f21fb2db1c11991175a76dca018252a666d4d"
+    }
+  ],
+  "finished_at": "2026-10-03T15:34:10.220804+00:00",
+  "http": {
+    "healthz": {
+      "body": {
+        "config": "parseable",
+        "status": "ok"
+      },
+      "status_code": 200
+    },
+    "readyz": {
+      "body": {
+        "status": "ready",
+        "workspaces": 11
+      },
+      "status_code": 200
+    },
+    "version": {
+      "body": {
+        "name": "project-control",
+        "tool_schema_version": 9,
+        "version": "0.3.2"
+      },
+      "status_code": 200
+    }
+  },
+  "live_machine_qualified": false,
+  "machine_calls": 1,
+  "server": {
+    "icons": null,
+    "name": "project-control",
+    "title": null,
+    "version": "1.30.0",
+    "websiteUrl": null
+  },
+  "started_at": "2026-10-03T15:33:20.750509+00:00",
+  "tool_count": 20,
+  "tool_names": [
+    "agent_status",
+    "architecture_context",
+    "coordination_view",
+    "evidence",
+    "history_trace",
+    "impact_preview",
+    "inspect",
+    "local_investigate",
+    "performance_probe",
+    "performance_status",
+    "plan_preview",
+    "program_context",
+    "project_delta",
+    "project_frontier",
+    "project_overview",
+    "skill_context",
+    "skill_list",
+    "skill_read",
+    "source_context",
+    "terminal_capture"
+  ],
+  "transport": "native_mcp_streamable_http"
+}

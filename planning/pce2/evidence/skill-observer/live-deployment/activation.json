@@ -1,0 +1,11 @@
+{
+  "activated_at_utc": "2026-10-03T15:31:46Z",
+  "candidate": "skill-observer-905baff-20261003",
+  "new_launcher_sha256": "0c94f1cf38966a2e94bf4aadc302f0188c896cb164d520fc02cb15dc7e8d57fe",
+  "previous_launcher_sha256": "e52a68306ba8e6c13cb3cd2f30f6529d71987e7dff838eecb8903f6b30935a6a",
+  "release_manifest_sha256": "1403b4fd21ba60f28fba118e8c707899ce37442ac236c6e4f0ea81467ba31fd5",
+  "rollback_preserved": true,
+  "skills_commit": "714d0d760c784f282a472eb64c36e68f58049e96",
+  "source_commit": "905baffcbda8f51e562a1855487d583774ed1e0b",
+  "source_fingerprint_matches": true
+}
