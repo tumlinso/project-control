@@ -430,7 +430,7 @@ def _workspace_name(value: str) -> str:
 
 
 def _verified_generated_projection_paths(repository: Path, service: Any) -> list[str]:
-    """Return only dirty files that exactly equal current Todo projections.
+    """Return dirty files matching current Todo projections and writer framing.
 
     Root workspace preparation must never absorb source edits. Todo's durable
     projections are the sole exception: verify their bytes against the live
@@ -465,7 +465,14 @@ def _verified_generated_projection_paths(repository: Path, service: Any) -> list
     })
     for relative in observed:
         target = repository / relative
-        if relative not in expected or not target.is_file() or target.read_bytes() != expected[relative]:
+        if relative not in expected or not target.is_file():
+            raise ValueError(f"generated projection differs from authoritative Todo state: {relative}")
+        actual = target.read_bytes()
+        wanted = expected[relative]
+        # replace_managed adds two leading newlines when refreshing a block
+        # with an empty prefix. Accept that exact framing only for Markdown;
+        # the snapshot and all managed content still require exact bytes.
+        if actual != wanted and not (relative.endswith(".md") and actual == b"\n\n" + wanted):
             raise ValueError(f"generated projection differs from authoritative Todo state: {relative}")
     return observed
 

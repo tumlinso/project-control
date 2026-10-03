@@ -287,6 +287,50 @@ class AdminCliTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "differs from authoritative"):
                     admin._verified_generated_projection_paths(root, service)
 
+    def test_projection_dirty_guard_accepts_native_repeated_refresh_framing(self) -> None:
+        try:
+            from todo_orchestrator.projections import replace_managed
+        except ImportError:
+            self.skipTest("native Todo provider required for writer conformance")
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        connection.executescript(
+            "CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT);"
+            "INSERT INTO meta VALUES('project_revision','7');"
+        )
+        service = SimpleNamespace(db=_ReadDatabase(connection), project={})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git_state = types.ModuleType("todo_orchestrator.git_state")
+            paths = ["todos.md", "todo-status.md", "todos/task-a.md"]
+            git_state.dirty_paths = Mock(return_value=paths)
+            git_state.is_generated_projection = lambda path: path in paths or path == ".todo-orchestrator/state.snapshot.json"
+            projections = types.ModuleType("todo_orchestrator.projections")
+            projections.build_snapshot = Mock(return_value={"snapshot": True})
+            projections.project_markdown = Mock(return_value=("ROOT\n", "STATUS\n", {"TASK-A": "TASK\n"}))
+            projections.replace_managed = replace_managed
+            for path, body in zip(paths, ("ROOT\n", "STATUS\n", "TASK\n")):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                text = replace_managed("", body)
+                for _ in range(3):
+                    text = replace_managed(text, body)
+                self.assertEqual(text, "\n\n" + replace_managed("", body))
+                target.write_text(text, encoding="utf-8")
+            with patch.dict(sys.modules, {"todo_orchestrator.git_state": git_state, "todo_orchestrator.projections": projections}):
+                self.assertEqual(admin._verified_generated_projection_paths(root, service), paths)
+                target = root / "todos.md"
+                for bad in (replace_managed("", "STALE\n"), "extra text\n" + replace_managed("", "ROOT\n"), "\n\n\n" + replace_managed("", "ROOT\n")):
+                    target.write_text(bad, encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "differs from authoritative"):
+                        admin._verified_generated_projection_paths(root, service)
+                snapshot = root / ".todo-orchestrator/state.snapshot.json"
+                snapshot.parent.mkdir(parents=True)
+                snapshot.write_bytes(b'\n\n{\n  "snapshot": true\n}\n')
+                git_state.dirty_paths.return_value = [".todo-orchestrator/state.snapshot.json"]
+                with self.assertRaisesRegex(ValueError, "differs from authoritative"):
+                    admin._verified_generated_projection_paths(root, service)
+
     def test_prepare_run_workspaces_provisions_missing_exclusive_destination(self) -> None:
         connection = _workspace_database()
         self.addCleanup(connection.close)
