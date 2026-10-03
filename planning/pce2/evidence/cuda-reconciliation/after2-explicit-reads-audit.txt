@@ -1,0 +1,1 @@
+PASS: both prior explicit-read resource identities match final after2 corpus; excluded FULL/generated resources remain readable.

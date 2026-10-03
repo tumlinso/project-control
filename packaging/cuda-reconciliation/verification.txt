@@ -1,0 +1,14 @@
+PASS deterministic repeated dry plan: 190 collision-free canonical rename destinations
+PASS 217 exact source-file hashes and unchanged source ZIP identity
+PASS 237 unique existing semantic resource IDs and all 929 graph edges preserved
+PASS 22 NEED resource row spans preserved
+PASS 214 technical files reverse-normalized byte-identical; only two path-bearing files change (42 substitutions each)
+PASS FULL byte-identical and all 151 internal anchors resolve
+PASS all 193 staged local Markdown links resolve
+PASS current-file SHA256SUMS and corpus/manifest path-bearing hashes
+PASS verification-only guarded apply against actual live atlas, no live changes
+PASS temporary-fixture publish, exact original backup, live drift rejection, staged drift rejection
+PASS injected directory publication failure restores original live directory
+Historical CPU/GPU/CUDA qualification unchanged; these are mechanical migration checks only.
+PASS CPU evidence metadata delta: only corpus flag true-to-false; 237 IDs, 929 edges and 214 body hashes reverified against original backup; manifest/checksum unchanged
+PASS navigation-only delta: exact diff and inverse substitution restore originals; 190 canonical bodies and NEED/FIELD/FULL unchanged; 237 IDs/929 edges preserved; all corpus/manifest hashes, byte counts, checksums and local links verified

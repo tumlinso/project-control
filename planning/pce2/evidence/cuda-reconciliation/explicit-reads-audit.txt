@@ -1,0 +1,1 @@
+PASS: 2 excluded derived/archive resources remain explicitly readable

@@ -1,0 +1,19 @@
+{
+  "receipt": "planning/pce2/evidence/cuda-reconciliation/after2.json.gz",
+  "sha256": "cda42a57d05d87400d749856d59eb7431cb82b1bac4cdcc3fe2e0d63c7b382ab",
+  "queries": 32,
+  "route_counts": {
+    "machine": 32
+  },
+  "totals": {
+    "selected_sections": 2336,
+    "atlas_sections": 984,
+    "full_aggregate_sections": 0,
+    "exact_duplicate_selected_excess": 0,
+    "exact_duplicate_lexical_excess": 293,
+    "selected_bytes": 3175201,
+    "packet_bytes": 4637406,
+    "output_bytes": 429332
+  },
+  "topic_proxy_queries": 32
+}

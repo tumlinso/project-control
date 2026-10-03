@@ -8,6 +8,7 @@ import argparse
 from collections import Counter
 from datetime import datetime, timezone
 import hashlib
+import inspect
 import gzip
 import json
 from pathlib import Path
@@ -93,8 +94,21 @@ def main():
     rows = []
     for query in queries:
         packets.clear()
-        selected, expanded = service._retrieve(query['query'], sections, index, semantic)
-        lexical = index.search(query['query'], limit=200, prefer_current=False)
+        retrieve_args = {}
+        if 'context_terms' in inspect.signature(service._retrieve).parameters:
+            retrieve_args['context_terms'] = tuple(re.findall(r'[A-Za-z0-9_]{2,128}', registry.get(skill).name))
+        lexical_calls = []
+        original_search = index.search
+        def recording_search(*args, **kwargs):
+            hits = original_search(*args, **kwargs)
+            lexical_calls.append((args, kwargs, hits))
+            return hits
+        index.search = recording_search
+        try:
+            selected, expanded = service._retrieve(query['query'], sections, index, semantic, **retrieve_args)
+        finally:
+            index.search = original_search
+        lexical = lexical_calls[0][2]
         pages = []
         cursor = None
         for _ in range(128):
@@ -116,6 +130,7 @@ def main():
         proxy = lambda items: sum(bool(topic.search(item['content'])) for item in items)
         rows.append({'id': query['id'], 'query': query['query'], 'expectations': query,
                      'selected': [descriptor(s) for s in selected],
+                     'lexical_query': lexical_calls[0][0][0],
                      'lexical_hits': [{'resource': h.path, 'line': h.line, 'score': h.score} for h in lexical],
                      'metrics': {'selected_sections': len(selected), 'selected_resources': len({s.path for s in selected}),
                                  'selected_bytes': sum(len(s.text.encode()) for s in selected),

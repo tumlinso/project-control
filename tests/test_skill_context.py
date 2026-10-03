@@ -202,3 +202,191 @@ def test_machine_unavailable_reason_is_bounded_redacted(tmp_path, monkeypatch):
     assert 'secret123' not in result['reason']
     assert len(result['reason']) <= 500
     assert result['continuation_cursor']
+
+
+def write_manifest(directory, resources, relationships=()):
+    (directory / '.project-control-corpus.json').write_text(json.dumps({
+        'schema_version': 1, 'resources': resources, 'relationships': list(relationships)}))
+
+
+def test_exclusion_denies_path_everywhere_but_keeps_ids_and_direct_read(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=2)
+    write_manifest(directory, [
+        {'id': 'a', 'path': 'ref-0.md', 'role': 'canonical'},
+        {'id': 'excluded', 'path': 'ref-1.md', 'role': 'aggregate_view', 'index_excluded': True},
+        {'id': 'sibling', 'path': 'ref-1.md', 'index_excluded': False}],
+        [{'from': 'a', 'to': 'excluded', 'type': 'related'}, {'from': 'a', 'to': 'sibling', 'type': 'related'}])
+    context = SkillContext(registry)
+    _, sections, index, semantic = context._snapshot(skill)
+    assert 'excluded' in semantic['resources'] and 'sibling' in semantic['resources']
+    assert all(s.path != 'ref-1.md' for s in sections)
+    assert all(h.path != 'ref-1.md' for h in index.search('widget'))
+    for query in ('widget', 'comprehensive unmatchedterm'):
+        result = context.context(query, skill)
+        assert all(row['resource'] != 'ref-1.md' for row in result['evidence'])
+        assert result['relationships'] == []
+    assert 'widget' in registry.read_text(skill, 'ref-1.md')['content']
+
+
+@pytest.mark.parametrize('metadata', [
+    {'role': 'unknown'}, {'role': []}, {'index_excluded': 'false'},
+    {'lineage': 'abc'}, {'lineage': ['invalid/id']}, {'tags': ['x'] * 65},
+    {'aliases': ['x' * 513]}, {'summary': 'x' * 4097}, {'line_start': True, 'line_end': 2}])
+def test_manifest_metadata_validation(tmp_path, monkeypatch, metadata):
+    registry, skill, directory = corpus(tmp_path, monkeypatch)
+    write_manifest(directory, [{'id': 'a', 'path': 'ref-0.md', **metadata}])
+    with pytest.raises(ValueError, match='skill_manifest_'):
+        SkillContext(registry).context('widget', skill)
+
+
+def test_metadata_identity_freshness_and_evidence(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch)
+    resource = {'id': 'stable', 'path': 'ref-0.md', 'role': 'archive', 'lineage': ['ancestor'], 'aliases': ['old-path']}
+    write_manifest(directory, [resource])
+    context = SkillContext(registry)
+    first = context.context('widget', skill)
+    row = next(r for r in first['evidence'] if r['resource'] == 'ref-0.md')
+    assert row['semantic_ids'] == ['stable']
+    assert row['role'] == 'archive' and row['lineage'] == ['ancestor'] and row['aliases'] == ['old-path']
+    assert 'semantic_ids' not in next(r for r in first['evidence'] if r['resource'] == 'SKILL.md')
+    resource['role'] = 'canonical'
+    write_manifest(directory, [resource])
+    second = context.context('widget', skill)
+    assert second['corpus_identity'] != first['corpus_identity']
+    resource['sha256'] = 'bad'
+    write_manifest(directory, [resource])
+    with pytest.raises(ValueError, match='content_stale'):
+        context.context('widget', skill)
+
+
+def test_query_sensitive_roles_architecture_and_exact_duplicates(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=0)
+    for path, content in [('guide.md', '# Guide\nwidget profiling register pressure\n'),
+                          ('atlas.md', '# Atlas\nwidget representation state warp\n'),
+                          ('copy.md', '# Atlas\nwidget representation state warp\n'),
+                          ('ampere.md', '# Other\nwidget representation state warp\n')]:
+        (directory / path).write_text(content)
+    write_manifest(directory, [
+        {'id': 'guide', 'path': 'guide.md', 'role': 'operational_guide'},
+        {'id': 'atlas', 'path': 'atlas.md', 'role': 'canonical', 'tags': ['volta'], 'aliases': ['legacy-atlas']},
+        {'id': 'copy', 'path': 'copy.md', 'role': 'deep_reference', 'lineage': ['atlas'], 'aliases': ['oldatlasname']},
+        {'id': 'ampere', 'path': 'ampere.md', 'role': 'canonical', 'tags': ['ampere']}])
+    context = SkillContext(registry)
+    conventional = context.context('widget register pressure profiling', skill)
+    assert conventional['evidence'][0]['resource'] == 'guide.md'
+    creative = context.context('widget V100 representation state', skill)
+    assert creative['evidence'][0]['resource'] == 'atlas.md'
+    winner = creative['evidence'][0]
+    assert winner['semantic_ids'] == ['atlas', 'copy']
+    assert winner['alias_provenance'] == [{'resource': 'copy.md', 'line_start': 1, 'line_end': 2}]
+    assert winner['aliases'] == ['legacy-atlas', 'oldatlasname']
+    alias_result = context.context('oldatlasname', skill)
+    assert alias_result['evidence'][0]['resource'] == 'atlas.md'
+    assert alias_result['evidence'][0]['semantic_ids'] == ['atlas', 'copy']
+    assert any(r['resource'] == 'ampere.md' for r in creative['evidence'])
+    assert all(r['resource'] != 'copy.md' for r in creative['evidence'])
+    ampere = context.context('widget A100 representation state', skill)
+    assert ampere['evidence'][0]['resource'] == 'ampere.md'
+
+
+def test_focused_expansion_budget_preserves_broad_machine(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=0)
+    (directory / 'seed.md').write_text('# Needle\nneedle reference\n')
+    nodes = [{'id': 'seed', 'path': 'seed.md'}]
+    edges = []
+    for n in range(30):
+        path = f'dep-{n}.md'
+        (directory / path).write_text(f'# Dependency {n}\nunique dependency content {n}\n')
+        nodes.append({'id': f'dep-{n}', 'path': path})
+        edges.append({'from': 'seed', 'to': f'dep-{n}', 'type': 'related'})
+    write_manifest(directory, nodes, edges)
+    context = SkillContext(registry)
+    _, sections, index, semantic = context._snapshot(skill)
+    focused, relations = context._retrieve('needle', sections, index, semantic)
+    assert len(relations) == 15 and len(focused) == 16
+    broad, relations = context._retrieve('overview needle', sections, index, semantic)
+    assert len(relations) == 30 and len(broad) == 31
+    assert context.context('overview needle', skill)['route'] == 'machine'
+
+
+def test_returned_sections_tracks_final_pruning(tmp_path, monkeypatch):
+    registry, skill, _ = corpus(tmp_path, monkeypatch, files=12)
+    def analyze(packet):
+        return {'status': 'available', 'summary': 's' * 2000,
+                'evidence_ids': [r['id'] for r in packet['evidence']]}
+    result = SkillContext(registry, analyze).context('overview widget', skill, budget_bytes=2048)
+    assert result['coverage']['returned_sections'] == len(result['evidence'])
+    assert len(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()) <= 2048
+
+
+def test_query_prefix_noise_removed_without_hardcoded_skill_name(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=0)
+    (directory / 'noise.md').write_text('# sample V100 sm_70\nHow should the unrelated work happen\n')
+    (directory / 'relevant.md').write_text('# Tensor\ntensor layout swizzle analysis\n')
+    context = SkillContext(registry)
+    result = context.context('sample V100 sm_70: How should tensor layout swizzle work?', skill)
+    assert result['evidence'][0]['resource'] == 'relevant.md'
+    assert all(r['resource'] != 'noise.md' for r in result['evidence'])
+    assert context.context('sample V100', skill)['evidence']  # no meaningful terms: original fallback
+
+
+def test_manifest_race_rejects_context_even_when_resources_unchanged(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=10)
+    write_manifest(directory, [{'id': 'a', 'path': 'ref-0.md', 'role': 'canonical'}])
+    def analyze(packet):
+        write_manifest(directory, [{'id': 'a', 'path': 'ref-0.md', 'role': 'archive'}])
+        return {'status': 'available', 'summary': 'stale metadata', 'evidence_ids': [packet['evidence'][0]['id']]}
+    with pytest.raises(ValueError, match='corpus_changed_during_context'):
+        SkillContext(registry, analyze).context('overview widget', skill)
+
+
+def test_long_alias_metadata_keeps_evidence_at_minimum_budget(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=0)
+    (directory / 'one.md').write_text('# Needle\nneedle evidence\n')
+    write_manifest(directory, [{'id': 'one', 'path': 'one.md', 'role': 'canonical',
+        'aliases': ['x' * 505 for _ in range(64)]}])
+    result = SkillContext(registry).context('needle', skill, budget_bytes=2048)
+    assert result['evidence'] and result['evidence'][0]['semantic_ids'] == ['one']
+    assert result['evidence'][0]['metadata_truncated']
+    assert result['coverage']['returned_sections'] == 1
+    assert len(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()) <= 2048
+
+
+def test_pruned_machine_summary_keeps_packet_reachable(tmp_path, monkeypatch):
+    registry, skill, _ = corpus(tmp_path, monkeypatch, files=12)
+    def analyze(packet):
+        return {'status': 'available', 'summary': 's' * 2000,
+                'evidence_ids': [r['id'] for r in packet['evidence']]}
+    result = SkillContext(registry, analyze).context('overview widget', skill, budget_bytes=2048)
+    assert result['continuation_cursor']
+    assert json.loads(result['continuation_cursor'])['offset'] == 0
+    assert result['coverage']['analyzed_sections'] == 0
+
+
+def test_large_relationship_metadata_keeps_single_direct_section(tmp_path, monkeypatch):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=0)
+    (directory / 'one.md').write_text('# Needle\nneedle evidence\n')
+    edges = [{'from': 'a' * 155 + str(n), 'to': 'b' * 155 + str(n), 'type': 'c' * 160} for n in range(16)]
+    write_manifest(directory, [{'id': 'one', 'path': 'one.md', 'role': 'canonical'}], edges)
+    result = SkillContext(registry).context('needle', skill, budget_bytes=2048)
+    assert result['evidence'] and result['coverage']['returned_sections'] == 1
+    assert result['unresolved_relationships'] == []
+    assert len(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()) <= 2048
+
+
+@pytest.mark.parametrize("intent", ["state", "crazy", "unconventional", "composition"])
+def test_compositional_query_keeps_narrow_mechanisms_against_omnibus(tmp_path, monkeypatch, intent):
+    registry, skill, directory = corpus(tmp_path, monkeypatch, files=0)
+    (directory / 'omnibus.md').write_text('# Omnibus\nshuffle ballot exchange sparse warp state queues resident peer atomics\n')
+    (directory / 'routing.md').write_text('# Routing\nshuffle lane exchange\n')
+    (directory / 'queues.md').write_text('# Queue mechanism\nresident queues\n')
+    write_manifest(directory, [
+        {'id': 'omnibus', 'path': 'omnibus.md', 'role': 'operational_guide'},
+        {'id': 'routing', 'path': 'routing.md', 'role': 'canonical'},
+        {'id': 'queues', 'path': 'queues.md', 'role': 'canonical'}])
+    context = SkillContext(registry)
+    _, sections, index, semantic = context._snapshot(skill)
+    selected, _ = context._retrieve(f'shuffle ballot exchange sparse warp {intent} queues resident peer atomics', sections, index, semantic)
+    assert {'routing.md', 'queues.md'} <= {s.path for s in selected}
+    conventional, _ = context._retrieve('shuffle ballot exchange sparse warp queues resident peer atomics', sections, index, semantic)
+    assert {s.path for s in conventional} == {'omnibus.md'}

@@ -302,6 +302,31 @@ expected_identity=None)` provides explicit bounded text inspection.
 `skill_context(query, skill="auto", budget_bytes=16384,
 continuation_cursor=None)` is normal domain use: shared indexed section retrieval,
 bounded semantic expansion, and Project-Control-owned machine routing.
+Optional schema-1 `.project-control-corpus.json` resource metadata accepts `role`
+(`canonical`, `semantic_index`, `deep_reference`, `operational_guide`,
+`derived_summary`, `aggregate_view`, `archive`, `navigation`, `generated`,
+`legacy_router`, `evidence`, `experiment`), boolean `index_excluded`, and
+`lineage` (up to 64 stable semantic IDs, each up to 160 characters). `tags` and
+`aliases` are lists of up to 64 strings (160 and 512 characters respectively).
+Titles and summaries are bounded to 512 and 4096 characters. Metadata and
+source hashes participate in corpus identity and continuation freshness.
+Exclusion is explicit and path-wide: any true `index_excluded` removes that path
+from lexical indexing, selected sections, relationship expansion, and broad
+fallback, while preserving its semantic IDs and explicit registry reads. Roles
+alone never exclude content. Role and architecture tags provide bounded,
+query-sensitive presentation preferences, without execution authority. Evidence
+may carry `semantic_ids`, `role`, `lineage`, and `aliases`. Exact duplicate section
+text prefers canonical provenance and retains up to eight alias source spans and
+64 merged semantic IDs; unique text remains distinct. Optional evidence metadata
+is bounded for transport with `metadata_truncated` when necessary. Final coverage
+counts reflect visible evidence; pruned sections or machine summaries remain
+reachable through continuation. Focused expansion uses up
+to eight seeds, sixteen nodes, and sixteen added sections; broad synthesis keeps
+its wider sixty-four-node expansion. Question words, architecture identifiers,
+and registered skill-name terms are removed from lexical queries when other
+terms remain; the original query is retained for synthesis and cursors.
+Creative or compositional queries retain narrow lexical mechanism matches;
+conventional focused queries may prune weaker term matches.
 
 Skills always carry `origin: agent_skill`, `authority: advisory_instruction`,
 `mutation_authority: false`. Public calls never accept underlying roots or

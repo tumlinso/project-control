@@ -1,0 +1,6 @@
+__pycache__/
+staged-atlas/
+atlas-backups/
+cuda-metadata/stage/
+cuda-metadata/__pycache__/
+cuda-metadata/.pytest_cache/

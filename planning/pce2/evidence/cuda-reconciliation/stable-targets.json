@@ -1,0 +1,10 @@
+{
+  "Q03": {"ids": ["M20"], "rationale": "L1, local memory and deliberate cold spills: directly addresses deliberate useful spill storage."},
+  "Q06": {"ids": ["M04", "C03"], "rationale": "Shuffle as constrained routing fabric or warp-resident byte lookup network: mechanism/composition references for safe sparse state exchange."},
+  "Q10": {"ids": ["R05"], "rationale": "Tensor geometry and native register interfaces: target reference for fragment layouts and portability constraints."},
+  "Q13": {"ids": ["M14"], "rationale": "Register-resident local state machines: directly addresses register-resident state across iterations."},
+  "Q14": {"ids": ["M33"], "rationale": "Graphs and device-side launches: target launch-overhead/lifetime reference."},
+  "Q20": {"ids": ["M35"], "rationale": "Remote atomics and NVLink signaling: direct peer-atomic mechanism target."},
+  "Q27": {"ids": ["M30"], "rationale": "Persistent queues and resident interpreters: direct creative persistent sparse queue target."},
+  "Q30": {"ids": ["E10"], "rationale": "Tensor numerical fingerprint: experiment target for tensor accumulation accuracy qualification."}
+}

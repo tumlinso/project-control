@@ -1,0 +1,18 @@
+--- original/SKILL.md
++++ stage/SKILL.md
+@@ -47,10 +47,13 @@
+ 
+ ```bash
+ python <skill-dir>/scripts/cuda_controller.py evidence <id> --focus <topic> --json
+-python <skill-dir>/scripts/cuda_controller.py guide --query "<architecture and question>" --json
+ ```
+ 
+-Guidance returns exact bounded sections from the preserved Markdown corpus.
++For guidance, prefer Project Control `skill_context(query="CUDA <architecture
++and question>", skill="auto")` to retrieve bounded sections and semantic links.
++Use `skill_read(skill_id=<returned CUDA ID>, resource=<returned path>)` for
++an explicit bounded follow-up read. The controller `guide` command remains
++a direct compatibility fallback.
+ Evidence summaries point to authoritative raw artifacts. Generated context views
+ are read-only; edit canonical source only. The controller uses
+ cpp-context-compiler for small semantic source slices and falls back to

@@ -1,0 +1,29 @@
+{
+  "final_log": "qualification-isolated.log",
+  "initial_attempt": {
+    "failed": 12,
+    "log": "qualification.log",
+    "passed": 140,
+    "reason": "Ambient frozen Todo binding conflicts with temporary MCP Skills fixtures; no assertions reached in failing MCP setups",
+    "subtests_passed": 5
+  },
+  "remaining_reference_gaps": [
+    "Q30 E10 absent in both baseline and final",
+    "Q27 M30 remains selected and in machine packets but is absent from first eight/visible recording excerpts"
+  ],
+  "retrieval_method": "32 fixed questions, recording callback, all continuations; selection-only, no model quality claim",
+  "review": {
+    "budget_metadata_loss_regression": "fixed; independent 2048-byte reproduction passes",
+    "mechanical_atlas_audit": "passes; 190 canonical cards, 237 original semantic IDs, 929 original edges",
+    "metadata_only_race": "fails closed"
+  },
+  "skill_python_changes": "",
+  "skill_source_commit": "7516ebf66a57370c6085ab46ee24773f5a23dd2a",
+  "tests": {
+    "command": "pytest skill_context, skills, skill_ingestion, source_context, observer_analysis_registry, profiles, mcp_server",
+    "isolated_launch_environment": true,
+    "passed": 149,
+    "subtests_passed": 8,
+    "warning": "Intentional duplicate ZIP entry fixture emits zipfile warning"
+  }
+}

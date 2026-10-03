@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "registry_hash_validation": "passed",
+  "semantic_resources": 109,
+  "relationships": 233,
+  "unresolved_relationships": 0,
+  "generated_asset_index_exclusion": "passed",
+  "scope": "temporary NONatlas copy using current working-tree registry implementation"
+}

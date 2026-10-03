@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "command": [
+    "python",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "packaging/cuda-reconciliation/cuda-metadata",
+    "-p",
+    "test_*.py",
+    "-v"
+  ],
+  "exit_code": 0,
+  "project_control_base_commit": "4090f2800a2291edced0de247b22b44c563c2df2",
+  "source_skills_commit": "45bb7f64a0852a9f1f22ac7b13c1fb511ccd01fd",
+  "checks": {
+    "deterministic_regeneration": "passed",
+    "unique_ids": "passed",
+    "atlas_paths_absent": "passed",
+    "source_hashes_unchanged": "passed",
+    "non_skill_bytes_unchanged": "passed"
+  },
+  "staged_artifacts": {
+    "SKILL.md": "ad4b7c4ac17de7d46185a9adb208a6705d61ab3cd4efaa34ad135c58acdeac9c",
+    ".project-control-corpus.json": "5d18a7c6e414505d59c1a9db87c1a1aa0db069715c5c13afb0b1ef9b0ae19fce",
+    "receipt.json": "67c8634d88d81e232657306a11ac1eb43aa93c923812bdf2a5d1fbd286bb6506"
+  },
+  "commit_status": "uncommitted candidate; root owns commit and installation"
+}

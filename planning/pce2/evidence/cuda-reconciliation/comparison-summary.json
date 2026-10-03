@@ -1,0 +1,33 @@
+{
+  "scope": "Selection-only, stable-ID and reference coverage; not answer correctness.",
+  "receipt_hashes": {
+    "before.json.gz": "f4ffd600d3dff5f0bdaeb82fd240171913afe97b5be130b207f31423a507e045",
+    "after.json.gz": "9c77ff1cb2a65a1be306a1d45fbc1a7f3520a8fb666de36b4f44988a791817c3"
+  },
+  "before_totals": {
+    "selected_sections": 6888,
+    "atlas_sections": 3391,
+    "full_aggregate_sections": 599,
+    "exact_duplicate_selected_excess": 238,
+    "exact_duplicate_lexical_excess": 1007,
+    "selected_bytes": 5269524,
+    "packet_bytes": 7894560,
+    "output_bytes": 617837,
+    "exposed_sections": 477,
+    "continuation_pages": 60
+  },
+  "after_totals": {
+    "selected_sections": 1833,
+    "atlas_sections": 830,
+    "full_aggregate_sections": 0,
+    "exact_duplicate_selected_excess": 0,
+    "exact_duplicate_lexical_excess": 294,
+    "selected_bytes": 2875632,
+    "packet_bytes": 4049753,
+    "output_bytes": 376366,
+    "exposed_sections": 299,
+    "continuation_pages": 40
+  },
+  "ordinary_FULL_zero": true,
+  "target_checks": 8
+}

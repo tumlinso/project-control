@@ -1,0 +1,1527 @@
+{
+  "index_excluded": true,
+  "renames": [
+    {
+      "canonical_id": "R00",
+      "index_excluded": false,
+      "new_path": "reference/R00-reading-and-evidence-contract.md",
+      "old_path": "reference/R00.md",
+      "role": "deep_reference",
+      "title": "Reading and evidence contract"
+    },
+    {
+      "canonical_id": "R01",
+      "index_excluded": false,
+      "new_path": "reference/R01-machine-reference.md",
+      "old_path": "reference/R01.md",
+      "role": "deep_reference",
+      "title": "Machine reference"
+    },
+    {
+      "canonical_id": "R02",
+      "index_excluded": false,
+      "new_path": "reference/R02-execution-scoreboards-and-operands.md",
+      "old_path": "reference/R02.md",
+      "role": "deep_reference",
+      "title": "Execution, scoreboards and operands"
+    },
+    {
+      "canonical_id": "R03",
+      "index_excluded": false,
+      "new_path": "reference/R03-memory-as-algorithmic-structure.md",
+      "old_path": "reference/R03.md",
+      "role": "deep_reference",
+      "title": "Memory as algorithmic structure"
+    },
+    {
+      "canonical_id": "R04",
+      "index_excluded": false,
+      "new_path": "reference/R04-isa-families-and-generation-traps.md",
+      "old_path": "reference/R04.md",
+      "role": "deep_reference",
+      "title": "ISA families and generation traps"
+    },
+    {
+      "canonical_id": "R05",
+      "index_excluded": false,
+      "new_path": "reference/R05-tensor-geometry-and-native-register-interfaces.md",
+      "old_path": "reference/R05.md",
+      "role": "deep_reference",
+      "title": "Tensor geometry and native register interfaces"
+    },
+    {
+      "canonical_id": "R06",
+      "index_excluded": false,
+      "new_path": "reference/R06-participation-visibility-and-progress.md",
+      "old_path": "reference/R06.md",
+      "role": "deep_reference",
+      "title": "Participation, visibility and progress"
+    },
+    {
+      "canonical_id": "R07",
+      "index_excluded": false,
+      "new_path": "reference/R07-nvlink-pcie-and-numa-as-information-boundaries.md",
+      "old_path": "reference/R07.md",
+      "role": "deep_reference",
+      "title": "NVLink, PCIe and NUMA as information boundaries"
+    },
+    {
+      "canonical_id": "R08",
+      "index_excluded": false,
+      "new_path": "reference/R08-virtual-memory-ats-and-faults.md",
+      "old_path": "reference/R08.md",
+      "role": "deep_reference",
+      "title": "Virtual memory, ATS and faults"
+    },
+    {
+      "canonical_id": "R09",
+      "index_excluded": false,
+      "new_path": "reference/R09-the-non-sm-command-machine.md",
+      "old_path": "reference/R09.md",
+      "role": "deep_reference",
+      "title": "The non-SM command machine"
+    },
+    {
+      "canonical_id": "R10",
+      "index_excluded": false,
+      "new_path": "reference/R10-toolchain-and-binary-evidence.md",
+      "old_path": "reference/R10.md",
+      "role": "deep_reference",
+      "title": "toolchain and binary evidence"
+    },
+    {
+      "canonical_id": "R11",
+      "index_excluded": false,
+      "new_path": "reference/R11-performance-model-for-circuit-bending.md",
+      "old_path": "reference/R11.md",
+      "role": "deep_reference",
+      "title": "Performance model for circuit bending"
+    },
+    {
+      "canonical_id": "R12",
+      "index_excluded": false,
+      "new_path": "reference/R12-measurement-discipline-and-obs-er-v-ability.md",
+      "old_path": "reference/R12.md",
+      "role": "deep_reference",
+      "title": "Measurement discipline and obs er v ability"
+    },
+    {
+      "canonical_id": "R13",
+      "index_excluded": false,
+      "new_path": "reference/R13-electrical-firmware-and-reliability-frontier.md",
+      "old_path": "reference/R13.md",
+      "role": "deep_reference",
+      "title": "Electrical, firmware and reliability frontier"
+    },
+    {
+      "canonical_id": "R14",
+      "index_excluded": false,
+      "new_path": "reference/R14-composition-conflict-and-scope-map.md",
+      "old_path": "reference/R14.md",
+      "role": "deep_reference",
+      "title": "Composition, conflict and scope map"
+    },
+    {
+      "canonical_id": "R15",
+      "index_excluded": false,
+      "new_path": "reference/R15-numerical-contracts-for-unconventional-arithmetic.md",
+      "old_path": "reference/R15.md",
+      "role": "deep_reference",
+      "title": "Numerical contracts for unconventional arithmetic"
+    },
+    {
+      "canonical_id": "M01",
+      "index_excluded": false,
+      "new_path": "mechanisms/M01-lop3-as-a-bank-of-boolean-circuits.md",
+      "old_path": "mechanisms/M01.md",
+      "role": "canonical",
+      "title": "LOP3 as a bank of Boolean circuits"
+    },
+    {
+      "canonical_id": "M02",
+      "index_excluded": false,
+      "new_path": "mechanisms/M02-mask-rank-select-as-routing.md",
+      "old_path": "mechanisms/M02.md",
+      "role": "canonical",
+      "title": "Mask rank/select as routing"
+    },
+    {
+      "canonical_id": "M03",
+      "index_excluded": false,
+      "new_path": "mechanisms/M03-prmt-as-a-tiny-register-lookup.md",
+      "old_path": "mechanisms/M03.md",
+      "role": "canonical",
+      "title": "PRMT as a tiny register lookup"
+    },
+    {
+      "canonical_id": "M04",
+      "index_excluded": false,
+      "new_path": "mechanisms/M04-shuffle-as-a-constrained-routing-fabric.md",
+      "old_path": "mechanisms/M04.md",
+      "role": "canonical",
+      "title": "Shuffle as a constrained routing fabric"
+    },
+    {
+      "canonical_id": "M05",
+      "index_excluded": false,
+      "new_path": "mechanisms/M05-match-as-an-ephemeral-associative-table.md",
+      "old_path": "mechanisms/M05.md",
+      "role": "canonical",
+      "title": "Match as an ephemeral associative table"
+    },
+    {
+      "canonical_id": "M06",
+      "index_excluded": false,
+      "new_path": "mechanisms/M06-ballot-transpose-and-bit-sliced-state.md",
+      "old_path": "mechanisms/M06.md",
+      "role": "canonical",
+      "title": "Ballot transpose and bit-sliced state"
+    },
+    {
+      "canonical_id": "M07",
+      "index_excluded": false,
+      "new_path": "mechanisms/M07-predicates-and-reconvergence-as-data-representation.md",
+      "old_path": "mechanisms/M07.md",
+      "role": "canonical",
+      "title": "Predicates and reconvergence as data representation"
+    },
+    {
+      "canonical_id": "M08",
+      "index_excluded": false,
+      "new_path": "mechanisms/M08-dp4a-dp2a-as-structural-arithmetic.md",
+      "old_path": "mechanisms/M08.md",
+      "role": "canonical",
+      "title": "DP4A/DP2A as structural arithmetic"
+    },
+    {
+      "canonical_id": "M09",
+      "index_excluded": false,
+      "new_path": "mechanisms/M09-packed-simd-and-conversions-as-state-operators.md",
+      "old_path": "mechanisms/M09.md",
+      "role": "canonical",
+      "title": "Packed SIMD and conversions as state operators"
+    },
+    {
+      "canonical_id": "M10",
+      "index_excluded": false,
+      "new_path": "mechanisms/M10-s-f-us-and-interpolation-as-alternate-arithmetic.md",
+      "old_path": "mechanisms/M10.md",
+      "role": "canonical",
+      "title": "S F Us and interpolation as alternate arithmetic"
+    },
+    {
+      "canonical_id": "M11",
+      "index_excluded": false,
+      "new_path": "mechanisms/M11-fp64-and-wide-integer-paths-as-alternate-resources.md",
+      "old_path": "mechanisms/M11.md",
+      "role": "canonical",
+      "title": "FP64 and wide integer paths as alternate resources"
+    },
+    {
+      "canonical_id": "M12",
+      "index_excluded": false,
+      "new_path": "mechanisms/M12-register-banks-as-an-operand-delivery-circuit.md",
+      "old_path": "mechanisms/M12.md",
+      "role": "canonical",
+      "title": "Register banks as an operand-delivery circuit"
+    },
+    {
+      "canonical_id": "M13",
+      "index_excluded": false,
+      "new_path": "mechanisms/M13-operand-reuse-and-dependency-control.md",
+      "old_path": "mechanisms/M13.md",
+      "role": "canonical",
+      "title": "Operand reuse and dependency control"
+    },
+    {
+      "canonical_id": "M14",
+      "index_excluded": false,
+      "new_path": "mechanisms/M14-register-resident-local-state-machines.md",
+      "old_path": "mechanisms/M14.md",
+      "role": "canonical",
+      "title": "Register-resident local state machines"
+    },
+    {
+      "canonical_id": "M15",
+      "index_excluded": false,
+      "new_path": "mechanisms/M15-warp-and-sm-specialization.md",
+      "old_path": "mechanisms/M15.md",
+      "role": "canonical",
+      "title": "Warp and SM specialization"
+    },
+    {
+      "canonical_id": "M16",
+      "index_excluded": false,
+      "new_path": "mechanisms/M16-instruction-level-parallelism-and-useful-overlap.md",
+      "old_path": "mechanisms/M16.md",
+      "role": "canonical",
+      "title": "Instruction-level parallelism and useful overlap"
+    },
+    {
+      "canonical_id": "M17",
+      "index_excluded": false,
+      "new_path": "mechanisms/M17-instruction-cache-and-phase-factoring.md",
+      "old_path": "mechanisms/M17.md",
+      "role": "canonical",
+      "title": "Instruction cache and phase factoring"
+    },
+    {
+      "canonical_id": "M18",
+      "index_excluded": false,
+      "new_path": "mechanisms/M18-shared-memory-as-a-banked-routing-network.md",
+      "old_path": "mechanisms/M18.md",
+      "role": "canonical",
+      "title": "Shared memory as a banked routing network"
+    },
+    {
+      "canonical_id": "M19",
+      "index_excluded": false,
+      "new_path": "mechanisms/M19-barriers-as-phase-boundaries.md",
+      "old_path": "mechanisms/M19.md",
+      "role": "canonical",
+      "title": "Barriers as phase boundaries"
+    },
+    {
+      "canonical_id": "M20",
+      "index_excluded": false,
+      "new_path": "mechanisms/M20-l1-local-memory-and-deliberate-cold-spills.md",
+      "old_path": "mechanisms/M20.md",
+      "role": "canonical",
+      "title": "L1, local memory and deliberate cold spills"
+    },
+    {
+      "canonical_id": "M21",
+      "index_excluded": false,
+      "new_path": "mechanisms/M21-l2-as-a-compact-coordination-service.md",
+      "old_path": "mechanisms/M21.md",
+      "role": "canonical",
+      "title": "L2 as a compact coordination service"
+    },
+    {
+      "canonical_id": "M22",
+      "index_excluded": false,
+      "new_path": "mechanisms/M22-hbm-and-coalescing-as-layout-constraints.md",
+      "old_path": "mechanisms/M22.md",
+      "role": "canonical",
+      "title": "HBM and coalescing as layout constraints"
+    },
+    {
+      "canonical_id": "M23",
+      "index_excluded": false,
+      "new_path": "mechanisms/M23-constant-and-texture-paths-as-function-interfaces.md",
+      "old_path": "mechanisms/M23.md",
+      "role": "canonical",
+      "title": "Constant and texture paths as function interfaces"
+    },
+    {
+      "canonical_id": "M24",
+      "index_excluded": false,
+      "new_path": "mechanisms/M24-four-native-tensor-microcircuits-per-warp.md",
+      "old_path": "mechanisms/M24.md",
+      "role": "canonical",
+      "title": "Four native tensor microcircuits per warp"
+    },
+    {
+      "canonical_id": "M25",
+      "index_excluded": false,
+      "new_path": "mechanisms/M25-fragment-native-intermediates.md",
+      "old_path": "mechanisms/M25.md",
+      "role": "canonical",
+      "title": "Fragment-native intermediates"
+    },
+    {
+      "canonical_id": "M26",
+      "index_excluded": false,
+      "new_path": "mechanisms/M26-tensor-counting-and-reduction.md",
+      "old_path": "mechanisms/M26.md",
+      "role": "canonical",
+      "title": "Tensor counting and reduction"
+    },
+    {
+      "canonical_id": "M27",
+      "index_excluded": false,
+      "new_path": "mechanisms/M27-tensor-transforms-and-state-mixers.md",
+      "old_path": "mechanisms/M27.md",
+      "role": "canonical",
+      "title": "Tensor transforms and state mixers"
+    },
+    {
+      "canonical_id": "M28",
+      "index_excluded": false,
+      "new_path": "mechanisms/M28-mixed-precision-and-certified-decisions.md",
+      "old_path": "mechanisms/M28.md",
+      "role": "canonical",
+      "title": "Mixed precision and certified decisions"
+    },
+    {
+      "canonical_id": "M29",
+      "index_excluded": false,
+      "new_path": "mechanisms/M29-atomics-as-merge-algebra-and-state-transitions.md",
+      "old_path": "mechanisms/M29.md",
+      "role": "canonical",
+      "title": "Atomics as merge algebra and state transitions"
+    },
+    {
+      "canonical_id": "M30",
+      "index_excluded": false,
+      "new_path": "mechanisms/M30-persistent-queues-and-resident-interpreters.md",
+      "old_path": "mechanisms/M30.md",
+      "role": "canonical",
+      "title": "Persistent queues and resident interpreters"
+    },
+    {
+      "canonical_id": "M31",
+      "index_excluded": false,
+      "new_path": "mechanisms/M31-stream-memory-waits-and-writes.md",
+      "old_path": "mechanisms/M31.md",
+      "role": "canonical",
+      "title": "Stream memory waits and writes"
+    },
+    {
+      "canonical_id": "M32",
+      "index_excluded": false,
+      "new_path": "mechanisms/M32-cooperative-grids-and-historical-multidevice-launch.md",
+      "old_path": "mechanisms/M32.md",
+      "role": "canonical",
+      "title": "Cooperative grids and historical multidevice launch"
+    },
+    {
+      "canonical_id": "M33",
+      "index_excluded": false,
+      "new_path": "mechanisms/M33-graphs-and-device-side-launches.md",
+      "old_path": "mechanisms/M33.md",
+      "role": "canonical",
+      "title": "Graphs and device-side launches"
+    },
+    {
+      "canonical_id": "M34",
+      "index_excluded": false,
+      "new_path": "mechanisms/M34-peer-loads-as-a-distributed-data-path.md",
+      "old_path": "mechanisms/M34.md",
+      "role": "canonical",
+      "title": "Peer loads as a distributed data path"
+    },
+    {
+      "canonical_id": "M35",
+      "index_excluded": false,
+      "new_path": "mechanisms/M35-remote-atomics-and-nvlink-signaling.md",
+      "old_path": "mechanisms/M35.md",
+      "role": "canonical",
+      "title": "Remote atomics and NVLink signaling"
+    },
+    {
+      "canonical_id": "M36",
+      "index_excluded": false,
+      "new_path": "mechanisms/M36-copy-engines-as-asynchronous-workers.md",
+      "old_path": "mechanisms/M36.md",
+      "role": "canonical",
+      "title": "Copy engines as asynchronous workers"
+    },
+    {
+      "canonical_id": "M37",
+      "index_excluded": false,
+      "new_path": "mechanisms/M37-copy-engine-component-remapping.md",
+      "old_path": "mechanisms/M37.md",
+      "role": "canonical",
+      "title": "Copy-engine component remapping"
+    },
+    {
+      "canonical_id": "M38",
+      "index_excluded": false,
+      "new_path": "mechanisms/M38-semaphore-arithmetic-outside-sm-execution.md",
+      "old_path": "mechanisms/M38.md",
+      "role": "canonical",
+      "title": "semaphore arithmetic outside SM execution"
+    },
+    {
+      "canonical_id": "M39",
+      "index_excluded": false,
+      "new_path": "mechanisms/M39-qmd-as-a-control-object.md",
+      "old_path": "mechanisms/M39.md",
+      "role": "canonical",
+      "title": "QMD as a control object"
+    },
+    {
+      "canonical_id": "M40",
+      "index_excluded": false,
+      "new_path": "mechanisms/M40-vmm-views-and-virtual-contiguity.md",
+      "old_path": "mechanisms/M40.md",
+      "role": "canonical",
+      "title": "VMM views and virtual contiguity"
+    },
+    {
+      "canonical_id": "M41",
+      "index_excluded": false,
+      "new_path": "mechanisms/M41-ats-and-fault-replay-as-coarse-policy-machinery.md",
+      "old_path": "mechanisms/M41.md",
+      "role": "canonical",
+      "title": "ATS and fault replay as coarse policy machinery"
+    },
+    {
+      "canonical_id": "M42",
+      "index_excluded": false,
+      "new_path": "mechanisms/M42-access-counters-as-delayed-feedback.md",
+      "old_path": "mechanisms/M42.md",
+      "role": "canonical",
+      "title": "Access counters as delayed feedback"
+    },
+    {
+      "canonical_id": "M43",
+      "index_excluded": false,
+      "new_path": "mechanisms/M43-numa-local-host-memory-as-a-tier.md",
+      "old_path": "mechanisms/M43.md",
+      "role": "canonical",
+      "title": "NUMA-local host memory as a tier"
+    },
+    {
+      "canonical_id": "M44",
+      "index_excluded": false,
+      "new_path": "mechanisms/M44-bar-gpudirect-and-external-actors.md",
+      "old_path": "mechanisms/M44.md",
+      "role": "canonical",
+      "title": "BAR, GPUDirect and external actors"
+    },
+    {
+      "canonical_id": "M45",
+      "index_excluded": false,
+      "new_path": "mechanisms/M45-contexts-ipc-and-mps.md",
+      "old_path": "mechanisms/M45.md",
+      "role": "canonical",
+      "title": "Contexts, IPC and MPS"
+    },
+    {
+      "canonical_id": "M46",
+      "index_excluded": false,
+      "new_path": "mechanisms/M46-counters-as-runtime-feedback.md",
+      "old_path": "mechanisms/M46.md",
+      "role": "canonical",
+      "title": "Counters as runtime feedback"
+    },
+    {
+      "canonical_id": "M47",
+      "index_excluded": false,
+      "new_path": "mechanisms/M47-special-registers-and-local-clocks.md",
+      "old_path": "mechanisms/M47.md",
+      "role": "canonical",
+      "title": "Special registers and local clocks"
+    },
+    {
+      "canonical_id": "M48",
+      "index_excluded": false,
+      "new_path": "mechanisms/M48-cubin-and-sass-transformation.md",
+      "old_path": "mechanisms/M48.md",
+      "role": "canonical",
+      "title": "Cubin and SASS transformation"
+    },
+    {
+      "canonical_id": "M49",
+      "index_excluded": false,
+      "new_path": "mechanisms/M49-embedded-processors-and-firmware-frontier.md",
+      "old_path": "mechanisms/M49.md",
+      "role": "canonical",
+      "title": "Embedded processors and firmware frontier"
+    },
+    {
+      "canonical_id": "M50",
+      "index_excluded": false,
+      "new_path": "mechanisms/M50-graphics-media-and-dormant-engines.md",
+      "old_path": "mechanisms/M50.md",
+      "role": "canonical",
+      "title": "Graphics, media and dormant engines"
+    },
+    {
+      "canonical_id": "M51",
+      "index_excluded": false,
+      "new_path": "mechanisms/M51-faults-reset-and-ras.md",
+      "old_path": "mechanisms/M51.md",
+      "role": "canonical",
+      "title": "Faults, reset and RAS"
+    },
+    {
+      "canonical_id": "M52",
+      "index_excluded": false,
+      "new_path": "mechanisms/M52-power-and-thermal-budgets-as-resources.md",
+      "old_path": "mechanisms/M52.md",
+      "role": "canonical",
+      "title": "Power and thermal budgets as resources"
+    },
+    {
+      "canonical_id": "C00",
+      "index_excluded": false,
+      "new_path": "compositions/C00-bit-sliced-full-adders-and-arbitrary-local-boolean-rules.md",
+      "old_path": "compositions/C00.md",
+      "role": "canonical",
+      "title": "Bit-sliced full adders and arbitrary local Boolean rules"
+    },
+    {
+      "canonical_id": "C01",
+      "index_excluded": false,
+      "new_path": "compositions/C01-sequence-symbols-as-two-plane-equality-circuits.md",
+      "old_path": "compositions/C01.md",
+      "role": "canonical",
+      "title": "Sequence symbols as two-plane equality circuits"
+    },
+    {
+      "canonical_id": "C02",
+      "index_excluded": false,
+      "new_path": "compositions/C02-ballot-transpose-as-a-persistent-state-encoding.md",
+      "old_path": "compositions/C02.md",
+      "role": "canonical",
+      "title": "Ballot transpose as a persistent state encoding"
+    },
+    {
+      "canonical_id": "C03",
+      "index_excluded": false,
+      "new_path": "compositions/C03-a-warp-resident-byte-lookup-network.md",
+      "old_path": "compositions/C03.md",
+      "role": "canonical",
+      "title": "A warp-resident byte lookup network"
+    },
+    {
+      "canonical_id": "C04",
+      "index_excluded": false,
+      "new_path": "compositions/C04-warp-cam-plus-one-reservation-per-equal-destination.md",
+      "old_path": "compositions/C04.md",
+      "role": "canonical",
+      "title": "Warp CAM plus one reservation per equal destination"
+    },
+    {
+      "canonical_id": "C05",
+      "index_excluded": false,
+      "new_path": "compositions/C05-a32-vertex-graph-carried-in-warp-registers.md",
+      "old_path": "compositions/C05.md",
+      "role": "canonical",
+      "title": "A32-vertex graph carried in warp registers"
+    },
+    {
+      "canonical_id": "C06",
+      "index_excluded": false,
+      "new_path": "compositions/C06-a-bit-sliced-finite-state-engine.md",
+      "old_path": "compositions/C06.md",
+      "role": "canonical",
+      "title": "A bit-sliced finite-state engine"
+    },
+    {
+      "canonical_id": "C07",
+      "index_excluded": false,
+      "new_path": "compositions/C07-guard-digit-convolution-using-ordinary-integer-multiplication.md",
+      "old_path": "compositions/C07.md",
+      "role": "canonical",
+      "title": "Guard-digit convolution using ordinary integer multiplication"
+    },
+    {
+      "canonical_id": "C08",
+      "index_excluded": false,
+      "new_path": "compositions/C08-packed-integer-scores-instead-of-float-bookkeeping.md",
+      "old_path": "compositions/C08.md",
+      "role": "canonical",
+      "title": "Packed integer scores instead of float bookkeeping"
+    },
+    {
+      "canonical_id": "C09",
+      "index_excluded": false,
+      "new_path": "compositions/C09-exact-bounded-integers-on-the-fp64-path.md",
+      "old_path": "compositions/C09.md",
+      "role": "canonical",
+      "title": "Exact bounded integers on the FP64 path"
+    },
+    {
+      "canonical_id": "C10",
+      "index_excluded": false,
+      "new_path": "compositions/C10-four-tiny-linear-machines-in-one-mma-warp.md",
+      "old_path": "compositions/C10.md",
+      "role": "canonical",
+      "title": "Four tiny linear machines in one MMA warp"
+    },
+    {
+      "canonical_id": "C11",
+      "index_excluded": false,
+      "new_path": "compositions/C11-tensor-cores-as-common-neighbor-counters.md",
+      "old_path": "compositions/C11.md",
+      "role": "canonical",
+      "title": "Tensor cores as common-neighbor counters"
+    },
+    {
+      "canonical_id": "C12",
+      "index_excluded": false,
+      "new_path": "compositions/C12-prefix-and-reductions-by-structured-matrices.md",
+      "old_path": "compositions/C12.md",
+      "role": "canonical",
+      "title": "Prefix and reductions by structured matrices"
+    },
+    {
+      "canonical_id": "C13",
+      "index_excluded": false,
+      "new_path": "compositions/C13-fixed-transforms-as-configurable-tensor-circuits.md",
+      "old_path": "compositions/C13.md",
+      "role": "canonical",
+      "title": "Fixed transforms as configurable tensor circuits"
+    },
+    {
+      "canonical_id": "C14",
+      "index_excluded": false,
+      "new_path": "compositions/C14-certified-approximate-screening-with-exact-refinement.md",
+      "old_path": "compositions/C14.md",
+      "role": "canonical",
+      "title": "Certified approximate screening with exact refinement"
+    },
+    {
+      "canonical_id": "C15",
+      "index_excluded": false,
+      "new_path": "compositions/C15-high-low-precision-expansion-as-a-composite-operator.md",
+      "old_path": "compositions/C15.md",
+      "role": "canonical",
+      "title": "High/low precision expansion as a composite operator"
+    },
+    {
+      "canonical_id": "C16",
+      "index_excluded": false,
+      "new_path": "compositions/C16-cancel-intermediate-transposes-by-composing-ownership-maps.md",
+      "old_path": "compositions/C16.md",
+      "role": "canonical",
+      "title": "Cancel intermediate transposes by composing ownership maps"
+    },
+    {
+      "canonical_id": "C17",
+      "index_excluded": false,
+      "new_path": "compositions/C17-operand-read-hypergraph-coloring.md",
+      "old_path": "compositions/C17.md",
+      "role": "canonical",
+      "title": "Operand-read hypergraph coloring"
+    },
+    {
+      "canonical_id": "C18",
+      "index_excluded": false,
+      "new_path": "compositions/C18-a-portfolio-of-useful-pipeline-work.md",
+      "old_path": "compositions/C18.md",
+      "role": "canonical",
+      "title": "A portfolio of useful pipeline work"
+    },
+    {
+      "canonical_id": "C19",
+      "index_excluded": false,
+      "new_path": "compositions/C19-manual-latency-hiding-without-importing-cp-async.md",
+      "old_path": "compositions/C19.md",
+      "role": "canonical",
+      "title": "Manual latency hiding without importing cp.async"
+    },
+    {
+      "canonical_id": "C20",
+      "index_excluded": false,
+      "new_path": "compositions/C20-owner-compute-instead-of-remote-pointer-chasing.md",
+      "old_path": "compositions/C20.md",
+      "role": "canonical",
+      "title": "Owner-compute instead of remote pointer chasing"
+    },
+    {
+      "canonical_id": "C21",
+      "index_excluded": false,
+      "new_path": "compositions/C21-transmit-support-or-deltas-instead-of-dense-state.md",
+      "old_path": "compositions/C21.md",
+      "role": "canonical",
+      "title": "Transmit support or deltas instead of dense state"
+    },
+    {
+      "canonical_id": "C22",
+      "index_excluded": false,
+      "new_path": "compositions/C22-a-published-ring-with-explicit-reuse-epochs.md",
+      "old_path": "compositions/C22.md",
+      "role": "canonical",
+      "title": "A published ring with explicit reuse epochs"
+    },
+    {
+      "canonical_id": "C23",
+      "index_excluded": false,
+      "new_path": "compositions/C23-topology-aware-ownership-and-dual-host-ingress.md",
+      "old_path": "compositions/C23.md",
+      "role": "canonical",
+      "title": "Topology-aware ownership and dual host ingress"
+    },
+    {
+      "canonical_id": "C24",
+      "index_excluded": false,
+      "new_path": "compositions/C24-monotone-atomic-fixed-point-computation.md",
+      "old_path": "compositions/C24.md",
+      "role": "canonical",
+      "title": "Monotone atomic fixed-point computation"
+    },
+    {
+      "canonical_id": "C25",
+      "index_excluded": false,
+      "new_path": "compositions/C25-a-resident-micro-service-with-a-finite-operator-palette.md",
+      "old_path": "compositions/C25.md",
+      "role": "canonical",
+      "title": "A resident micro service with a finite operator palette"
+    },
+    {
+      "canonical_id": "C26",
+      "index_excluded": false,
+      "new_path": "compositions/C26-component-remapping-in-the-copy-engine.md",
+      "old_path": "compositions/C26.md",
+      "role": "canonical",
+      "title": "Component remapping in the copy engine"
+    },
+    {
+      "canonical_id": "C27",
+      "index_excluded": false,
+      "new_path": "compositions/C27-command-engine-completion-arithmetic.md",
+      "old_path": "compositions/C27.md",
+      "role": "canonical",
+      "title": "Command-engine completion arithmetic"
+    },
+    {
+      "canonical_id": "C28",
+      "index_excluded": false,
+      "new_path": "compositions/C28-dependent-qmds-as-a-bounded-dataflow-experiment.md",
+      "old_path": "compositions/C28.md",
+      "role": "canonical",
+      "title": "Dependent QMDs as a bounded dataflow experiment"
+    },
+    {
+      "canonical_id": "C29",
+      "index_excluded": false,
+      "new_path": "compositions/C29-a-doubled-virtual-ring-without-duplicate-payload.md",
+      "old_path": "compositions/C29.md",
+      "role": "canonical",
+      "title": "A doubled virtual ring without duplicate payload"
+    },
+    {
+      "canonical_id": "C30",
+      "index_excluded": false,
+      "new_path": "compositions/C30-translation-policy-zoning-on-an-ats-platform.md",
+      "old_path": "compositions/C30.md",
+      "role": "canonical",
+      "title": "Translation-policy zoning on an ATS platform"
+    },
+    {
+      "canonical_id": "C31",
+      "index_excluded": false,
+      "new_path": "compositions/C31-texture-interpolation-as-a-nonlinear-circuit-element.md",
+      "old_path": "compositions/C31.md",
+      "role": "canonical",
+      "title": "Texture interpolation as a nonlinear circuit element"
+    },
+    {
+      "canonical_id": "C32",
+      "index_excluded": false,
+      "new_path": "compositions/C32-a-coarse-self-adapting-kernel-policy.md",
+      "old_path": "compositions/C32.md",
+      "role": "canonical",
+      "title": "A coarse self-adapting kernel policy"
+    },
+    {
+      "canonical_id": "C33",
+      "index_excluded": false,
+      "new_path": "compositions/C33-steady-state-scheduling-under-power-and-thermal-limits.md",
+      "old_path": "compositions/C33.md",
+      "role": "canonical",
+      "title": "Steady-state scheduling under power and thermal limits"
+    },
+    {
+      "canonical_id": "C34",
+      "index_excluded": false,
+      "new_path": "compositions/C34-phase-factored-circuits-instead-of-a-giant-mega-kernel.md",
+      "old_path": "compositions/C34.md",
+      "role": "canonical",
+      "title": "Phase-factored circuits instead of a giant mega kernel"
+    },
+    {
+      "canonical_id": "C35",
+      "index_excluded": false,
+      "new_path": "compositions/C35-delete-metadata-through-positional-identity.md",
+      "old_path": "compositions/C35.md",
+      "role": "canonical",
+      "title": "Delete metadata through positional identity"
+    },
+    {
+      "canonical_id": "C36",
+      "index_excluded": false,
+      "new_path": "compositions/C36-compose-lane-bank-and-fragment-permutations.md",
+      "old_path": "compositions/C36.md",
+      "role": "canonical",
+      "title": "Compose lane, bank and fragment permutations"
+    },
+    {
+      "canonical_id": "C37",
+      "index_excluded": false,
+      "new_path": "compositions/C37-carry-save-trees-for-bitset-threshold-queries.md",
+      "old_path": "compositions/C37.md",
+      "role": "canonical",
+      "title": "Carry-save trees for bitset threshold queries"
+    },
+    {
+      "canonical_id": "C38",
+      "index_excluded": false,
+      "new_path": "compositions/C38-empirical-conflict-maps-as-placement-hints.md",
+      "old_path": "compositions/C38.md",
+      "role": "canonical",
+      "title": "Empirical conflict maps as placement hints"
+    },
+    {
+      "canonical_id": "C39",
+      "index_excluded": false,
+      "new_path": "compositions/C39-a-representation-changing-search-procedure.md",
+      "old_path": "compositions/C39.md",
+      "role": "canonical",
+      "title": "A representation-changing search procedure"
+    },
+    {
+      "canonical_id": "E00",
+      "index_excluded": false,
+      "new_path": "experiments/E00-inventory-and-capability-gates.md",
+      "old_path": "experiments/E00.md",
+      "role": "experiment",
+      "title": "Inventory and capability gates"
+    },
+    {
+      "canonical_id": "E01",
+      "index_excluded": false,
+      "new_path": "experiments/E01-algebra-and-encoding-checks.md",
+      "old_path": "experiments/E01.md",
+      "role": "experiment",
+      "title": "Algebra and encoding checks"
+    },
+    {
+      "canonical_id": "E02",
+      "index_excluded": false,
+      "new_path": "experiments/E02-instruction-latency-versus-throughput.md",
+      "old_path": "experiments/E02.md",
+      "role": "experiment",
+      "title": "Instruction latency versus throughput"
+    },
+    {
+      "canonical_id": "E03",
+      "index_excluded": false,
+      "new_path": "experiments/E03-cross-pipeline-interference.md",
+      "old_path": "experiments/E03.md",
+      "role": "experiment",
+      "title": "Cross-pipeline interference"
+    },
+    {
+      "canonical_id": "E04",
+      "index_excluded": false,
+      "new_path": "experiments/E04-register-bank-and-operand-reuse-effects.md",
+      "old_path": "experiments/E04.md",
+      "role": "experiment",
+      "title": "Register bank and operand-reuse effects"
+    },
+    {
+      "canonical_id": "E05",
+      "index_excluded": false,
+      "new_path": "experiments/E05-warp-routing-matching-and-lookup.md",
+      "old_path": "experiments/E05.md",
+      "role": "experiment",
+      "title": "Warp routing, matching and lookup"
+    },
+    {
+      "canonical_id": "E06",
+      "index_excluded": false,
+      "new_path": "experiments/E06-shared-banks-and-phase-pipelines.md",
+      "old_path": "experiments/E06.md",
+      "role": "experiment",
+      "title": "Shared banks and phase pipelines"
+    },
+    {
+      "canonical_id": "E07",
+      "index_excluded": false,
+      "new_path": "experiments/E07-cache-and-transaction-accounting.md",
+      "old_path": "experiments/E07.md",
+      "role": "experiment",
+      "title": "Cache and transaction accounting"
+    },
+    {
+      "canonical_id": "E08",
+      "index_excluded": false,
+      "new_path": "experiments/E08-translation-working-sets-and-pages.md",
+      "old_path": "experiments/E08.md",
+      "role": "experiment",
+      "title": "Translation working sets and pages"
+    },
+    {
+      "canonical_id": "E09",
+      "index_excluded": false,
+      "new_path": "experiments/E09-mma-lane-and-register-ownership.md",
+      "old_path": "experiments/E09.md",
+      "role": "experiment",
+      "title": "MMA lane and register ownership"
+    },
+    {
+      "canonical_id": "E10",
+      "index_excluded": false,
+      "new_path": "experiments/E10-tensor-numerical-fingerprint.md",
+      "old_path": "experiments/E10.md",
+      "role": "experiment",
+      "title": "Tensor numerical fingerprint"
+    },
+    {
+      "canonical_id": "E11",
+      "index_excluded": false,
+      "new_path": "experiments/E11-tensor-versus-bitset-intersections.md",
+      "old_path": "experiments/E11.md",
+      "role": "experiment",
+      "title": "Tensor versus bitset intersections"
+    },
+    {
+      "canonical_id": "E12",
+      "index_excluded": false,
+      "new_path": "experiments/E12-tensor-circuits-versus-structured-simt.md",
+      "old_path": "experiments/E12.md",
+      "role": "experiment",
+      "title": "Tensor circuits versus structured SIMT"
+    },
+    {
+      "canonical_id": "E13",
+      "index_excluded": false,
+      "new_path": "experiments/E13-representation-crossover.md",
+      "old_path": "experiments/E13.md",
+      "role": "experiment",
+      "title": "Representation crossover"
+    },
+    {
+      "canonical_id": "E14",
+      "index_excluded": false,
+      "new_path": "experiments/E14-atomics-as-useful-coordination.md",
+      "old_path": "experiments/E14.md",
+      "role": "experiment",
+      "title": "Atomics as useful coordination"
+    },
+    {
+      "canonical_id": "E15",
+      "index_excluded": false,
+      "new_path": "experiments/E15-publication-and-progress-litmus.md",
+      "old_path": "experiments/E15.md",
+      "role": "experiment",
+      "title": "Publication and progress litmus"
+    },
+    {
+      "canonical_id": "E16",
+      "index_excluded": false,
+      "new_path": "experiments/E16-persistent-roles-and-residency.md",
+      "old_path": "experiments/E16.md",
+      "role": "experiment",
+      "title": "Persistent roles and residency"
+    },
+    {
+      "canonical_id": "E17",
+      "index_excluded": false,
+      "new_path": "experiments/E17-dma-and-compute-overlap.md",
+      "old_path": "experiments/E17.md",
+      "role": "experiment",
+      "title": "DMA and compute overlap"
+    },
+    {
+      "canonical_id": "E18",
+      "index_excluded": false,
+      "new_path": "experiments/E18-peer-loads-cache-behavior-and-latency.md",
+      "old_path": "experiments/E18.md",
+      "role": "experiment",
+      "title": "Peer loads, cache behavior and latency"
+    },
+    {
+      "canonical_id": "E19",
+      "index_excluded": false,
+      "new_path": "experiments/E19-peer-signaling-and-clock-relationships.md",
+      "old_path": "experiments/E19.md",
+      "role": "experiment",
+      "title": "Peer signaling and clock relationships"
+    },
+    {
+      "canonical_id": "E20",
+      "index_excluded": false,
+      "new_path": "experiments/E20-actual-nvlink-routing-and-saturation.md",
+      "old_path": "experiments/E20.md",
+      "role": "experiment",
+      "title": "Actual NVLink routing and saturation"
+    },
+    {
+      "canonical_id": "E21",
+      "index_excluded": false,
+      "new_path": "experiments/E21-host-numa-ingress.md",
+      "old_path": "experiments/E21.md",
+      "role": "experiment",
+      "title": "Host NUMA ingress"
+    },
+    {
+      "canonical_id": "E22",
+      "index_excluded": false,
+      "new_path": "experiments/E22-stream-memory-operations.md",
+      "old_path": "experiments/E22.md",
+      "role": "experiment",
+      "title": "Stream memory operations"
+    },
+    {
+      "canonical_id": "E23",
+      "index_excluded": false,
+      "new_path": "experiments/E23-vmm-alias-and-view-behavior.md",
+      "old_path": "experiments/E23.md",
+      "role": "experiment",
+      "title": "VMM alias and view behavior"
+    },
+    {
+      "canonical_id": "E24",
+      "index_excluded": false,
+      "new_path": "experiments/E24-fault-and-access-counter-policy.md",
+      "old_path": "experiments/E24.md",
+      "role": "experiment",
+      "title": "Fault and access-counter policy"
+    },
+    {
+      "canonical_id": "E25",
+      "index_excluded": false,
+      "new_path": "experiments/E25-feedback-cost-and-regret.md",
+      "old_path": "experiments/E25.md",
+      "role": "experiment",
+      "title": "Feedback cost and regret"
+    },
+    {
+      "canonical_id": "E26",
+      "index_excluded": false,
+      "new_path": "experiments/E26-texture-and-sfu-approximation.md",
+      "old_path": "experiments/E26.md",
+      "role": "experiment",
+      "title": "Texture and SFU approximation"
+    },
+    {
+      "canonical_id": "E27",
+      "index_excluded": false,
+      "new_path": "experiments/E27-copy-remap-reachability.md",
+      "old_path": "experiments/E27.md",
+      "role": "experiment",
+      "title": "Copy remap reachability"
+    },
+    {
+      "canonical_id": "E28",
+      "index_excluded": false,
+      "new_path": "experiments/E28-copy-engine-semaphore-actor.md",
+      "old_path": "experiments/E28.md",
+      "role": "experiment",
+      "title": "Copy-engine semaphore actor"
+    },
+    {
+      "canonical_id": "E29",
+      "index_excluded": false,
+      "new_path": "experiments/E29-dependent-qmd-minimal-experiment.md",
+      "old_path": "experiments/E29.md",
+      "role": "experiment",
+      "title": "Dependent QMD minimal experiment"
+    },
+    {
+      "canonical_id": "E30",
+      "index_excluded": false,
+      "new_path": "experiments/E30-binary-transformation-validation.md",
+      "old_path": "experiments/E30.md",
+      "role": "experiment",
+      "title": "Binary transformation validation"
+    },
+    {
+      "canonical_id": "E31",
+      "index_excluded": false,
+      "new_path": "experiments/E31-mps-and-process-interference.md",
+      "old_path": "experiments/E31.md",
+      "role": "experiment",
+      "title": "MPS and process interference"
+    },
+    {
+      "canonical_id": "E32",
+      "index_excluded": false,
+      "new_path": "experiments/E32-launch-graphs-and-cdp.md",
+      "old_path": "experiments/E32.md",
+      "role": "experiment",
+      "title": "Launch, graphs and CDP"
+    },
+    {
+      "canonical_id": "E33",
+      "index_excluded": false,
+      "new_path": "experiments/E33-power-and-steady-state-behavior.md",
+      "old_path": "experiments/E33.md",
+      "role": "experiment",
+      "title": "Power and steady-state behavior"
+    },
+    {
+      "canonical_id": "E34",
+      "index_excluded": false,
+      "new_path": "experiments/E34-ras-contamination-audit.md",
+      "old_path": "experiments/E34.md",
+      "role": "experiment",
+      "title": "RAS contamination audit"
+    },
+    {
+      "canonical_id": "E35",
+      "index_excluded": false,
+      "new_path": "experiments/E35-platform-and-electrical-evidence.md",
+      "old_path": "experiments/E35.md",
+      "role": "experiment",
+      "title": "Platform and electrical evidence"
+    },
+    {
+      "canonical_id": "E36",
+      "index_excluded": false,
+      "new_path": "experiments/E36-toolchain-and-library-compatibility.md",
+      "old_path": "experiments/E36.md",
+      "role": "experiment",
+      "title": "toolchain and library compatibility"
+    },
+    {
+      "canonical_id": "E37",
+      "index_excluded": false,
+      "new_path": "experiments/E37-new-ptx-spelling-on-old-silicon.md",
+      "old_path": "experiments/E37.md",
+      "role": "experiment",
+      "title": "New PTX spelling on old silicon"
+    },
+    {
+      "canonical_id": "E38",
+      "index_excluded": false,
+      "new_path": "experiments/E38-negative-space-falsification.md",
+      "old_path": "experiments/E38.md",
+      "role": "experiment",
+      "title": "Negative-space falsification"
+    },
+    {
+      "canonical_id": "E39",
+      "index_excluded": false,
+      "new_path": "experiments/E39-complete-composition-usefulness.md",
+      "old_path": "experiments/E39.md",
+      "role": "experiment",
+      "title": "Complete composition usefulness"
+    },
+    {
+      "canonical_id": "S01",
+      "index_excluded": false,
+      "new_path": "sources/S01-nvidia-volta-tuning-guide.md",
+      "old_path": "sources/S01.md",
+      "role": "evidence",
+      "title": "NVIDIA Volta Tuning Guide"
+    },
+    {
+      "canonical_id": "S02",
+      "index_excluded": false,
+      "new_path": "sources/S02-nvidia-tesla-v100-architecture-whitepaper.md",
+      "old_path": "sources/S02.md",
+      "role": "evidence",
+      "title": "NVIDIA Tesla V100 architecture whitepaper"
+    },
+    {
+      "canonical_id": "S03",
+      "index_excluded": false,
+      "new_path": "sources/S03-ptx-isa.md",
+      "old_path": "sources/S03.md",
+      "role": "evidence",
+      "title": "PTX ISA"
+    },
+    {
+      "canonical_id": "S04",
+      "index_excluded": false,
+      "new_path": "sources/S04-dissecting-nvidia-volta-via-microbenchmarking.md",
+      "old_path": "sources/S04.md",
+      "role": "evidence",
+      "title": "Dissecting NVIDIA Volta via microbenchmarking"
+    },
+    {
+      "canonical_id": "S05",
+      "index_excluded": false,
+      "new_path": "sources/S05-cuda-binary-utilities.md",
+      "old_path": "sources/S05.md",
+      "role": "evidence",
+      "title": "CUDA Binary Utilities"
+    },
+    {
+      "canonical_id": "S06",
+      "index_excluded": false,
+      "new_path": "sources/S06-navigating-gpu-architecture-support.md",
+      "old_path": "sources/S06.md",
+      "role": "evidence",
+      "title": "Navigating GPU Architecture Support"
+    },
+    {
+      "canonical_id": "S07",
+      "index_excluded": false,
+      "new_path": "sources/S07-sparkattention.md",
+      "old_path": "sources/S07.md",
+      "role": "evidence",
+      "title": "SparkAttention"
+    },
+    {
+      "canonical_id": "S08",
+      "index_excluded": false,
+      "new_path": "sources/S08-cuda-integer-intrinsics.md",
+      "old_path": "sources/S08.md",
+      "role": "evidence",
+      "title": "CUDA Integer Intrinsics"
+    },
+    {
+      "canonical_id": "S09",
+      "index_excluded": false,
+      "new_path": "sources/S09-cuda-simd-intrinsics.md",
+      "old_path": "sources/S09.md",
+      "role": "evidence",
+      "title": "CUDA SIMD Intrinsics"
+    },
+    {
+      "canonical_id": "S10",
+      "index_excluded": false,
+      "new_path": "sources/S10-using-cuda-warp-level-primitives.md",
+      "old_path": "sources/S10.md",
+      "role": "evidence",
+      "title": "Using CUDA Warp-Level Primitives"
+    },
+    {
+      "canonical_id": "S11",
+      "index_excluded": false,
+      "new_path": "sources/S11-cuassembler.md",
+      "old_path": "sources/S11.md",
+      "role": "evidence",
+      "title": "CuAssembler"
+    },
+    {
+      "canonical_id": "S12",
+      "index_excluded": false,
+      "new_path": "sources/S12-volta-dma-copy-a-class-c3b5.md",
+      "old_path": "sources/S12.md",
+      "role": "evidence",
+      "title": "VOLTA_DMA_COPY_A class C3B5"
+    },
+    {
+      "canonical_id": "S13",
+      "index_excluded": false,
+      "new_path": "sources/S13-volta-compute-a-class-c3c0.md",
+      "old_path": "sources/S13.md",
+      "role": "evidence",
+      "title": "VOLTA_COMPUTE_A class C3C0"
+    },
+    {
+      "canonical_id": "S14",
+      "index_excluded": false,
+      "new_path": "sources/S14-nvidia-open-gpu-kernel-modules.md",
+      "old_path": "sources/S14.md",
+      "role": "evidence",
+      "title": "NVIDIA open GPU kernel modules"
+    },
+    {
+      "canonical_id": "S15",
+      "index_excluded": false,
+      "new_path": "sources/S15-volta-uvm-copy-engine-implementation.md",
+      "old_path": "sources/S15.md",
+      "role": "evidence",
+      "title": "Volta UVM copy-engine implementation"
+    },
+    {
+      "canonical_id": "S16",
+      "index_excluded": false,
+      "new_path": "sources/S16-volta-uvm-mmu-implementation.md",
+      "old_path": "sources/S16.md",
+      "role": "evidence",
+      "title": "Volta UVM MMU implementation"
+    },
+    {
+      "canonical_id": "S17",
+      "index_excluded": false,
+      "new_path": "sources/S17-cuda-stream-memory-operations.md",
+      "old_path": "sources/S17.md",
+      "role": "evidence",
+      "title": "CUDA stream memory operations"
+    },
+    {
+      "canonical_id": "S18",
+      "index_excluded": false,
+      "new_path": "sources/S18-low-level-gpu-vmm-introduction.md",
+      "old_path": "sources/S18.md",
+      "role": "evidence",
+      "title": "Low-level GPU VMM introduction"
+    },
+    {
+      "canonical_id": "S19",
+      "index_excluded": false,
+      "new_path": "sources/S19-accelerating-reduction-and-scan-using-tensor-core-units.md",
+      "old_path": "sources/S19.md",
+      "role": "evidence",
+      "title": "Accelerating Reduction and Scan Using Tensor Core Units"
+    },
+    {
+      "canonical_id": "S20",
+      "index_excluded": false,
+      "new_path": "sources/S20-fttn-feature-targeted-numerical-testing.md",
+      "old_path": "sources/S20.md",
+      "role": "evidence",
+      "title": "FTTN: Feature-Targeted Numerical Testing"
+    },
+    {
+      "canonical_id": "S21",
+      "index_excluded": false,
+      "new_path": "sources/S21-tensor-core-programmability-performance-and-precision.md",
+      "old_path": "sources/S21.md",
+      "role": "evidence",
+      "title": "Tensor Core Programmability, Performance and Precision"
+    },
+    {
+      "canonical_id": "S22",
+      "index_excluded": false,
+      "new_path": "sources/S22-cutlass-sm70-mma-implementation.md",
+      "old_path": "sources/S22.md",
+      "role": "evidence",
+      "title": "CUTLASS sm70 MMA implementation"
+    },
+    {
+      "canonical_id": "S23",
+      "index_excluded": false,
+      "new_path": "sources/S23-cutlass-volta-multiplicand-layouts.md",
+      "old_path": "sources/S23.md",
+      "role": "evidence",
+      "title": "CUTLASS Volta multiplicand layouts"
+    },
+    {
+      "canonical_id": "S24",
+      "index_excluded": false,
+      "new_path": "sources/S24-tcfft.md",
+      "old_path": "sources/S24.md",
+      "role": "evidence",
+      "title": "tcFFT"
+    },
+    {
+      "canonical_id": "S25",
+      "index_excluded": false,
+      "new_path": "sources/S25-using-nvshmem.md",
+      "old_path": "sources/S25.md",
+      "role": "evidence",
+      "title": "Using NVSHMEM"
+    },
+    {
+      "canonical_id": "S26",
+      "index_excluded": false,
+      "new_path": "sources/S26-nccl-ll128-implementation.md",
+      "old_path": "sources/S26.md",
+      "role": "evidence",
+      "title": "NCCL LL128 implementation"
+    },
+    {
+      "canonical_id": "S27",
+      "index_excluded": false,
+      "new_path": "sources/S27-volta-qmd-v02-02.md",
+      "old_path": "sources/S27.md",
+      "role": "evidence",
+      "title": "Volta QMD v02_02"
+    },
+    {
+      "canonical_id": "S28",
+      "index_excluded": false,
+      "new_path": "sources/S28-volta-uvm-fault-buffer.md",
+      "old_path": "sources/S28.md",
+      "role": "evidence",
+      "title": "Volta UVM fault buffer"
+    },
+    {
+      "canonical_id": "S29",
+      "index_excluded": false,
+      "new_path": "sources/S29-uvm-access-counters.md",
+      "old_path": "sources/S29.md",
+      "role": "evidence",
+      "title": "UVM access counters"
+    },
+    {
+      "canonical_id": "S30",
+      "index_excluded": false,
+      "new_path": "sources/S30-cuda-c-programming-guide.md",
+      "old_path": "sources/S30.md",
+      "role": "evidence",
+      "title": "CUDA C++ Programming Guide"
+    },
+    {
+      "canonical_id": "S31",
+      "index_excluded": false,
+      "new_path": "sources/S31-cuda-vmm-driver-api.md",
+      "old_path": "sources/S31.md",
+      "role": "evidence",
+      "title": "CUDA VMM Driver API"
+    },
+    {
+      "canonical_id": "S32",
+      "index_excluded": false,
+      "new_path": "sources/S32-cuda-device-api.md",
+      "old_path": "sources/S32.md",
+      "role": "evidence",
+      "title": "CUDA Device API"
+    },
+    {
+      "canonical_id": "S33",
+      "index_excluded": false,
+      "new_path": "sources/S33-gpudirect-rdma.md",
+      "old_path": "sources/S33.md",
+      "role": "evidence",
+      "title": "GPUDirect RDMA"
+    },
+    {
+      "canonical_id": "S34",
+      "index_excluded": false,
+      "new_path": "sources/S34-cupti-usage.md",
+      "old_path": "sources/S34.md",
+      "role": "evidence",
+      "title": "CUPTI usage"
+    },
+    {
+      "canonical_id": "S35",
+      "index_excluded": false,
+      "new_path": "sources/S35-nsight-compute-profiling-guide.md",
+      "old_path": "sources/S35.md",
+      "role": "evidence",
+      "title": "Nsight Compute Profiling Guide"
+    },
+    {
+      "canonical_id": "S36",
+      "index_excluded": false,
+      "new_path": "sources/S36-nvidia-smi-management-documentation.md",
+      "old_path": "sources/S36.md",
+      "role": "evidence",
+      "title": "nvidia-smi / management documentation"
+    },
+    {
+      "canonical_id": "S37",
+      "index_excluded": false,
+      "new_path": "sources/S37-nouveau-gv100-graphics.md",
+      "old_path": "sources/S37.md",
+      "role": "evidence",
+      "title": "Nouveau GV100 graphics"
+    },
+    {
+      "canonical_id": "S38",
+      "index_excluded": false,
+      "new_path": "sources/S38-nouveau-gv100-mmu.md",
+      "old_path": "sources/S38.md",
+      "role": "evidence",
+      "title": "Nouveau GV100 MMU"
+    },
+    {
+      "canonical_id": "S39",
+      "index_excluded": false,
+      "new_path": "sources/S39-nouveau-gv100-authenticated-code-region.md",
+      "old_path": "sources/S39.md",
+      "role": "evidence",
+      "title": "Nouveau GV100 authenticated code region"
+    },
+    {
+      "canonical_id": "S40",
+      "index_excluded": false,
+      "new_path": "sources/S40-nouveau-gv100-fifo.md",
+      "old_path": "sources/S40.md",
+      "role": "evidence",
+      "title": "Nouveau GV100 FIFO"
+    },
+    {
+      "canonical_id": "S41",
+      "index_excluded": false,
+      "new_path": "sources/S41-nvidia-mps-documentation.md",
+      "old_path": "sources/S41.md",
+      "role": "evidence",
+      "title": "NVIDIA MPS documentation"
+    },
+    {
+      "canonical_id": "S42",
+      "index_excluded": false,
+      "new_path": "sources/S42-cuda-driver-api-types.md",
+      "old_path": "sources/S42.md",
+      "role": "evidence",
+      "title": "CUDA Driver API types"
+    }
+  ],
+  "role": "evidence",
+  "schema_version": 1
+}

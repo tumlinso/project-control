@@ -1,0 +1,48 @@
+{
+  "scope": "Explicit bounded registry read; no model calls",
+  "gpu_calls": 0,
+  "reads": [
+    {
+      "resource_id": "cuda-resource-fdc0b9ba4e352fba9c02eac90d710c3284bd8f817bcd6ae75943f37e2461294e",
+      "role": "generated",
+      "index_excluded": true,
+      "read": {
+        "origin": "agent_skill",
+        "authority": "advisory_instruction",
+        "mutation_authority": false,
+        "identity": "a9137a9bcd8f2049d2295b36fc42fbc0ad158e6356e44116c206f9994f733b83",
+        "freshness": "freshness-8f50ed87c50b85f3",
+        "status": "ok",
+        "skill_id": "skill-05409665e2e47957",
+        "resource": "assets/cuda-markdown-manifest.json",
+        "uri": "skill://local/skill-05409665e2e47957/assets/cuda-markdown-manifest.json",
+        "line_start": 1,
+        "line_end": 44,
+        "content": "{\n  \"files\": [\n    {\n      \"bytes\": 3776,\n      \"path\": \"SKILL.md\",\n      \"sha256\": \"d0ffb0a4fa5009439775bff94fc5194cd3885869f3c05b55297b0d7fea6470d0\"\n    },\n    {\n      \"bytes\": 2294,\n      \"path\": \"references/addendum-bio-data-layouts.md\",\n      \"sha256\": \"a6115330fce6c5e86bb1d2aee163292865167d97d327a62e8a0b0547e2b29aa9\"\n    },\n    {\n      \"bytes\": 2348,\n      \"path\": \"references/addendum-cpu-porting.md\",\n      \"sha256\": \"9dab44bd3332c2f2f846fd5d175d58e7bd8dbe09990da2e66f3b4d7fe45a5efb\"\n    },\n    {\n      \"bytes\": 1837,\n      \"path\": \"references/addendum-crash-debugging.md\",\n      \"sha256\": \"506284aedcb8f6f64b4e2f381602076e53dddb766a7ce0b2673f87573dbc3dcc\"\n    },\n    {\n      \"bytes\": 1687,\n      \"path\": \"references/addendum-ddp-topology.md\",\n      \"sha256\": \"1249255512010b89e688701f3fc259fa7109b0a181822a540dcd5eea00928415\"\n    },\n    {\n      \"bytes\": 1485,\n      \"path\": \"references/addendum-host-device-pipeline.md\",\n      \"sha256\": \"3caa062445b50dca267659f89676f6520233f27069217c074ed0d978b570349f\"\n    },\n    {\n      \"bytes\": 10186,\n      \"path\": \"references/addendum-kernel-mechanics.md\",\n      \"sha256\": \"059eb56579b35cfb5af45b10c7cec706e69f5374b694da5cc21b8b10b8ae0f39\"\n    },\n    {\n      \"bytes\": 2499,\n      \"path\": \"references/addendum-kernel-roofline-lab.md\",\n      \"sha256\": \"ae82ce666974c5524b82af516ac6acc3ce1a6936c5db8e180c91d8a4f1ac1540\"\n    },\n    {\n      \"bytes\": 1790,\n",
+        "continuation_line": 45,
+        "total_lines": 540
+      }
+    },
+    {
+      "resource_id": "resource-c5530b34f4475cc0",
+      "role": "aggregate_view",
+      "index_excluded": true,
+      "read": {
+        "origin": "agent_skill",
+        "authority": "advisory_instruction",
+        "mutation_authority": false,
+        "identity": "c5204819376280e2cad08e68316b9e3542954bf6ee8f00360982581b021c9c56",
+        "freshness": "freshness-d5c9c2af5e6c1611",
+        "status": "ok",
+        "skill_id": "skill-05409665e2e47957",
+        "resource": "references/architectures/volta/v100_atlas/V100_ATLAS_FULL.md",
+        "uri": "skill://local/skill-05409665e2e47957/references/architectures/volta/v100_atlas/V100_ATLAS_FULL.md",
+        "line_start": 1,
+        "line_end": 46,
+        "content": "# V100 / SXM2 Software Circuit-Bending Atlas\n\n**Research/synthesis date:** 2026-10-03. **Edition:** 1.0.\n\nThis is the archival all-in-one view. For selective model context, use START_HERE.md, NEED_INDEX.md and tools/read_atlas.py in the ZIP package.\n\nEvidence, original hypotheses and unresolved details remain separately labeled. No GPU timings, CUDA compilation or novel speedups were measured during authoring.\n\n## Contents\n\n- [A00 \u2014 Start here \u2014 V100 software circuit-bending atlas](#a00)\n\n- [A01 \u2014 Index by computational need](#a01)\n\n- [A02 \u2014 Performance field guide](#a02)\n\n- [R00 \u2014 Reading and evidence contract](#r00)\n\n- [R01 \u2014 Machine reference](#r01)\n\n- [R02 \u2014 Execution, scoreboards and operands](#r02)\n\n- [R03 \u2014 Memory as algorithmic structure](#r03)\n\n- [R04 \u2014 ISA families and generation traps](#r04)\n\n- [R05 \u2014 Tensor geometry and native register interfaces](#r05)\n\n- [R06 \u2014 Participation, visibility and progress](#r06)\n\n- [R07 \u2014 NVLink, PCIe and NUMA as information boundaries](#r07)\n\n- [R08 \u2014 Virtual memory, ATS and faults](#r08)\n\n- [R09 \u2014 The non-SM command machine](#r09)\n\n- [R10 \u2014 toolchain and binary evidence](#r10)\n\n- [R11 \u2014 Performance model for circuit bending](#r11)\n\n- [R12 \u2014 Measurement discipline and obs er v ability](#r12)\n\n- [R13 \u2014 Electrical, firmware and reliability frontier](#r13)\n\n- [R14 \u2014 Composition, conflict and scope map](#r14)\n\n",
+        "continuation_line": 47,
+        "total_lines": 6559
+      }
+    }
+  ]
+}

@@ -17,6 +17,10 @@ for row in receipt['queries']:
     selected = {s['id'] for s in row['selected']}
     assert row['metrics']['continuation_complete']
     assert row['metrics']['selected_sections'] == len(selected)
+    if row['pages'][0]['route'] == 'machine':
+        assert {s['id'] for p in row['packets'] for s in p['evidence']} == selected
+    else:
+        assert {s['id'] for p in row['pages'] for s in p['evidence']} == selected
     for packet in row['packets']:
         assert {s['id'] for s in packet['evidence']} <= selected
         assert len(packet['evidence']) <= 64
@@ -24,4 +28,5 @@ for row in receipt['queries']:
         assert {s['id'] for s in page['evidence']} <= selected
         assert len(json.dumps(page, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()) <= 16384
         assert page['skill'] == receipt['skill_id']
+        assert page['coverage']['total_sections'] == len(selected)
 print('PASS: 32 queries; source hashes, skill identity, selected IDs, packet limits, output budgets, continuations; zero GPU calls')
