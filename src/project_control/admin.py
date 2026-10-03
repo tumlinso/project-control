@@ -7,6 +7,7 @@ runtime and then invokes Todo Orchestrator's canonical owner recovery API.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import re
@@ -21,6 +22,7 @@ MARK_RUN_WORKSPACES_CLEANUP_ELIGIBLE_CONFIRMATION = "MARK-RUN-WORKSPACES-CLEANUP
 ADVANCE_PRODUCER_WAVE_CONFIRMATION = "ADVANCE-PRODUCER-WAVE"
 PUBLISH_PRODUCER_WAVE_CONFIRMATION = "PUBLISH-PRODUCER-WAVE"
 INTEGRATION_WAVE_CONFIRMATION = "INTEGRATION-WAVE"
+BIND_INTEGRATION_GATES_CONFIRMATION = "BIND-INTEGRATION-GATES"
 PUBLISH_COMPLETED_INTERFACE_CONFIRMATION = "PUBLISH-COMPLETED-INTERFACE"
 RETIRE_RUN_BATCH_CONFIRMATION = "RETIRE-RUN-BATCH"
 
@@ -1252,6 +1254,169 @@ def publish_producer_wave(
     return {**preview, "status": "published", "publication": published}
 
 
+def _verified_binding_package(plan_file: Path, repository: Path) -> tuple[dict, dict]:
+    """Parse only the exact plan/schedule byte snapshots sealed by one manifest."""
+    from todo_orchestrator.plan import validate_plan
+    schedule_file = plan_file.parent / "integration_schedule.json"
+    manifest_file = plan_file.parent.parent / "MANIFEST.sha256"
+    package_root = manifest_file.parent.resolve()
+    captured = {}
+    for path in (plan_file, schedule_file, manifest_file):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("sealed integration package requires regular files")
+        if not path.resolve().is_relative_to(package_root):
+            raise ValueError("sealed integration package escapes manifest root")
+        captured[path] = path.read_bytes()
+    entries = {}
+    for line in captured[manifest_file].decode("utf-8").splitlines():
+        digest, separator, name = line.partition("  ")
+        if not separator or not re.fullmatch(r"[0-9a-f]{64}", digest) or not name or name in entries:
+            raise ValueError("integration package manifest is malformed")
+        entries[name] = digest
+    for path in (plan_file, schedule_file):
+        name = path.relative_to(package_root).as_posix()
+        if entries.get(name) != hashlib.sha256(captured[path]).hexdigest():
+            raise ValueError("integration package manifest mismatch: " + name)
+    plan = json.loads(captured[plan_file])
+    schedule = json.loads(captured[schedule_file])
+    if not isinstance(plan, dict):
+        raise ValueError("sealed plan must be an object")
+    validate_plan(plan, repository)
+    if not isinstance(schedule, dict) or not isinstance(schedule.get("phases"), list):
+        raise ValueError("sealed integration schedule requires phases")
+    for phase in schedule["phases"]:
+        if (not isinstance(phase, dict) or not isinstance(phase.get("integration_task"), str)
+                or not phase["integration_task"] or not isinstance(phase.get("required_tasks"), list)
+                or any(not isinstance(t, str) or not t for t in phase["required_tasks"])):
+            raise ValueError("sealed integration schedule contains an invalid phase")
+    return plan, schedule
+
+
+class _CheckedBindingDatabase:
+    """Keep owner revalidation inside the native kernel's write transaction."""
+    def __init__(self, database, check):
+        self.database, self.check = database, check
+
+    @contextmanager
+    def read(self):
+        with self.database.read() as conn:
+            self.check(conn)
+            yield conn
+
+    def revision(self):
+        return self.database.revision()
+
+    def mutate(self, **kwargs):
+        operation = kwargs["operation"]
+        def checked(conn, revision):
+            self.check(conn)
+            return operation(conn, revision)
+        return self.database.mutate(**{**kwargs, "operation": checked})
+
+
+def bind_integration_gates(
+    repo: str | Path, plan_path: str | Path, run_id: str,
+    integration_task_id: str, gates_path: str | Path, *,
+    apply: bool = False, confirmation: str | None = None,
+) -> dict[str, object]:
+    """Append required gates for the actual sealed integration owner."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.gates import bind_required_gates, validate_gate_spec
+    from todo_orchestrator.ownership import scopes_for
+
+    repository = Path(repo).expanduser().resolve()
+    plan_file = Path(plan_path).expanduser().resolve()
+    plan, schedule = _verified_binding_package(plan_file, repository)
+    runs = [r for r in plan.get("runs", []) if r.get("id") == run_id]
+    if len(runs) != 1 or schedule is None:
+        raise ValueError("one native run and sealed integration schedule required")
+    phases = [p for p in schedule["phases"] if p["integration_task"] == integration_task_id]
+    lanes = [l for l in runs[0].get("lanes", []) if l.get("role") == "integrator" and integration_task_id in l.get("tasks", [])]
+    if len(phases) != 1 or len(lanes) != 1:
+        raise ValueError("requested task must have one sealed integration phase and integrator lane")
+    gate_file = Path(gates_path).expanduser()
+    if gate_file.is_symlink():
+        raise ValueError("reviewed gates file must not be a symbolic link")
+    reviewed = json.loads(gate_file.read_text(encoding="utf-8"))
+    gates = reviewed.get("gates") if isinstance(reviewed, dict) else None
+    if not isinstance(gates, list) or not gates or any(not isinstance(g, dict) for g in gates):
+        raise ValueError("reviewed JSON must contain a nonempty gates array")
+    ids = [g.get("id") for g in gates]
+    if any(not isinstance(i, str) or not i for i in ids) or len(ids) != len(set(ids)):
+        raise ValueError("reviewed gates require unique IDs")
+    if any(g.get("required", True) is not True or g.get("checkpoint_id") or g.get("type") == "checkpoint" for g in gates):
+        raise ValueError("integration binding requires task-owned required gates")
+    if apply and confirmation != BIND_INTEGRATION_GATES_CONFIRMATION:
+        raise ValueError(f"--confirm must equal {BIND_INTEGRATION_GATES_CONFIRMATION}")
+    service = Service(repository, mutation_mode="self_debug", read_only=not apply)
+    def checked_owner(conn):
+        owners = conn.execute(
+            """SELECT c.id AS claim_id,c.session_id,d.id AS dispatch_id,l.id AS lane_id,
+                      l.run_id,l.role,l.workspace_mode,lt.state AS queue_state,
+                      s.state AS session_state,r.status AS run_state,t.status AS task_state
+                 FROM claims c
+                 JOIN tasks t ON t.id=c.task_id
+                 JOIN sessions s ON s.id=c.session_id
+                 JOIN workflow_lane_tasks lt ON lt.task_id=c.task_id
+                 JOIN workflow_lanes l ON l.id=lt.lane_id
+                 JOIN workflow_runs r ON r.id=l.run_id
+                 LEFT JOIN workflow_dispatches d ON d.claim_id=c.id AND d.lane_id=l.id
+                      AND d.session_id=c.session_id AND d.state='active'
+                WHERE c.task_id=? AND c.state='active'""", (integration_task_id,),
+        ).fetchall()
+        if len(owners) != 1:
+            raise ValueError("integration gate binding requires exactly one active owner")
+        owner = dict(owners[0])
+        if (owner["run_id"] != run_id or owner["lane_id"] != lanes[0]["id"]
+                or owner["role"] != "integrator" or owner["workspace_mode"] != "exclusive"
+                or owner["queue_state"] != "active" or owner["session_state"] != "active"
+                or owner["run_state"] != "active" or owner["task_state"] != "in_progress"
+                or not owner["dispatch_id"]):
+            raise ValueError("active owner differs from the sealed integration task/run/lane")
+        destinations = conn.execute(
+            "SELECT * FROM workflow_workspaces WHERE run_id=? AND lane_id=?",
+            (run_id, owner["lane_id"]),
+        ).fetchall()
+        if (len(destinations) != 1 or destinations[0]["mode"] != "exclusive"
+                or destinations[0]["integration_task_id"] != integration_task_id
+                or Path(destinations[0]["worktree_path"]).resolve() != repository):
+            raise ValueError("integration destination must be the canonical exclusive workspace")
+        allowed = scopes_for(conn, integration_task_id, "exclusive") + scopes_for(conn, integration_task_id, "read")
+        forbidden = scopes_for(conn, integration_task_id, "forbidden")
+        resources = {str(r[0]) for r in conn.execute("SELECT id FROM resource_instances UNION SELECT id FROM resource_classes")}
+        return owner, dict(destinations[0]), sorted(allowed), sorted(forbidden), sorted(resources)
+
+    with service.db.read() as conn:
+        selected = checked_owner(conn)
+        owner, destination, allowed, forbidden, resources = selected
+        errors = [e for g in gates for e in validate_gate_spec(g, repository, allowed_paths=allowed, forbidden_paths=forbidden, known_checkpoint_ids=set(), known_resources=resources)]
+        if errors:
+            raise ValueError("integration gate specifications rejected: " + "; ".join(errors))
+        unchanged = []
+        for gate in gates:
+            existing = conn.execute("SELECT task_id,checkpoint_id,type,config_json,required FROM gates WHERE id=?", (gate["id"],)).fetchone()
+            if existing:
+                config = {k:v for k,v in gate.items() if k not in {"id","type","required","checkpoint_id"}}
+                if (existing["task_id"] != integration_task_id or existing["checkpoint_id"] is not None
+                        or existing["type"] != gate["type"] or json.loads(existing["config_json"]) != config
+                        or not existing["required"]):
+                    raise ValueError("existing integration gate cannot be changed: " + gate["id"])
+                unchanged.append(gate["id"])
+    preview = {"status":"ready", "run_id":run_id, "task_id":integration_task_id,
+               "lane_id":owner["lane_id"], "claim_id":owner["claim_id"],
+               "gate_ids":ids, "unchanged_gate_ids":unchanged}
+    if not apply:
+        return preview
+    def unchanged_owner(conn):
+        if checked_owner(conn) != selected:
+            raise ValueError("integration owner or destination changed before gate binding")
+    guarded = _CheckedBindingDatabase(service.db, unchanged_owner)
+    result, revision = bind_required_gates(guarded, repository, owner["claim_id"], gates, actor_session_id=owner["session_id"])
+    service.refresh({integration_task_id})
+    return {**preview, "status":"bound", "binding":result, "revision":revision}
+
+
 def manage_integration_wave(
     repo: str | Path,
     plan_path: str | Path,
@@ -1705,6 +1870,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     publish_interface.add_argument("--source-worktree", required=True)
     publish_interface.add_argument("--apply", action="store_true")
     publish_interface.add_argument("--confirm")
+    binding = commands.add_parser("bind-integration-gates", help="append reviewed required gates for a sealed integration owner")
+    binding.add_argument("--repo", required=True)
+    binding.add_argument("--plan", required=True)
+    binding.add_argument("--run", required=True)
+    binding.add_argument("--integration-task", required=True)
+    binding.add_argument("--gates", required=True)
+    binding.add_argument("--apply", action="store_true")
+    binding.add_argument("--confirm")
     wave = commands.add_parser("integration-wave", help="root-owned sealed batch integration lifecycle")
     wave.add_argument("--repo", required=True)
     wave.add_argument("--plan", required=True)
@@ -1729,6 +1902,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.repo, args.workspace, args.integration_task, args.accepted_commit,
             reason=args.reason, apply=args.apply, confirmation=args.confirm,
         )
+        print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    elif args.command == "bind-integration-gates":
+        result = bind_integration_gates(args.repo, args.plan, args.run, args.integration_task, args.gates,
+                                       apply=args.apply, confirmation=args.confirm)
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     elif args.command == "integration-wave":
         result = manage_integration_wave(

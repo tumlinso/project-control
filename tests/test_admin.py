@@ -1171,5 +1171,151 @@ class AdminCliTests(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue()), preview)
 
 
+class IntegrationGateBindingTests(unittest.TestCase):
+    @contextmanager
+    def fixture(self):
+        try:
+            import todo_orchestrator.gates as native_gates
+            import todo_orchestrator.ownership as ownership
+        except ImportError:
+            self.skipTest("native Todo provider required for gate binding conformance")
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.executescript("""
+            CREATE TABLE tasks(id TEXT,status TEXT);
+            CREATE TABLE workflow_patch_artifacts(id TEXT,state TEXT,artifact_ref TEXT);
+            INSERT INTO tasks VALUES('MERGE','in_progress');
+            INSERT INTO workflow_patch_artifacts VALUES('artifact','pending','preserved-commit');
+            CREATE TABLE claims(id TEXT,task_id TEXT,session_id TEXT,state TEXT);
+            CREATE TABLE sessions(id TEXT,state TEXT);
+            CREATE TABLE workflow_lane_tasks(task_id TEXT,lane_id TEXT,state TEXT);
+            CREATE TABLE workflow_lanes(id TEXT,run_id TEXT,role TEXT,workspace_mode TEXT);
+            CREATE TABLE workflow_runs(id TEXT,status TEXT);
+            CREATE TABLE workflow_dispatches(id TEXT,claim_id TEXT,lane_id TEXT,session_id TEXT,state TEXT);
+            CREATE TABLE workflow_workspaces(run_id TEXT,lane_id TEXT,mode TEXT,integration_task_id TEXT,worktree_path TEXT);
+            CREATE TABLE ownership_scopes(task_id TEXT,mode TEXT,path TEXT);
+            CREATE TABLE resource_instances(id TEXT);
+            CREATE TABLE resource_classes(id TEXT);
+            CREATE TABLE checkpoints(id TEXT,task_id TEXT);
+            CREATE TABLE gates(id TEXT PRIMARY KEY,task_id TEXT,checkpoint_id TEXT,type TEXT,config_json TEXT,required INTEGER,status TEXT,valid INTEGER,revision INTEGER);
+            INSERT INTO claims VALUES('claim','MERGE','session','active');
+            INSERT INTO sessions VALUES('session','active');
+            INSERT INTO workflow_lane_tasks VALUES('MERGE','integrator','active');
+            INSERT INTO workflow_lanes VALUES('integrator','RUN','integrator','exclusive');
+            INSERT INTO workflow_runs VALUES('RUN','active');
+            INSERT INTO workflow_dispatches VALUES('dispatch','claim','integrator','session','active');
+            INSERT INTO ownership_scopes VALUES('MERGE','read','src');
+            INSERT INTO ownership_scopes VALUES('MERGE','forbidden','.todo-orchestrator');
+        """)
+        class DB(_ReadDatabase):
+            counter = 7
+            def revision(self): return self.counter
+            def mutate(self, **kwargs):
+                self.counter += 1
+                with self.connection:
+                    result = kwargs['operation'](self.connection,self.counter)
+                return result,self.counter
+        service = SimpleNamespace(db=DB(conn), refresh=Mock())
+        plan = {'runs':[{'id':'RUN','lanes':[{'id':'integrator','role':'integrator','tasks':['MERGE']}]}]}
+        schedule = {'phases':[{'integration_task':'MERGE','required_tasks':['PRODUCER']}]}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'src').mkdir()
+            gates_file = root/'reviewed.json'
+            gate = {'id':'MERGE-CHECK','type':'command','required':True,'argv':['true'],'cwd':'.','input_paths':['src']}
+            gates_file.write_text(json.dumps({'gates':[gate]}))
+            conn.execute("INSERT INTO workflow_workspaces VALUES('RUN','integrator','exclusive','MERGE',?)",(str(root),))
+            service_module = types.ModuleType('todo_orchestrator.service')
+            service_module.Service = Mock(return_value=service)
+            plan_module = types.ModuleType('todo_orchestrator.plan')
+            plan_module.load_plan = Mock(return_value=plan)
+            with patch.object(admin,'_runtime_identity'), patch.object(admin,'_verified_binding_package',return_value=(plan,schedule)), patch.dict(sys.modules,{'todo_orchestrator.service':service_module,'todo_orchestrator.plan':plan_module,'todo_orchestrator.gates':native_gates,'todo_orchestrator.ownership':ownership}):
+                yield root,gates_file,conn,service,plan,gate
+        conn.close()
+
+    def call(self,root,file,**kwargs):
+        return admin.bind_integration_gates(root,root/'machine/plan.json','RUN','MERGE',file,**kwargs)
+
+    def test_preview_and_append_idempotent_preserve_lifecycle(self):
+        with self.fixture() as (root,file,conn,service,plan,gate):
+            before = [tuple(r) for r in conn.execute('SELECT * FROM workflow_workspaces')]
+            self.assertEqual(self.call(root,file)['status'],'ready')
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM gates').fetchone()[0],0)
+            service.refresh.assert_not_called()
+            self.assertEqual(service.db.revision(),7)
+            first = self.call(root,file,apply=True,confirmation='BIND-INTEGRATION-GATES')
+            second = self.call(root,file,apply=True,confirmation='BIND-INTEGRATION-GATES')
+            self.assertEqual(first['binding']['bound_gate_ids'],['MERGE-CHECK'])
+            self.assertEqual(second['binding']['unchanged_gate_ids'],['MERGE-CHECK'])
+            self.assertEqual(first['revision'],second['revision'])
+            self.assertEqual(before,[tuple(r) for r in conn.execute('SELECT * FROM workflow_workspaces')])
+            self.assertEqual(conn.execute('SELECT state FROM claims').fetchone()[0],'active')
+            self.assertEqual(conn.execute('SELECT status FROM tasks').fetchone()[0],'in_progress')
+            self.assertEqual(tuple(conn.execute('SELECT * FROM workflow_patch_artifacts').fetchone()),('artifact','pending','preserved-commit'))
+
+    def test_revocation_between_selection_and_native_write_rejected(self):
+        for sql in ("UPDATE workflow_dispatches SET state='released'", "UPDATE sessions SET state='released'", "UPDATE workflow_runs SET status='completed'", "UPDATE workflow_workspaces SET mode='isolated_merge'"):
+            with self.subTest(sql=sql), self.fixture() as (root,file,conn,service,*_):
+                mutate = service.db.mutate
+                def interleaved(**kwargs):
+                    conn.execute(sql)
+                    return mutate(**kwargs)
+                with patch.object(service.db, 'mutate', side_effect=interleaved):
+                    with self.assertRaises(ValueError):
+                        self.call(root,file,apply=True,confirmation='BIND-INTEGRATION-GATES')
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM gates').fetchone()[0],0)
+                self.assertEqual(conn.execute('SELECT state FROM claims').fetchone()[0],'active')
+                service.refresh.assert_not_called()
+
+    def test_package_swap_cannot_authorize_unsealed_parsed_plan(self):
+        import hashlib
+        plan_module = types.ModuleType('todo_orchestrator.plan')
+        plan_module.validate_plan = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)
+            machine = package/'machine'; machine.mkdir()
+            plan = machine/'plan.json'; schedule = machine/'integration_schedule.json'
+            manifest = package/'MANIFEST.sha256'
+            first = b'{"tasks": [], "identity": "unsealed A"}'
+            second = b'{"tasks": [], "identity": "sealed B"}'
+            schedule_data = b'{"phases": []}'
+            plan.write_bytes(first); schedule.write_bytes(schedule_data)
+            manifest.write_text(f'{hashlib.sha256(second).hexdigest()}  machine/plan.json\n{hashlib.sha256(schedule_data).hexdigest()}  machine/integration_schedule.json\n')
+            original_read = Path.read_bytes
+            def swap(path):
+                content = original_read(path)
+                if path == plan:
+                    plan.write_bytes(second)
+                return content
+            with patch.dict(sys.modules, {'todo_orchestrator.plan':plan_module}), patch.object(Path,'read_bytes',swap):
+                with self.assertRaisesRegex(ValueError,'manifest mismatch'):
+                    admin._verified_binding_package(plan,package)
+            plan_module.validate_plan.assert_not_called()
+
+    def test_missing_ambiguous_or_unbound_owner_rejected(self):
+        for sql in ("DELETE FROM claims", "INSERT INTO claims VALUES('other','MERGE','session','active')", "DELETE FROM workflow_dispatches"):
+            with self.subTest(sql=sql), self.fixture() as (root,file,conn,*_):
+                conn.execute(sql)
+                with self.assertRaisesRegex(ValueError,'owner'):
+                    self.call(root,file)
+
+    def test_wrong_task_run_or_destination_rejected(self):
+        for sql in ("UPDATE tasks SET status='done'", "UPDATE claims SET task_id='OTHER'", "UPDATE workflow_lanes SET run_id='OTHER'", "UPDATE workflow_workspaces SET mode='isolated_merge'", "UPDATE workflow_workspaces SET worktree_path='/other'", "UPDATE workflow_workspaces SET integration_task_id='OTHER'"):
+            with self.subTest(sql=sql), self.fixture() as (root,file,conn,*_):
+                conn.execute(sql)
+                with self.assertRaises(ValueError): self.call(root,file)
+
+    def test_unowned_forbidden_optional_checkpoint_or_changed_gate_rejected(self):
+        for change in ({'input_paths':['unowned']},{'input_paths':['.todo-orchestrator']},{'required':False},{'checkpoint_id':'checkpoint'}):
+            with self.subTest(change=change), self.fixture() as (root,file,conn,service,plan,gate):
+                gate.update(change); file.write_text(json.dumps({'gates':[gate]}))
+                with self.assertRaises(ValueError): self.call(root,file)
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM gates').fetchone()[0],0)
+        with self.fixture() as (root,file,conn,service,plan,gate):
+            self.call(root,file,apply=True,confirmation='BIND-INTEGRATION-GATES')
+            gate['argv']=['false']; file.write_text(json.dumps({'gates':[gate]}))
+            with self.assertRaisesRegex(ValueError,'cannot be changed'): self.call(root,file)
+
+
 if __name__ == "__main__":
     unittest.main()
