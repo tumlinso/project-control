@@ -1,0 +1,418 @@
+[
+  {
+    "id": "Q01",
+    "query": "CUDA V100 sm_70: Which conventional kernel optimization should be measured first?",
+    "topic_regex": "optimization|conventional",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q02",
+    "query": "CUDA V100 sm_70: How reduce register pressure without increasing instruction count?",
+    "topic_regex": "register|register",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q03",
+    "query": "CUDA V100 sm_70: When local-memory spills are deliberate useful cold storage?",
+    "topic_regex": "spill|local.memory",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q04",
+    "query": "CUDA V100 sm_70: How PTX virtual register counts differ from hardware registers?",
+    "topic_regex": "virtual|PTX",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q05",
+    "query": "CUDA V100 sm_70: How read SASS register allocation and spill instructions?",
+    "topic_regex": "SASS|spill",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q06",
+    "query": "CUDA V100 sm_70: How warp shuffle and ballot exchange sparse state safely?",
+    "topic_regex": "shuffle|ballot",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q07",
+    "query": "CUDA V100 sm_70: When predication beats divergence and how inspect branch code?",
+    "topic_regex": "predicat|divergen",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q08",
+    "query": "CUDA V100 sm_70: What tensor-core shape and alignment constraints apply?",
+    "topic_regex": "tensor|alignment",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q09",
+    "query": "CUDA V100 sm_70: How identify HMMA instructions and layout?",
+    "topic_regex": "HMMA",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q10",
+    "query": "CUDA V100 sm_70: What WMMA fragment layouts and synchronization are portable?",
+    "topic_regex": "WMMA|fragment",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q11",
+    "query": "CUDA V100 sm_70: How represent sparse irregular workloads without full HBM passes?",
+    "topic_regex": "sparse|irregular",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q12",
+    "query": "CUDA V100 sm_70: When persistent kernels improve occupancy and launch costs?",
+    "topic_regex": "persistent|occupancy",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q13",
+    "query": "CUDA V100 sm_70: Can state remain resident in registers across iterations?",
+    "topic_regex": "resident|register",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q14",
+    "query": "CUDA V100 sm_70: How CUDA graphs change launch overhead and lifetime?",
+    "topic_regex": "graph|launch",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q15",
+    "query": "CUDA V100 sm_70: What unconventional register reuse or packing merits experiment?",
+    "topic_regex": "reuse|packing",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q16",
+    "query": "CUDA V100 sm_70: How shared memory banking changes sparse state layouts?",
+    "topic_regex": "bank|shared",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q17",
+    "query": "CUDA V100 sm_70: Is cp.async supported and what copy staging alternative applies?",
+    "topic_regex": "cp.async|staging",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q18",
+    "query": "CUDA V100 sm_70: How NVLink topology changes communication algorithms?",
+    "topic_regex": "NVLink|topolog",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q19",
+    "query": "CUDA V100 sm_70: What peer access capability must be checked?",
+    "topic_regex": "peer|access",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q20",
+    "query": "CUDA V100 sm_70: What peer atomic semantics are supported across NVLink?",
+    "topic_regex": "atomic|NVLink",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q21",
+    "query": "CUDA V100 sm_70: What fences order peer and device memory operations?",
+    "topic_regex": "fence",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q22",
+    "query": "CUDA V100 sm_70: What warp sync masks are valid for divergent producers?",
+    "topic_regex": "sync|mask",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q23",
+    "query": "CUDA V100 sm_70: How synchronize multiple GPUs safely without deadlock?",
+    "topic_regex": "deadlock|synchron",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q24",
+    "query": "CUDA V100 sm_70: Which compiler flags expose register and spill reports?",
+    "topic_regex": "ptxas|compiler",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q25",
+    "query": "CUDA V100 sm_70: How inspect cubin binary PTX and SASS source identity?",
+    "topic_regex": "cubin|SASS",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q26",
+    "query": "CUDA V100 sm_70: Which portability and performance assumptions remain uncertain?",
+    "topic_regex": "portab|uncertain",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q27",
+    "query": "CUDA V100 sm_70: Crazy design: persistent sparse warp queues with register state and peer atomics, identify unsupported assumptions.",
+    "topic_regex": "persistent|queue",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q28",
+    "query": "CUDA V100 sm_70: How occupancy launch bounds and register caps interact?",
+    "topic_regex": "occupancy|launch.bound",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q29",
+    "query": "CUDA V100 sm_70: Can L1 residency make deliberate cold spills practical?",
+    "topic_regex": "L1|spill",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q30",
+    "query": "CUDA V100 sm_70: How tensor-core accumulation accuracy should be qualified?",
+    "topic_regex": "accuracy|accumul",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q31",
+    "query": "CUDA V100 sm_70: How graph replay and persistent device state compose safely?",
+    "topic_regex": "graph|persistent",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  },
+  {
+    "id": "Q32",
+    "query": "CUDA V100 sm_70: Big machine synthesis: compare register state, sparse persistent kernels, HMMA WMMA, shared copy staging, compiler binary inspection and multi GPU NVLink; state evidence and uncertainty.",
+    "topic_regex": "HMMA|WMMA|NVLink",
+    "target_expectations": {
+      "topic_reference_proxy": "At least one selected technical section matches topic_regex; not answer correctness.",
+      "preferred_resources": [
+        "canonical technical reference",
+        "v100_atlas node when applicable"
+      ],
+      "aggregate_full_is_derived": true
+    }
+  }
+]

@@ -1,0 +1,1 @@
+PASS: 32 queries; source hashes, skill identity, selected IDs, packet limits, output budgets, continuations; zero GPU calls
