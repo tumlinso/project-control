@@ -1,0 +1,250 @@
+{
+  "backend_substitution": false,
+  "cases": [
+    {
+      "case": "discovery_instruction_read",
+      "identity": "ad4b7c4ac17de7d46185a9adb208a6705d61ab3cd4efaa34ad135c58acdeac9c",
+      "metadata_identity": "03e7321e95f2108f8fda8d0d9b203069f22cfacfcf76c42e682ab2de688d738e",
+      "name": "cuda",
+      "skill": "skill-05409665e2e47957"
+    },
+    {
+      "case": "discovery_instruction_read",
+      "identity": "df885bf1871092d5f5b0defaaf775aa1f5d805f1026e6337f2085af02fc4043b",
+      "metadata_identity": "877df684865b787c9abc784d9ccc45a41d4d8e1cb3a2e8c363ac2d9c8584e62c",
+      "name": "cpp-context-compiler",
+      "skill": "skill-e9ffbbf58d77a715"
+    },
+    {
+      "case": "atlas_M14_descriptive_read",
+      "identity": "fd555a3a5b3ae6e5be68ddb5b3288dd04c127979d5129e9c5666892bfbf6e672",
+      "resource": "references/architectures/volta/v100_atlas/mechanisms/M14-register-resident-local-state-machines.md"
+    },
+    {
+      "case": "excluded_FULL_explicit_bounded_read",
+      "identity": "c5204819376280e2cad08e68316b9e3542954bf6ee8f00360982581b021c9c56",
+      "response_bytes": 1164
+    },
+    {
+      "case": "cpp_indexed",
+      "corpus_identity": "d1fb35b213048ed32253deba60a11d422fdac7a1c37facf7e508bb4a6f73fc30",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 6,
+        "total_sections": 6
+      },
+      "response_bytes": 9595,
+      "route": "indexed",
+      "route_reason": {
+        "broad_query": false,
+        "relevant_bytes": 7059,
+        "relevant_resources": 4
+      },
+      "status": "available"
+    },
+    {
+      "case": "atlas_machine_auto",
+      "continuation": true,
+      "corpus_identity": "68c59ee02820a8d41e78677d23b57605a45a63fdda7f2ff156c5a8596e229313",
+      "coverage": {
+        "analyzed_sections": 142,
+        "returned_sections": 8,
+        "total_sections": 176
+      },
+      "evidence_ids": [
+        "e-f5bf906f4c5c7362e30bd235",
+        "e-5f807133f116aa29cc571080",
+        "e-f9c7e4879f6654860bf78ea5",
+        "e-a1e2824924b654bd71bf7877",
+        "e-eb92a70d3a727edd6e915ca1",
+        "e-693215dd647208fdb8abcefe",
+        "e-036f136bac84dca18ce848ee",
+        "e-27bfeb8b3c69e7b165622b04"
+      ],
+      "evidence_metadata": [
+        {
+          "id": "e-f5bf906f4c5c7362e30bd235",
+          "identity": "b7afa37db2bbdd6101830adc5d17e5842a60ef529af2919cb4f8ebe6cfea2443",
+          "resource": "references/architectures/volta/v100_atlas/compositions/C20-owner-compute-instead-of-remote-pointer-chasing.md",
+          "role": "canonical",
+          "semantic_ids": [
+            "C20"
+          ]
+        },
+        {
+          "id": "e-5f807133f116aa29cc571080",
+          "identity": "ae01d66f93875f8755828d665db68fe0082aff132c9cb094c5f868b429a3e9b5",
+          "resource": "references/architectures/volta/v100_atlas/mechanisms/M34-peer-loads-as-a-distributed-data-path.md",
+          "role": "canonical",
+          "semantic_ids": [
+            "M34"
+          ]
+        },
+        {
+          "id": "e-f9c7e4879f6654860bf78ea5",
+          "identity": "8a2c22bf34971da6c9571cbe6fdacf97293298278b79ba7ac8ecf253d4164b4b",
+          "resource": "references/architectures/volta/v100_atlas/reference/R07-nvlink-pcie-and-numa-as-information-boundaries.md",
+          "role": "deep_reference",
+          "semantic_ids": [
+            "R07"
+          ]
+        },
+        {
+          "id": "e-a1e2824924b654bd71bf7877",
+          "identity": "84f6f90d93cc35fc3f295777192b9e6e59b06335cb4e15deb3d40069177f46b6",
+          "resource": "references/architectures/volta/v100_atlas/mechanisms/M32-cooperative-grids-and-historical-multidevice-launch.md",
+          "role": "canonical",
+          "semantic_ids": [
+            "M32"
+          ]
+        },
+        {
+          "id": "e-eb92a70d3a727edd6e915ca1",
+          "identity": "850bc44b64d5daa6856fb196b9ea8cec3908d3bce83b6be13575bdf058a3ff5c",
+          "resource": "references/architectures/volta/v100_atlas/mechanisms/M44-bar-gpudirect-and-external-actors.md",
+          "role": "canonical",
+          "semantic_ids": [
+            "M44"
+          ]
+        },
+        {
+          "id": "e-693215dd647208fdb8abcefe",
+          "identity": "e02adafcdef9b6e214b141297cd538289dab1d104917192b571e70db4718705c",
+          "resource": "references/architectures/volta/v100_atlas/experiments/E00-inventory-and-capability-gates.md",
+          "role": "experiment",
+          "semantic_ids": [
+            "E00"
+          ]
+        },
+        {
+          "id": "e-036f136bac84dca18ce848ee",
+          "identity": "b7c9fde8b47c830a2644767f8bfbbd21290c45be8c82f040ede958ac79443815",
+          "resource": "references/architectures/volta/v100_atlas/experiments/E01-algebra-and-encoding-checks.md",
+          "role": "experiment",
+          "semantic_ids": [
+            "E01"
+          ]
+        },
+        {
+          "id": "e-27bfeb8b3c69e7b165622b04",
+          "identity": "94cd28a2f7f26652b84812bf13374553ce76db3697076bc0c1b67d88fce99d35",
+          "resource": "references/architectures/volta/v100_atlas/experiments/E02-instruction-latency-versus-throughput.md",
+          "role": "experiment",
+          "semantic_ids": [
+            "E02"
+          ]
+        }
+      ],
+      "reason": null,
+      "response_bytes": 11831,
+      "route": "machine",
+      "route_reason": {
+        "broad_query": true,
+        "relevant_bytes": 147406,
+        "relevant_resources": 168
+      },
+      "status": "available",
+      "summaries": [
+        {
+          "evidence_ids": [
+            "e-f5bf906f4c5c7362e30bd235",
+            "e-5f807133f116aa29cc571080",
+            "e-f9c7e4879f6654860bf78ea5"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "These compositions are original hypotheses without local GPU measurement. Performance depends on actual hardware topology and application behavior, which may vary from expected outcomes."
+        },
+        {
+          "evidence_ids": [
+            "e-a1e2824924b654bd71bf7877",
+            "e-eb92a70d3a727edd6e915ca1"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "The exact NVLink implementation details and performance characteristics depend on specific hardware configurations and driver versions. The atlas provides mechanisms and hypotheses but does not guarantee measurable application outcomes without experimental validation."
+        },
+        {
+          "evidence_ids": [
+            "e-693215dd647208fdb8abcefe",
+            "e-036f136bac84dca18ce848ee",
+            "e-27bfeb8b3c69e7b165622b04"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "The experiments are marked as NOT_RUN_ON_GPU, indicating they have not been executed yet. The actual performance and capability measurements remain speculative until executed. Some prerequisites may vary across different GPU configurations or driver versions."
+        },
+        {
+          "evidence_ids": [
+            "e-8349fcab0dc22a7411ab3d72",
+            "e-49f7bb6d44218e58dcb6f0ba",
+            "e-fb8ada1b1c8213121b94ea82"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "NVLink implementation details remain partially unresolved, with some domains marked as synthesis-with-explicit-open-frontier, indicating that full verification requires deeper hardware-level access or additional experimental validation not currently available in the provided evidence."
+        }
+      ],
+      "summary_identity": "13ee36a672ee66a85401f9533ace24860b3b7739468da3fb61e69d1cf3315da4"
+    }
+  ],
+  "finished_at": "2026-10-03T20:00:09.892530+00:00",
+  "http": {
+    "healthz": {
+      "body": {
+        "config": "parseable",
+        "status": "ok"
+      },
+      "status_code": 200
+    },
+    "readyz": {
+      "body": {
+        "status": "ready",
+        "workspaces": 11
+      },
+      "status_code": 200
+    },
+    "version": {
+      "body": {
+        "name": "project-control",
+        "tool_schema_version": 9,
+        "version": "0.3.2"
+      },
+      "status_code": 200
+    }
+  },
+  "live_machine_qualified": true,
+  "machine_calls": 1,
+  "server": {
+    "icons": null,
+    "name": "project-control",
+    "title": null,
+    "version": "1.30.0",
+    "websiteUrl": null
+  },
+  "started_at": "2026-10-03T19:58:19.290652+00:00",
+  "tool_count": 20,
+  "tool_names": [
+    "agent_status",
+    "architecture_context",
+    "coordination_view",
+    "evidence",
+    "history_trace",
+    "impact_preview",
+    "inspect",
+    "local_investigate",
+    "performance_probe",
+    "performance_status",
+    "plan_preview",
+    "program_context",
+    "project_delta",
+    "project_frontier",
+    "project_overview",
+    "skill_context",
+    "skill_list",
+    "skill_read",
+    "source_context",
+    "terminal_capture"
+  ],
+  "transport": "native_mcp_streamable_http"
+}

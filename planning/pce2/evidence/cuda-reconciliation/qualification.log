@@ -1,0 +1,1072 @@
+........................................................................ [ 48%]
+................................................................F.F [ 93%]
+F.FFFFFF..                                                            [100%]
+=================================== FAILURES ===================================
+______ MCPServerTests.test_codex_composes_workflow_and_compact_rich_reads ______
+
+self = <test_mcp_server.MCPServerTests testMethod=test_codex_composes_workflow_and_compact_rich_reads>
+
+    def test_codex_composes_workflow_and_compact_rich_reads(self) -> None:
+>       mcp = create_mcp(self.config, profile="codex")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:266: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...CURRENT_TEST': 'tests/test_mcp_server.py::MCPServerTests::test_codex_composes_workflow_and_compact_rich_reads (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+________ MCPServerTests.test_exact_tools_annotations_and_schema_budget _________
+
+self = <test_mcp_server.MCPServerTests testMethod=test_exact_tools_annotations_and_schema_budget>
+
+    def test_exact_tools_annotations_and_schema_budget(self) -> None:
+>       mcp = create_mcp(self.config)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...TEST_CURRENT_TEST': 'tests/test_mcp_server.py::MCPServerTests::test_exact_tools_annotations_and_schema_budget (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_______ MCPServerTests.test_health_ready_version_and_nonloopback_refusal _______
+
+self = <test_mcp_server.MCPServerTests testMethod=test_health_ready_version_and_nonloopback_refusal>
+
+    def test_health_ready_version_and_nonloopback_refusal(self) -> None:
+>       with TestClient(create_asgi_app(self.config)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:314: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:693: in create_asgi_app
+    mcp = create_mcp(config)
+          ^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...T_CURRENT_TEST': 'tests/test_mcp_server.py::MCPServerTests::test_health_ready_version_and_nonloopback_refusal (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_ MCPServerTests.test_local_analysis_surface_is_observer_only (profile='observer') _
+
+self = <test_mcp_server.MCPServerTests testMethod=test_local_analysis_surface_is_observer_only>
+
+    def test_local_analysis_surface_is_observer_only(self) -> None:
+        for profile in ("observer", "codex", "mutator"):
+            with self.subTest(profile=profile):
+>               tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile=profile).list_tools())}
+                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:289: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...PYTEST_CURRENT_TEST': 'tests/test_mcp_server.py::MCPServerTests::test_local_analysis_surface_is_observer_only (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_ MCPServerTests.test_local_analysis_surface_is_observer_only (profile='codex') _
+
+self = <test_mcp_server.MCPServerTests testMethod=test_local_analysis_surface_is_observer_only>
+
+    def test_local_analysis_surface_is_observer_only(self) -> None:
+        for profile in ("observer", "codex", "mutator"):
+            with self.subTest(profile=profile):
+>               tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile=profile).list_tools())}
+                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:289: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...PYTEST_CURRENT_TEST': 'tests/test_mcp_server.py::MCPServerTests::test_local_analysis_surface_is_observer_only (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_ MCPServerTests.test_local_analysis_surface_is_observer_only (profile='mutator') _
+
+self = <test_mcp_server.MCPServerTests testMethod=test_local_analysis_surface_is_observer_only>
+
+    def test_local_analysis_surface_is_observer_only(self) -> None:
+        for profile in ("observer", "codex", "mutator"):
+            with self.subTest(profile=profile):
+>               tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile=profile).list_tools())}
+                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:289: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...PYTEST_CURRENT_TEST': 'tests/test_mcp_server.py::MCPServerTests::test_local_analysis_surface_is_observer_only (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+__ MCPServerTests.test_local_investigate_one_question_returns_unified_results __
+
+self = <test_mcp_server.MCPServerTests testMethod=test_local_investigate_one_question_returns_unified_results>
+
+    def test_local_investigate_one_question_returns_unified_results(self) -> None:
+>       mcp = create_mcp(self.config)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...TEST': 'tests/test_mcp_server.py::MCPServerTests::test_local_investigate_one_question_returns_unified_results (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_ MCPServerTests.test_local_investigate_serializes_when_two_session_reservation_is_unavailable _
+
+self = <test_mcp_server.MCPServerTests testMethod=test_local_investigate_serializes_when_two_session_reservation_is_unavailable>
+
+    def test_local_investigate_serializes_when_two_session_reservation_is_unavailable(self) -> None:
+>       mcp = create_mcp(self.config)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:238: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9..._mcp_server.py::MCPServerTests::test_local_investigate_serializes_when_two_session_reservation_is_unavailable (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_ MCPServerTests.test_local_investigate_two_questions_reserves_two_narrow_sessions_and_isolates_branches _
+
+self = <test_mcp_server.MCPServerTests testMethod=test_local_investigate_two_questions_reserves_two_narrow_sessions_and_isolates_branches>
+
+    def test_local_investigate_two_questions_reserves_two_narrow_sessions_and_isolates_branches(self) -> None:
+>       mcp = create_mcp(self.config)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:195: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...r.py::MCPServerTests::test_local_investigate_two_questions_reserves_two_narrow_sessions_and_isolates_branches (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_ MCPServerTests.test_observer_rejects_hidden_workflow_invocation_before_binding _
+
+self = <test_mcp_server.MCPServerTests testMethod=test_observer_rejects_hidden_workflow_invocation_before_binding>
+
+    def test_observer_rejects_hidden_workflow_invocation_before_binding(self) -> None:
+>       mcp = create_mcp(self.config)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:303: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...': 'tests/test_mcp_server.py::MCPServerTests::test_observer_rejects_hidden_workflow_invocation_before_binding (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+___ MCPServerTests.test_official_streamable_http_client_discovers_only_tools ___
+
+self = <test_mcp_server.MCPServerTests testMethod=test_official_streamable_http_client_discovers_only_tools>
+
+    def test_official_streamable_http_client_discovers_only_tools(self) -> None:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+>       app = create_asgi_app(self.config)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:326: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:693: in create_asgi_app
+    mcp = create_mcp(config)
+          ^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9...T_TEST': 'tests/test_mcp_server.py::MCPServerTests::test_official_streamable_http_client_discovers_only_tools (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+_ MCPServerTests.test_performance_probe_is_observer_and_codex_only_not_local_model_action _
+
+self = <test_mcp_server.MCPServerTests testMethod=test_performance_probe_is_observer_and_codex_only_not_local_model_action>
+
+    def test_performance_probe_is_observer_and_codex_only_not_local_model_action(self) -> None:
+        for profile in ("observer", "codex", "mutator"):
+>           tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile=profile).list_tools())}
+                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_mcp_server.py:282: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/project_control/app.py:264: in create_mcp
+    runtime = Runtime(active_config)
+              ^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/app.py:172: in __init__
+    self.todo_read_port_factory = todo_read_port_factory()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:122: in todo_read_port_factory
+    binding = initialize_workflow_binding(environment)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/project_control/workflow_binding.py:77: in initialize_workflow_binding
+    identity = bind_runtime(environment)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+environment = environ({'CODEX_CI': '1', 'CODEX_PERMISSION_PROFILE': ':danger-full-access', 'CODEX_SESSION_ID': '01a10201-c37b-7a20-9.../test_mcp_server.py::MCPServerTests::test_performance_probe_is_observer_and_codex_only_not_local_model_action (call)'})
+importer = <function import_module at 0x715b659947c0>
+
+    def bind_runtime(
+        environment: Mapping[str, str] = os.environ,
+        *,
+        importer: Callable[[str], _Module] = importlib.import_module,
+    ) -> RuntimeIdentity:
+        """Import and verify Todo once without modifying ``sys.path``.
+    
+        An already imported package is allowed only when it has the same source
+        fingerprint as the configured checkout.  This supports both editable and
+        wheel-installed candidate environments while rejecting ambient packages.
+        """
+    
+        release = _release(environment)
+        release_environment = dict(environment)
+        if release:
+            release_environment.pop(LEGACY_ROOT_VARIABLE, None)
+            release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
+        skills_root = locate_skills_root(release_environment)
+        source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+        source_fingerprint = package_fingerprint(source_root)
+        if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
+            raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
+        pinned_fingerprint = _expected_fingerprint(environment)
+        if pinned_fingerprint and pinned_fingerprint != source_fingerprint:
+            raise RuntimeIdentityError(
+                "configured Todo source changed after candidate construction",
+                expected=pinned_fingerprint,
+                observed=source_fingerprint,
+            )
+    
+        module = sys.modules.get("todo_orchestrator")
+        if module is None:
+            try:
+                module = importer("todo_orchestrator")
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise RuntimeIdentityError(
+                    "todo-orchestrator is not installed in the Project Control runtime",
+                    expected=str(source_root),
+                    observed="not importable",
+                ) from exc
+        module_value = getattr(module, "__file__", None)
+        if not module_value:
+            raise RuntimeIdentityError(
+                "imported todo_orchestrator has no filesystem identity",
+                expected=str(source_root / "__init__.py"),
+                observed="missing __file__",
+            )
+        module_file = Path(module_value).resolve()
+        package_root = module_file.parent
+        observed_fingerprint = package_fingerprint(package_root)
+        if observed_fingerprint != source_fingerprint:
+>           raise RuntimeIdentityError(
+                "imported todo_orchestrator does not match the configured Skills source",
+                expected=f"{source_root}:{source_fingerprint}",
+                observed=f"{package_root}:{observed_fingerprint}",
+            )
+E           project_control.runtime_identity.RuntimeIdentityError: imported todo_orchestrator does not match the configured Skills source
+
+src/project_control/runtime_identity.py:271: RuntimeIdentityError
+=============================== warnings summary ===============================
+tests/test_skill_ingestion.py::test_malformed_limits_checksums_collisions[entries0]
+  /home/tumlinson/Software/miniconda3/lib/python3.13/zipfile/__init__.py:1655: UserWarning: Duplicate name: 'x.md'
+    return self._open_to_write(zinfo, force_zip64=force_zip64)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_mcp_server.py::MCPServerTests::test_codex_composes_workflow_and_compact_rich_reads
+FAILED tests/test_mcp_server.py::MCPServerTests::test_exact_tools_annotations_and_schema_budget
+FAILED tests/test_mcp_server.py::MCPServerTests::test_health_ready_version_and_nonloopback_refusal
+SUBFAILED(profile='observer') tests/test_mcp_server.py::MCPServerTests::test_local_analysis_surface_is_observer_only
+SUBFAILED(profile='codex') tests/test_mcp_server.py::MCPServerTests::test_local_analysis_surface_is_observer_only
+SUBFAILED(profile='mutator') tests/test_mcp_server.py::MCPServerTests::test_local_analysis_surface_is_observer_only
+FAILED tests/test_mcp_server.py::MCPServerTests::test_local_investigate_one_question_returns_unified_results
+FAILED tests/test_mcp_server.py::MCPServerTests::test_local_investigate_serializes_when_two_session_reservation_is_unavailable
+FAILED tests/test_mcp_server.py::MCPServerTests::test_local_investigate_two_questions_reserves_two_narrow_sessions_and_isolates_branches
+FAILED tests/test_mcp_server.py::MCPServerTests::test_observer_rejects_hidden_workflow_invocation_before_binding
+FAILED tests/test_mcp_server.py::MCPServerTests::test_official_streamable_http_client_discovers_only_tools
+FAILED tests/test_mcp_server.py::MCPServerTests::test_performance_probe_is_observer_and_codex_only_not_local_model_action
+12 failed, 140 passed, 1 warning, 5 subtests passed in 9.20s

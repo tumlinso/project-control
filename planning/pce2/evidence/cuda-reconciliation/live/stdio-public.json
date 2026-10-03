@@ -1,0 +1,35 @@
+{
+  "atlas_resource_identity": "a75bdbe5b10d96aec3fd9794376c14541abea9f816666a20d11bc242c53f2c0d",
+  "boundary": "Release launcher pins execution runtime; advisory root is separately configured and public calls use opaque IDs/relative resources.",
+  "cpp_context": {
+    "corpus_identity": "d1fb35b213048ed32253deba60a11d422fdac7a1c37facf7e508bb4a6f73fc30",
+    "coverage": {
+      "analyzed_sections": 0,
+      "returned_sections": 6,
+      "total_sections": 6
+    },
+    "route": "indexed",
+    "route_reason": {
+      "broad_query": false,
+      "relevant_bytes": 7059,
+      "relevant_resources": 4
+    },
+    "status": "available"
+  },
+  "launcher_sha256": "b1c0dc76da5b2f940cd8575f185a8e710430c73fe0ed00bdde47bf5e19604574",
+  "machine_calls": 0,
+  "profile": "codex",
+  "server": {
+    "icons": null,
+    "name": "project-control",
+    "title": null,
+    "version": "1.30.0",
+    "websiteUrl": null
+  },
+  "skill_ids": [
+    "skill-05409665e2e47957",
+    "skill-e9ffbbf58d77a715"
+  ],
+  "tool_count": 25,
+  "transport": "native_mcp_stdio"
+}

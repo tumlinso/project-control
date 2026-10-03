@@ -1,0 +1,15 @@
+{
+  "activated_at_utc": "2026-10-03T19:57:31.764464+00:00",
+  "candidate": "cuda-reconciliation-3a55e7c-20261003",
+  "project_control_commit": "3a55e7cfd542c3e2d6684ab15170c7d8c298b57b",
+  "skills_commit": "7516ebf66a57370c6085ab46ee24773f5a23dd2a",
+  "release_manifest_sha256": "e01182edf95a08378d745736922d81b2db7b834699dbe625c05249cefd0498b8",
+  "previous_launcher_sha256": "9b43babc701d0b554add0e3f1f304b8a142842a10e23a260be8aba73f968d222",
+  "new_launcher_sha256": "b1c0dc76da5b2f940cd8575f185a8e710430c73fe0ed00bdde47bf5e19604574",
+  "rollback_preserved": true,
+  "todo_runtime_fingerprint_unchanged": true,
+  "tools_fingerprint_unchanged": true,
+  "todo_runtime_fingerprint": "15521b1576eab3f0f8aec70519cd2d06f52396db6d48b3a681d5bfb9e6a3464d",
+  "tools_fingerprint": "8b4d925e6714433e181ea5b0d1a4f562c24d833e0a374a4d4eaf9ac0d01fdfbd",
+  "project_control_fingerprint": "fefbdbf0648726e6f7663fa2684c488d078da73258eb2146a3ba73ccbfb5cc4b"
+}
