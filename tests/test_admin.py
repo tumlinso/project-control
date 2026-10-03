@@ -1229,7 +1229,10 @@ class IntegrationGateBindingTests(unittest.TestCase):
             service_module.Service = Mock(return_value=service)
             plan_module = types.ModuleType('todo_orchestrator.plan')
             plan_module.load_plan = Mock(return_value=plan)
-            with patch.object(admin,'_runtime_identity'), patch.object(admin,'_verified_binding_package',return_value=(plan,schedule)), patch.dict(sys.modules,{'todo_orchestrator.service':service_module,'todo_orchestrator.plan':plan_module,'todo_orchestrator.gates':native_gates,'todo_orchestrator.ownership':ownership}):
+            def fixture_workspace(repository, _service, workspace):
+                if Path(workspace['worktree_path']).resolve() != repository:
+                    raise ValueError('fixture wrong destination')
+            with patch.object(admin,'_verified_binding_workspace',side_effect=fixture_workspace), patch.object(admin,'_runtime_identity'), patch.object(admin,'_verified_binding_package',return_value=(plan,schedule)), patch.dict(sys.modules,{'todo_orchestrator.service':service_module,'todo_orchestrator.plan':plan_module,'todo_orchestrator.gates':native_gates,'todo_orchestrator.ownership':ownership}):
                 yield root,gates_file,conn,service,plan,gate
         conn.close()
 
@@ -1252,6 +1255,24 @@ class IntegrationGateBindingTests(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT state FROM claims').fetchone()[0],'active')
             self.assertEqual(conn.execute('SELECT status FROM tasks').fetchone()[0],'in_progress')
             self.assertEqual(tuple(conn.execute('SELECT * FROM workflow_patch_artifacts').fetchone()),('artifact','pending','preserved-commit'))
+
+    def test_registered_managed_destination_is_distinct_from_authority_root(self):
+        from todo_orchestrator.workflow.service import repository_identity
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)/'repo'; repository.mkdir()
+            for args in (["init", "-q"], ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-qm", "base"]):
+                subprocess.run(["git", "-C", str(repository), *args], capture_output=True, check=True)
+            state = repository/'.git/todo-orchestrator/project'
+            target = state/'workflow-workspaces/integrator'
+            target.parent.mkdir(parents=True)
+            subprocess.run(['git','-C',str(repository),'worktree','add','-qb','codex/integrator',str(target)],capture_output=True,check=True)
+            service = SimpleNamespace(paths=SimpleNamespace(state_dir=state),project={'project_uuid':'project'})
+            workspace = {'worktree_path':str(target),'repository_identity':repository_identity(repository,'project'),'state':'active','branch':'codex/integrator','base_commit':subprocess.check_output(['git','-C',str(repository),'rev-parse','HEAD'],text=True).strip()}
+            admin._verified_binding_workspace(repository,service,workspace)
+            self.assertNotEqual(target,repository)
+            for change in ({'branch':'other'},{'worktree_path':str(repository)},{'repository_identity':'other'},{'state':'integrated'},{'base_commit':'0'*40}):
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    admin._verified_binding_workspace(repository,service,{**workspace,**change})
 
     def test_revocation_between_selection_and_native_write_rejected(self):
         for sql in ("UPDATE workflow_dispatches SET state='released'", "UPDATE sessions SET state='released'", "UPDATE workflow_runs SET status='completed'", "UPDATE workflow_workspaces SET mode='isolated_merge'"):

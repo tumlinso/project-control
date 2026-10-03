@@ -1314,6 +1314,34 @@ class _CheckedBindingDatabase:
         return self.database.mutate(**{**kwargs, "operation": checked})
 
 
+def _verified_binding_workspace(repository: Path, service: Any, workspace: dict) -> None:
+    """Validate the registered managed destination against its Git ownership."""
+    from todo_orchestrator.workflow.service import repository_identity
+    target = Path(workspace["worktree_path"]).resolve()
+    managed = (service.paths.state_dir / "workflow-workspaces").resolve()
+    if target == managed or not target.is_relative_to(managed):
+        raise ValueError("integration destination lies outside managed workspace ownership")
+    expected_identity = repository_identity(repository, str(service.project["project_uuid"]))
+    if (workspace["repository_identity"] != expected_identity
+            or repository_identity(target, str(service.project["project_uuid"])) != expected_identity
+            or workspace["state"] != "active"):
+        raise ValueError("integration destination repository identity/state mismatch")
+    registered = []
+    for record in _git(repository, "worktree", "list", "--porcelain").split("\n\n"):
+        fields = dict(line.split(" ", 1) for line in record.splitlines() if " " in line)
+        if fields.get("worktree") and Path(fields["worktree"]).resolve() == target:
+            registered.append(fields)
+    if (len(registered) != 1 or not workspace["branch"]
+            or registered[0].get("branch") != "refs/heads/" + workspace["branch"]
+            or Path(_git(target, "rev-parse", "--show-toplevel")).resolve() != target):
+        raise ValueError("integration destination is not its registered managed branch")
+    base = workspace["base_commit"]
+    if (not re.fullmatch(r"[0-9a-f]{40}", base)
+            or _git(repository, "rev-parse", "--verify", base + "^{commit}") != base
+            or subprocess.run(["git", "-C", str(target), "merge-base", "--is-ancestor", base, "HEAD"], capture_output=True).returncode != 0):
+        raise ValueError("integration destination base is not an accepted ancestor")
+
+
 def bind_integration_gates(
     repo: str | Path, plan_path: str | Path, run_id: str,
     integration_task_id: str, gates_path: str | Path, *,
@@ -1379,9 +1407,9 @@ def bind_integration_gates(
             (run_id, owner["lane_id"]),
         ).fetchall()
         if (len(destinations) != 1 or destinations[0]["mode"] != "exclusive"
-                or destinations[0]["integration_task_id"] != integration_task_id
-                or Path(destinations[0]["worktree_path"]).resolve() != repository):
-            raise ValueError("integration destination must be the canonical exclusive workspace")
+                or destinations[0]["integration_task_id"] != integration_task_id):
+            raise ValueError("integration destination must be the registered exclusive workspace")
+        _verified_binding_workspace(repository, service, dict(destinations[0]))
         allowed = scopes_for(conn, integration_task_id, "exclusive") + scopes_for(conn, integration_task_id, "read")
         forbidden = scopes_for(conn, integration_task_id, "forbidden")
         resources = {str(r[0]) for r in conn.execute("SELECT id FROM resource_instances UNION SELECT id FROM resource_classes")}
