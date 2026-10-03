@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import types
@@ -320,6 +321,17 @@ class AdminCliTests(unittest.TestCase):
             with patch.dict(sys.modules, {"todo_orchestrator.git_state": git_state, "todo_orchestrator.projections": projections}):
                 self.assertEqual(admin._verified_generated_projection_paths(root, service), paths)
                 target = root / "todos.md"
+                legacy = "# Historical register\n\n" + replace_managed("", "OLD\n") + "Historical footer\n"
+                target.write_text(legacy, encoding="utf-8")
+                for args in (["init", "-q"], ["add", "todos.md"], ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "legacy projection"]):
+                    subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=True)
+                refreshed = replace_managed(legacy, "ROOT\n")
+                target.write_text(refreshed, encoding="utf-8")
+                self.assertEqual(admin._verified_generated_projection_paths(root, service), paths)
+                for bad in (refreshed.replace("Historical register", "Changed register"), refreshed.replace("Historical footer", "Changed footer"), refreshed + replace_managed("", "ROOT\n")):
+                    target.write_text(bad, encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "differs from authoritative"):
+                        admin._verified_generated_projection_paths(root, service)
                 for bad in (replace_managed("", "STALE\n"), "extra text\n" + replace_managed("", "ROOT\n"), "\n\n\n" + replace_managed("", "ROOT\n")):
                     target.write_text(bad, encoding="utf-8")
                     with self.assertRaisesRegex(ValueError, "differs from authoritative"):

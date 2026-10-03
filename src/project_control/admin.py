@@ -452,27 +452,33 @@ def _verified_generated_projection_paths(repository: Path, service: Any) -> list
         snapshot = build_snapshot(conn, service.project)
         revision = int(conn.execute("SELECT value FROM meta WHERE key='project_revision'").fetchone()[0])
         root, status, tasks = project_markdown(conn, revision)
-    expected: dict[str, bytes] = {
+    managed = {"todos.md": root, "todo-status.md": status}
+    managed.update({f"todos/{task_id.lower()}.md": body for task_id, body in tasks.items()})
+    expected = {
         ".todo-orchestrator/state.snapshot.json": (
             json.dumps(snapshot, indent=2, sort_keys=True) + "\n"
         ).encode("utf-8"),
-        "todos.md": replace_managed("", root).encode("utf-8"),
-        "todo-status.md": replace_managed("", status).encode("utf-8"),
+        **{path: replace_managed("", body).encode("utf-8") for path, body in managed.items()},
     }
-    expected.update({
-        f"todos/{task_id.lower()}.md": replace_managed("", body).encode("utf-8")
-        for task_id, body in tasks.items()
-    })
     for relative in observed:
         target = repository / relative
         if relative not in expected or not target.is_file():
             raise ValueError(f"generated projection differs from authoritative Todo state: {relative}")
-        actual = target.read_bytes()
         wanted = expected[relative]
-        # replace_managed adds two leading newlines when refreshing a block
-        # with an empty prefix. Accept that exact framing only for Markdown;
-        # the snapshot and all managed content still require exact bytes.
-        if actual != wanted and not (relative.endswith(".md") and actual == b"\n\n" + wanted):
+        permitted = {wanted}
+        if relative in managed:
+            committed = subprocess.run(
+                ["git", "-C", str(repository), "show", f"HEAD:{relative}"],
+                capture_output=True, text=True, check=False,
+            )
+            if committed.returncode == 0:
+                # Refresh the committed document with the native writer, so
+                # historical text outside the managed block stays preserved.
+                permitted = {replace_managed(committed.stdout, managed[relative]).encode("utf-8")}
+            else:
+                # New standalone projections may have been refreshed already.
+                permitted.add(b"\n\n" + wanted)
+        if target.read_bytes() not in permitted:
             raise ValueError(f"generated projection differs from authoritative Todo state: {relative}")
     return observed
 
