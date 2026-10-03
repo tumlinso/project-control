@@ -1,0 +1,171 @@
+{
+  "backend_substitution": false,
+  "cases": [
+    {
+      "case": "discovery_instruction_read",
+      "identity": "d0ffb0a4fa5009439775bff94fc5194cd3885869f3c05b55297b0d7fea6470d0",
+      "metadata_identity": "03e7321e95f2108f8fda8d0d9b203069f22cfacfcf76c42e682ab2de688d738e",
+      "name": "cuda",
+      "skill": "skill-05409665e2e47957"
+    },
+    {
+      "case": "discovery_instruction_read",
+      "identity": "df885bf1871092d5f5b0defaaf775aa1f5d805f1026e6337f2085af02fc4043b",
+      "metadata_identity": "877df684865b787c9abc784d9ccc45a41d4d8e1cb3a2e8c363ac2d9c8584e62c",
+      "name": "cpp-context-compiler",
+      "skill": "skill-e9ffbbf58d77a715"
+    },
+    {
+      "case": "atlas_supporting_read",
+      "identity": "48b0fa8ccae495a5b84b108c942bea78d49853d5fc7b0062807b574ef0465fb6"
+    },
+    {
+      "case": "cpp_indexed",
+      "corpus_identity": "9ec8c33933c168b982cef2f4a6667d01081f5971a218bb8125d2d8da5b0041cd",
+      "coverage": {
+        "analyzed_sections": 0,
+        "returned_sections": 6,
+        "total_sections": 6
+      },
+      "response_bytes": 9595,
+      "route": "indexed",
+      "route_reason": {
+        "broad_query": false,
+        "relevant_bytes": 7059,
+        "relevant_resources": 4
+      },
+      "status": "available"
+    },
+    {
+      "case": "atlas_machine_auto",
+      "continuation": true,
+      "corpus_identity": "352d1fe72b23f3541ef5c761a171f1f2c6d3a6192e2752713742e886869f5ef1",
+      "coverage": {
+        "analyzed_sections": 152,
+        "returned_sections": 8,
+        "total_sections": 188
+      },
+      "evidence_ids": [
+        "e-c7333ee846f57316e2ffd866",
+        "e-4580df94885746af6409a83e",
+        "e-537b55122c5977b4adb1d578",
+        "e-79ee1352721955f25c2cac57",
+        "e-4f9af010d78287531d337afa",
+        "e-d42427be47e1ef8c8e453d6a",
+        "e-427eae6b8d110d58ad364eb9",
+        "e-ed9232dcc24ce8ce20a084d3"
+      ],
+      "reason": null,
+      "response_bytes": 11479,
+      "route": "machine",
+      "route_reason": {
+        "broad_query": true,
+        "relevant_bytes": 166355,
+        "relevant_resources": 90
+      },
+      "status": "available",
+      "summaries": [
+        {
+          "evidence_ids": [
+            "e-4580df94885746af6409a83e",
+            "e-c7333ee846f57316e2ffd866",
+            "e-537b55122c5977b4adb1d578"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "The atlas is based on source-backed synthesis without GPU measurements or CUDA compilation. No novel speedups or synchronization behaviors were locally validated. Experiments remain unrun on GPU, and the capability probe is uncompiled and unexecuted. The actual performance of proposed communication strategies requires empirical validation."
+        },
+        {
+          "evidence_ids": [
+            "e-d42427be47e1ef8c8e453d6a",
+            "e-79ee1352721955f25c2cac57",
+            "e-4f9af010d78287531d337afa"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "The evidence describes established mechanisms and hypotheses but lacks local GPU measurements for direct validation of application-specific performance. The actual NVLink routing and saturation (E20) remains untested on GPU, introducing uncertainty about real-world behavior under varying workloads and topologies."
+        },
+        {
+          "evidence_ids": [
+            "e-427eae6b8d110d58ad364eb9",
+            "e-ed9232dcc24ce8ce20a084d3",
+            "e-99628b92e19bd325564fc36a"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "The experimental status is NOT_RUN_ON_GPU, indicating that the findings are based on theoretical or simulated conditions rather than actual performance data. The results may not reflect real-world behavior without further validation."
+        },
+        {
+          "evidence_ids": [
+            "e-61f4f0bd6777bdf76e47b32c",
+            "e-393909f4d61954c04855c509",
+            "e-e7520b9c6af7f7ac4eab68b2"
+          ],
+          "reason": null,
+          "status": "available",
+          "uncertainty": "The experiments are marked as NOT_RUN_ON_GPU, indicating they have not been executed on actual GPU hardware. This limits the ability to draw definitive conclusions about real-world performance characteristics. The findings are based on theoretical models and assumptions rather than empirical data from the target architecture."
+        }
+      ],
+      "summary_identity": "4299c4b18414e757af9e550367fd31b96ce474fd14140dc610e726ab81e417b5"
+    }
+  ],
+  "finished_at": "2026-10-03T16:06:18.359925+00:00",
+  "http": {
+    "healthz": {
+      "body": {
+        "config": "parseable",
+        "status": "ok"
+      },
+      "status_code": 200
+    },
+    "readyz": {
+      "body": {
+        "status": "ready",
+        "workspaces": 11
+      },
+      "status_code": 200
+    },
+    "version": {
+      "body": {
+        "name": "project-control",
+        "tool_schema_version": 9,
+        "version": "0.3.2"
+      },
+      "status_code": 200
+    }
+  },
+  "live_machine_qualified": true,
+  "machine_calls": 1,
+  "server": {
+    "icons": null,
+    "name": "project-control",
+    "title": null,
+    "version": "1.30.0",
+    "websiteUrl": null
+  },
+  "started_at": "2026-10-03T16:04:13.079303+00:00",
+  "tool_count": 20,
+  "tool_names": [
+    "agent_status",
+    "architecture_context",
+    "coordination_view",
+    "evidence",
+    "history_trace",
+    "impact_preview",
+    "inspect",
+    "local_investigate",
+    "performance_probe",
+    "performance_status",
+    "plan_preview",
+    "program_context",
+    "project_delta",
+    "project_frontier",
+    "project_overview",
+    "skill_context",
+    "skill_list",
+    "skill_read",
+    "source_context",
+    "terminal_capture"
+  ],
+  "transport": "native_mcp_streamable_http"
+}
