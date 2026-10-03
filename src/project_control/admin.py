@@ -995,6 +995,7 @@ def prepare_run_workspaces(
             branch=str(item["branch"]),
             integration_task_id=(str(item["integration_task_id"]) if item["integration_task_id"] else None),
         ))
+    service.refresh({str(item["task_id"]) for item in pending})
     result["status"] = "prepared"
     result["prepared"] = prepared
     return result

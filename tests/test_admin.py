@@ -234,6 +234,7 @@ class AdminCliTests(unittest.TestCase):
             db=_ReadDatabase(connection),
             project={"project_uuid": "project-uuid"},
             paths=SimpleNamespace(state_dir=state_dir),
+            refresh=Mock(),
         )
         return plan, service
 
@@ -358,6 +359,7 @@ class AdminCliTests(unittest.TestCase):
                     confirmation=admin.PREPARE_WORKSPACES_CONFIRMATION,
                 )
 
+        service.refresh.assert_called_once_with({"M40"})
         self.assertEqual(result["status"], "prepared")
         self.assertEqual(len(result["pending"]), 1)
         self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
@@ -381,6 +383,7 @@ class AdminCliTests(unittest.TestCase):
                  patch.dict(sys.modules, _todo_runtime_modules(plan, service, manager)):
                 result = admin.prepare_run_workspaces("/repo", "/plan.json", "RUN")
 
+        service.refresh.assert_not_called()
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["pending"][0]["lane_id"], "L-INTEGRATE")
         self.assertEqual(result["pending"][0]["base_commit"], "producer-base")
@@ -459,6 +462,7 @@ class AdminCliTests(unittest.TestCase):
         service = SimpleNamespace(
             db=_ReadDatabase(connection), project={"project_uuid": "project-uuid"},
             paths=SimpleNamespace(state_dir=Path("/state")),
+            refresh=Mock(),
         )
         manager = Mock()
         with patch.object(admin, "_runtime_identity"), \
@@ -532,6 +536,7 @@ class AdminCliTests(unittest.TestCase):
             db=_ReadDatabase(connection),
             project={"project_uuid": "project-uuid"},
             paths=SimpleNamespace(state_dir=Path("/state")),
+            refresh=Mock(),
         )
         manager = Mock()
         modules = _todo_runtime_modules(plan, service, manager)
@@ -571,6 +576,7 @@ class AdminCliTests(unittest.TestCase):
         service = SimpleNamespace(
             db=_ReadDatabase(connection), project={"project_uuid": "project-uuid"},
             paths=SimpleNamespace(state_dir=Path("/state")),
+            refresh=Mock(),
         )
         manager = Mock()
         modules = _todo_runtime_modules(plan, service, manager)
