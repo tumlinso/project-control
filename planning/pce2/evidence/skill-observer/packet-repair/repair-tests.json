@@ -1,0 +1,61 @@
+{
+  "format": "PC-OBSERVER-PACKET-REPAIR-TESTS/1",
+  "skills_commit": "45bb7f64a0852a9f1f22ac7b13c1fb511ccd01fd",
+  "tests": [
+    {
+      "suite": "Skills local-coding-worker/tests/test_supervisor.py",
+      "result": "passed",
+      "tests": 39,
+      "verification": "implementer reran against applied source",
+      "command": "PYTHONPATH=/home/tumlinson/.agents/skills/todo-orchestrator /home/tumlinson/project-control/.venv/bin/python -m unittest discover -s /home/tumlinson/.agents/skills/local-coding-worker/tests -p test_supervisor.py"
+    },
+    {
+      "suite": "Skills local-coding-worker/tests/test_llama_cpp_server.py",
+      "result": "passed",
+      "tests": 2,
+      "verification": "implementer reran against applied source",
+      "command": "PYTHONPATH=/home/tumlinson/.agents/skills/todo-orchestrator /home/tumlinson/project-control/.venv/bin/python -m unittest discover -s /home/tumlinson/.agents/skills/local-coding-worker/tests -p test_llama_cpp_server.py"
+    },
+    {
+      "suite": "Project Control bridge/routing",
+      "result": "passed",
+      "tests": 25,
+      "subtests": 3,
+      "verification": "root verified; reported to bounded implementer"
+    }
+  ],
+  "repair": {
+    "response_format": "trusted json_object schema",
+    "schema_max_bytes": 16384,
+    "packet_max_bytes": 65536,
+    "packet_max_unique_evidence_ids": 64,
+    "generation_max_tokens": 1024,
+    "generation_timeout_seconds": 90,
+    "temperature": 0,
+    "required_output_fields": [
+      "summary",
+      "evidence_ids",
+      "uncertainty"
+    ],
+    "additional_output_fields_allowed": false,
+    "summary_max_characters": 1200,
+    "uncertainty_max_characters": 400,
+    "citations_min": 1,
+    "citations_max": 8,
+    "validation": "nonempty summary; unique nonempty string evidence IDs drawn exactly from packet; no coercion, retry, or fence recovery",
+    "typed_failures": [
+      "observer_provider_invalid_shape",
+      "observer_provider_unknown_evidence_id",
+      "observer_provider_output_incomplete"
+    ],
+    "reviewer_fix": "Validate external references by traversing normalized decoded serialized schema; tuple allOf containing external reference is rejected before transport",
+    "model_substitutions": false
+  },
+  "integration": {
+    "owner": "root",
+    "trigger": "explicit user fix request and concrete live output shape/evidence-ID failure",
+    "boundary": "Parent Project Control claim excludes direct Skills source ownership; root owns cross-runtime application and final acceptance",
+    "implementer_scope": "candidate patch, authorized adapter normalized-schema follow-up, focused tests, and this evidence record",
+    "live_qualification": "owned by root; fixture passes do not assert live synthesis success"
+  }
+}

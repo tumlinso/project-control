@@ -1,0 +1,10 @@
+{
+  "activated_at_utc": "2026-10-03T16:03:50.054117+00:00",
+  "candidate": "skill-observer-packet-repair-20261003",
+  "release_manifest_sha256": "2d8ee1b9cfbf0fc50ccd0ea7df6391ea3a72416dd5359862a301590a38e39545",
+  "previous_launcher_sha256": "0c94f1cf38966a2e94bf4aadc302f0188c896cb164d520fc02cb15dc7e8d57fe",
+  "new_launcher_sha256": "9b43babc701d0b554add0e3f1f304b8a142842a10e23a260be8aba73f968d222",
+  "rollback_preserved": true,
+  "skills_commit": "45bb7f64a0852a9f1f22ac7b13c1fb511ccd01fd",
+  "source_commit": "b30f8816fcaa97ff5eac72cb92d3d57a3bdf346a"
+}
