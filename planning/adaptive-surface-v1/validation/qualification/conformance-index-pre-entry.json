@@ -34,37 +34,8 @@
     "Historical source identities, producer receipts, and failures are preserved; unaffected component executions are reused only with unchanged hashes.",
     "Current Surface execution has18 passing rows and1 obsolete fixture failure retained; corrected actual replay fixture has1 passing execution with unchanged completed/citation assertions.",
     "The precise failed node is excluded only after hash-bound later execution of that identical test node passes.",
-    "No hardware or full E2E acceptance is supplied by this index; actual complete Q10_rollback proof remains required."
+    "No hardware or full E2E acceptance is supplied by this index; actual complete Q6 proof remains required."
   ],
-  "paired_entry_producer": {
-    "documented_source_execution": {
-      "completion_chunk": "e12938",
-      "duration_seconds": 3.44,
-      "exec_session": "23896",
-      "passed_subtests": 11,
-      "passed_tests": 58,
-      "raw_report_available": false
-    },
-    "limits": [
-      "Native raw stdout proves10entrycases; documented58tests/11subtests has sourceworker session/chunk but no separate raw report supplied.",
-      "CPU/scripted evidence does not qualify actual model inference.",
-      "Native gate completed23:29:50 before reporting-only document created23:30:16; runtime/test bytes unchanged afterward. Exact later document hash bound without unnecessary functional retest."
-    ],
-    "native_execution": {
-      "native_evidence_id": "2574ce94-e356-492d-8f94-7455ecfd691b",
-      "original": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/evidence/2574ce94-e356-492d-8f94-7455ecfd691b/stdout.txt",
-      "passed_tests": 10,
-      "path": "native-entry-stdout.txt",
-      "sha256": "8c7c36904059b95b6313bab2fcf78d30044e9f921fd203022381ae49938b4fa4"
-    },
-    "qualified_observer_runtime_sha256": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd",
-    "source_commit": "9d19b348ca3630442bf6368e95e3e5a79865afa6",
-    "source_hashes": {
-      "docs/as1-observer-entry.md": "b3d38282e7a687f83a4c180f9d892d0e68a040dbed632e50e3679a0e5065c4f5",
-      "local-coding-worker/local_worker/observer_runtime.py": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd",
-      "tests/as1/test_sk_as1_observer_entry.py": "3565d8e73f4808aed5970553b4d0346cd0ec22bbf92a0d0292447c7ccf58a9f9"
-    }
-  },
   "receipt_hashes": {
     "docs/as1-context-receipt.json": "836ea773c3db5f63d759b5c7b3227303e28af651e3d83aa6947b329a8796fffa",
     "docs/as1-contract-receipt.json": "0876bb44fa30f09f9307849aadd5b24661c8d49e0b38636c46ef18ed401c4c5f",
@@ -233,31 +204,6 @@
       "sha256": "dc74fd825c24879b0948eb3e3bfd31490a39b8400990e0b171542fa68586d620",
       "source_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf",
       "source_status": "Corrected actual replay packet fixture retains completed/citation assertions"
-    },
-    {
-      "cases": [
-        "API-04"
-      ],
-      "kind": "pytest",
-      "original": "/tmp/pc-as1-entry-pin-cases.json",
-      "path": "conformance-entry-pin.json",
-      "sha256": "f4f8d906e28ddc6d63a75b75578bb8d0bdc8b6783d34be1b7d1390f3118cf5ac",
-      "source_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41",
-      "source_status": "Current native entry pin; initial JOB06 failure preserved and corrected in actual replay fixture",
-      "superseded_failed_tests": {
-        "tests/as1/test_pc_as1_jobs.py::test_actual_port_shared_tools_no_injection_and_agentic_registered_skill": "conformance-entry-skill-fixture.json"
-      }
-    },
-    {
-      "cases": [
-        "JOB-06"
-      ],
-      "kind": "pytest",
-      "original": "/tmp/pc-as1-entry-skill-fixture-cases.json",
-      "path": "conformance-entry-skill-fixture.json",
-      "sha256": "ed0c3a8231699c251e7094c32bc192744dbd9d98631117dfc83df3f7eb4e5f5a",
-      "source_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41",
-      "source_status": "Actual assistant-call/user-packet replay; exact entry/maps bytes+hash and selected maps packet citation"
     }
   ],
   "source_hashes": {
@@ -277,7 +223,7 @@
     "src/project_control/as1_jobs.py": "05ff359d48aace9344b176371fd3b8ddadffb91db728d873bad31ae51e6218ff",
     "src/project_control/as1_packets.py": "cfb56e11a798dd0f062845a0cd469c44e9cc0a10b01c458d464f558315503504",
     "src/project_control/as1_skill.py": "0231a72b370318486e990a28de890e48a0ecfc8f48eb55814a3d373a17339a8a",
-    "src/project_control/as1_surface.py": "4260e777d46f3ba7222adbcba0e3ed76d25119b6008319eed760a58252c120bb",
+    "src/project_control/as1_surface.py": "85d8d8ef5b670464f9b1fac02b796e27476022f0f42e306f7665c56566723a41",
     "src/project_control/as1_trace.py": "cb15e08e71995989142b3e76b7bffd14e78981a73a32258aea1ccb97778b24f1",
     "src/project_control/mutation.py": "6a5cfee10d2eacd78d7bc6050bfecdcb8dfd07d64f029f308506e32bb4029935",
     "src/project_control/observer_analysis.py": "1a6399941265043a9e2993d40bef6c3c58ae20f5b7ee964f4b672ede80b27911",
@@ -288,7 +234,7 @@
     "tests/as1/test_pc_as1_contract.py": "88b9774caaaefc72a212139c7287ac78e43cb6a98a240157c4ffc63e82aa7b3b",
     "tests/as1/test_pc_as1_control.py": "d8d08feb1546bbc252afc26b60fbf96a49fc5fd05cd5de057e8d005eb4ae1c76",
     "tests/as1/test_pc_as1_deployment.py": "294f84fdb2759bce647a8e828b428242287d3936628083ec93c6a8da096d25f2",
-    "tests/as1/test_pc_as1_jobs.py": "d41792ae9e5188763d7cbfa5ad63bd97d0c7fa62a51ec11bf1fe6e833e960737",
+    "tests/as1/test_pc_as1_jobs.py": "6ba5092ca8630b7bdb6ceec53f4f951b4dc44baacc6811eb1bcf6c0d65fd5fa9",
     "tests/as1/test_pc_as1_packets.py": "a0a8ac26cd2151d51bc21ffbbafd073855442866ff52a67d767d0c682e6ca764",
     "tests/as1/test_pc_as1_skill.py": "2f2baada2a6e06651c6305635d6453372f0c1d0a82780972d8f51e6e65c7ac3f",
     "tests/as1/test_pc_as1_surface.py": "a9a7eb9d11ba572ce93d49d34ac2c9f6c2b188cfdca3d6ab740e1e00db43d1dd",
@@ -297,12 +243,12 @@
     "tests/test_observer_analysis_registry.py": "24fa11892bfa473a2733efcd3bde964e66320f7d674fd01df233f3641b565aa7"
   },
   "source_history": {
-    "current_paired_proof_status": "Pending actual complete Q10_rollback skill/scout/queue/preemption/restart proof; historical failures preserved",
-    "current_pc_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41",
-    "current_skills_commit": "9d19b348ca3630442bf6368e95e3e5a79865afa6",
-    "previous_index": "conformance-index-pre-entry.json",
-    "previous_index_sha256": "48d94d4e55fb62070c0e014c1f55c7af665f32ad42c65c7ef194d6f7b86b62fb",
-    "qualified_observer_runtime_sha256": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd"
+    "current_paired_proof_status": "Pending actual Q6 complete scout/skill/queue/preemption proof; Q5 failed archive preserved",
+    "current_pc_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf",
+    "current_skills_commit": "9676989b4cbb64da007789f5594b03d9f7b182c8",
+    "previous_index": "conformance-index-pre-conversation.json",
+    "previous_index_sha256": "b1cf6671eb97a31198a151435b0af0139635df4fb76922ada920bf5426054c65",
+    "qualified_observer_runtime_sha256": "695981a69882c951487814425809659ec0abdccd428e329153a8acd6ce94d8e1"
   },
   "superseding_source_checks": [
     {
@@ -375,22 +321,6 @@
       "path": "tests/as1/test_pc_as1_surface.py",
       "reason": "Current native conversation binding and corrected actual replay packet fixture; prior failed row retained and explicitly superseded",
       "source_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf"
-    },
-    {
-      "current_sha256": "4260e777d46f3ba7222adbcba0e3ed76d25119b6008319eed760a58252c120bb",
-      "execution": "conformance-entry-pin.json",
-      "historical_sha256": "85d8d8ef5b670464f9b1fac02b796e27476022f0f42e306f7665c56566723a41",
-      "path": "src/project_control/as1_surface.py",
-      "reason": "Qualified entry runtime pin and actual conversation/replay JOB06 fixture",
-      "source_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41"
-    },
-    {
-      "current_sha256": "d41792ae9e5188763d7cbfa5ad63bd97d0c7fa62a51ec11bf1fe6e833e960737",
-      "execution": "conformance-entry-skill-fixture.json",
-      "historical_sha256": "6ba5092ca8630b7bdb6ceec53f4f951b4dc44baacc6811eb1bcf6c0d65fd5fa9",
-      "path": "tests/as1/test_pc_as1_jobs.py",
-      "reason": "Qualified entry runtime pin and actual conversation/replay JOB06 fixture",
-      "source_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41"
     }
   ]
 }

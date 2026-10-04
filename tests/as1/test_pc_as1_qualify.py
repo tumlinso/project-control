@@ -257,6 +257,14 @@ def test_current_conformance_and_independent_review_are_executed():
         assert sha(ROOT/relative)==expected_hash,relative
     for relative,expected_hash in index['receipt_hashes'].items():
         assert sha(Path('/home/tumlinson/project-control')/relative)==expected_hash,relative
+    entry=index.get('paired_entry_producer')
+    if entry:
+        for relative,expected_hash in entry['source_hashes'].items():
+            assert sha(Path('/home/tumlinson/.agents/skills')/relative)==expected_hash,relative
+        native=entry['native_execution']
+        assert sha(REPORTS/native['path'])==native['sha256']
+        assert '10 passed' in (REPORTS/native['path']).read_text()
+        assert entry['source_hashes']['local-coding-worker/local_worker/observer_runtime.py']==entry['qualified_observer_runtime_sha256']
     paired=paired_consumer()
     report_path=Path(os.environ.get('AS1_SQA_REPORT','/home/tumlinson/.local/state/project-control/as1-bootstrap/sqa/final-acceptance-report.json'))
     assert report_path.is_file(), 'Current executed SQA report required'
