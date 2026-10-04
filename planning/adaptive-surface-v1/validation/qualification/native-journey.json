@@ -114,7 +114,10 @@
       "delegate_task",
       "finish_task"
     ],
-    "capability_id": "a99e7a47-53af-4914-8ebb-9212caba171b",
+    "capability_id": {
+      "redacted": true,
+      "sha256": "11e041cc8b19c27592fac5faa6c30fdc1e332edd63b8ca81bfc4834019a09c79"
+    },
     "capability_incarnation": 1,
     "context": {
       "changed_fragments": [],
@@ -213,7 +216,10 @@
     "run_id": "compat-v2",
     "status": "claimed",
     "task_id": "A",
-    "workflow_handle": "wfc_VUPZFKOWE6t6NSED-08jP2gHj7Gik4pskT8kry4K6JU"
+    "workflow_handle": {
+      "redacted": true,
+      "sha256": "502336469abf4313a393d43eb6a2eda748c311648c44fa55783ae2ceafb8bf44"
+    }
   },
   "diff": {
     "current_observation_preconditions": {
@@ -317,6 +323,11 @@
     "terminal": true
   },
   "journey": "native-coder-mutator",
+  "private_original": {
+    "limit": "Disposable fixture bearer fields hashed in public evidence; original private bytes retained.",
+    "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/native-journey-e6895a18c0d61482c403baf5e46f13e0bcc4d35b486c36566159cd0a55e9e37b.json",
+    "sha256": "e6895a18c0d61482c403baf5e46f13e0bcc4d35b486c36566159cd0a55e9e37b"
+  },
   "publication": {
     "id": "A:qualification-source",
     "origin": "task_scoped",

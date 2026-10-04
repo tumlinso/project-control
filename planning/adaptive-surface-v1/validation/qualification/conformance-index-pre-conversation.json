@@ -31,10 +31,10 @@
     }
   ],
   "limits": [
-    "Historical source identities, producer receipts, and failures are preserved; unaffected component executions are reused only with unchanged hashes.",
-    "Current Surface execution has18 passing rows and1 obsolete fixture failure retained; corrected actual replay fixture has1 passing execution with unchanged completed/citation assertions.",
-    "The precise failed node is excluded only after hash-bound later execution of that identical test node passes.",
-    "No hardware or full E2E acceptance is supplied by this index; actual complete Q6 proof remains required."
+    "Historical producer executions remain retained; CONTROL bridge uses later passing MUT evidence; unchanged Jobs source uses affected36-pass progress execution.",
+    "Current Surface runtime pin has19-pass evidence; trusted startup GPU policy and inventory changes have37-pass/21-subtest deployment evidence.",
+    "Unchanged component source hashes and historical producer receipts remain preserved.",
+    "No new hardware or full E2E proof is supplied by this index; final actual Q5 proof remains required."
   ],
   "receipt_hashes": {
     "docs/as1-context-receipt.json": "836ea773c3db5f63d759b5c7b3227303e28af651e3d83aa6947b329a8796fffa",
@@ -152,6 +152,10 @@
     },
     {
       "cases": [
+        "API-01",
+        "API-02",
+        "API-03",
+        "API-04",
         "JOB-01",
         "JOB-04",
         "JOB-05"
@@ -161,7 +165,7 @@
       "path": "conformance-continuation-pin.json",
       "sha256": "4fd5894e262936beeffc15a2463a433e7b0bafd53162e0cf1aba9fb0fa5212f3",
       "source_commit": "a60a5ef737295b5aeb5df5e9c3a591e09a620177",
-      "source_status": "Unchanged Jobs regression rows remain active; earlier Surface pin/API execution retained historically in this report"
+      "source_status": "Current continuation observer-runtime pin and trusted deployment policy/inventory execution"
     },
     {
       "cases": [
@@ -173,37 +177,6 @@
       "sha256": "62b05e2990c146fd368ef2180ca930fca4ccdff1db2cae46260dd9b9aae52cc1",
       "source_commit": "a60a5ef737295b5aeb5df5e9c3a591e09a620177",
       "source_status": "Current continuation observer-runtime pin and trusted deployment policy/inventory execution"
-    },
-    {
-      "cases": [
-        "API-01",
-        "API-02",
-        "API-03",
-        "API-04",
-        "JOB-01",
-        "JOB-04",
-        "JOB-05"
-      ],
-      "kind": "pytest",
-      "original": "/tmp/pc-as1-conversation-pin-cases.json",
-      "path": "conformance-conversation-pin.json",
-      "sha256": "f63907917b9c8c7d85a865736e0857e30f3b4dde8637b0fc66104843f1945fc2",
-      "source_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf",
-      "source_status": "Current Surface conversation binding; one obsolete fixture assertion is replaced by actual durable replay execution",
-      "superseded_failed_tests": {
-        "tests/as1/test_pc_as1_surface.py::test_public_jobs_use_actual_installed_worker_and_shared_service": "conformance-conversation-fixture.json"
-      }
-    },
-    {
-      "cases": [
-        "API-04"
-      ],
-      "kind": "pytest",
-      "original": "/tmp/pc-as1-conversation-fixture-cases.json",
-      "path": "conformance-conversation-fixture.json",
-      "sha256": "dc74fd825c24879b0948eb3e3bfd31490a39b8400990e0b171542fa68586d620",
-      "source_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf",
-      "source_status": "Corrected actual replay packet fixture retains completed/citation assertions"
     }
   ],
   "source_hashes": {
@@ -223,7 +196,7 @@
     "src/project_control/as1_jobs.py": "05ff359d48aace9344b176371fd3b8ddadffb91db728d873bad31ae51e6218ff",
     "src/project_control/as1_packets.py": "cfb56e11a798dd0f062845a0cd469c44e9cc0a10b01c458d464f558315503504",
     "src/project_control/as1_skill.py": "0231a72b370318486e990a28de890e48a0ecfc8f48eb55814a3d373a17339a8a",
-    "src/project_control/as1_surface.py": "85d8d8ef5b670464f9b1fac02b796e27476022f0f42e306f7665c56566723a41",
+    "src/project_control/as1_surface.py": "14ea3aae8fbdd51f4f51d275bc5238424d68b68ae8ce1d062781ac949e3e8344",
     "src/project_control/as1_trace.py": "cb15e08e71995989142b3e76b7bffd14e78981a73a32258aea1ccb97778b24f1",
     "src/project_control/mutation.py": "6a5cfee10d2eacd78d7bc6050bfecdcb8dfd07d64f029f308506e32bb4029935",
     "src/project_control/observer_analysis.py": "1a6399941265043a9e2993d40bef6c3c58ae20f5b7ee964f4b672ede80b27911",
@@ -237,18 +210,18 @@
     "tests/as1/test_pc_as1_jobs.py": "6ba5092ca8630b7bdb6ceec53f4f951b4dc44baacc6811eb1bcf6c0d65fd5fa9",
     "tests/as1/test_pc_as1_packets.py": "a0a8ac26cd2151d51bc21ffbbafd073855442866ff52a67d767d0c682e6ca764",
     "tests/as1/test_pc_as1_skill.py": "2f2baada2a6e06651c6305635d6453372f0c1d0a82780972d8f51e6e65c7ac3f",
-    "tests/as1/test_pc_as1_surface.py": "a9a7eb9d11ba572ce93d49d34ac2c9f6c2b188cfdca3d6ab740e1e00db43d1dd",
+    "tests/as1/test_pc_as1_surface.py": "adbf05c625ed2767517861920593fca73d99b14ee51661f80349956b6ea96dfb",
     "tests/as1/test_pc_as1_trace.py": "154ecfb73804d040455d3e275ffeab767e67b6b35e0e525ea820f9cccc4a45a8",
     "tests/test_installer.py": "70ad7a31d1f36279a1cb6fb9ea0053ec0adfff557986c69b5d7b6da2b1260666",
     "tests/test_observer_analysis_registry.py": "24fa11892bfa473a2733efcd3bde964e66320f7d674fd01df233f3641b565aa7"
   },
   "source_history": {
-    "current_paired_proof_status": "Pending actual Q6 complete scout/skill/queue/preemption proof; Q5 failed archive preserved",
-    "current_pc_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf",
-    "current_skills_commit": "9676989b4cbb64da007789f5594b03d9f7b182c8",
-    "previous_index": "conformance-index-pre-conversation.json",
-    "previous_index_sha256": "b1cf6671eb97a31198a151435b0af0139635df4fb76922ada920bf5426054c65",
-    "qualified_observer_runtime_sha256": "695981a69882c951487814425809659ec0abdccd428e329153a8acd6ce94d8e1"
+    "current_paired_proof_status": "pending actual final Q5 candidate journey; earlier failures retained",
+    "current_pc_commit": "a60a5ef737295b5aeb5df5e9c3a591e09a620177",
+    "current_skills_commit": "21be127240c4fd91616a26c5ce1c1ada6aed23df",
+    "previous_index": "conformance-index-pre-continuation.json",
+    "previous_index_sha256": "718edeee5b9fd03d6248e04f96d6991792fa6318104da8c094c3d35c2da71cf1",
+    "qualified_observer_runtime_sha256": "76f82d2ad6f0972df3c7016b60c30884fde72974fc1929fe029887541e935e3a"
   },
   "superseding_source_checks": [
     {
@@ -305,22 +278,6 @@
       "path": "src/project_control/as1_surface.py",
       "reason": "Qualified observer continuation runtime76f82d2 pin; current19-pass affected execution",
       "source_commit": "a60a5ef737295b5aeb5df5e9c3a591e09a620177"
-    },
-    {
-      "current_sha256": "85d8d8ef5b670464f9b1fac02b796e27476022f0f42e306f7665c56566723a41",
-      "execution": "conformance-conversation-pin.json",
-      "historical_sha256": "14ea3aae8fbdd51f4f51d275bc5238424d68b68ae8ce1d062781ac949e3e8344",
-      "path": "src/project_control/as1_surface.py",
-      "reason": "Current native conversation binding and corrected actual replay packet fixture; prior failed row retained and explicitly superseded",
-      "source_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf"
-    },
-    {
-      "current_sha256": "a9a7eb9d11ba572ce93d49d34ac2c9f6c2b188cfdca3d6ab740e1e00db43d1dd",
-      "execution": "conformance-conversation-fixture.json",
-      "historical_sha256": "adbf05c625ed2767517861920593fca73d99b14ee51661f80349956b6ea96dfb",
-      "path": "tests/as1/test_pc_as1_surface.py",
-      "reason": "Current native conversation binding and corrected actual replay packet fixture; prior failed row retained and explicitly superseded",
-      "source_commit": "4d15efd8343718b685b402d8a2a56359cb163cdf"
     }
   ]
 }

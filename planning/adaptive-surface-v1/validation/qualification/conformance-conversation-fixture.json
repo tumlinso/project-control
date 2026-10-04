@@ -1,0 +1,1 @@
+{"cases": {"API-04": [{"outcome": "passed", "test": "tests/as1/test_pc_as1_surface.py::test_public_jobs_use_actual_installed_worker_and_shared_service"}]}, "pytest_exitstatus": 0}
