@@ -1,0 +1,32 @@
+{
+  "format": "pc-as1-producer-receipt/1",
+  "producer_project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+  "producer_task_id": "PC-AS1-CONTEXT",
+  "gate_ids": ["PC-AS1-CONTEXT-ACCEPT"],
+  "source_identity": {
+    "commit": "d7db1418953ca3e14966eb0ecf1275f2b3ff20df",
+    "branch": "codex/pc-as1-l-context",
+    "completion_revision": 831,
+    "gate_revision": 830,
+    "gate_evidence_id": "5405ab51-d410-4189-a290-f64e6e924c50",
+    "integration_status": "pending managed integration into PC-AS1-SURFACE"
+  },
+  "contract_hashes": {
+    "src/project_control/as1_context.py": "78ff717b44419eb1993c7e7068b3a68c798f881a7f36485d5c2413a5138fcb05",
+    "src/project_control/services/inspect.py": "bd27721927182deaa88b59c2e4363e64e049c55a61be6a496c21afb24916e927",
+    "tests/as1/test_pc_as1_context.py": "486720e8340a3f83ab64f84d1f1295b5e5657901a9d4e71f6b308c866a69d1cf",
+    "docs/as1-context.md": "2aac52087560149990b48b4d9116fefa13b8a9c44a4ea3dbc23ecd3d16622d38"
+  },
+  "coverage": {
+    "cases": ["CTX-01", "CTX-02", "CTX-03", "CTX-04", "CTX-05", "CTX-06", "CTX-07", "CTX-08", "CTX-09", "CTX-10", "CTX-11"],
+    "targeted_tests_passed": 48,
+    "independent_source_review": "no remaining P1/P2 findings in these exact bytes",
+    "trusted_access_scope": ["principal", "project", "profile"]
+  },
+  "limits": [
+    "Source implementation and native producer gate; public surface wiring and managed integration remain downstream.",
+    "Canonical installed semantic runtime migration and cutover remain unqualified; unavailable extension is reported as partial coverage.",
+    "TRACE impact and CONTROL job callbacks remain downstream producer obligations."
+  ],
+  "status": "passed"
+}
