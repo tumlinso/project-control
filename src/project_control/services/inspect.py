@@ -74,6 +74,7 @@ def inspect_subject(
     request: InspectInput,
     *,
     deadline: float | None = None,
+    exact_only: bool = False,
 ) -> ToolEnvelope:
     warnings: list[str] = []
     data: dict[str, Any] = {"kind": request.kind, "target": request.target, "intent": request.intent}
@@ -81,7 +82,22 @@ def inspect_subject(
     graph = ProjectGraph(snapshot, reconciled)
     expected_kind = GRAPH_KIND.get(request.kind, request.kind)
     expected = {expected_kind} if request.kind not in {"path", "symbol", "subsystem", "dependency", "test"} else None
-    resolution = graph.resolve(request.target, expected_types=expected)
+    if exact_only:
+        # Exact typed requests do not enter the graph's token-overlap resolver.
+        from ..graph import normalize
+        expected = {expected_kind}
+        pool = [entity for entity in graph.entities.values() if entity["type"] in expected]
+        matches = [entity for entity in pool if normalize(entity["id"]) == normalize(request.target)]
+        if not matches:
+            matches = [entity for entity in pool if any(normalize(alias) == normalize(request.target) for alias in entity["aliases"])]
+        resolution = {"status": "resolved" if len(matches) == 1 else "ambiguous" if matches else "not_found",
+                      "entity": matches[0] if len(matches) == 1 else None,
+                      "reason": "exact_typed_lookup", "candidates": [graph._candidate(entity, 1.0) for entity in matches] if len(matches) > 1 else []}
+        if resolution["status"] != "resolved":
+            data.update(source="reconciled_project_graph", freshness="snapshot", resolution=resolution, matches=[])
+            return envelope("inspect", snapshot, data, warnings=["subject_" + resolution["status"]], compact_identity=True)
+    else:
+        resolution = graph.resolve(request.target, expected_types=expected)
     if request.kind in TABLES:
         warnings.extend(snapshot.warnings_for("todo"))
         rows = canonical_context_fragments(snapshot) if request.kind == "context_fragment" else snapshot.todo_tables.get(TABLES[request.kind], [])
@@ -107,6 +123,10 @@ def inspect_subject(
             matches=[entity["record"]], related=graph.related(entity["key"]),
         )
         warnings.extend(snapshot.warnings_for("todo"))
+    elif exact_only and request.kind in {"path", "symbol", "subsystem"}:
+        entity = resolution["entity"]
+        data.update(source="reconciled_project_graph", freshness="snapshot", resolution=resolution,
+                    matches=[entity["record"]], related=graph.related(entity["key"]))
     elif request.kind in {"path", "symbol", "subsystem"}:
         registry = WorkspaceRegistry(config)
         repository = registry.repository(request.project, request.repository)
