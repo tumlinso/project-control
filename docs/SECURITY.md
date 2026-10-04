@@ -1,5 +1,29 @@
 # Security
 
+The [adaptive surface](as1-surface.md) enforces startup-bound profiles at both
+discovery and dispatch. Observer is project/workflow read-only (11 tools);
+coder/codex has four canonical workflow tools plus eight information tools (12);
+mutator also has investigation and typed plan/declaration/maintenance control
+(16). Only observer can request extended detail or use `read`/`skill`. Internal
+workers have read-only sandboxed command/log and cannot recursively investigate
+or mutate project/Todo state. Caller profile strings and hints grant no authority.
+
+Observer exact reads use registered relative paths and reject requested symlinks,
+escapes and unsupported binary content. Durable packet/job state is app-private;
+scoped aliases and request IDs are not capabilities. Job cancellation and leases
+fence late attempts, and source excerpts are checked against original bytes.
+Project Control does not expose an observer shell, benchmark or GPU-lease mutation
+tool. Delegate/collect and removed legacy names are rejected before backend
+dispatch. Inactive delegation requires explicit operator reenable.
+
+## Historical backend security contracts
+
+The following records earlier surface apertures and retained backend constraints.
+Historical tool names/counts below are not AS1 discovery or dispatch permissions;
+use the current role matrix above. Runtime identity, sandbox and source-policy
+implementation remain useful backend references.
+
+
 Project Control enforces three capability profiles structurally, not by prompt
 convention. The observer's project/workflow/source query plane is permanently
 project-read-only. The Codex profile exposes only the six canonical Todo

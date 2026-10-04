@@ -1,21 +1,22 @@
 # project-control
 
-`project-control` is the sole model-facing product for observing and coordinating
-registered engineering workspaces. It composes three separately enforced MCP
-profiles over one implementation:
+`project-control` observes and coordinates registered engineering workspaces
+through startup-bound MCP profiles over one implementation. The adaptive AS1
+surface exposes eight shared tools: `overview`, `delta`, `frontier`, `search`,
+`evidence`, `impact`, `history`, and `machine`.
 
-- **observer** is the existing loopback Streamable HTTP service for ChatGPT. It
-  exposes exactly 20 tools and is permanently project-read-only; its explicit
-  `performance_probe` aperture writes only app-private measurement evidence.
-- **codex** is a stdio server registered as `project-control`. It exposes the
-  canonical six Todo workflow tools, seventeen rich Project Control reads,
-  the registered `performance_probe` aperture, and `maintain_execution`
-  (25 tools). It does not expose
-  `terminal_capture`.
-- **mutator** is a separately selected local stdio profile exposing the Codex
-  workflow/read surface plus `apply_plan` (25 tools), without
-  `maintain_execution`. It is intended for ledger/bootstrap control
-  changes and does not replace ordinary task claims.
+- **observer**: 11 tools over loopback HTTP; adds `read`, `investigate`, `skill`.
+- **coder** (`codex` compatibility identity): 12 tools over stdio; adds
+  `next_task`, `inspect_task`, `coordinate_task`, `finish_task`.
+- **mutator**: 16 tools over local stdio; adds `investigate`, the four workflow
+  tools, `plan`, `amend_project`, `maintain_execution`.
+- **investigator** and **skill assembler** are internal read-only modes with
+  the shared eight plus `command` and `log` (10 tools each).
+
+Compact is the default. Only observer supports extended detail. No profile
+receives automatic overview or loads a model at startup. Local profiles retain
+native files, shell, Git and skills. See [the adaptive surface guide](docs/as1-surface.md)
+for routing, exact typed search, packets, durable jobs, examples, and release scope.
 
 Todo Orchestrator remains the sole transactional workflow kernel and SQLite
 semantic authority. Project Control verifies and imports that canonical runtime
@@ -41,52 +42,12 @@ The command records integration only; the existing completed-run
 `mark-run-workspaces-cleanup-eligible` operation remains a separate prerequisite
 to removing worktrees. Neither operation merges or deletes Git work.
 
-The observer's one execution aperture, `terminal_capture`, runs only a
-repository-contained executable in a fail-closed observation sandbox and
-returns the rendered PTY screen. Its mutable state is confined to an app-private
-PTY registry and grants no Todo, Git, repository, or workflow authority.
-
-Project Control v2 is the compatibility authority: it preserves the eight v1
-tools and makes richer reads first-class. Project Control 0.3.2/tool schema v4
-freezes the original fourteen input contracts. The discovered observer surface
-is exactly seventeen tools:
-
-- `project_overview`
-- `project_delta`
-- `project_frontier`
-- `inspect`
-- `evidence`
-- `plan_preview`
-- `agent_status`
-- `performance_status`
-- `architecture_context`
-- `coordination_view`
-- `source_context`
-- `history_trace`
-- `impact_preview`
-- `program_context`
-- `local_investigate`
-- `performance_probe`
-- `terminal_capture`
-
-The observer service binds only to loopback and is intended to be connected to
-ChatGPT through OpenAI Secure MCP Tunnel. The observer tools never accept
-arbitrary repository paths, run workers or benchmarks, claim tasks, edit
-registered projects, or mutate Git/todo state. `terminal_capture` accepts no
-shell or host path and gives the child a read-only repository, isolated
-HOME/tmp, and no network through bubblewrap. Bubblewrap is required; the
-capability fails closed when it is unavailable. `pyte` supplies the VT state
-machine.
-
-`performance_probe(project, campaign, mode, parameters, rebuild=false)` is an
-observer/root-requested aperture, never a `local_investigate` action. It sends
-only a fixed typed spec to Skills; the registered campaign owns safe argv
-expansion, build recipe, dataset roots, topology and interlocks. `rebuild=false`
-requires an existing binary. The read-only remote observer rejects
-`rebuild=true`; the local root/Codex profile may explicitly run only the
-registry-owned build recipe. Results stay in
-`%h/.cache/project-control/performance-probe` and verify project worktrees did
-not change.
+Observer `investigate` and `skill` use one durable read-only job broker.
+Project Control owns access, persistence and verified source excerpts; the local
+worker navigates installed `SKILL.md`, authored maps and prerequisites agentically.
+`search` retains discovery and accepts exact typed canonical IDs through a direct
+deterministic lookup. There is no public Project Control `find`; local filesystem
+discovery uses native `find`, `rg`, and Git.
 
 Local setup and connection instructions are in `docs/CHATGPT_SETUP.md`.
 Codex setup, compatibility, and cheap-first usage are in `docs/CODEX_SETUP.md`;
@@ -106,12 +67,13 @@ Normal Codex work starts with the bounded workflow protocol:
 3. `coordinate_task` handles typed synchronization, gates, interfaces,
    rendezvous, integration requests, and authorized non-authoritative
    `publish_context` findings.
+4. `finish_task` records disposition and runs required gates.
 
-`delegate_task`, `collect_delegation`, and `finish_task` complete that canonical
-six-tool protocol. Fourteen rich reads and the registered measurement aperture remain available as secondary
-escalation tools when current-task context is insufficient or source,
-architecture, history, impact, performance, or cross-project context is
-genuinely needed.
+`delegate_task` and `collect_delegation` retain implementation/history but are
+absent from discovery and rejected at dispatch as `temporarily_inactive`.
+Reenable requires an explicit operator decision; no timer reactivates them.
+Use configured Codex subagents for bounded assignments under the root's claim.
+The eight shared information tools supply additional context when needed.
 
 ## Bulk plan ingestion
 
@@ -173,17 +135,6 @@ workspaces = ["baseplane", "cellerator", "cellshard", "glasshelix"]
 `project-control doctor --json` is the local-only provider diagnostic. It may
 show selected executable and filesystem paths; ordinary MCP output replaces
 private locations with stable IDs and bounded error classifications.
-Terminal diagnostics separate installation, timeout, namespace, mount,
-permission, and service-policy failures. The hardened systemd unit permits
-`AF_NETLINK` only because bubblewrap needs `NETLINK_ROUTE` while constructing
-the isolated network namespace; the sandbox still has no external network.
-
-Bonded terminal sessions are app-private live runtime objects. Launch with
-`kill_after_capture=false` to receive an opaque session ID and optional unique
-active label, then recapture the same PTY by either identity. They survive MCP
-request boundaries but intentionally do not survive a Project Control service
-restart; shutdown terminates and reaps them. Default capture kills the owned
-process group after rendering.
 
 Workflow data is additive output on the existing tools. Operational state comes
 only from `todo semantic workflow`; the official durable export enriches records
@@ -191,7 +142,7 @@ anchored by that read and is never independently interpreted as worker activity.
 active run, first-class Codex lane tree and serial queues, authoritative
 dispatches, typed blockers, rendezvous, managed workspaces, pending patches,
 integration conflicts, context cursors, safe parallel groups, and recovery
-attention. `agent_status` keeps first-class Codex/project agents separate from
+attention. `frontier` keeps first-class Codex/project agents separate from
 subordinate local-worker child executions. Claims alone are not agents, and a
 local child is never a lane, role, communicator, or rendezvous participant.
 
@@ -218,12 +169,15 @@ transaction. Schema v1 remains readable and is never rewritten automatically.
 
 The service provides `/healthz`, `/readyz`, `/version`, and the loopback MCP URL
 `http://127.0.0.1:8767/mcp`. See `docs/SECURITY.md` for the enforced capability
-boundary and `docs/TOOL_CONTRACTS.md` for the frozen v2 contracts and additive
-v3 terminal contract.
+boundary and `docs/TOOL_CONTRACTS.md` for the current surface and clearly labeled historical backend contracts.
 
 ## Runtime maintenance
 
-Deployment candidates now freeze the required Skills runtime alongside the two
+Project Control and Skills remain standalone repositories, bound by an explicit
+paired release manifest with distinct authority identities and exact commits.
+Skills contains no Project Control source copy or submodule.
+
+Deployment candidates freeze the required Skills runtime alongside the two
 installed distributions. The release manifest and its configured SHA-256 bind
 that snapshot; mutable development checkouts are not live release dependencies.
 Installed package, frozen Python tools, and manifest mutation still fail closed.

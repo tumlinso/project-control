@@ -52,14 +52,14 @@ def _server(profile: MCPProfile) -> ProfiledFastMCP:
 
 class ProfilePolicyTests(unittest.TestCase):
     def test_contract_tool_sets_are_exact_and_distinct(self) -> None:
-        self.assertEqual(20, len(OBSERVER_TOOL_NAMES))
-        self.assertEqual(25, len(CODEX_TOOL_NAMES))
-        self.assertEqual(25, len(MUTATOR_TOOL_NAMES))
-        self.assertEqual(18, len(RICH_READ_TOOL_NAMES))
-        self.assertEqual(6, len(WORKFLOW_TOOL_NAMES))
-        self.assertEqual(set(RICH_READ_TOOL_NAMES) | {"local_investigate"}, set(OBSERVER_TOOL_NAMES) - {"terminal_capture"})
-        self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES) | {MAINTENANCE_TOOL_NAME})
-        self.assertEqual(set(MUTATOR_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES) | {"apply_plan"})
+        self.assertEqual(11, len(OBSERVER_TOOL_NAMES))
+        self.assertEqual(12, len(CODEX_TOOL_NAMES))
+        self.assertEqual(16, len(MUTATOR_TOOL_NAMES))
+        self.assertEqual(8, len(RICH_READ_TOOL_NAMES))
+        self.assertEqual(4, len(WORKFLOW_TOOL_NAMES))
+        self.assertEqual(set(RICH_READ_TOOL_NAMES) | {"read", "investigate", "skill"}, set(OBSERVER_TOOL_NAMES))
+        self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES))
+        self.assertEqual(set(MUTATOR_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES) | {"investigate", "plan", "amend_project", "maintain_execution"})
         self.assertNotIn("terminal_capture", MUTATOR_TOOL_NAMES)
 
     def test_profile_and_transport_are_explicit_startup_configuration(self) -> None:
@@ -101,7 +101,7 @@ class ProfileRegistrationTests(unittest.TestCase):
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
         for name in WORKFLOW_TOOL_NAMES:
             self.assertEqual(f"{name} description", descriptions[name])
-        self.assertEqual(f"{MAINTENANCE_TOOL_NAME} description", descriptions[MAINTENANCE_TOOL_NAME])
+        self.assertNotIn(MAINTENANCE_TOOL_NAME, descriptions)
         asyncio.run(validate_profile_registration(server))
 
     def test_mutator_registers_exact_codex_surface_plus_apply_plan(self) -> None:
@@ -117,19 +117,9 @@ class ProfileRegistrationTests(unittest.TestCase):
         for profile in (MCPProfile.OBSERVER, MCPProfile.CODEX):
             with self.subTest(profile=profile):
                 with self.assertRaisesRegex(ToolError, f"unavailable in the {profile.value} profile"):
-                    asyncio.run(_server(profile).call_tool("apply_plan", {"value": "ok"}))
-        result = asyncio.run(_server(MCPProfile.MUTATOR).call_tool("apply_plan", {"value": "ok"}))
+                    asyncio.run(_server(profile).call_tool("plan", {"value": "ok"}))
+        result = asyncio.run(_server(MCPProfile.MUTATOR).call_tool("plan", {"value": "ok"}))
         self.assertTrue(result)
-
-    def test_apply_plan_schema_and_annotations_are_narrow(self) -> None:
-        server = ProfiledFastMCP("project-control", profile=MCPProfile.MUTATOR)
-        register_mutation_tools(server, ProjectControlConfig(), apply_service=lambda *_args: {"status": "applied"})
-        tool = next(item for item in asyncio.run(server.list_tools()) if item.name == "apply_plan")
-        self.assertEqual({"project", "proposal"}, set(tool.inputSchema["properties"]))
-        self.assertFalse(tool.annotations.readOnlyHint)
-        self.assertFalse(tool.annotations.destructiveHint)
-        self.assertFalse(tool.annotations.idempotentHint)
-        self.assertFalse(tool.annotations.openWorldHint)
 
     def test_hidden_invocation_is_denied_before_handler(self) -> None:
         called = False
@@ -157,7 +147,7 @@ class ProfileRegistrationTests(unittest.TestCase):
 
     def test_registration_validation_reports_missing_tools(self) -> None:
         server = ProfiledFastMCP("project-control", profile="observer")
-        server.add_tool(_handler, name="project_overview")
+        server.add_tool(_handler, name="overview")
         with self.assertRaisesRegex(ProfileRegistrationError, "missing="):
             asyncio.run(validate_profile_registration(server))
 

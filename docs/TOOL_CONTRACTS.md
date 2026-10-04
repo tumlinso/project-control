@@ -1,5 +1,20 @@
 # Tool contracts
 
+The current role matrix, routing and examples are in [Adaptive role surface](as1-surface.md),
+bound to [surface.json](../planning/adaptive-surface-v1/contracts/surface.json).
+Observer has 11 tools, coder/codex 12, mutator 16; both internal modes have 10.
+Profile checks guard discovery and dispatch; only observer supports extended.
+`search` accepts discovery or exact typed entities; no public `find` exists.
+Delegate/collect remain temporarily inactive until explicit operator reenable.
+
+## Historical contracts and preserved backends
+
+The following v1-v5 contracts document earlier releases and retained backend/CLI
+compatibility. Their public names, counts, aliases and execution apertures are
+not the ordinary AS1 frontend. They are retained as historical implementation
+references, not current routing instructions.
+
+
 Project Control exposes three exact profile-specific tool sets. No profile
 publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
 or a generic shell.

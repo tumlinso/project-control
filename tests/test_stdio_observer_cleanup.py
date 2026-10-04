@@ -9,11 +9,12 @@ from project_control.profiles import MCPProfile
 
 class _Registry:
     def __init__(self): self.closed = 0
+    def start(self): pass
     def close(self): self.closed += 1
 
 
 class _Mcp:
-    def __init__(self, registry): self._project_control_observer_analysis_registry = registry
+    def __init__(self, registry): self._project_control_surface = registry
     def run(self, **kwargs): raise RuntimeError("stdio closed")
 
 

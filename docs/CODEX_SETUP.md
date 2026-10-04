@@ -1,6 +1,6 @@
 # Codex setup
 
-Project Control's Codex profile is a stdio MCP server registered under the name
+Project Control's coder profile (`codex` compatibility identity) is a stdio MCP server registered under the name
 `project-control`. It is separate from the loopback observer endpoint and does
 not use the ChatGPT tunnel.
 
@@ -8,6 +8,9 @@ not use the ChatGPT tunnel.
 
 Build an isolated candidate environment containing both local distributions:
 `project-control` and the canonical `todo-orchestrator` from Skills. The installer also creates `runtime-skills/` and `release-manifest.json`.
+Project Control and Skills remain standalone source repositories, paired by an
+explicit release manifest; Skills contains no Project Control copy or submodule.
+The frozen runtime snapshot is a candidate deployment input.
 For deployment, set `PROJECT_CONTROL_SKILLS_ROOT` to that frozen snapshot,
 `PROJECT_CONTROL_RELEASE_MANIFEST` to the manifest's absolute path, and
 `PROJECT_CONTROL_RELEASE_DIGEST` to its SHA-256. Keep all three settings and the
@@ -27,35 +30,13 @@ executor.
 
 ## Bounded maintenance hosts
 
-The Codex profile exposes `maintain_execution`, but an ordinary unconfigured
-server cannot execute it. Trusted host startup must bind a distinct operator
-principal:
-
-```python
-from project_control.app import create_mcp
-from project_control.workflow_tools import trusted_maintenance_context
-
-server = create_mcp(
-    profile="codex",
-    maintenance_host=trusted_maintenance_context("operator-a"),
-)
-```
-
-An owner prepares a mandate and the exact stdio operator command with:
-
-```bash
-project-control admin prepare-maintenance --repo /path/to/repo --task TASK-ID --recipient operator-a
-```
-
-The JSON response contains the principal-bound opaque grant and a fixed
-same-runtime `operator_launch` command. Start that command as the trusted host
-and have its MCP client make the recorded public `maintain_execution` call.
-The server never chooses work or invokes the grant by itself; after it returns
-the receipt, a separate implementer uses the returned exact `next_task`
-recommendation for the same task. The operator supplies the repository and
-opaque grant reference, not a role or principal. Observer and mutator profiles
-do not expose this operation. This tool boundary does not provide OS isolation
-from arbitrary same-user Python.
+AS1 `maintain_execution` belongs to the separately selected **mutator** profile,
+not coder/codex. It exposes diagnose/prepare/execute through the existing native
+principal-bound grant mechanism. Trusted startup binds the principal; callers
+cannot supply a role, recipient, repository root or approval flag to broaden it.
+See [control ports](as1-control.md) and [the current surface](as1-surface.md).
+Owner CLI maintenance compatibility remains separate from model permissions;
+[maintenance continuation](MAINTENANCE.md) preserves the historical operator path.
 
 For an active task, `coordinate_task(action="bind_required_gates", payload={
 "gates": [...]})` adds required gates without replacing the plan. Existing gate
@@ -70,8 +51,8 @@ Before registration, candidate validation must prove:
 
 - runtime package and frozen source match the digest-pinned manifest;
 - rebinding, skew, missing packages, and ambiguous packages fail closed;
-- stdio discovery returns exactly 25 tools;
-- the six workflow schemas, including the reviewed `bind_required_gates`
+- coder/codex discovery returns exactly 12 tools, mutator exactly 16;
+- the four workflow schemas, including the reviewed `bind_required_gates`
   coordination action, match the current canonical protocol;
 - workflow writes and rich reads observe the same Todo project UUID, revision,
   and authority fingerprint; and
@@ -86,44 +67,27 @@ without deleting the candidate.
 
 ## Tool discovery and normal use
 
-The Codex profile exposes these six workflow tools:
+Coder/codex exposes four workflow tools: `next_task`, `inspect_task`,
+`coordinate_task`, and `finish_task`, plus eight shared information tools:
+`overview`, `delta`, `frontier`, `search`, `evidence`, `impact`, `history`, `machine`.
+Compact is the default; local profiles can request standard but not extended.
+Use native files, shell, `find`, `rg`, Git and skills. Observer-only `read` and
+`skill` are not local MCP replacements. No profile injects overview at startup.
 
-- `next_task`
-- `inspect_task`
-- `coordinate_task`
-- `delegate_task`
-- `collect_delegation`
-- `finish_task`
+`search(query={"kind": "task", "target": "T1"}, project="demo")` performs a
+direct canonical exact lookup; discovery queries retain their existing behavior.
+There is no public Project Control `find`. Removed legacy names are not aliases
+in ordinary discovery or dispatch. See [routing examples](as1-surface.md).
 
-It separately exposes `maintain_execution`, a startup-bound maintenance tool.
-It remains unavailable until the Codex server receives a trusted maintenance
-host context; it is not an ordinary workflow claim operation.
-
-It also exposes fourteen rich reads plus one registered measurement aperture:
-
-- `project_overview`
-- `project_delta`
-- `project_frontier`
-- `inspect`
-- `evidence`
-- `plan_preview`
-- `agent_status`
-- `performance_status`
-- `performance_probe`
-- `architecture_context`
-- `coordination_view`
-- `source_context`
-- `history_trace`
-- `impact_preview`
-- `program_context`
-
-`terminal_capture` is observer-only and is neither discovered nor invocable in
-the Codex profile.
+`delegate_task` and `collect_delegation` preserve implementation/history but are
+absent from discovery and rejected at dispatch as `temporarily_inactive`.
+Feature metadata specifies explicit operator reenable; no timer reactivates them.
+Use configured Codex subagents for scoped coding/research assignments under the
+owning root's active task claim.
 
 For substantial work, call `next_task` first. When its context is ready,
 proceed; use `inspect_task` only for missing needed current-task context, and
-use `coordinate_task` for typed synchronization. Delegate only a bounded
-subordinate child and collect only its returned opaque handle. Use
+use `coordinate_task` for typed synchronization. Use
 `finish_task` for every first-class disposition: it runs required gates, so
 use `run_gates` separately only when earlier validation is useful. Read-only
 questions and research may use rich reads directly without a task or claim.
@@ -146,15 +110,6 @@ references without re-sending the whole context capsule.
 `"integrate_and_validate"` for the lane-owned integration path followed by
 validation. The action policy returned with the workflow handle remains the
 authority for whether that action is available.
-
-`delegate_task` accepts `mode="readonly"` or `mode="writable"` and optional
-repository-relative `source_targets`. A writable child requires explicit,
-existing, narrower source targets within the parent’s authorized scope.
-Readonly delegation may use the parent’s readable scope when targets are
-omitted. A parent that creates a child is responsible for its disposition:
-call `coordinate_task(action="accept_child", payload={"child_execution_id":
-...})` for an accepted result, or `reject_child` with its required `reason`.
-Only the owning parent claim can make that decision.
 
 The main thread owns reasoning, synthesis, strategy, architecture, scope
 changes, consequential tradeoffs, and final acceptance. Subagents gather

@@ -27,55 +27,29 @@ class ProfileRegistrationError(RuntimeError):
 
 class MCPProfile(StrEnum):
     OBSERVER = "observer"
+    CODER = "coder"
     CODEX = "codex"
     MUTATOR = "mutator"
+    INVESTIGATOR = "investigator"
+    SKILL_ASSEMBLER = "skill_assembler"
 
 
-RICH_READ_TOOL_NAMES = (
-    "project_overview",
-    "project_delta",
-    "project_frontier",
-    "inspect",
-    "evidence",
-    "plan_preview",
-    "agent_status",
-    "performance_status",
-    "performance_probe",
-    "architecture_context",
-    "coordination_view",
-    "source_context",
-    "skill_list",
-    "skill_read",
-    "skill_context",
-    "history_trace",
-    "impact_preview",
-    "program_context",
-)
-
-# Local investigation is intentionally remote-observer-only. The packet
-# analyzer remains an internal provider primitive and has no MCP surface.
-OBSERVER_ONLY_TOOL_NAMES = ("local_investigate",)
-
-WORKFLOW_TOOL_NAMES = (
-    "next_task",
-    "inspect_task",
-    "coordinate_task",
-    "delegate_task",
-    "collect_delegation",
-    "finish_task",
-)
+RICH_READ_TOOL_NAMES = ("overview", "delta", "frontier", "search", "evidence", "impact", "history", "machine")
+WORKFLOW_TOOL_NAMES = ("next_task", "inspect_task", "coordinate_task", "finish_task")
 MAINTENANCE_TOOL_NAME = "maintain_execution"
-
-TERMINAL_TOOL_NAME = "terminal_capture"
-MUTATION_TOOL_NAMES = ("apply_plan",)
-OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + OBSERVER_ONLY_TOOL_NAMES + (TERMINAL_TOOL_NAME,)
-CODEX_TOOL_NAMES = WORKFLOW_TOOL_NAMES + (MAINTENANCE_TOOL_NAME,) + RICH_READ_TOOL_NAMES
-MUTATOR_TOOL_NAMES = WORKFLOW_TOOL_NAMES + RICH_READ_TOOL_NAMES + MUTATION_TOOL_NAMES
-
-CODEX_RICH_READ_DESCRIPTION_PREFIX = (
-    "Read-only project context: use directly for questions or research, or during "
-    "substantial work when current-task context needs it. "
-)
+MUTATION_TOOL_NAMES = ("plan", "amend_project", MAINTENANCE_TOOL_NAME)
+OBSERVER_ONLY_TOOL_NAMES = ("read", "investigate", "skill")
+OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + OBSERVER_ONLY_TOOL_NAMES
+CODEX_TOOL_NAMES = RICH_READ_TOOL_NAMES + WORKFLOW_TOOL_NAMES
+MUTATOR_TOOL_NAMES = RICH_READ_TOOL_NAMES + ("investigate",) + WORKFLOW_TOOL_NAMES + MUTATION_TOOL_NAMES
+INTERNAL_TOOL_NAMES = RICH_READ_TOOL_NAMES + ("command", "log")
+TEMPORARILY_INACTIVE = {
+    name: {"preserve_implementation": True, "dispatch": "temporarily_inactive",
+           "reason": "local coding delegation is inactive",
+           "reenable": "explicit operator decision; no timed reactivation"}
+    for name in ("delegate_task", "collect_delegation")
+}
+CODEX_RICH_READ_DESCRIPTION_PREFIX = "Read-only project context: use deliberately when needed. "
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,31 +62,20 @@ class ProfilePolicy:
         return tool_name in self.tool_names
 
     def require_allowed(self, tool_name: str) -> None:
+        if tool_name in TEMPORARILY_INACTIVE:
+            raise ToolError("temporarily_inactive: explicit operator decision required to reenable " + tool_name)
         if not self.allows(tool_name):
             raise ToolError(f"tool {tool_name!r} is unavailable in the {self.profile.value} profile")
 
 
-_PROFILE_POLICIES: Mapping[MCPProfile, ProfilePolicy] = MappingProxyType(
-    {
-        MCPProfile.OBSERVER: ProfilePolicy(
-            profile=MCPProfile.OBSERVER,
-            transport="streamable-http",
-            tool_names=OBSERVER_TOOL_NAMES,
-        ),
-        MCPProfile.CODEX: ProfilePolicy(
-            profile=MCPProfile.CODEX,
-            transport="stdio",
-            tool_names=CODEX_TOOL_NAMES,
-        ),
-        MCPProfile.MUTATOR: ProfilePolicy(
-            profile=MCPProfile.MUTATOR,
-            transport="stdio",
-            tool_names=MUTATOR_TOOL_NAMES,
-        ),
-    }
-)
-
-_KNOWN_TOOL_NAMES = frozenset(OBSERVER_TOOL_NAMES + CODEX_TOOL_NAMES + MUTATOR_TOOL_NAMES)
+_PROFILE_POLICIES: Mapping[MCPProfile, ProfilePolicy] = MappingProxyType({
+    profile: ProfilePolicy(profile, "streamable-http" if profile == MCPProfile.OBSERVER else "stdio", names)
+    for profile, names in (
+        (MCPProfile.OBSERVER, OBSERVER_TOOL_NAMES), (MCPProfile.CODER, CODEX_TOOL_NAMES),
+        (MCPProfile.CODEX, CODEX_TOOL_NAMES), (MCPProfile.MUTATOR, MUTATOR_TOOL_NAMES),
+        (MCPProfile.INVESTIGATOR, INTERNAL_TOOL_NAMES), (MCPProfile.SKILL_ASSEMBLER, INTERNAL_TOOL_NAMES))
+})
+_KNOWN_TOOL_NAMES = frozenset(OBSERVER_TOOL_NAMES + CODEX_TOOL_NAMES + MUTATOR_TOOL_NAMES + INTERNAL_TOOL_NAMES + tuple(TEMPORARILY_INACTIVE))
 
 
 def profile_policy(profile: MCPProfile | str) -> ProfilePolicy:
@@ -150,6 +113,7 @@ class ProfiledFastMCP(FastMCP):
         if kwargs.get("tools"):
             raise ProfileConfigurationError("profiled servers require explicit add_tool registration")
         self._profile_policy = profile_policy(profile)
+        self.feature_metadata = {"temporarily_inactive": TEMPORARILY_INACTIVE, "automatic_overview": False}
         super().__init__(*args, **kwargs)
 
     @property
@@ -177,7 +141,7 @@ class ProfiledFastMCP(FastMCP):
         if not self._profile_policy.allows(tool_name):
             return
         effective_description = description
-        if self.profile in {MCPProfile.CODEX, MCPProfile.MUTATOR} and tool_name in RICH_READ_TOOL_NAMES:
+        if self.profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR} and tool_name in RICH_READ_TOOL_NAMES:
             effective_description = CODEX_RICH_READ_DESCRIPTION_PREFIX + (description or "")
         super().add_tool(
             fn,
@@ -201,6 +165,8 @@ class ProfiledFastMCP(FastMCP):
                                    else {"invalid_argument_type": type(arguments).__name__})})
         try:
             self._profile_policy.require_allowed(name)
+            if arguments.get("detail") == "extended" and self.profile != MCPProfile.OBSERVER:
+                raise ToolError("detail_not_permitted: extended is observer-only")
             result = await super().call_tool(name, arguments)
         except Exception:
             write_event({"event": "tool_call", "phase": "finished", "call_id": call_id,
