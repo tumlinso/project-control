@@ -58,10 +58,10 @@ def identity_agrees(observed, candidate, release, source):
 def surfaces_agree(rows, required, origin):
     assert set(rows) == required
     for profile, observed in rows.items():
-        assert observed['origin'] == origin
-        assert observed['transport'] in {'stdio', 'http', 'installed_in_process'}
+        assert observed['origin'] in ({'live_registered_client', 'live_launcher_client'} if origin == 'live_client' else {origin})
+        assert observed['transport'] in {'stdio', 'streamable-http', 'installed_in_process'}
         schemas = observed['schemas']
-        assert set(schemas) == set(CONTRACT['profiles'][profile]['tools'])
+        assert set(schemas) == set(CONTRACT['profiles']['coder' if profile == 'codex' else profile]['tools'])
         assert 'No overview is automatic.' in observed['instructions']
         for schema in schemas.values():
             detail = schema.get('properties', {}).get('detail')
@@ -88,13 +88,14 @@ def test_installed_and_live_standalone_pair_and_exact_role_surfaces(live_release
     identity_agrees(artifact('installed_identity'), candidate, release, source)
     identity_agrees(artifact('live_identity'), candidate, release, source)
     roles = artifact('role_surfaces')
-    surfaces_agree(roles['candidate'], set(CONTRACT['profiles']), 'installed_candidate')
-    surfaces_agree(roles['live'], {'observer', 'codex', 'mutator'}, 'live_registered_client')
-    assert roles['live']['observer']['transport'] == 'http'
+    surfaces_agree(roles['candidate'], set(CONTRACT['profiles']) | {'codex'}, 'installed_candidate')
+    surfaces_agree(roles['live'], {'observer', 'codex', 'mutator'}, 'live_client')
+    assert roles['live']['observer']['transport'] == 'streamable-http'
     assert roles['live']['codex']['transport'] == roles['live']['mutator']['transport'] == 'stdio'
     registration = artifact('registration')
     assert registration['service']['ActiveState'] == 'active'
-    assert {'project-control', 'coding-workflow'} <= set(registration['codex_registrations'])
+    assert 'project-control' in registration['codex_registrations']
+    assert 'coding-workflow' not in registration['codex_registrations'], 'Consolidated public registration must not retain the old alias'
     for row in registration['launchers']:
         launcher = Path(row['path']).resolve(strict=True)
         assert sha(launcher) == row['sha256']
