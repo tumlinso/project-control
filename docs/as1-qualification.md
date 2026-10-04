@@ -109,3 +109,11 @@ document hash is bound separately. PC's two startup/frontend passes and earlier
 obsolete JOB-06 fixture failure remain preserved; the identical failed node
 has a later passing actual conversation/replay execution. Complete Q10 proof
 remains required before the two dependent E2E consumers can qualify.
+
+Live release evidence binds the selected new daemon's actual systemd unit ID and
+MainPID to the live runtime identity. The protected older unit and its model
+process identities must remain exactly active before/after the handoff. The
+consumer requires no particular new unit name and does not require restarting
+the older protected unit. NF1A checks preserve actual native before/after state
+and prohibit resumption; they do not infer a paused status from historical plan
+text. Root observed Cellerator and GlassHelix NF1A records as completed/done.

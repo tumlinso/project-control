@@ -86,14 +86,26 @@ def test_installed_and_live_standalone_pair_and_exact_role_surfaces(live_release
     proof, candidate, release, artifact = live_release
     source = proof['source_identity']
     identity_agrees(artifact('installed_identity'), candidate, release, source)
-    identity_agrees(artifact('live_identity'), candidate, release, source)
+    live_identity = artifact('live_identity')
+    identity_agrees(live_identity, candidate, release, source)
     roles = artifact('role_surfaces')
     surfaces_agree(roles['candidate'], set(CONTRACT['profiles']) | {'codex'}, 'installed_candidate')
     surfaces_agree(roles['live'], {'observer', 'codex', 'mutator'}, 'live_client')
     assert roles['live']['observer']['transport'] == 'streamable-http'
     assert roles['live']['codex']['transport'] == roles['live']['mutator']['transport'] == 'stdio'
     registration = artifact('registration')
-    assert registration['service']['ActiveState'] == 'active'
+    service = registration['service']
+    assert service['ActiveState'] == 'active' and service['Id']
+    assert int(service['MainPID']) > 0
+    assert live_identity['process_binding']['service_main_pid'] == int(service['MainPID'])
+    protected = registration['protected_service_before']
+    assert protected == registration['protected_service_after']
+    assert protected['ActiveState'] == 'active' and int(protected['MainPID']) > 0
+    assert protected['Id'] != service['Id']
+    assert int(protected['MainPID']) != int(service['MainPID'])
+    assert registration['protected_processes_before'] == registration['protected_processes_after']
+    assert registration['protected_processes_before']
+
     assert 'project-control' in registration['codex_registrations']
     assert 'coding-workflow' not in registration['codex_registrations'], 'Consolidated public registration must not retain the old alias'
     for row in registration['launchers']:
@@ -201,7 +213,6 @@ def test_executed_pce2_adoption_preserves_source_evidence_unrelated_work_and_nf1
     assert reconciliation['task_supersessions'] == reconciliation['task_retirements'] == []
     assert reconciliation['unrelated_before'] == reconciliation['unrelated_after']
     assert reconciliation['nf1a_before'] == reconciliation['nf1a_after']
-    assert 'paused' in json.dumps(reconciliation['nf1a_after']).lower()
     assert reconciliation['preservation_checks']
     for row in reconciliation['preservation_checks']:
         assert row['before_sha256'] == row['after_sha256']
