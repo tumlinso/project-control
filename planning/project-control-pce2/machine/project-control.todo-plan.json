@@ -1,0 +1,180 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "project-control"
+  },
+  "tasks": [
+    {
+      "id": "PC-PCE2-0000",
+      "kind": "epic",
+      "title": "PCE2 project-control: usable semantic engineering control",
+      "objective": "Aggregate verified local outcomes only; this is not a coordinator seat or a prerequisite of its children.",
+      "priority": 0,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [],
+        "read_paths": [
+          "planning/pce2"
+        ]
+      },
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated"
+        ]
+      },
+      "next_action": "Close after all local child outcomes have executed acceptance evidence; overall release also needs both authorities. NF1A remains paused.",
+      "notes": "Shared 3,000,000-token ceiling across both repositories/all agents, including relevant PCE1 implementation already spent. Planning/pce2 is the package location, not another runtime authority."
+    },
+    {
+      "id": "PC-PCE2-RUNTIME",
+      "parent_id": "PC-PCE2-0000",
+      "kind": "task",
+      "title": "Bind one working environment and report real capabilities",
+      "objective": "Use the verified runtime consistently and expose supported source, launch and maintenance routes so agents do not reconstruct interpreter/package/authority combinations.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "packaging",
+          "tests",
+          "docs",
+          "pyproject.toml",
+          "uv.lock",
+          "planning/pce2"
+        ],
+        "read_paths": [
+          "planning/pce2"
+        ],
+        "forbidden_paths": []
+      },
+      "depends_on": [],
+      "result_policy": {
+        "allowed_dispositions": [
+          "implemented",
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-PCE2-RUNTIME in planning/pce2/machine/outcomes.json; use the source anchors and choose an economical implementation.",
+      "notes": "Acceptance: planning/pce2/ACCEPTANCE.md. Verify cross-authority producer evidence in machine/cross-authority.json before completion. Bind actual conformance gates; no_change_required requires executed proof. Shared 3M all-agent cap includes prior PCE1 implementation. No fixed delegate/test-pass quotas. NF1A stays paused."
+    },
+    {
+      "id": "PC-PCE2-SURFACE",
+      "parent_id": "PC-PCE2-0000",
+      "kind": "task",
+      "title": "Expose concise guidance and specialized maintenance without root rituals",
+      "objective": "Preserve familiar workflow entry points while adding typed defaults, semantic action packets, bounded deep reads and one capability-checked maintenance entry point usable by authorized agents.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "docs",
+          "packaging",
+          "planning/pce2"
+        ],
+        "read_paths": [
+          "planning/pce2"
+        ],
+        "forbidden_paths": []
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PCE2-RUNTIME"
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "implemented",
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-PCE2-SURFACE in planning/pce2/machine/outcomes.json; use the source anchors and choose an economical implementation.",
+      "notes": "Acceptance: planning/pce2/ACCEPTANCE.md. Verify cross-authority producer evidence in machine/cross-authority.json before completion. Bind actual conformance gates; no_change_required requires executed proof. Shared 3M all-agent cap includes prior PCE1 implementation. No fixed delegate/test-pass quotas. NF1A stays paused."
+    },
+    {
+      "id": "PC-PCE2-QUALIFY",
+      "parent_id": "PC-PCE2-0000",
+      "kind": "task",
+      "title": "Prove low-friction public journeys and hand back paused NF1A",
+      "objective": "Qualify the paired implementation with real public-boundary fixtures, demonstrate fewer avoidable calls and root handoffs, and deliver evidence plus usage without modifying or resuming NF1A.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "docs",
+          "packaging",
+          "planning/pce2"
+        ],
+        "read_paths": [
+          "planning/pce2"
+        ],
+        "forbidden_paths": []
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PCE2-SURFACE"
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "implemented",
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-PCE2-QUALIFY in planning/pce2/machine/outcomes.json; use the source anchors and choose an economical implementation.",
+      "notes": "Acceptance: planning/pce2/ACCEPTANCE.md. Verify cross-authority producer evidence in machine/cross-authority.json before completion. Bind actual conformance gates; no_change_required requires executed proof. Shared 3M all-agent cap includes prior PCE1 implementation. No fixed delegate/test-pass quotas. NF1A stays paused."
+    }
+  ],
+  "runs": [
+    {
+      "id": "PC-PCE2-RUN-1",
+      "root_task_id": "PC-PCE2-0000",
+      "charter": {
+        "objective": "Make engineering execution easy through semantic guidance, automatic routine mechanics and scoped delegable maintenance.",
+        "motivation": "Reduce avoidable calls, workarounds, repeated gates and root handoffs.",
+        "desired_end_state": "Six PCE2 outcomes qualified in one paired candidate; donor NF1A paused.",
+        "boundaries": [
+          "Independent Todo/Git/host authority; preserve source/evidence.",
+          "Observer stays nonmutating; trusted scoped grants authorize maintenance, not model labels.",
+          "No live Cellerator/GlassHelix writes, deployment activation or NF1A continuation."
+        ],
+        "acceptance_conditions": [
+          "Current executed evidence for all PCE2 scenarios and supported old calls.",
+          "Shared 3M aggregate token ceiling including relevant prior PCE1 work; disclose metering gaps."
+        ],
+        "delegated_judgment": "Choose APIs, tests, local decomposition, supported concurrency and economical configured agents; no procedural microtasks or fixed delegation/test quotas.",
+        "references": [
+          "planning/pce2/DESIGN.md",
+          "planning/pce2/BOOTSTRAP.md",
+          "planning/pce2/machine/outcomes.json",
+          "planning/pce2/machine/usage.json",
+          "planning/pce2/machine/cross-authority.json"
+        ]
+      },
+      "lanes": [
+        {
+          "id": "PC-PCE2-L-EXEC",
+          "role": "implementer",
+          "workspace": {
+            "mode": "exclusive"
+          },
+          "tasks": [
+            "PC-PCE2-RUNTIME",
+            "PC-PCE2-SURFACE",
+            "PC-PCE2-QUALIFY",
+            "PC-PCE2-0000"
+          ]
+        }
+      ]
+    }
+  ]
+}

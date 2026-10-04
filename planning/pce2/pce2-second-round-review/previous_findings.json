@@ -1,0 +1,163 @@
+{
+  "format": "pce2-prior-review-disposition",
+  "items": [
+    {
+      "id": "R1",
+      "disposition": "Resolved for the identified defect",
+      "assessment": "Existence/file-kind fingerprints distinguish the removed directory from its previous state.",
+      "sources": [
+        "E17",
+        "E18",
+        "E20"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R2",
+      "disposition": "Resolved for the identified defect",
+      "assessment": "Child and explicit acceptance operations are excluded from the ordinary static reuse shortcut.",
+      "sources": [
+        "E18",
+        "E20"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R3",
+      "disposition": "Partially resolved",
+      "assessment": "Stopped-process checks and owned leases are improved; workspace effect scope still confuses integration with ownership.",
+      "sources": [
+        "E11",
+        "E12",
+        "E36"
+      ],
+      "remaining_findings": [
+        "F2"
+      ]
+    },
+    {
+      "id": "R4",
+      "disposition": "Resolved for the identified DB race",
+      "assessment": "General plans carry a revision read with their facts; BEGIN IMMEDIATE checks it before recovery writes.",
+      "sources": [
+        "E12",
+        "E36"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R5",
+      "disposition": "Canonical layer repaired; public composition incomplete",
+      "assessment": "A request-linked result commits with recovery, but expired public preflight can stop before that lookup.",
+      "sources": [
+        "E09",
+        "E12",
+        "E31"
+      ],
+      "remaining_findings": [
+        "F4"
+      ]
+    },
+    {
+      "id": "R6",
+      "disposition": "Substantially repaired, not fully resolved",
+      "assessment": "Signed run/workspace continuation, clean reactivation and current assessment exist; exact-lane ranking and ownership still matter.",
+      "sources": [
+        "E08",
+        "E13",
+        "E24",
+        "E34"
+      ],
+      "remaining_findings": [
+        "F2",
+        "F5"
+      ]
+    },
+    {
+      "id": "R7",
+      "disposition": "Resolved for the tested owned-child lifecycle",
+      "assessment": "Coordinator acceptance/rejection is authorized narrowly; owned, foreign and explicit launch-unavailable cases are tested.",
+      "sources": [
+        "E25",
+        "E26",
+        "E37"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R8",
+      "disposition": "Resolved for the identified executable-surface mismatch",
+      "assessment": "New action/target fields, context expansion and collection annotations are aligned across the two surfaces.",
+      "sources": [
+        "E22",
+        "E27",
+        "E28"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R9",
+      "disposition": "Resolved for the identified malformed-definition/validation-parity defects",
+      "assessment": "Supported types and required fields/CUDA contracts are checked before live binding through the shared validator.",
+      "sources": [
+        "E18",
+        "E19",
+        "E20"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R10",
+      "disposition": "Substantially resolved for demonstrated large-charter path",
+      "assessment": "Real-kernel paged retrieval and outer-entry retained-handle tests exist; no claim of complete arbitrary-size transport coverage.",
+      "sources": [
+        "E21",
+        "E22",
+        "E38",
+        "E39",
+        "E40"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R11",
+      "disposition": "Resolved within the declared policy",
+      "assessment": "Regular recovery rechecks the same effect while permitting unrelated revisions. Supersession intentionally remains a fresh exact snapshot.",
+      "sources": [
+        "E09",
+        "E10",
+        "E12"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R12",
+      "disposition": "Original examples repaired; not universal actionability equivalence",
+      "assessment": "Completed prerequisites are removed and typed errors are useful; conditional prerequisite projection remains a bounded limitation.",
+      "sources": [
+        "E28",
+        "E29",
+        "E30"
+      ],
+      "remaining_findings": []
+    },
+    {
+      "id": "R13",
+      "disposition": "Substantial implementation; not yet end-to-end complete",
+      "assessment": "Whole membership, source-scoped queues, foreign memberships, signed execution and measured handoff exist; identity and downstream completion/protection defects remain.",
+      "sources": [
+        "E06",
+        "E07",
+        "E08",
+        "E10",
+        "E33",
+        "E41"
+      ],
+      "remaining_findings": [
+        "F1",
+        "F3",
+        "F6"
+      ]
+    }
+  ]
+}

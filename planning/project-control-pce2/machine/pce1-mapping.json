@@ -1,0 +1,103 @@
+{
+  "format": "pce2-replaces-pce1",
+  "scope": "Design/bootstrap replacement, not a live ledger mutation",
+  "acceptance_map": {
+    "A01": [
+      "J02",
+      "J03"
+    ],
+    "A02": [
+      "J09"
+    ],
+    "A03": [
+      "J10"
+    ],
+    "A04": [
+      "J11"
+    ],
+    "A05": [
+      "J12"
+    ],
+    "A06": [
+      "J13"
+    ],
+    "A07": [
+      "J14"
+    ],
+    "A08": [
+      "J15",
+      "J16"
+    ],
+    "A09": [
+      "J10",
+      "J15",
+      "J20"
+    ],
+    "A10": [
+      "J16"
+    ],
+    "A11": [
+      "J17"
+    ],
+    "A12": [
+      "J18"
+    ],
+    "A13": [
+      "J15",
+      "J17",
+      "J19"
+    ],
+    "A14": [
+      "J11"
+    ],
+    "A15": [
+      "J11"
+    ],
+    "A16": [
+      "J08",
+      "J20"
+    ],
+    "A17": [
+      "J09",
+      "J12"
+    ],
+    "A18": [
+      "J02",
+      "J03"
+    ],
+    "A19": [
+      "J04",
+      "J22"
+    ],
+    "A20": [
+      "J01",
+      "J03"
+    ],
+    "A21": [
+      "J20"
+    ],
+    "A22": [
+      "J20"
+    ],
+    "A23": [
+      "J21"
+    ],
+    "A24": [
+      "J23",
+      "J24"
+    ]
+  },
+  "policy_replacements": {
+    "A16": "Replace root-exclusive profile restriction with trusted principal + scoped delegable mandate. Observer and unauthorized writes remain forbidden.",
+    "A17": "Replace universal preview/apply ritual with direct execution for already-approved routine effects; retain preview/approval when there is a new consequential decision.",
+    "A24": "Retain shared usage ceiling and honest paused handoff; remove arbitrary delegate/test/parallel-head quotas."
+  },
+  "new_focus": [
+    "correct advertised actions and payloads",
+    "objective-aligned delegation/context",
+    "honest executor wiring and launch status",
+    "ordinary entry context and defaults",
+    "evidence reuse and explicit effects",
+    "minimum originator interventions"
+  ]
+}

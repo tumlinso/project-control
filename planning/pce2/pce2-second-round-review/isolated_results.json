@@ -1,0 +1,109 @@
+{
+  "review_date": "2026-09-21",
+  "type": "isolated_algorithm_counterexamples_not_product_tests",
+  "code_endpoints": {
+    "project-control": "40f80f3",
+    "skills": "e6c1fc8"
+  },
+  "checks": {
+    "adoption_rename_fingerprint": {
+      "counterexample_observed": true,
+      "first": {
+        "fingerprint": "cdeda249e955f30955acc7be4c4dc9646095b3390da5305935a57c7d9258fe8f",
+        "parsed_paths": [
+          "old.txt"
+        ],
+        "porcelain": "b'RM new.txt\\x00old.txt\\x00'",
+        "files": [
+          {
+            "path": "old.txt",
+            "sha256": null
+          }
+        ],
+        "destination_hash": "150196c973f1c6aafa042db46b83c87938602250b72bd38e6c9249a526cfd426"
+      },
+      "second": {
+        "fingerprint": "cdeda249e955f30955acc7be4c4dc9646095b3390da5305935a57c7d9258fe8f",
+        "parsed_paths": [
+          "old.txt"
+        ],
+        "porcelain": "b'RM new.txt\\x00old.txt\\x00'",
+        "files": [
+          {
+            "path": "old.txt",
+            "sha256": null
+          }
+        ],
+        "destination_hash": "4971ec6261124a2a071eea8e23c685d0ab3c7433ae3e2d43c2315ce873d5023c"
+      },
+      "ordinary_modified_file_control": "change detected"
+    },
+    "continuation_lane_ranking": {
+      "counterexample_observed": true,
+      "eligible_candidates": [
+        {
+          "run_id": "R",
+          "lane_id": "LA",
+          "role": "implementer",
+          "task_id": "A",
+          "position": 0,
+          "priority": 20,
+          "created_at": "now"
+        },
+        {
+          "run_id": "R",
+          "lane_id": "LB",
+          "role": "implementer",
+          "task_id": "B",
+          "position": 0,
+          "priority": 10,
+          "created_at": "now"
+        }
+      ],
+      "requested_task": "B",
+      "assessment_blocker": "not_serial_lane_head",
+      "explicit_dispatch_lane_head_predicate": true,
+      "limitation": "Readiness fixed true; no full claim or WorkflowKernel execution."
+    },
+    "public_recovery_preflight_after_expiry": {
+      "counterexample_observed": true,
+      "public_preflight_error": "recovery_authorization_expired",
+      "canonical_receipt_available": true,
+      "canonical_lookups_before_rejection": 0,
+      "private_receipt_present_control": "replays after expiry",
+      "limitation": "Canonical recovery engine is a stub; no remote public MCP server executed."
+    },
+    "integration_relation_is_not_workspace_ownership": {
+      "counterexample_observed": true,
+      "requested_task": "I",
+      "workspace_owner_task": "P",
+      "selected_workspace": "WP",
+      "policy_labels_accept": true,
+      "requested_dispatch_lane": "LI",
+      "derived_continuation_lane": "LP",
+      "same_run_check_still_passes": true,
+      "limitation": "SQL/effect-policy/continuation-selection check; no full recovery mutation or process probe executed."
+    },
+    "adopted_producer_integration_target": {
+      "counterexample_observed": true,
+      "successor_producer": "NEW",
+      "adopted_workspace_integration_task_id": "NEW",
+      "actual_successor_integrator_task": "INT",
+      "publisher_lookup": null,
+      "expected_failure": "integrator_lane_missing",
+      "limitation": "Exact SQL on normal lane ownership; no full finish/publication executed."
+    },
+    "retirement_typed_checkpoint_consumer": {
+      "counterexample_observed": true,
+      "outgoing_guard_results": [],
+      "real_pending_checkpoint_consumer": {
+        "task_id": "EXTERNAL",
+        "producer": "OLD",
+        "state": "pending"
+      },
+      "limitation": "Typed-reference SQL check; not a full retirement transaction."
+    }
+  },
+  "remote_project_tests_run": false,
+  "live_mutations": false
+}

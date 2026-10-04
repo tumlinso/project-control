@@ -1,0 +1,214 @@
+{
+  "format": "pce2-outcomes",
+  "schema_version": 1,
+  "outcomes": [
+    {
+      "id": "SK-PCE2-OPERATE",
+      "repository": "skills",
+      "title": "Make ordinary execution self-explanatory",
+      "allocation": 350000,
+      "depends_on": [],
+      "objective": "Share executable action semantics across policy, context and workflow results; make starting, inspecting, validating and finishing work possible without procedural guesswork.",
+      "changes": [
+        "Factor a small canonical assessment/action-policy projection from existing predicates. Derive advertised actions and payload schemas from the same rules that validate execution. Repair capability/role mismatches deliberately.",
+        "Add explicit run focus without breaking old calls; return sufficient charter/task/workspace/acceptance context at entry. Ordinary work needs no mandatory follow-up inspection.",
+        "Use existing context manifests/deltas with the accepted sync inputs. Budget the complete envelope; a committed claim must remain retrievable if context rendering fails.",
+        "Make validation effects explicit; reuse evidence only through the actual complete freshness contract. Remove duplicate gate scheduling for unchanged acceptance inputs. Keep compatibility adapters for previously combined calls."
+      ],
+      "done_when": "The public entry/inspect/validate/complete journeys and role/schema consistency tests pass, with no mandatory source-code archaeology or unconditional next-task loops.",
+      "sources": [
+        "S01",
+        "S02",
+        "S03",
+        "S04",
+        "S05",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S22"
+      ],
+      "scopes": [
+        "todo-orchestrator",
+        "integrations/coding-workflow-mcp",
+        "planning/pce2"
+      ]
+    },
+    {
+      "id": "SK-PCE2-MAINTAIN",
+      "repository": "skills",
+      "title": "Make safe maintenance a delegable semantic operation",
+      "allocation": 550000,
+      "depends_on": [
+        "SK-PCE2-OPERATE"
+      ],
+      "objective": "Provide bounded resume, amend, supersede/retire and applicability-invalidation operations over existing canonical services; grants follow an approved job rather than the target claim or expensive model.",
+      "changes": [
+        "Use a small typed maintenance mandate and existing audit/authorization storage, not a new permission framework. Validate issuer, principal, operations, target, effect constraints, expiry and revocation. No target-claim dependency for repairing that claim.",
+        "Compose existing preparation/recovery/retirement/amendment predicates into one checked ledger transition where possible. Preserve source, exact membership, external consumers and successful history.",
+        "For routine approved preparation/clean recovery, execute directly after fresh checks. For new consequential choices, return a bounded decision and resumable operation, not a CLI research assignment.",
+        "Handle dirty-work adoption explicitly when not already included in an exact approved mandate. Keep live/unknown process protection and owner-scoped resource cleanup. Reuse existing host sweeps; add only demonstrated lifecycle gaps.",
+        "Return canonical replay receipts and truthful stage status across Git/host/ledger boundaries. Re-evaluate safe same-effect contention internally without enlarging reviewed effects or adding a general version-vector system."
+      ],
+      "done_when": "A scoped cheaper maintenance operator repairs an eligible interrupted fixture and actual continuation succeeds; unauthorized, ambiguous, live and stale-impact cases remain blocked for the right reason.",
+      "sources": [
+        "S03",
+        "S04",
+        "S17",
+        "S18",
+        "PCE1-E04",
+        "PCE1-E05",
+        "PCE1-E07",
+        "PCE1-E08",
+        "PCE1-E10",
+        "PCE1-E11",
+        "PCE1-E15",
+        "PCE1-E16",
+        "PCE1-E17"
+      ],
+      "scopes": [
+        "todo-orchestrator",
+        "cuda/scripts",
+        "cuda/tests",
+        "local-coding-worker",
+        "integrations/coding-workflow-mcp",
+        "planning/pce2"
+      ]
+    },
+    {
+      "id": "SK-PCE2-COLLABORATE",
+      "repository": "skills",
+      "title": "Make delegation and dependency delivery useful",
+      "allocation": 500000,
+      "depends_on": [
+        "SK-PCE2-MAINTAIN"
+      ],
+      "objective": "Delegate meaningful bounded work with the context and executor it actually needs, and share immutable source deliveries before final qualification without manual provenance reconstruction.",
+      "changes": [
+        "Replace first-file scope guessing with optional explicit targets and deterministic declared-scope defaults. Separate read context from writable sub-scope. Use actual inherited constraints, relevant references and acceptance facts.",
+        "Permit equal bounded read scope; support equal/subset write scope only with existing isolated-candidate or enforceable single-writer handoff semantics. Do not remove concurrency protection to satisfy a subset rule.",
+        "Distinguish local code children from tool-capable maintenance operators. Create a launch assignment and scoped grant in one handoff; only report launched when the selected configured launcher acknowledges.",
+        "Make launch failure, collection, acceptance and cancellation idempotent and accurately annotated. Pending results suggest useful waiting/other work, not repeated immediate polls.",
+        "Reuse immutable artifact/workspace receipts for a pinned delivery before completion and explicit consumer import. Qualified dependencies remain separate. Advertise serial versus sealed-batch behavior and preserve interruption-safe provenance."
+      ],
+      "done_when": "A delegate gets the correct files/context and a genuine supported launch route, and a sibling can consume an immutable unqualified delivery without pretending the producer is done.",
+      "sources": [
+        "S06",
+        "S07",
+        "S08",
+        "S09",
+        "S13",
+        "S23",
+        "PCE1-E13",
+        "PCE1-E14"
+      ],
+      "scopes": [
+        "todo-orchestrator",
+        "local-coding-worker",
+        "integrations/coding-workflow-mcp",
+        "planning/pce2"
+      ]
+    },
+    {
+      "id": "PC-PCE2-RUNTIME",
+      "repository": "project-control",
+      "title": "Bind one working environment and report real capabilities",
+      "allocation": 250000,
+      "depends_on": [],
+      "objective": "Use the verified runtime consistently and expose supported source, launch and maintenance routes so agents do not reconstruct interpreter/package/authority combinations.",
+      "changes": [
+        "Keep release identity checks; route preview and validation through the same verified runtime as workflow/mutation. Extend existing doctor output with the failing layer and a supported remediation.",
+        "Bind existing configured adapters deliberately or mark them unavailable before an attempted delegation. Do not auto-install models or select new paid backends.",
+        "Supply a small trusted-launch seam for an available tool-capable agent host, or a ready-to-launch assignment when the host has no callable launcher. Never claim that creating a lane launches a process.",
+        "Ensure missing authorities do not trigger implicit bootstrap, restore or database substitution in a read/preview path."
+      ],
+      "done_when": "One paired candidate diagnoses and uses the same runtime across public routes, and actual available executor classes match discovery and dispatch.",
+      "sources": [
+        "S08",
+        "S09",
+        "S10",
+        "S16",
+        "S21",
+        "O01",
+        "O03",
+        "PCE1-E18",
+        "PCE1-E19"
+      ],
+      "scopes": [
+        "src/project_control",
+        "packaging",
+        "tests",
+        "docs",
+        "pyproject.toml",
+        "uv.lock",
+        "planning/pce2"
+      ]
+    },
+    {
+      "id": "PC-PCE2-SURFACE",
+      "repository": "project-control",
+      "title": "Expose concise guidance and specialized maintenance without root rituals",
+      "allocation": 350000,
+      "depends_on": [
+        "PC-PCE2-RUNTIME"
+      ],
+      "objective": "Preserve familiar workflow entry points while adding typed defaults, semantic action packets, bounded deep reads and one capability-checked maintenance entry point usable by authorized agents.",
+      "changes": [
+        "Keep the existing six ordinary tool names; add optional parameters and explicit semantic actions rather than a new workflow DSL. Publish action payload shapes/examples so callers need not inspect implementation code.",
+        "Expose one specialized maintain_execution surface on appropriate local execution profiles. Authorization is checked per operation/principal; profile visibility or model-supplied role is not authority. Observer mutation remains absent.",
+        "Map canonical assessment into frontier, inspection, errors and operation receipts. Give an executable prefilled next call only when one is needed; otherwise say work may proceed.",
+        "Use explicit focus, truthful availability/coverage and expandable references. Allow deliberate rich reads directly rather than forcing a workflow-first ritual.",
+        "Update instructions/examples and compatibility tests to make ordinary preparation and delegated maintenance normal, with human/root involvement only at real decision boundaries."
+      ],
+      "done_when": "Representative agents can use the advertised schemas and returned packets without implementation-source reads, while negative authorization tests still pass.",
+      "sources": [
+        "S01",
+        "S02",
+        "S15",
+        "S19",
+        "S20",
+        "S21",
+        "O02"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "docs",
+        "packaging",
+        "planning/pce2"
+      ]
+    },
+    {
+      "id": "PC-PCE2-QUALIFY",
+      "repository": "project-control",
+      "title": "Prove low-friction public journeys and hand back paused NF1A",
+      "allocation": 300000,
+      "depends_on": [
+        "PC-PCE2-SURFACE"
+      ],
+      "objective": "Qualify the paired implementation with real public-boundary fixtures, demonstrate fewer avoidable calls and root handoffs, and deliver evidence plus usage without modifying or resuming NF1A.",
+      "changes": [
+        "Exercise the finite acceptance journeys against the real Todo kernel and transport adapters in disposable repositories, with fake clocks/process probes where appropriate and real subprocess-boundary checks for grant transfer.",
+        "Measure protocol-call count, caller-supplied fields, model-visible bytes, gate executions and originator handoffs. Treat latency/token savings as unmeasured unless actually measured.",
+        "Check all retained PCE1 safety invariants under the revised delegation/ceremony policy. Reuse existing tests; no fixed pass-count quota.",
+        "Provide one bounded independent review of grant/transaction/liveness boundaries, actual paired identities, remaining limitations, and a read-only donor readiness handoff."
+      ],
+      "done_when": "Every mandatory scenario has current executed evidence, the supported delegated-maintenance route is demonstrated, usage coverage is reported and NF1A remains paused.",
+      "sources": [
+        "S22",
+        "PCE1-E09",
+        "PCE1-E28",
+        "O01",
+        "O02"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "docs",
+        "packaging",
+        "planning/pce2"
+      ]
+    }
+  ]
+}

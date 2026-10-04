@@ -1,0 +1,153 @@
+{
+  "format": "pce2-second-round-findings",
+  "review_date": "2026-09-21",
+  "review_disposition": "Keep the architecture and useful implementation. A finite correction to supported adoption/recovery/continuation paths is necessary; no new epic or general framework.",
+  "severity_meaning": {
+    "P1": "Correct before relying on the affected privileged/content-authority path. No production damage is asserted.",
+    "P2": "Concrete workflow, authority or recovery defect; implement a narrow fix rather than generality."
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "P1",
+      "title": "Preserved-work fingerprint misses edited rename destinations",
+      "area": "supersession/adoption",
+      "prior_findings": [
+        "R13"
+      ],
+      "sources": [
+        "E04",
+        "E05",
+        "E06",
+        "E08"
+      ],
+      "basis": "Source-confirmed integration risk; copied algorithm reproduced with real Git and files.",
+      "isolated_check": "adoption_rename_fingerprint",
+      "consequence": "Changed renamed-file bytes can retain the same signed expected content fingerprint and be adopted under the earlier review.",
+      "required_change": "Correct rename/copy identity capture and bind adoption to the actual retained source content.",
+      "regression": "Prepare a dirty rename handoff, edit its destination again without changing HEAD or status, and require public application to refuse stale content.",
+      "scope_boundary": "No general index, version-control replacement or promise of globally atomic external filesystem observations."
+    },
+    {
+      "id": "F2",
+      "priority": "P1",
+      "title": "Integration dependency is mistaken for ownership during delegated recovery",
+      "area": "recovery/workspaces",
+      "prior_findings": [
+        "R3",
+        "R6"
+      ],
+      "sources": [
+        "E08",
+        "E11",
+        "E12"
+      ],
+      "basis": "Source-confirmed query/policy mismatch; isolated SQLite effect-selection counterexample.",
+      "isolated_check": "integration_relation_is_not_workspace_ownership",
+      "consequence": "Recovering a stopped integrator can select and quarantine a live producer workspace whose integration_task_id names that integrator.",
+      "required_change": "Derive authorized workspaces from actual task/dispatch/lane ownership and validate the complete continuation binding. Consumer relationships do not confer producer ownership.",
+      "regression": "Stopped integrator plus a live clean producer in the same run; recovering the integrator must leave producer workspace, dispatch, claim and leases untouched.",
+      "scope_boundary": "Do not replace this check with project-wide shutdown or automatic scope widening."
+    },
+    {
+      "id": "F3",
+      "priority": "P2",
+      "title": "An adopted isolated producer points its integration target at itself",
+      "area": "supersession/completion",
+      "prior_findings": [
+        "R13"
+      ],
+      "sources": [
+        "E07",
+        "E13",
+        "E33"
+      ],
+      "basis": "Source-confirmed assignment and publisher lookup; isolated SQLite reproduction.",
+      "isolated_check": "adopted_producer_integration_target",
+      "consequence": "Initial successor claim can pass, but final producer publication fails with integrator_lane_missing in the normal distinct producer/integrator topology.",
+      "required_change": "Derive or explicitly bind the intended successor integration task and validate that it has the correct destination ownership.",
+      "regression": "Adopt an isolated producer into a run with a real integrator, commit retained work, complete/publish, consume the artifact and qualify the destination.",
+      "scope_boundary": "No generalized early dependency delivery or scheduler rewrite is needed."
+    },
+    {
+      "id": "F4",
+      "priority": "P2",
+      "title": "Expired public recovery preflight hides an already committed canonical receipt",
+      "area": "maintenance/replay",
+      "prior_findings": [
+        "R5"
+      ],
+      "sources": [
+        "E08",
+        "E09",
+        "E10",
+        "E31"
+      ],
+      "basis": "Source-confirmed public call order; copied HMAC/preflight check with a stub canonical receipt.",
+      "isolated_check": "public_recovery_preflight_after_expiry",
+      "consequence": "After DB commit and a private receipt-write failure, public retry after expiry refuses instead of returning the existing result, despite the lower-level replay implementation.",
+      "required_change": "After authenticating target and principal, look up the canonical committed result before enforcing fresh-execution expiry. Keep genuinely unexecuted expired grants forbidden.",
+      "regression": "Fault after recovery commit, advance time beyond expiry, invoke public maintain_execution as the same operator, and assert one original canonical result with no second recovery.",
+      "scope_boundary": "Reuse the existing canonical receipt route; no new transaction/authorization framework."
+    },
+    {
+      "id": "F5",
+      "priority": "P2",
+      "title": "Exact continuation incorrectly depends on global lane ranking",
+      "area": "continuation/actionability",
+      "prior_findings": [
+        "R6"
+      ],
+      "sources": [
+        "E13",
+        "E14"
+      ],
+      "basis": "Source-confirmed difference between selection and dispatch; isolated SQLite ranking check.",
+      "isolated_check": "continuation_lane_ranking",
+      "consequence": "An eligible requested lane head is reported as not_serial_lane_head merely because another same-role lane has a higher-ranked task.",
+      "required_change": "Use the requested lane's actual dispatch eligibility or membership in all eligible candidates, not the first globally ranked candidate.",
+      "regression": "Two independent ready lanes of one role; lower-ranked exact target must assess ready and be claimable through the returned public arguments.",
+      "scope_boundary": "Readiness remains an observation, not a reservation."
+    },
+    {
+      "id": "F6",
+      "priority": "P2",
+      "title": "Retirement outgoing-consumer protection misses typed prerequisites",
+      "area": "supersession/dependencies",
+      "prior_findings": [
+        "R13"
+      ],
+      "sources": [
+        "E07",
+        "E15",
+        "E16",
+        "E41"
+      ],
+      "basis": "Source-confirmed guard coverage; isolated SQLite pending-checkpoint consumer counterexample.",
+      "isolated_check": "retirement_typed_checkpoint_consumer",
+      "consequence": "An external pending task can be left dependent on an unfinished checkpoint of a task just superseded; the current two consumer queries do not see it.",
+      "required_change": "Protect unresolved outgoing dependencies using the existing supported typed relations, including checkpoint and alternative interface/barrier paths where affected.",
+      "regression": "External task waiting for a pending checkpoint owned by OLD must prevent retirement without an explicit valid remapping; preserve usable completed historical requirements.",
+      "scope_boundary": "Do not require a new dependency graph framework or forbid all historical references."
+    },
+    {
+      "id": "F7",
+      "priority": "P2",
+      "title": "Supersession preparation can initialize or restore a missing authority",
+      "area": "preparation/runtime",
+      "prior_findings": [],
+      "sources": [
+        "E08",
+        "E15"
+      ],
+      "basis": "Source-confirmed constructor path; no local/full product reproduction.",
+      "isolated_check": null,
+      "consequence": "The preparation command opens Service writable, which can initialize/migrate or restore a missing database from a snapshot before target eligibility is established.",
+      "required_change": "Open the authority read-only during preparation and fail on an unavailable/mismatched authority. Writing the separately issued private grant remains intentional.",
+      "regression": "Existing project metadata and snapshot but absent authority DB: preparation must fail without creating/restoring a DB or issuing a usable assignment.",
+      "scope_boundary": "This is not a ban on authorized application or an instruction to implement database recovery."
+    }
+  ],
+  "live_mutations": false,
+  "remote_product_tests_executed": false
+}

@@ -1,0 +1,44 @@
+{
+  "format": "pce2-usage-policy",
+  "schema_version": 1,
+  "expected_total_range": [
+    1600000,
+    2400000
+  ],
+  "shared_stop_work_ceiling": 3000000,
+  "allocations": {
+    "SK-PCE2-OPERATE": 350000,
+    "SK-PCE2-MAINTAIN": 550000,
+    "SK-PCE2-COLLABORATE": 500000,
+    "PC-PCE2-RUNTIME": 250000,
+    "PC-PCE2-SURFACE": 350000,
+    "PC-PCE2-QUALIFY": 300000
+  },
+  "shared_reserve": 700000,
+  "unit": "Provider-reported input plus output model tokens, across every agent and both repositories. Count cached input once as input and reasoning only when not already included in output.",
+  "estimate_quality": "Uncalibrated engineering allowance based on reuse, not measured forecast, monetary quote or guarantee.",
+  "includes": [
+    "coordination",
+    "delegates",
+    "reviews",
+    "retries",
+    "bootstrap",
+    "release qualification"
+  ],
+  "excludes": [
+    "this ChatGPT design conversation",
+    "deterministic tests without model calls"
+  ],
+  "continuity": "Any PCE1 implementation expenditure already incurred toward the same revision counts against this shared ceiling; renaming the plan does not reset the budget. Record any unknown prior expenditure.",
+  "structural_quotas": null,
+  "policy": [
+    "Allocations guide effort; the responsible coordinator may redistribute them within the shared ceiling.",
+    "No fixed delegate-launch, parallel-head, concurrent-worker or test-pass quotas. Choose concurrency only where existing ownership/isolation supports it and expected savings exceed coordination cost.",
+    "Use existing telemetry and one compact usage checkpoint per outcome; do not create an accounting platform. Report incomplete metering rather than asserting a verified cap.",
+    "Do not change the user-selected expensive model upward automatically. Choose cheaper suitable configured agents for mechanics, tests and maintenance.",
+    "Reserve covers demonstrated gaps inside the six outcomes, not a new orchestration framework.",
+    "When remaining allowance cannot cover required validation and a safe handoff, checkpoint and stop; do not weaken acceptance.",
+    "Unchanged failure repetition is not progress. A new attempt needs a changed input, hypothesis or environment; this is not an arbitrary retry-count prohibition."
+  ],
+  "enforcement": "Stop-work instruction and existing host/provider budget controls where available. This file is not a billing limiter."
+}

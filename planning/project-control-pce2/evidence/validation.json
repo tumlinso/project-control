@@ -1,0 +1,191 @@
+{
+  "format": "pce2-validation-record",
+  "review_date": "2026-09-20",
+  "record_type": "Extracted summaries of actual tool results plus local artifact checks; not raw replay receipts or permission to apply.",
+  "product_acceptance_executed": false,
+  "live_mutations": false,
+  "native_plans": {
+    "skills": {
+      "path": "machine/skills.todo-plan.json",
+      "file_sha256": "14068c016148ce5a99c2713e0f9cb1651120bd8b5cdd365772f1851650e2f57d",
+      "validated_payload_digest": "f1c4657deca207f077ea75e1c88618dbff774f6e551677e92f598f97571c12ba",
+      "payload_digest_method": "SHA256(json.dumps(plan, sort_keys=True, indent=2).encode(\"utf-8\")); observed remote plan_digest",
+      "payload_valid": true,
+      "actual_target_validated": true,
+      "successful_check": {
+        "tool": "project-control.plan_preview",
+        "target": "skills",
+        "mode": "validate",
+        "detail": "compact",
+        "observed_at": "2026-09-20T12:33:07Z",
+        "status": "ok",
+        "valid": true,
+        "mutation_guard": "unchanged",
+        "todo_revision": 878,
+        "skills_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+        "plan_schema_version": 3,
+        "would_add": [
+          "SK-PCE2-0000",
+          "SK-PCE2-COLLABORATE",
+          "SK-PCE2-MAINTAIN",
+          "SK-PCE2-OPERATE"
+        ],
+        "would_modify": [],
+        "dependency_errors": [],
+        "scope_conflicts": [],
+        "interface_errors": [],
+        "scope": "actual target preview"
+      },
+      "fresh_actual_target_validation_required_before_import": true
+    },
+    "project-control": {
+      "path": "machine/project-control.todo-plan.json",
+      "file_sha256": "fa96d3a5c4af4934df8ebb895160d2e7947b46854147fcda139725ee5514dd44",
+      "validated_payload_digest": "77e2a1cd16231a02a90203c7ffe489f503be2d655536cd8e853542b712ef4e4d",
+      "payload_digest_method": "SHA256(json.dumps(plan, sort_keys=True, indent=2).encode(\"utf-8\")); observed remote plan_digest",
+      "payload_valid": true,
+      "actual_target_validated": false,
+      "successful_check": {
+        "tool": "project-control.plan_preview",
+        "target": "skills",
+        "mode": "validate",
+        "detail": "compact",
+        "observed_at": "2026-09-20T12:35:39Z",
+        "status": "ok",
+        "valid": true,
+        "mutation_guard": "unchanged",
+        "todo_revision": 878,
+        "skills_commit": "688dcc2e92ffc2af690c29734ef9d09c67d8e091",
+        "plan_schema_version": 3,
+        "would_add": [
+          "PC-PCE2-0000",
+          "PC-PCE2-QUALIFY",
+          "PC-PCE2-RUNTIME",
+          "PC-PCE2-SURFACE"
+        ],
+        "would_modify": [],
+        "dependency_errors": [],
+        "scope_conflicts": [],
+        "interface_errors": [],
+        "scope": "shared installed native-validator pass only; diff concerns the surrogate readable target, NOT the intended Project Control target"
+      },
+      "fresh_actual_target_validation_required_before_import": true,
+      "actual_target_attempt": {
+        "tool": "project-control.plan_preview",
+        "target": "project-control",
+        "mode": "validate",
+        "detail": "compact",
+        "observed_at": "2026-09-20T12:33:33Z",
+        "status": "internal_error",
+        "warnings": [
+          "bounded_read_failed"
+        ],
+        "valid": null,
+        "diff_established": false
+      }
+    }
+  },
+  "local_package_checks": {
+    "status": "passed",
+    "baseline_report": {
+      "acceptance_groups": 24,
+      "checked_markdown_links": 16,
+      "installed_native_validation": "not_requested",
+      "json_files": 9,
+      "limitations": "Package consistency only; dated native validation is not current target readiness, product acceptance or a billing limit.",
+      "native_tasks": 8,
+      "outcomes": 6,
+      "sealed_files": 15,
+      "shared_ceiling": 3000000,
+      "status": "passed"
+    },
+    "python_syntax": "passed",
+    "negative_tests": [
+      {
+        "case": "sealed file modification",
+        "rejected": true,
+        "diagnostic": "Manifest mismatch: README.md"
+      },
+      {
+        "case": "missing sealed file",
+        "rejected": true,
+        "diagnostic": "Missing sealed file: DESIGN.md"
+      },
+      {
+        "case": "unexpected unsealed file",
+        "rejected": true,
+        "diagnostic": "Manifest inventory differs: ['extra.txt']"
+      },
+      {
+        "case": "allocation overflow",
+        "rejected": true,
+        "diagnostic": "Usage allocations + reserve differ from ceiling"
+      },
+      {
+        "case": "unknown acceptance source",
+        "rejected": true,
+        "diagnostic": "Unknown evidence in J01"
+      },
+      {
+        "case": "missing PCE1 coverage",
+        "rejected": true,
+        "diagnostic": "PCE1 coverage incomplete"
+      },
+      {
+        "case": "missing native parent",
+        "rejected": true,
+        "diagnostic": "Missing native parent: MISSING"
+      },
+      {
+        "case": "native dependency cycle",
+        "rejected": true,
+        "diagnostic": "skills native graph: cycle detected"
+      },
+      {
+        "case": "foreign native dependency",
+        "rejected": true,
+        "diagnostic": "Unsupported/foreign native prerequisite"
+      },
+      {
+        "case": "reverse cross-authority cycle",
+        "rejected": true,
+        "diagnostic": "combined outcome graph: cycle detected"
+      },
+      {
+        "case": "duplicate JSON key",
+        "rejected": true,
+        "diagnostic": "Duplicate JSON key: x"
+      },
+      {
+        "case": "non-finite JSON",
+        "rejected": true,
+        "diagnostic": "Non-finite JSON constant: NaN"
+      },
+      {
+        "case": "broken local documentation link",
+        "rejected": true,
+        "diagnostic": "Broken/escaping Markdown link in README.md: missing.md"
+      },
+      {
+        "case": "symlink in package",
+        "rejected": true,
+        "diagnostic": "Symlink not allowed in sealed package: /tmp/pce2-negative-gvqgufus/package/link.txt"
+      },
+      {
+        "case": "native payload changed after validation",
+        "rejected": true,
+        "diagnostic": "Native file no longer matches validation: skills"
+      }
+    ],
+    "negative_test_count": 15,
+    "test_scope": "Artifact checker tests on disposable package copies; these are not PCE2 workflow/kernel product tests.",
+    "archive_roundtrip": "passed: CRC, safe entry paths, full manifest inventory and semantic checker on extracted copy"
+  },
+  "limitations": [
+    "The remote plan checks were nonmutating. Their source and Todo revisions are dated observations, not current execution preconditions.",
+    "Project Control target preview returned bounded_read_failed. A shared native-validator pass through the readable Skills target establishes only payload validity; do not import the Project Control plan into Skills.",
+    "PCE2 product code is not implemented by this review and the 24 product acceptance groups were not run.",
+    "No Cellerator/GlassHelix writes, live old-plan retirement, production deployment or NF1A continuation occurred.",
+    "Usage ranges are uncalibrated allowances, not demonstrated token savings or enforced provider billing limits."
+  ]
+}

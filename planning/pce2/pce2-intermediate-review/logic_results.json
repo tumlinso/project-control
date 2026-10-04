@@ -1,0 +1,79 @@
+{
+  "directory_cache_counterexample": {
+    "actual_exists_after": false,
+    "after_static_path": {
+      "path": "required-directory",
+      "sha256": "missing"
+    },
+    "before_static_path": {
+      "path": "required-directory",
+      "sha256": "missing"
+    },
+    "cache_result_after": {
+      "evidence_id": "E",
+      "status": "passed",
+      "valid": true
+    },
+    "fingerprint_unchanged": true,
+    "observed": true
+  },
+  "incomplete_gate_validation": [
+    {
+      "errors": [],
+      "spec": {
+        "id": "MISSING-PATH",
+        "required": true,
+        "type": "file_exists"
+      }
+    },
+    {
+      "errors": [],
+      "spec": {
+        "id": "MISSING-PATTERN",
+        "required": true,
+        "type": "pattern"
+      }
+    },
+    {
+      "errors": [],
+      "spec": {
+        "id": "UNKNOWN-TYPE",
+        "required": true,
+        "type": "not_an_executable_gate"
+      }
+    },
+    {
+      "errors": [],
+      "spec": {
+        "argv": [
+          "true"
+        ],
+        "cuda": {
+          "gpus": 0
+        },
+        "id": "INVALID-CUDA",
+        "required": true,
+        "type": "command"
+      }
+    }
+  ],
+  "live_mutations": false,
+  "method": "isolated copied-function checks and one extracted predicate; not full project tests",
+  "missing_argv_control": {
+    "errors": [
+      "gate NO-ARGV requires a non-empty argv array"
+    ],
+    "rejected": true
+  },
+  "regular_file_deletion_control": {
+    "fingerprint_changed": true
+  },
+  "remote_tests_run": false,
+  "skills_commit": "6cf647f66bdd37668dfa219f7c7816192aae5c65",
+  "unobservable_dispatch_predicate": {
+    "blocked": false,
+    "heartbeat_age_seconds": 5,
+    "limitation": "Extracted branch only; no process, claim, lock, authority or engine was exercised.",
+    "state": "unavailable"
+  }
+}

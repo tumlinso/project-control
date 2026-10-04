@@ -1,0 +1,107 @@
+{
+  "review_date": "2026-09-20",
+  "purpose": "review index, not an implementation plan",
+  "endpoints": {
+    "project-control": "3c11bb9ebf01cf4ed40bbcace03594cf8135185e",
+    "skills": "6cf647f66bdd37668dfa219f7c7816192aae5c65"
+  },
+  "baselines": {
+    "project-control": "f894427c8fd2d3a73f641f946074b1ecc22e33ef",
+    "skills": "688dcc2e92ffc2af690c29734ef9d09c67d8e091"
+  },
+  "remote_product_tests_executed": false,
+  "live_mutations": false,
+  "findings": [
+    {
+      "id": "R1",
+      "priority": "P1",
+      "origin": "introduced",
+      "title": "Directory removal can retain a passed existence gate",
+      "evidence": "copied-function counterexample observed"
+    },
+    {
+      "id": "R2",
+      "priority": "P1",
+      "origin": "introduced",
+      "title": "Cache short-circuits explicit child acceptance checks",
+      "evidence": "source-confirmed control flow; full regression required"
+    },
+    {
+      "id": "R3",
+      "priority": "P1",
+      "origin": "inherited behavior exposed by new bridge",
+      "title": "Delegated effect scope and stopped-owner assumptions exceed what kernel proves",
+      "evidence": "source-confirmed; extracted predicate checked"
+    },
+    {
+      "id": "R4",
+      "priority": "P1",
+      "origin": "inherited",
+      "title": "General recovery inspection and transactional validation gap",
+      "evidence": "source-confirmed interleaving; fault-injection test required"
+    },
+    {
+      "id": "R5",
+      "priority": "P1",
+      "origin": "introduced guarantee gap",
+      "title": "Recovery commit precedes durable grant receipt",
+      "evidence": "source-confirmed crash window; fault-injection test required"
+    },
+    {
+      "id": "R6",
+      "priority": "P2",
+      "origin": "partial new surface",
+      "title": "Maintenance completion does not imply run-focused resumability",
+      "evidence": "source-confirmed; existing dirty-resume test asserts idle"
+    },
+    {
+      "id": "R7",
+      "priority": "P2",
+      "origin": "newly enabled incomplete lifecycle",
+      "title": "Coordinator child cannot be accepted/rejected by its owner",
+      "evidence": "source-confirmed; complete public journey required"
+    },
+    {
+      "id": "R8",
+      "priority": "P2",
+      "origin": "incomplete propagation",
+      "title": "Executable MCP schemas and collection annotations disagree",
+      "evidence": "source-confirmed"
+    },
+    {
+      "id": "R9",
+      "priority": "P2",
+      "origin": "new live-binding gap",
+      "title": "Shared gate validation accepts malformed executable requirements",
+      "evidence": "copied-function counterexamples observed"
+    },
+    {
+      "id": "R10",
+      "priority": "P2",
+      "origin": "partial fix",
+      "title": "Oversized context receipt lacks demonstrated bounded retrieval",
+      "evidence": "source-supported failure mode; full public regression required"
+    },
+    {
+      "id": "R11",
+      "priority": "P2",
+      "origin": "inherited policy in new surface",
+      "title": "Maintenance grant remains whole-revision brittle and short-lived",
+      "evidence": "source-confirmed policy; no cost measurement"
+    },
+    {
+      "id": "R12",
+      "priority": "P2",
+      "origin": "inherited and unaddressed",
+      "title": "False blockers and generic next_task error loops remain",
+      "evidence": "source-confirmed"
+    },
+    {
+      "id": "R13",
+      "priority": "P1 before broader retirement use",
+      "origin": "inherited and unaddressed",
+      "title": "Original supersession outstanding; partial selected membership can cancel whole run",
+      "evidence": "source-confirmed; complete regression required"
+    }
+  ]
+}

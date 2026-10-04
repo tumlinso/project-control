@@ -1,0 +1,536 @@
+{
+  "format": "pce2-second-round-evidence",
+  "review_date": "2026-09-21",
+  "endpoints": {
+    "project-control": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+    "skills": "e6c1fc843ed882554eecea9eca559e3dbdd011cd"
+  },
+  "source_records": [
+    {
+      "id": "E01",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "planning/pce2/REVIEW_RESPONSE.md",
+      "location": "1–101",
+      "purpose": "Finding responses, qualification boundaries and recorded activated release.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E02",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "docs/MAINTENANCE.md",
+      "location": "1–31",
+      "purpose": "Supported maintenance and supersession contract; exact continuation and preserved-work intent.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E03",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "docs/CODEX_SETUP.md",
+      "location": "1–166",
+      "purpose": "Existing runtime/profile boundary, context pagination, explicit validation effect, source targets and owner instructions.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E04",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/runtime/source.py",
+      "location": "18–75",
+      "purpose": "Rename/copy path parsing and the source fingerprint newly relied on for adoption.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E05",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/runtime/contracts.py",
+      "location": "63–79",
+      "purpose": "Source normalization checks/returns the fingerprint without recomputing source content.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E06",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/retirement.py",
+      "location": "136–211",
+      "purpose": "Preserved workspace/lane validation and measured content recheck.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E07",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/retirement.py",
+      "location": "218–389",
+      "purpose": "Whole source membership, foreign memberships, outgoing consumers and adopted workspace creation.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E08",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "src/project_control/admin.py",
+      "location": "83–141;210–270;287–426",
+      "purpose": "Preparation, public preflight, signed continuation, supersession and current readiness composition.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E09",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "src/project_control/workflow_core/recovery.py",
+      "location": "196–337",
+      "purpose": "Private receipt preflight, expiry, canonical replay lookup and effect-fingerprint validation.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E10",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "src/project_control/workflow_core/supersession.py",
+      "location": "module",
+      "purpose": "Signed supersession requests and canonical retirement replay.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E11",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/recovery.py",
+      "location": "286–510",
+      "purpose": "Stopped-owner checks, lease scope, workspace selection and delegated effect checks.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E12",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/recovery.py",
+      "location": "514–560;562–794",
+      "purpose": "Continuation derivation, request-linked canonical receipts, transaction-time revision check and effects.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E13",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "location": "75–134;381–418",
+      "purpose": "Exact continuation assessment and producer publication/integrator lookup.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E14",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/lanes.py",
+      "location": "240–277;325–343",
+      "purpose": "Global candidate ranking versus exact selected-lane dispatch eligibility.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E15",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/service.py",
+      "location": "70–96;274–299",
+      "purpose": "Writable construction initializes/restores; retirement forwards to the canonical transaction.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E16",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/graph.py",
+      "location": "56–139",
+      "purpose": "Typed prerequisite semantics, including checkpoint, interface and barrier conditions.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E17",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/evidence.py",
+      "location": "module",
+      "purpose": "Corrected static-path existence/kind/content identity.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E18",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/gates.py",
+      "location": "1–245;305–485",
+      "purpose": "Shared gate contracts and conservative reuse that excludes acceptance/child effects.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E19",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/plan.py",
+      "location": "190–235",
+      "purpose": "Planning uses the shared gate validator.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E20",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/tests/test_gate_review_repairs.py",
+      "location": "module",
+      "purpose": "Focused directory, acceptance and malformed-gate regressions.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E21",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/context_fragments.py",
+      "location": "462–596;640–740;970–1015",
+      "purpose": "Readable exact-fragment pagination, deltas, context and child packet boundaries.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E22",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/protocol.py",
+      "location": "module",
+      "purpose": "Action projection, bounded entry receipts, typed payloads, optional targets and validation effects.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E23",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/service.py",
+      "location": "620–950;950–1520",
+      "purpose": "Context, synchronization, delegation, validation scheduling and completion composition.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E24",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/workspaces.py",
+      "location": "320–447",
+      "purpose": "Clean exact quarantined-workspace reactivation without source modification.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E25",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/roles.py",
+      "location": "17–56",
+      "purpose": "Coordinator owned-child disposition and retained role restrictions.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E26",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/capabilities.py",
+      "location": "default_first_class_operations; locator",
+      "purpose": "Corresponding operations and existing exact capability/authority provenance.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E27",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/mcp/server.py",
+      "location": "module",
+      "purpose": "Executable schema/annotation alignment.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E28",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "src/project_control/workflow_tools.py",
+      "location": "module",
+      "purpose": "Matching public fields, specialized maintenance and bounded typed error details.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E29",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "src/project_control/services/frontier.py",
+      "location": "19–23;47–66;91–98",
+      "purpose": "Completed-prerequisite filtering and recovery blockers; remaining condition-insensitive projection.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E30",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "tests/test_project_model.py",
+      "location": "179–200",
+      "purpose": "Completed prerequisite versus recovery-blocker regression.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E31",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "tests/test_maintenance_receipt.py",
+      "location": "22–65",
+      "purpose": "Canonical commit/private receipt fault injection through the helper, not expired public preflight.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E32",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "tests/test_supersession_receipt.py",
+      "location": "module",
+      "purpose": "Canonical supersession replay, including a private projection failure.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E33",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "tests/test_supersession_journey.py",
+      "location": "18–146",
+      "purpose": "Signed adoption, principal refusal and separate-process isolated-worktree claim; stops before completion.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E34",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "tests/test_maintenance_managed_journey.py",
+      "location": "module",
+      "purpose": "Separate-process clean managed continuation and dirty preservation.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E35",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "tests/test_maintenance_journey.py",
+      "location": "module",
+      "purpose": "Ordinary issuer/operator/implementer process transfer.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E36",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/tests/test_workflow_recovery.py",
+      "location": "470–594",
+      "purpose": "Liveness, exact resource ownership, final-inspection race and canonical recovery tests.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E37",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/tests/test_workflow_integration.py",
+      "location": "380–596",
+      "purpose": "Real command-count/validation-only tests and owned coordinator child disposition with a fake local worker.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E38",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/tests/test_workflow_front_door.py",
+      "location": "97–129;163–338",
+      "purpose": "Real-kernel/protocol large-charter journey and managed integration.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E39",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/tests/test_workflow_context_fragments.py",
+      "location": "173–211",
+      "purpose": "Exact readable paging reconstruction and cursor mismatch test.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E40",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/tests/test_workflow_protocol_mcp.py",
+      "location": "335–402",
+      "purpose": "Action/schema assertions and outer-entry-overflow retained-handle unit test.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E41",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "todo-orchestrator/tests/test_retirement.py",
+      "location": "1–253",
+      "purpose": "Full source membership, foreign memberships, history, direct/interface consumer and ordinary dirty-byte tests.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E42",
+      "repository": "skills",
+      "commit": "e6c1fc843ed882554eecea9eca559e3dbdd011cd",
+      "path": "planning/pce2/OPERATE_PROGRESS.md",
+      "location": "1–38",
+      "purpose": "Historical versus second-round handoff, deployment and open acceptance.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    },
+    {
+      "id": "E43",
+      "repository": "project-control",
+      "commit": "40f80f3212ead5ed1b556c0a4a9f9a54d70ae333",
+      "path": "src/project_control/cli.py",
+      "location": "147–160;462–482",
+      "purpose": "Owner preparation commands and fixed operator launch packet.",
+      "method": "Read-only project-control.source_context, immutable endpoint. Test source inspection is not a new test execution."
+    }
+  ],
+  "observations": [
+    {
+      "id": "O01",
+      "tool": "project_delta",
+      "project": "project-control",
+      "comparison": "3c11bb9..40f80f3",
+      "method": "Read-only changed-file inventory; production mechanisms and relevant tests inspected at the immutable endpoint."
+    },
+    {
+      "id": "O02",
+      "tool": "project_delta",
+      "project": "skills",
+      "comparison": "6cf647f..e6c1fc8",
+      "method": "Read-only changed-file inventory; generated projections distinguished from product mechanisms."
+    },
+    {
+      "id": "O03",
+      "tool": "project_delta",
+      "project": "project-control",
+      "comparison": "aa6131a..40f80f3",
+      "observed_at": "2026-09-21T06:54:33Z",
+      "changed_paths": [
+        "docs/MAINTENANCE.md",
+        "planning/pce2/REVIEW_RESPONSE.md",
+        "tests/test_supersession_journey.py",
+        "tests/test_supersession_receipt.py"
+      ],
+      "production_source_changes": false
+    },
+    {
+      "id": "O04",
+      "tool": "project_delta",
+      "project": "skills",
+      "comparison": "e213785..e6c1fc8",
+      "observed_at": "2026-09-21T06:54:38Z",
+      "changed_paths": [
+        ".todo-orchestrator/state.snapshot.json",
+        "planning/pce2/OPERATE_PROGRESS.md",
+        "todo-status.md",
+        "todos.md",
+        "todos/sk-pce2-operate.md"
+      ],
+      "production_source_changes": false
+    },
+    {
+      "id": "O05",
+      "tool": "coordination_view",
+      "project": "project-control",
+      "observed_at": "2026-09-21T07:00:10Z",
+      "revision": 799,
+      "run": "PC-PCE2-RUN-1",
+      "state": "active",
+      "lane_state": "ready",
+      "dispatches": 0,
+      "queue": [
+        "PC-PCE2-RUNTIME",
+        "PC-PCE2-SURFACE",
+        "PC-PCE2-QUALIFY",
+        "PC-PCE2-0000"
+      ]
+    },
+    {
+      "id": "O06",
+      "tool": "coordination_view",
+      "project": "skills",
+      "observed_at": "2026-09-21T07:00:26Z",
+      "revision": 885,
+      "run": "SK-PCE2-RUN-1",
+      "state": "active",
+      "lane_state": "ready",
+      "dispatches": 0,
+      "queue": [
+        "SK-PCE2-OPERATE",
+        "SK-PCE2-MAINTAIN",
+        "SK-PCE2-COLLABORATE",
+        "SK-PCE2-0000"
+      ]
+    },
+    {
+      "id": "O07",
+      "tool": "program_context + coordination_view",
+      "project": "cellerator",
+      "observed_at": "2026-09-21T06:55:47Z–06:56:26Z",
+      "revision": 7326,
+      "commit": "a091ccfca808bd1eda3f2f833d30e016b69b21fd",
+      "old_run": "CE-NF1-RUN-V1",
+      "old_state": "cancelled",
+      "successor": "CE-NF1A-RUN-V1",
+      "successor_state": "active",
+      "default_focus": "compat-v2",
+      "core_workspace": "fc55acb4-5c9d-4861-9cd1-33d23f0cb680",
+      "core_workspace_state": "quarantined",
+      "core_lane_state": "attention_required",
+      "stale_target_dispatches": [
+        "CE-NF1A-CONTROL",
+        "CE-NF1A-MECHANISMS",
+        "CE-NF1A-SUPPORT"
+      ],
+      "warning": "Broad export has todo_export_output_too_large; targeted coordination succeeds. Stale/unobservable is not stopped-process proof."
+    },
+    {
+      "id": "O08",
+      "tool": "program_context + coordination_view",
+      "project": "glasshelix",
+      "observed_at": "2026-09-21T06:55:48Z–06:56:50Z",
+      "revision": 166,
+      "commit": "398e3adcf2e2bccac30707fa7a538788ac6dc4a8",
+      "old_run": "GH-NF1-RUN-V1",
+      "old_state": "cancelled",
+      "successor": "GH-NF1A-RUN-V1",
+      "successor_state": "active",
+      "stale_target_dispatches": [
+        "GH-NF1A-CONTROL",
+        "GH-NF1A-OBSERVE",
+        "GH-NF1A-SYSTEM"
+      ],
+      "authority": "available",
+      "warning": "Current process liveness and retained worktree cleanliness were not independently established."
+    }
+  ],
+  "recorded_release": {
+    "candidate": "pce2-review-20260920",
+    "pc_commit": "aa6131a4f6bd1e3596aab2e810afa6d59897f804",
+    "skills_commit": "e21378560146e8059b51fd4b2b63ce60db532778",
+    "identity_digest": "cab757e62c1b283ea9e321f2f2cafe0982af7c8ab598d8382f1feb582f8dcf82",
+    "manifest_sha256": "636ecc8307ddc8ed122e1e36bf65c2fe570c91475c964cae6c6fd61cfd0fae4c",
+    "basis": "Committed REVIEW_RESPONSE.md; product-code equivalence checked through O03/O04. Service activation/health/process manifest not independently rechecked on the host."
+  },
+  "execution_evidence": {
+    "local": "Six isolated counterexamples in isolated_results.json, with real Git/SQLite/files/HMAC where indicated and explicit stubs.",
+    "remote": "No product suites executed by this review. Existing test sources were inspected; reported runs remain attributed to the handoff.",
+    "usage": "No complete provider all-agent meter available; no savings or verified remaining-budget claim."
+  },
+  "limitations": [
+    "No live authority mutations, claims, adoptions, donor continuation or deployment changes.",
+    "Immutable endpoint sources used rather than uncommitted PC files.",
+    "Changed-file inventories and relevant source call paths were reviewed; this is not line-by-line execution of every changed file or exhaustive formal verification.",
+    "Inherited utilities can remain defective when newly used as a privileged precondition; attribution is stated in findings."
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "skills"
+  },
+  "tasks": [
+    {
+      "id": "SK-PCE2-0000",
+      "kind": "epic",
+      "title": "PCE2 skills: usable semantic engineering control",
+      "objective": "Aggregate verified local outcomes only; this is not a coordinator seat or a prerequisite of its children.",
+      "priority": 0,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [],
+        "read_paths": [
+          "planning/pce2"
+        ]
+      },
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated"
+        ]
+      },
+      "next_action": "Close after all local child outcomes have executed acceptance evidence; overall release also needs both authorities. NF1A remains paused.",
+      "notes": "Shared 3,000,000-token ceiling across both repositories/all agents, including relevant PCE1 implementation already spent. Planning/pce2 is the package location, not another runtime authority."
+    },
+    {
+      "id": "SK-PCE2-OPERATE",
+      "parent_id": "SK-PCE2-0000",
+      "kind": "task",
+      "title": "Make ordinary execution self-explanatory",
+      "objective": "Share executable action semantics across policy, context and workflow results; make starting, inspecting, validating and finishing work possible without procedural guesswork.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "todo-orchestrator",
+          "integrations/coding-workflow-mcp",
+          "planning/pce2"
+        ],
+        "read_paths": [
+          "planning/pce2"
+        ],
+        "forbidden_paths": []
+      },
+      "depends_on": [],
+      "result_policy": {
+        "allowed_dispositions": [
+          "implemented",
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-PCE2-OPERATE in planning/pce2/machine/outcomes.json; use the source anchors and choose an economical implementation.",
+      "notes": "Acceptance: planning/pce2/ACCEPTANCE.md. Verify cross-authority producer evidence in machine/cross-authority.json before completion. Bind actual conformance gates; no_change_required requires executed proof. Shared 3M all-agent cap includes prior PCE1 implementation. No fixed delegate/test-pass quotas. NF1A stays paused."
+    },
+    {
+      "id": "SK-PCE2-MAINTAIN",
+      "parent_id": "SK-PCE2-0000",
+      "kind": "task",
+      "title": "Make safe maintenance a delegable semantic operation",
+      "objective": "Provide bounded resume, amend, supersede/retire and applicability-invalidation operations over existing canonical services; grants follow an approved job rather than the target claim or expensive model.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "todo-orchestrator",
+          "cuda/scripts",
+          "cuda/tests",
+          "local-coding-worker",
+          "integrations/coding-workflow-mcp",
+          "planning/pce2"
+        ],
+        "read_paths": [
+          "planning/pce2"
+        ],
+        "forbidden_paths": []
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-PCE2-OPERATE"
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "implemented",
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-PCE2-MAINTAIN in planning/pce2/machine/outcomes.json; use the source anchors and choose an economical implementation.",
+      "notes": "Acceptance: planning/pce2/ACCEPTANCE.md. Verify cross-authority producer evidence in machine/cross-authority.json before completion. Bind actual conformance gates; no_change_required requires executed proof. Shared 3M all-agent cap includes prior PCE1 implementation. No fixed delegate/test-pass quotas. NF1A stays paused."
+    },
+    {
+      "id": "SK-PCE2-COLLABORATE",
+      "parent_id": "SK-PCE2-0000",
+      "kind": "task",
+      "title": "Make delegation and dependency delivery useful",
+      "objective": "Delegate meaningful bounded work with the context and executor it actually needs, and share immutable source deliveries before final qualification without manual provenance reconstruction.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "todo-orchestrator",
+          "local-coding-worker",
+          "integrations/coding-workflow-mcp",
+          "planning/pce2"
+        ],
+        "read_paths": [
+          "planning/pce2"
+        ],
+        "forbidden_paths": []
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-PCE2-MAINTAIN"
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "implemented",
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-PCE2-COLLABORATE in planning/pce2/machine/outcomes.json; use the source anchors and choose an economical implementation.",
+      "notes": "Acceptance: planning/pce2/ACCEPTANCE.md. Verify cross-authority producer evidence in machine/cross-authority.json before completion. Bind actual conformance gates; no_change_required requires executed proof. Shared 3M all-agent cap includes prior PCE1 implementation. No fixed delegate/test-pass quotas. NF1A stays paused."
+    }
+  ],
+  "runs": [
+    {
+      "id": "SK-PCE2-RUN-1",
+      "root_task_id": "SK-PCE2-0000",
+      "charter": {
+        "objective": "Make engineering execution easy through semantic guidance, automatic routine mechanics and scoped delegable maintenance.",
+        "motivation": "Reduce avoidable calls, workarounds, repeated gates and root handoffs.",
+        "desired_end_state": "Six PCE2 outcomes qualified in one paired candidate; donor NF1A paused.",
+        "boundaries": [
+          "Independent Todo/Git/host authority; preserve source/evidence.",
+          "Observer stays nonmutating; trusted scoped grants authorize maintenance, not model labels.",
+          "No live Cellerator/GlassHelix writes, deployment activation or NF1A continuation."
+        ],
+        "acceptance_conditions": [
+          "Current executed evidence for all PCE2 scenarios and supported old calls.",
+          "Shared 3M aggregate token ceiling including relevant prior PCE1 work; disclose metering gaps."
+        ],
+        "delegated_judgment": "Choose APIs, tests, local decomposition, supported concurrency and economical configured agents; no procedural microtasks or fixed delegation/test quotas.",
+        "references": [
+          "planning/pce2/DESIGN.md",
+          "planning/pce2/BOOTSTRAP.md",
+          "planning/pce2/machine/outcomes.json",
+          "planning/pce2/machine/usage.json",
+          "planning/pce2/machine/cross-authority.json"
+        ]
+      },
+      "lanes": [
+        {
+          "id": "SK-PCE2-L-EXEC",
+          "role": "implementer",
+          "workspace": {
+            "mode": "exclusive"
+          },
+          "tasks": [
+            "SK-PCE2-OPERATE",
+            "SK-PCE2-MAINTAIN",
+            "SK-PCE2-COLLABORATE",
+            "SK-PCE2-0000"
+          ]
+        }
+      ]
+    }
+  ]
+}
