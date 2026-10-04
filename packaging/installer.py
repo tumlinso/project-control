@@ -293,12 +293,32 @@ class RollbackInventory:
 
 
 def _json_object(raw: str) -> Mapping[str, object]:
+    def unique_object(pairs):
+        result = {}
+        for key, item in pairs:
+            if key in result:
+                raise InstallError("registration discovery returned duplicate object keys")
+            result[key] = item
+        return result
     try:
-        value = json.loads(raw)
+        value = json.loads(raw, object_pairs_hook=unique_object)
     except json.JSONDecodeError as exc:
         raise InstallError("registration discovery did not return JSON") from exc
+    if isinstance(value, list):
+        registrations = {}
+        for item in value:
+            if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"].strip():
+                raise InstallError("registration discovery returned a malformed record")
+            name = item["name"]
+            if name in registrations:
+                raise InstallError("registration discovery returned duplicate names")
+            registrations[name] = item
+        return registrations
     if not isinstance(value, dict):
-        raise InstallError("registration discovery returned a non-object")
+        raise InstallError("registration discovery returned neither an object nor a list")
+    if any(not name.strip() or not isinstance(item, dict) or
+           ("name" in item and item["name"] != name) for name, item in value.items()):
+        raise InstallError("registration discovery returned a malformed record")
     return value
 
 

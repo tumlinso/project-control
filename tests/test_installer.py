@@ -35,6 +35,46 @@ def native_resources(skills):
 
 
 class InstallerTests(unittest.TestCase):
+    def test_rollback_inventory_accepts_named_list_and_mapping(self) -> None:
+        records = [
+            {"name": "project-control", "enabled": True,
+             "transport": {"type": "stdio", "command": "/qualified/project-control-release"}},
+            {"name": "coding-workflow", "enabled": False, "transport": {"type": "stdio"}},
+            {"name": "unrelated", "enabled": True, "transport": {"type": "http"}},
+        ]
+        for value in (records, {record["name"]: record for record in records}):
+            with self.subTest(shape=type(value).__name__):
+                def runner(command):
+                    if command[:3] == ("codex", "mcp", "list"):
+                        return completed(command, stdout=json.dumps(value))
+                    if "cat" in command:
+                        return completed(command, stdout="[Service]\nExecStart=/preserved/launcher\n")
+                    return completed(command, stdout="LoadState=loaded\nActiveState=active\nExecStart=/preserved/launcher\n")
+                inventory = MODULE.capture_rollback_inventory(runner=runner)
+                self.assertEqual(inventory.project_control_registration, records[0])
+                self.assertEqual(inventory.coding_workflow_registration, records[1])
+                self.assertEqual(inventory.service_properties["ActiveState"], "active")
+                self.assertEqual(inventory.service_unit_sha256, hashlib.sha256(
+                    b"[Service]\nExecStart=/preserved/launcher\n").hexdigest())
+        self.assertEqual(MODULE._json_object('{"project-control":{"enabled":true}}'),
+                         {"project-control": {"enabled": True}})
+        self.assertEqual(MODULE._json_object('[]'), {})
+
+    def test_rollback_inventory_rejects_ambiguous_or_malformed_registrations(self) -> None:
+        values = ['not-json', 'null', '1', '[null]', '[{}]', '[{"name":1}]',
+                  '[{"name":" "}]', '[{"name":"project-control"},{"name":"project-control"}]',
+                  '{"project-control":null}', '{"project-control":{"name":"other"}}',
+                  '{"project-control":{},"project-control":{}}']
+        for value in values:
+            with self.subTest(value=value):
+                calls = []
+                def runner(command):
+                    calls.append(command)
+                    return completed(command, stdout=value)
+                with self.assertRaises(InstallError):
+                    MODULE.capture_rollback_inventory(runner=runner)
+                self.assertEqual(calls, [("codex", "mcp", "list", "--json")])
+
     def test_candidate_preserves_native_catalog_routes_and_pins_resources(self) -> None:
         from project_control.runtime_identity import (
             RELEASE_DIGEST_VARIABLE, RELEASE_MANIFEST_VARIABLE,

@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import importlib
 import os
+import re
 import threading
 import time
+import tomllib
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -90,6 +92,21 @@ class SkillsObserverAnalysisProvider:
         # Kept for compatibility; observed roots never initialize the backend.
         self._repo_root = Path(repo_root) if repo_root is not None else None
         self._backend: Any | None = None
+        # Only a trusted operator startup setting grants this resource restriction.
+        # Snapshot it before discovery; later environment changes cannot widen it.
+        raw = os.environ.get("PROJECT_CONTROL_OBSERVER_GPU_UUIDS")
+        self._allowed_gpu_uuids: tuple[str, ...] | None = None
+        if raw is not None:
+            try:
+                values = json.loads(raw)
+            except (ValueError, TypeError):
+                raise ValueError("PROJECT_CONTROL_OBSERVER_GPU_UUIDS must be a nonempty JSON list of GPU UUIDs") from None
+            if not isinstance(values, list) or not values or any(
+                    not isinstance(value, str) or re.fullmatch(
+                        r"GPU-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", value) is None
+                    for value in values):
+                raise ValueError("PROJECT_CONTROL_OBSERVER_GPU_UUIDS must be a nonempty JSON list of GPU UUIDs")
+            self._allowed_gpu_uuids = tuple(dict.fromkeys(values))
 
     def _get_backend(self) -> Any:
         if self._backend is None:
@@ -107,7 +124,14 @@ class SkillsObserverAnalysisProvider:
             # resource state, logs and runtime files).  The observed project
             # is evidence only and must never become its writable root.
             state_root = observer_analysis_state_root()
-            self._backend = ProductionBackend(state_root, service_state_root=state_root)
+            options: dict[str, Any] = {"service_state_root": state_root}
+            if self._allowed_gpu_uuids is not None:
+                # Load only the bound native profile on first backend use. Keep its
+                # model/server defaults and canonical runtime/global host admission.
+                profile = tomllib.loads((expected / "config/production-profile.toml").read_text(encoding="utf-8"))
+                profile.setdefault("deployment_policy", {})["allowed_gpu_uuids"] = list(self._allowed_gpu_uuids)
+                options["profile"] = profile
+            self._backend = ProductionBackend(state_root, **options)
         return self._backend
 
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]:
