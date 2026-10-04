@@ -1,0 +1,341 @@
+"""Service-private, transactional packet persistence. References are never authority."""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import sqlite3
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Callable, Mapping
+import uuid
+
+from .as1_contracts import InformationPacket, SourceLocator, canonical_digest
+
+WORDS = ('amber', 'birch', 'cedar', 'dawn', 'elm', 'fern', 'glen', 'heron',
+         'iris', 'jade', 'kite', 'lake', 'moss', 'oak', 'pine', 'reed')
+_PRIVATE_KEYS = {'password', 'secret', 'access_token', 'refresh_token',
+                 'api_key', 'authorization', 'credential', 'credentials',
+                 'workflow_handle', 'capability', 'bearer', 'hidden_reasoning',
+                 'chain_of_thought', 'private_context'}
+_BEARER = re.compile(r'\bBearer\s+[A-Za-z0-9._~+/=-]+', re.IGNORECASE)
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
+
+
+def _stamp(value: float) -> str:
+    return datetime.fromtimestamp(value, timezone.utc).isoformat()
+
+
+def _epoch(value: str) -> float:
+    return datetime.fromisoformat(value.replace('Z', '+00:00').replace('z', '+00:00')).timestamp()
+
+
+def mask_payload(value: Any, path: str = '') -> tuple[Any, list[dict[str, str]]]:
+    """Mask recognized credential/opaque-authority fields, preserving ordinary text.
+
+    Callers remain responsible for enforcing their output policy before submission;
+    arbitrary secrets cannot be identified from unlabeled text.
+    """
+    omissions: list[dict[str, str]] = []
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            location = f'{path}/{key}'
+            if key.lower().replace('-', '_') in _PRIVATE_KEYS:
+                result[key] = '[masked]'
+                if item != '[masked]':
+                    omissions.append({'path': location, 'reason': 'policy_masked'})
+            else:
+                result[key], removed = mask_payload(item, location)
+                omissions.extend(removed)
+        return result, omissions
+    if isinstance(value, list):
+        result = []
+        for index, item in enumerate(value):
+            cleaned, removed = mask_payload(item, f'{path}/{index}')
+            result.append(cleaned)
+            omissions.extend(removed)
+        return result, omissions
+    if isinstance(value, str):
+        cleaned = _BEARER.sub('Bearer [masked]', value)
+        if cleaned != value:
+            omissions.append({'path': path, 'reason': 'policy_masked'})
+        return cleaned, omissions
+    return value, omissions
+
+
+@dataclass(frozen=True)
+class PacketLookup:
+    status: str
+    packet: InformationPacket | None = None
+
+
+class SQLitePacketStore:
+    """One crash-safe SQLite commit contains body, provenance and alias reservation.
+
+    The directory must be service-private on a local WAL-capable filesystem.
+    Each operation opens its own connection, permitting concurrent callers.
+    """
+    def __init__(self, directory: str | Path, *, namespace: str = 'default',
+                 clock: Callable[[], float] = time.time, alias_factory: Callable[[int], str] | None = None,
+                 recent_terminal_limit: int = 50, max_payload_bytes: int = 4 * 1024 * 1024):
+        self.directory = Path(directory)
+        self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.path = self.directory / 'packets.sqlite3'
+        self.namespace, self.clock = namespace, clock
+        self.alias_factory = alias_factory or (lambda size: '-'.join(secrets.choice(WORDS) for _ in range(size)))
+        self.recent_terminal_limit, self.max_payload_bytes = recent_terminal_limit, max_payload_bytes
+        with self._db() as db:
+            db.executescript('''
+                CREATE TABLE IF NOT EXISTS identity(namespace TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS bodies(hash TEXT PRIMARY KEY, payload TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS packets(id TEXT PRIMARY KEY, alias TEXT UNIQUE NOT NULL,
+                    metadata TEXT NOT NULL, hash TEXT NOT NULL, expired INTEGER NOT NULL DEFAULT 0);
+                CREATE TABLE IF NOT EXISTS pins(owner TEXT, packet TEXT, PRIMARY KEY(owner, packet));
+                CREATE TABLE IF NOT EXISTS retention(owner TEXT PRIMARY KEY, terminal INTEGER, updated REAL);
+            ''')
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT namespace FROM identity').fetchone()
+            if row and row[0] != namespace:
+                raise ValueError('packet namespace mismatch')
+            if not row:
+                db.execute('INSERT INTO identity VALUES (?)', (namespace,))
+        os.chmod(self.path, 0o600)
+
+    @contextmanager
+    def _db(self):
+        db = sqlite3.connect(self.path, timeout=30)
+        db.execute('PRAGMA journal_mode=WAL')
+        db.execute('PRAGMA synchronous=FULL')
+        db.execute('PRAGMA foreign_keys=ON')
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
+    @staticmethod
+    def _authorized(required, supplied):
+        return bool(required) and all(key in supplied and supplied[key] == value for key, value in required.items())
+
+    def create(self, *, tool: str, payload: dict[str, Any], access_scope: Mapping[str, Any],
+               sources: list[SourceLocator] | None = None, parents: list[str] | None = None,
+               normalized_request: dict | None = None, audit_id: str | None = None,
+               freshness: dict | None = None, omissions: list | None = None,
+               ttl_seconds: float | None = 7 * 86400) -> InformationPacket:
+        cleaned, masked = mask_payload(payload)
+        now = self.clock()
+        extra = {'normalized_request': normalized_request or {}, 'audit_id': audit_id}
+        _, removed = mask_payload(extra)
+        if removed:
+            raise ValueError('request/audit metadata contains private fields')
+        # Reserve body and alias atomically; extend the vocabulary on saturation.
+        for attempt in range(4096):
+            size = min(4, 2 + attempt // 256)
+            packet = InformationPacket(packet_id='pkt_' + uuid.uuid4().hex,
+                alias=self.alias_factory(size), created_at=_stamp(now), tool=tool,
+                payload=cleaned, payload_sha256=canonical_digest(cleaned), sources=sources or [],
+                parents=parents or [], access_scope=dict(access_scope),
+                expires_at=_stamp(now + ttl_seconds) if ttl_seconds is not None else None,
+                freshness=freshness, omissions=list(omissions or []) + masked)
+            try:
+                return self._put(packet, extra)
+            except sqlite3.IntegrityError:
+                continue
+        raise RuntimeError('alias namespace exhausted; no alias was recycled')
+
+    def put(self, packet: InformationPacket) -> InformationPacket:
+        return self._put(packet, {})
+
+    def _put(self, packet, extra):
+        # Revalidate even if a caller used unchecked model_copy/model_construct.
+        packet = InformationPacket.model_validate(packet.model_dump())
+        wire = packet.model_dump()
+        _, removed = mask_payload(wire)
+        if removed:
+            raise ValueError('packet contains unmasked private fields')
+        if not packet.access_scope:
+            raise ValueError('explicit trusted access scope required')
+        body = _json(packet.payload)
+        if len(body.encode()) > self.max_payload_bytes:
+            raise ValueError('packet exceeds configured payload cap')
+        metadata = {key: value for key, value in wire.items() if key != 'payload'}
+        metadata['_invocation'] = extra
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            prior = db.execute('SELECT metadata, expired FROM packets WHERE id=?', (packet.packet_id,)).fetchone()
+            if prior:
+                old = json.loads(prior[0]); old.pop('_invocation', None)
+                if prior[1] or old != {k: v for k, v in wire.items() if k != 'payload'}:
+                    raise ValueError('immutable packet ID cannot be rebound')
+                return packet.model_copy(deep=True)
+            if packet.packet_id == packet.alias or db.execute(
+                'SELECT 1 FROM packets WHERE id=? OR alias=?',
+                (packet.alias, packet.packet_id),
+            ).fetchone():
+                raise ValueError('packet ID and alias namespaces cannot shadow one another')
+            for parent in packet.parents:
+                row = db.execute('SELECT metadata,expired FROM packets WHERE id=?', (parent,)).fetchone()
+                if not row or row[1] or parent not in self._live_ids(db) or not self._authorized(json.loads(row[0])['access_scope'], packet.access_scope):
+                    raise ValueError('parent missing, expired or outside packet scope')
+            db.execute('INSERT OR IGNORE INTO bodies VALUES (?,?)', (packet.payload_sha256, body))
+            db.execute('INSERT INTO packets(id,alias,metadata,hash) VALUES (?,?,?,?)',
+                (packet.packet_id, packet.alias, _json(metadata), packet.payload_sha256))
+            for owner in packet.pinned_by or []:
+                db.execute('INSERT OR IGNORE INTO pins VALUES (?,?)', (owner, packet.packet_id))
+        return packet.model_copy(deep=True)
+
+    def _live_ids(self, db):
+        rows = db.execute('SELECT id,metadata,expired FROM packets').fetchall()
+        live = {row[0] for row in db.execute('SELECT packet FROM pins')}
+        for ident, metadata, expired in rows:
+            value = json.loads(metadata)
+            if not expired and (value['expires_at'] is None or _epoch(value['expires_at']) > self.clock()):
+                live.add(ident)
+        parents = {ident: json.loads(meta)['parents'] for ident, meta, _ in rows}
+        pending = list(live)
+        while pending:
+            for parent in parents.get(pending.pop(), []):
+                if parent not in live:
+                    live.add(parent); pending.append(parent)
+        return live
+
+    def lookup(self, reference: str, *, access_scope: Mapping[str, Any]) -> PacketLookup:
+        with self._db() as db:
+            # Metadata, references and body must come from one WAL snapshot.
+            db.execute('BEGIN')
+            row = db.execute('SELECT id,metadata,hash,expired FROM packets WHERE id=? OR alias=?', (reference, reference)).fetchone()
+            if not row:
+                return PacketLookup('not_found')
+            metadata = json.loads(row[1]); metadata.pop('_invocation', None)
+            if not self._authorized(metadata['access_scope'], access_scope):
+                return PacketLookup('forbidden')
+            if row[3] or row[0] not in self._live_ids(db):
+                return PacketLookup('expired')
+            body = db.execute('SELECT payload FROM bodies WHERE hash=?', (row[2],)).fetchone()
+            if not body:
+                raise RuntimeError('packet body missing: storage corruption')
+            metadata['payload'] = json.loads(body[0])
+            return PacketLookup('ok', InformationPacket.model_validate(metadata))
+
+    def resolve(self, reference: str, *, access_scope: Mapping[str, Any]) -> InformationPacket | None:
+        return self.lookup(reference, access_scope=access_scope).packet
+
+    def pin(self, owner: str, references: list[str]) -> None:
+        """Trusted engine retention operation, never exposed as a hint capability."""
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self._pin(db, owner, references)
+
+    def _pin(self, db, owner: str, references: list[str]) -> None:
+        # Caller holds the write transaction through its retention bookkeeping.
+        for ref in references:
+            row = db.execute('SELECT id,expired FROM packets WHERE id=? OR alias=?', (ref, ref)).fetchone()
+            if not row or row[1] or row[0] not in self._live_ids(db):
+                raise ValueError('cannot pin missing/expired evidence')
+            db.execute('INSERT OR IGNORE INTO pins VALUES (?,?)', (owner, row[0]))
+
+    def unpin(self, owner: str) -> None:
+        with self._db() as db:
+            db.execute('DELETE FROM pins WHERE owner=?', (owner,))
+
+    def retain_job(self, owner: str, references: list[str], *, terminal: bool = False) -> None:
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self._pin(db, owner, references)
+            db.execute('INSERT OR REPLACE INTO retention VALUES (?,?,?)', (owner, int(terminal), self.clock()))
+            stale = db.execute('SELECT owner FROM retention WHERE terminal=1 ORDER BY updated DESC,owner DESC LIMIT -1 OFFSET ?', (self.recent_terminal_limit,)).fetchall()
+            for (old,) in stale:
+                db.execute('DELETE FROM pins WHERE owner=?', (old,))
+                db.execute('DELETE FROM retention WHERE owner=?', (old,))
+
+    def gc(self) -> list[str]:
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            live = self._live_ids(db)
+            expired = [r[0] for r in db.execute('SELECT id FROM packets WHERE expired=0') if r[0] not in live]
+            db.executemany('UPDATE packets SET expired=1 WHERE id=?', [(i,) for i in expired])
+            db.execute('DELETE FROM bodies WHERE hash NOT IN (SELECT hash FROM packets WHERE expired=0)')
+            return expired
+
+    def backup(self, destination: str | Path) -> None:
+        destination = Path(destination)
+        with self._db() as source, sqlite3.connect(destination) as target:
+            source.backup(target)
+        os.chmod(destination, 0o600)
+
+    def invocation(self, reference: str, *, access_scope: Mapping[str, Any]) -> dict | None:
+        if self.lookup(reference, access_scope=access_scope).status != 'ok':
+            return None
+        with self._db() as db:
+            return json.loads(db.execute('SELECT metadata FROM packets WHERE id=? OR alias=?', (reference, reference)).fetchone()[0]).get('_invocation', {})
+
+    def assemble_hints(self, references: list[str], *, access_scope: Mapping[str, Any],
+                       current_dependencies: Mapping[str, str] | Callable[[str], str | None] | None = None,
+                       budget_bytes: int = 8192) -> dict:
+        """Keep exact selected payloads/spans; stale observations remain attributed leads.
+
+        Dependency keys are producer-defined identities (e.g. file:repo/path,
+        registry:project, semantic_revision:project, discovery:scope, environment:host).
+        Missing verification is explicit, never assumed current.
+        """
+        packets, omissions, seen = [], [], {}
+        used = 0
+        for ref in dict.fromkeys(references):
+            result = self.lookup(ref, access_scope=access_scope)
+            if result.status != 'ok':
+                omissions.append({'reference': ref, 'reason': result.status}); continue
+            packet = result.packet
+            freshness = packet.freshness or {}
+            deps = dict(freshness.get('dependencies', {}))
+            expectations = {key: {value} for key, value in deps.items()}
+            for source in packet.sources:
+                key = f'file:{source.repository}/{source.path}'
+                expectations.setdefault(key, set()).add(source.content_sha256)
+            changes = []
+            for key, values in expectations.items():
+                if len(values) != 1:
+                    changes.append({'dependency': key, 'reason': 'conflicting_dependency',
+                                    'expected_values': sorted(values)})
+                    continue
+                expected = next(iter(values))
+                actual = current_dependencies(key) if callable(current_dependencies) else (current_dependencies or {}).get(key)
+                if actual != expected:
+                    changes.append({'dependency': key, 'reason': 'unverified' if actual is None else 'changed'})
+            if freshness.get('negative') and not any(k.startswith(('discovery:', 'directory_membership:', 'exports:')) for k in expectations):
+                changes.append({'reason': 'negative_discovery_scope_missing'})
+            if freshness.get('volatile'):
+                max_age = freshness.get('max_age_seconds', 0)
+                if self.clock() - _epoch(packet.created_at) > max_age:
+                    changes.append({'reason': 'volatile_observation_expired'})
+            if not expectations and not freshness.get('volatile'):
+                changes.append({'reason': 'dependency_manifest_missing'})
+            if changes:
+                omissions.append({'reference': ref, 'reason': 'stale', 'dependencies': changes})
+            omissions.extend({'reference': ref, 'reason': 'producer_omission', 'detail': o} for o in packet.omissions or [])
+            if packet.payload_sha256 in seen:
+                provenance = {'reference': ref, 'packet_id': packet.packet_id,
+                              'sources': [s.model_dump() for s in packet.sources],
+                              'freshness': 'stale' if changes else 'current'}
+                size = len(_json(provenance).encode())
+                if used + size <= budget_bytes:
+                    seen[packet.payload_sha256].setdefault('also_from', []).append(provenance)
+                    used += size
+                    omissions.append({'reference': ref, 'reason': 'duplicate_content'})
+                else:
+                    omissions.append({'reference': ref, 'reason': 'budget', 'needed_bytes': size})
+                continue
+            item = {'packet': packet.model_dump(), 'freshness': 'stale' if changes else 'current'}
+            size = len(_json(item).encode())
+            if used + size > budget_bytes:
+                omissions.append({'reference': ref, 'reason': 'budget', 'needed_bytes': size}); continue
+            packets.append(item); used += size; seen[packet.payload_sha256] = item
+        return {'packets': packets, 'omissions': omissions, 'budget_unit': 'utf8_bytes', 'used_bytes': used,
+                'authority': False}

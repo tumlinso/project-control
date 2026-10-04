@@ -25,4 +25,5 @@ project-control = "project_control.cli:main"
 packages = ["src/project_control"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
