@@ -1,0 +1,43 @@
+{
+  "format": "pc-as1-producer-receipt/1",
+  "producer_project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+  "producer_task_id": "PC-AS1-TRACE",
+  "gate_ids": [
+    "PC-AS1-TRACE-ACCEPT"
+  ],
+  "source_identity": {
+    "commit": "9509e716cb44c91ba9c4ccee39f0711be87fe9dd",
+    "branch": "codex/pc-as1-l-context",
+    "completion_revision": 835,
+    "gate_revision": 834,
+    "gate_evidence_id": "bbccfc0a-c467-4613-940d-9fdb7d7a609e",
+    "integration_status": "pending managed integration into PC-AS1-SURFACE"
+  },
+  "contract_hashes": {
+    "src/project_control/as1_trace.py": "cb15e08e71995989142b3e76b7bffd14e78981a73a32258aea1ccb97778b24f1",
+    "tests/as1/test_pc_as1_trace.py": "154ecfb73804d040455d3e275ffeab767e67b6b35e0e525ea820f9cccc4a45a8",
+    "docs/as1-trace.md": "81dc7a40fb575e8bcc3e22ab5f4b7b6b93afb8a47ebef91d2cabf0340bb665e2"
+  },
+  "coverage": {
+    "cases": [
+      "TRC-01",
+      "TRC-02",
+      "TRC-03",
+      "TRC-04",
+      "TRC-05",
+      "TRC-06",
+      "TRC-07",
+      "TRC-08",
+      "TRC-09",
+      "TRC-10",
+      "TRC-11"
+    ],
+    "independent_source_review": "no remaining P1/P2 findings in these exact bytes",
+    "genuine_cpp_provider": "installed ctxpp with Clang 18.1.3"
+  },
+  "limits": [
+    "No full compiler closure; unresolved external inputs explicitly unknown.",
+    "Canonical installed semantic runtime migration and public surface wiring remain downstream."
+  ],
+  "status": "passed"
+}
