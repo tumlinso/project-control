@@ -97,3 +97,15 @@ execution using the actual replay packet with its completed/citation assertions
 retained. The index verifies this replacement explicitly; the failure is neither
 erased nor counted as a pass. Complete actual Q6 proof is still required before
 the full qualification runner or release acceptance can pass.
+
+The final functional candidate uses PC `c67699b` and Skills `9d19b34`, with
+observer runtime SHA256 `8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd`.
+The entry index preserves raw native stdout proving ten entry tests. The
+producer document additionally records 58 tests/11 subtests using execution
+session 23896 and completion chunk e12938; no separate raw report for that
+broader run was supplied. Native gate execution preceded the reporting-only
+document addition; runtime and test hashes were unchanged afterward. The later
+document hash is bound separately. PC's two startup/frontend passes and earlier
+obsolete JOB-06 fixture failure remain preserved; the identical failed node
+has a later passing actual conversation/replay execution. Complete Q10 proof
+remains required before the two dependent E2E consumers can qualify.

@@ -1,0 +1,1 @@
+{"cases": {"JOB-06": [{"outcome": "passed", "test": "tests/as1/test_pc_as1_jobs.py::test_actual_port_shared_tools_no_injection_and_agentic_registered_skill"}]}, "pytest_exitstatus": 0}
