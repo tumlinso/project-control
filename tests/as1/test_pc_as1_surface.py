@@ -197,7 +197,7 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
     import time
     class ScriptedBackend:
         def __init__(self):
-            self.turns = 0; self.closed = []
+            self.turns = 0; self.closed = []; self.replayed_packet = None
         def open_sessions(self, count, **policy):
             assert count == 1 and policy['compute_profile'] == 'narrow'
             return {'status': 'available', 'session_ids': ['scripted-session']}
@@ -205,12 +205,24 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
             self.closed.append(session)
         def run_observer_turn(self, request):
             self.turns += 1
+            messages = request['messages']
+            user_payloads = [json.loads(message['content']) for message in messages if message['role'] == 'user']
+            assert sum(payload.get('question') == 'Inspect registered catalog.' for payload in user_payloads) == 1
             if self.turns == 1:
+                assert len(messages) == 2
                 turn = {'tool': 'overview', 'arguments': {}}
             else:
-                observations = json.loads(request['messages'][1]['content'])['observations']
+                replayed = [json.loads(messages[index + 1]['content'])
+                    for index, message in enumerate(messages[:-1])
+                    if message['role'] == 'assistant'
+                    and json.loads(message['content']) == {'tool': 'overview', 'arguments': {}}
+                    and messages[index + 1]['role'] == 'user']
+                assert len(replayed) == 1
+                self.replayed_packet = replayed[0]
+                assert self.replayed_packet['data']['projects'] == []
+                assert self.replayed_packet['packet_id']
                 turn = {'answer': 'Registered catalog observed.', 'findings': [
-                    {'text': 'The shared catalog was observed.', 'evidence_packets': [observations[-1]['packet_id']]}]}
+                    {'text': 'The shared catalog was observed.', 'evidence_packets': [self.replayed_packet['packet_id']]}]}
             return {'status': 'available', 'text': json.dumps(turn)}
     backend = ScriptedBackend()
     server = servers(observer_backend=backend)
@@ -228,6 +240,8 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
         time.sleep(.01)
     assert polled['job']['status'] == 'completed', polled
     assert polled['observations'][0]['data']['projects'] == []
+    assert polled['observations'][0]['packet_id'] == backend.replayed_packet['packet_id']
+    assert polled['job']['findings'][0]['evidence_packets'] == [backend.replayed_packet['packet_id']]
     assert backend.turns == 2
     deadline = time.monotonic() + 2
     while not backend.closed and time.monotonic() < deadline:
