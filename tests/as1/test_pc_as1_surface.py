@@ -179,10 +179,12 @@ def test_worker_command_roots_follow_durable_admission(servers, tmp_path):
     trusted = c.jobs.worker_factory.trusted
     job = SimpleNamespace(scope=c.host.scope('a'), mode='investigate', job_id='job_fixture', attempt=1)
     worker = trusted(c.jobs, job)
+    assert worker.command.roots[0] == a.resolve()
     assert worker.command.allows(a / 'source.py')
     assert not worker.command.allows(b / 'source.py')
     job.mode = 'skill'
     worker = trusted(c.jobs, job)
+    assert worker.command.roots == (trusted.root,)
     assert not worker.command.allows(a / 'source.py')
     assert worker.command.allows(trusted.root / 'local-coding-worker/SKILL.md')
     job.scope['principal'] = 'forged'

@@ -42,6 +42,22 @@ def make(tmp_path, **kwargs):
     return JobService(tmp_path/'jobs', packets=SQLitePacketStore(tmp_path/'packets'), **kwargs)
 
 
+def source_environment():
+    from project_control.runtime_identity import package_fingerprint
+    environment = dict(os.environ)
+    for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
+                'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_READ_ONLY', 'TODO_ORCHESTRATOR_STATE_DIR'):
+        environment.pop(key, None)
+    environment['PROJECT_CONTROL_SKILLS_ROOT'] = str(SKILLS)
+    environment['PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT'] = package_fingerprint(SKILLS/'todo-orchestrator/todo_orchestrator')
+    environment['PYTHONPATH'] = os.pathsep.join([str(ROOT/'src'), str(SKILLS/'todo-orchestrator')])
+    environment['AS1_SOURCE_HASHES'] = json.dumps({
+        name: hashlib.sha256((ROOT/'src/project_control'/ (name+'.py')).read_bytes()).hexdigest()
+        for name in ('as1_jobs', 'as1_packets', 'as1_surface')}, sort_keys=True)
+    return environment
+
+
 @pytest.mark.as1_case('JOB-01')
 def test_admission_and_process_lived_dispatch_after_disconnect(tmp_path):
     # An independent child process owns dispatch; parent admission ends before processing.
@@ -75,18 +91,7 @@ s.shutdown()
 '''
     # Match the control fixtures: bind only the child to actual candidate source,
     # leaving the native gate parent's deployed release identity untouched.
-    from project_control.runtime_identity import package_fingerprint
-    environment = dict(os.environ)
-    for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
-                'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
-                'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_READ_ONLY', 'TODO_ORCHESTRATOR_STATE_DIR'):
-        environment.pop(key, None)
-    environment['PROJECT_CONTROL_SKILLS_ROOT'] = str(SKILLS)
-    environment['PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT'] = package_fingerprint(SKILLS/'todo-orchestrator/todo_orchestrator')
-    environment['PYTHONPATH'] = os.pathsep.join([str(ROOT/'src'), str(SKILLS/'todo-orchestrator')])
-    environment['AS1_SOURCE_HASHES'] = json.dumps({
-        name: hashlib.sha256((ROOT/'src/project_control'/ (name+'.py')).read_bytes()).hexdigest()
-        for name in ('as1_jobs', 'as1_packets')}, sort_keys=True)
+    environment = source_environment()
     child = subprocess.Popen([sys.executable, '-c', script, str(tmp_path), json.dumps(SCOPE)],
                              cwd=ROOT, env=environment)
     try:
@@ -432,3 +437,106 @@ def test_unicode_storage_cap_counts_real_utf8_bytes(tmp_path):
         assert usage <= s.max_storage_bytes
     finally:
         release.set(); s.shutdown()
+
+
+@pytest.mark.as1_case('JOB-04', 'JOB-05', 'JOB-03')
+@pytest.mark.parametrize('legacy', [False, True], ids=['installed-port', 'legacy-producer'])
+def test_step_budget_is_terminal_with_retained_source_and_idempotent_restart(tmp_path, legacy):
+    source = tmp_path / 'module.py'
+    source.write_text('def calculate_total(values):\n    return sum(values)\n')
+    backend = Turns([{'tool': 'command', 'arguments': {
+        'argv': ['cat', str(source)], 'cwd': str(tmp_path)}}] * 6)
+    factory = trusted(tmp_path, backend)
+    if legacy:
+        native_factory = factory
+        def factory(service, job):
+            native = native_factory(service, job)
+            class Legacy:
+                def run(self, request):
+                    result = native.run(request)
+                    result.update(status='yielding', reason='step_budget', unresolved_questions=[])
+                    return result
+            return Legacy()
+    s = make(tmp_path, worker_factory=factory, retry_seconds=0).start()
+    try:
+        hint = s.packets.create(tool='search', payload={'path': str(source)}, access_scope=SCOPE)
+        args = dict(question='Explain calculate_total', access_scope=SCOPE,
+                    request_id='budget', hints=[hint.alias])
+        admitted = s.submit(**args)
+        value = wait(lambda: (v if (v := s.poll(admitted['job_id'], access_scope=SCOPE))['job']['status'] == 'partial' else None))
+        s.reconcile()
+        job = value['job']
+        assert job['attempt'] == 1 and job['unresolved_questions']
+        assert len(backend.requests) == 6
+        assert s.claim() is None
+        assert len(value['observations']) == 6
+        for observation in value['observations']:
+            assert observation['source_reads'][0]['content_sha256'] == hashlib.sha256(source.read_bytes()).hexdigest()
+            assert s.packets.lookup(observation['packet_id'], access_scope=SCOPE).status == 'ok'
+        result = s.packets.lookup(job['result_packet'], access_scope=SCOPE)
+        assert result.packet.payload['status'] == 'partial'
+        assert result.packet.payload['reason'] == 'step_budget_exhausted'
+        assert result.packet.payload['unresolved_questions'] == job['unresolved_questions']
+        assert s.submit(**args)['job_id'] == job['job_id']
+        assert s.poll(job['job_id'], access_scope=SCOPE)['job']['attempt'] == 1
+        assert s.claim() is None and len(backend.requests) == 6
+    finally:
+        s.shutdown()
+    restored = make(tmp_path)
+    restored.reconcile()
+    assert restored.claim() is None
+    assert restored.submit(**args)['job_id'] == job['job_id']
+    assert restored.poll(job['job_id'], access_scope=SCOPE)['job'] == job
+    assert restored.packets.lookup(job['result_packet'], access_scope=SCOPE).status == 'ok'
+    assert restored.packets.lookup(hint.packet_id, access_scope=SCOPE).status == 'ok'
+
+
+@pytest.mark.as1_case('JOB-04')
+@pytest.mark.parametrize('status,reason', [
+    ('yielding', 'foreground_preemption'), ('yielding', 'session_unavailable'),
+    ('queued_after_eviction', 'session_evicted')])
+def test_recoverable_yields_resume_same_job_from_retained_observation(tmp_path, status, reason):
+    attempts = []
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                attempts.append(request)
+                if job.attempt == 1:
+                    service.observe(job.job_id, job.attempt, {'text': 'checkpoint source'})
+                    return {'status': status, 'reason': reason}
+                assert request['observations'][0]['text'] == 'checkpoint source'
+                return {'status': 'completed', 'answer': 'Resumed from retained source.'}
+        return Worker()
+    s = make(tmp_path, worker_factory=factory, retry_seconds=0).start()
+    try:
+        admitted = s.submit(question='Resume after interruption', access_scope=SCOPE)
+        value = wait(lambda: (v if (v := s.poll(admitted['job_id'], access_scope=SCOPE))['job']['status'] == 'completed' else None))
+        assert value['job']['attempt'] == 2
+        assert len(attempts) == 2 and attempts[0]['job_id'] == attempts[1]['job_id']
+        assert value['observations'][0]['text'] == 'checkpoint source'
+        assert s.claim() is None
+    finally:
+        s.shutdown()
+
+
+@pytest.mark.as1_case('JOB-01', 'JOB-04', 'JOB-05')
+def test_progress_regressions_bind_child_source_without_changing_parent_deployment(tmp_path):
+    parent_environment = dict(os.environ)
+    script = r"""
+import hashlib, json, os, pathlib, pytest
+for name, expected in json.loads(os.environ['AS1_SOURCE_HASHES']).items():
+ module=__import__('project_control.'+name,fromlist=[''])
+ source=pathlib.Path(module.__file__).resolve()
+ assert source == pathlib.Path.cwd()/'src/project_control'/(name+'.py')
+ assert hashlib.sha256(source.read_bytes()).hexdigest() == expected
+from project_control.as1_surface import QUALIFIED_OBSERVER_RUNTIME_SHA256
+native=pathlib.Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT'])/'local-coding-worker/local_worker/observer_runtime.py'
+assert hashlib.sha256(native.read_bytes()).hexdigest() == QUALIFIED_OBSERVER_RUNTIME_SHA256
+raise SystemExit(pytest.main(['-q','-p','no:cacheprovider','tests/as1/test_pc_as1_jobs.py',
+ '-k','step_budget_is_terminal or recoverable_yields_resume']))
+"""
+    child = subprocess.run([sys.executable, '-c', script], cwd=ROOT,
+                           env=source_environment(), capture_output=True, text=True, timeout=30)
+    assert child.returncode == 0, child.stdout + child.stderr
+    assert '5 passed' in child.stdout
+    assert dict(os.environ) == parent_environment
