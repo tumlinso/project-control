@@ -169,7 +169,9 @@ def test_real_inference_busy_skill_restart_eviction_reuse(tmp_path):
     proof=json.loads(paired.PROOF.read_text())
     installed=paired.CANDIDATE/'lib/python3.13/site-packages/project_control'
     hashes={}
-    for path in (ROOT/'src/project_control').glob('as1_*.py'):
+    product_paths=list((ROOT/'src/project_control').glob('as1_*.py'))
+    product_paths += [ROOT/'src/project_control'/name for name in ('observer_analysis.py','app.py','profiles.py','runtime_identity.py')]
+    for path in product_paths:
         assert sha(installed/path.name)==sha(path), path.name
         hashes[path.name]=sha(path)
     turns=json.loads((paired.PROOF.parent/proof['inference_artifact']).read_text())
@@ -210,12 +212,23 @@ def test_current_conformance_and_independent_review_are_executed():
         report=json.loads(path.read_text())
         selected=set(reference['cases'])
         if reference['kind']=='pytest':
+            excluded=reference.get('superseded_failed_tests',{})
+            if excluded:
+                actual_failed={row['test'] for rows in report['cases'].values() for row in rows if row['outcome']!='passed'}
+                assert set(excluded)==actual_failed
+                for test,replacement in excluded.items():
+                    replacement_ref=next(row for row in index['reports'] if row['path']==replacement)
+                    replacement_path=REPORTS/replacement
+                    assert sha(replacement_path)==replacement_ref['sha256']
+                    replacement_report=json.loads(replacement_path.read_text())
+                    assert replacement_report['pytest_exitstatus']==0
+                    replaced=[row for rows in replacement_report['cases'].values() for row in rows if row['test']==test]
+                    assert replaced and all(row['outcome']=='passed' for row in replaced)
             for case in selected:
-                rows=report['cases'][case]
+                rows=[row for row in report['cases'][case] if row['test'] not in excluded]
                 assert rows and all(row['outcome']=='passed' for row in rows),case
-            if report['pytest_exitstatus']!=0:
-                # Only MUT rows are consumed from the preserved combined run;
-                # its two API fixture failures have a separate later full pass.
+            if report['pytest_exitstatus']!=0 and not excluded:
+                # Historical combined run contributes only its passing MUT rows.
                 assert selected=={f'MUT-{i:02}' for i in range(1,6)}
                 assert reference['limit']=='MUT cases passed; earlier API assertion failures superseded by final public report.'
         elif reference['kind']=='native_gate':
@@ -225,6 +238,21 @@ def test_current_conformance_and_independent_review_are_executed():
         else:raise AssertionError('Unknown conformance evidence kind')
         covered.update(selected)
     assert expected<=covered,sorted(expected-covered)
+    for reference in index.get('historical_reports',[]):
+        path=REPORTS/reference['path']
+        assert path.resolve().is_relative_to(REPORTS.resolve()) and sha(path)==reference['sha256']
+    history=index.get('source_history')
+    if history:
+        previous=REPORTS/history['previous_index']
+        assert previous.resolve().is_relative_to(REPORTS.resolve())
+        assert sha(previous)==history['previous_index_sha256']
+    latest_checks={}
+    for check in index['superseding_source_checks']:
+        previous=latest_checks.get(check['path'])
+        if previous:assert check['historical_sha256']==previous['current_sha256']
+        latest_checks[check['path']]=check
+        assert check['execution'] in {row['path'] for row in index['reports']}
+    for path,check in latest_checks.items():assert check['current_sha256']==index['source_hashes'][path]
     for relative,expected_hash in index['source_hashes'].items():
         assert sha(ROOT/relative)==expected_hash,relative
     for relative,expected_hash in index['receipt_hashes'].items():

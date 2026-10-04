@@ -9,10 +9,46 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = Path('/home/tumlinson/.agents/skills')
 REPORTS = ROOT / 'planning/adaptive-surface-v1/validation/qualification'
+PRIVATE_REPORTS = Path('/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private')
+BEARER_FIELDS = frozenset({'workflow_handle', 'capability_id', 'delegation_handle',
+                          'claim_token', 'session_token', 'worker_token',
+                          'authorization_id', 'grant_reference'})
 
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def redact_bearers(value):
+    """Preserve evidence IDs; hash only explicit capability/credential fields."""
+    if isinstance(value, dict):
+        return {key: {'redacted': True, 'sha256': hashlib.sha256(item.encode()).hexdigest()}
+                if key in BEARER_FIELDS and isinstance(item, str) and item else redact_bearers(item)
+                for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_bearers(item) for item in value]
+    return value
+
+
+def persist_report(record, name, *, original_bytes=None):
+    sanitized = redact_bearers(record)
+    if sanitized != record:
+        original = original_bytes if original_bytes is not None else (json.dumps(record, indent=2, sort_keys=True) + '\n').encode()
+        digest = hashlib.sha256(original).hexdigest()
+        PRIVATE_REPORTS.mkdir(parents=True, exist_ok=True, mode=0o700)
+        private = PRIVATE_REPORTS / (name + '-' + digest + '.json')
+        try:
+            fd = os.open(private, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            assert private.read_bytes() == original
+        else:
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(original)
+        sanitized['private_original'] = {'path': str(private), 'sha256': digest,
+                                         'limit': 'Disposable fixture bearer fields hashed in public evidence; original private bytes retained.'}
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    (REPORTS / (name + '.json')).write_text(json.dumps(sanitized, indent=2, sort_keys=True) + '\n')
+    return sanitized
 
 
 def child(source, name, *, environment=None, interpreter=None):
@@ -36,8 +72,7 @@ def child(source, name, *, environment=None, interpreter=None):
                             env=env, capture_output=True, text=True, timeout=180)
     assert result.returncode == 0, result.stdout + '\n' + result.stderr
     record = json.loads(result.stdout.split('QUALIFICATION_JSON=')[-1])
-    REPORTS.mkdir(parents=True, exist_ok=True)
-    (REPORTS / (name + '.json')).write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
+    persist_report(record, name)
     return record
 
 
