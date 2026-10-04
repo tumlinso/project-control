@@ -1,0 +1,43 @@
+{
+  "format": "pc-as1-producer-receipt/1",
+  "producer_project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+  "producer_task_id": "PC-AS1-CONTROL",
+  "gate_ids": [
+    "PC-AS1-CONTROL-ACCEPT"
+  ],
+  "source_identity": {
+    "commit": "9ae670616e82ede2a0340acc52aa3502fd0a0dc2",
+    "branch": "codex/pc-as1-l-context",
+    "completion_revision": 841,
+    "gate_revision": 838,
+    "gate_evidence_id": "da2ccb77-8f47-4715-9348-4adb46c01a3f",
+    "integration_artifact_id": "69efd8e7-d2e3-4d3d-af66-fec858127a6b",
+    "integration_status": "pending managed integration into PC-AS1-SURFACE"
+  },
+  "contract_hashes": {
+    "src/project_control/as1_control.py": "d643bb50ecc7fa9ecaed9f131730ffc07509b02af24e81eb38ce55e11f4ddc0b",
+    "src/project_control/admin.py": "a728062c7b5cca6abd77afaa0ac6b8909517d45f5739128ee41d599d142d455d",
+    "src/project_control/mutation.py": "6a5cfee10d2eacd78d7bc6050bfecdcb8dfd07d64f029f308506e32bb4029935",
+    "tests/as1/test_pc_as1_control.py": "d8d08feb1546bbc252afc26b60fbf96a49fc5fd05cd5de057e8d005eb4ae1c76",
+    "docs/as1-control.md": "ae7f00cc9a478c32166e33ad48fd3fd35133a16a9900a0f47024ed8f4e111b97"
+  },
+  "coverage": {
+    "cases": [
+      "MUT-01",
+      "MUT-02",
+      "MUT-03",
+      "MUT-04",
+      "MUT-05"
+    ],
+    "paired_tests_passed": 12,
+    "native_regression_tests_passed": 25,
+    "publication_boundary": "Canonical claim repository and current scopes enforced during trusted verification; shared descriptor reads reject symlink races.",
+    "paired_kernel_receipt": "skills-source-freshness-receipt.json"
+  },
+  "limits": [
+    "Installed kernel extension11 remains unchanged; source12 fixtures qualified.",
+    "Maintenance requires matching actual canonical startup binding.",
+    "Public profile wiring and paired runtime cutover remain downstream."
+  ],
+  "status": "passed"
+}
