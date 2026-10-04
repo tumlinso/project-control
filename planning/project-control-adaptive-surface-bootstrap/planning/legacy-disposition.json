@@ -1,0 +1,73 @@
+{
+  "format": "pc-as1-legacy-review/1",
+  "not_an_apply_payload": true,
+  "review_before_any_mutation": true,
+  "mappings": [
+    {
+      "project": "project-control",
+      "old_task": "PC-PCE2-RUNTIME",
+      "new_outcomes": [
+        "PC-AS1-CONTRACT",
+        "PC-AS1-PACKETS",
+        "PC-AS1-JOBS"
+      ],
+      "intent": "Adopt verified binding/runtime work; replace only unfinished superseded scope."
+    },
+    {
+      "project": "project-control",
+      "old_task": "PC-PCE2-SURFACE",
+      "new_outcomes": [
+        "PC-AS1-CONTEXT",
+        "PC-AS1-CONTROL",
+        "PC-AS1-SURFACE"
+      ],
+      "intent": "New user-approved surface supersedes old frontend goals while retaining backends."
+    },
+    {
+      "project": "project-control",
+      "old_task": "PC-PCE2-QUALIFY",
+      "new_outcomes": [
+        "PC-AS1-QUALIFY",
+        "PC-AS1-RELEASE"
+      ],
+      "intent": "Retain prior evidence; qualify new user journeys and keep NF1A paused."
+    },
+    {
+      "project": "skills",
+      "old_task": "SK-PCE2-OPERATE",
+      "new_outcomes": [
+        "SK-AS1-SEMANTICS",
+        "SK-AS1-ROUTING"
+      ],
+      "intent": "Reuse verified ordinary execution guidance and kernel work."
+    },
+    {
+      "project": "skills",
+      "old_task": "SK-PCE2-MAINTAIN",
+      "new_outcomes": [
+        "SK-AS1-SEMANTICS",
+        "SK-AS1-GPU"
+      ],
+      "intent": "Reuse existing administrative/preemption machinery; expose supported mutator semantics."
+    },
+    {
+      "project": "skills",
+      "old_task": "SK-PCE2-COLLABORATE",
+      "new_outcomes": [
+        "SK-AS1-RUNTIME",
+        "SK-AS1-QUALIFY"
+      ],
+      "intent": "Preserve local coding delegation and dependency delivery; temporarily hide local coding tools."
+    }
+  ],
+  "old_runs": [
+    "PC-PCE2-RUN-1",
+    "SK-PCE2-RUN-1"
+  ],
+  "preserve_unrelated_attention": [
+    "PCU-SK-40",
+    "C4Q-01",
+    "other tasks not explicitly reviewed"
+  ],
+  "safety": "Re-observe active membership/claims and successful outcomes; derive complete affected sets using supported kernels, never use old fingerprints as live authorization."
+}

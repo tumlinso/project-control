@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AS1 job",
+  "type": "object",
+  "required": [
+    "format",
+    "job_id",
+    "mode",
+    "question",
+    "hints",
+    "status",
+    "attempt",
+    "created_at",
+    "findings",
+    "evidence_packets",
+    "unresolved_questions"
+  ],
+  "properties": {
+    "format": {
+      "const": "pc-job/1"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "mode": {
+      "enum": [
+        "investigate",
+        "skill"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "skill": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "request_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "yielding",
+        "queued_after_eviction",
+        "completed",
+        "partial",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "evidence_packets"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "evidence_packets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "evidence_packets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unresolved_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "result_packet": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

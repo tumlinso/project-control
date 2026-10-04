@@ -1,0 +1,470 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "skills"
+  },
+  "tasks": [
+    {
+      "id": "SK-AS1-SEMANTICS",
+      "parent_id": "SK-AS1-0000",
+      "kind": "task",
+      "title": "Extend canonical semantic and mutation contracts",
+      "objective": "Supply durable project declarations/skill usage/orientation and typed amendments through the existing Todo authority.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "todo-orchestrator",
+          "integrations/coding-workflow-mcp",
+          "planning/adaptive-surface-v1",
+          "tests/as1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [],
+      "gates": [
+        {
+          "id": "SK-AS1-SEMANTICS-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "SK-AS1-SEMANTICS"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "todo-orchestrator",
+            "integrations/coding-workflow-mcp",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-AS1-SEMANTICS in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "SK-AS1-RUNTIME",
+      "parent_id": "SK-AS1-0000",
+      "kind": "task",
+      "title": "Adapt the existing local service for read-only scout modes",
+      "objective": "Reuse the model supervisor in investigator/skill modes without tying persistent jobs to GPU or child coding authority.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "local-coding-worker",
+          "integrations/coding-workflow-mcp",
+          "planning/adaptive-surface-v1",
+          "tests/as1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-AS1-SEMANTICS"
+        }
+      ],
+      "gates": [
+        {
+          "id": "SK-AS1-RUNTIME-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "SK-AS1-RUNTIME"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "local-coding-worker",
+            "integrations/coding-workflow-mcp",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-AS1-RUNTIME in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "SK-AS1-GPU",
+      "parent_id": "SK-AS1-0000",
+      "kind": "task",
+      "title": "Make warm observer models reclaimable by foreground work",
+      "objective": "Complete observer/skill residency participation in the existing host-global CUDA eviction/interlock protocol.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "cuda/scripts",
+          "cuda/tests",
+          "local-coding-worker",
+          "planning/adaptive-surface-v1",
+          "tests/as1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-AS1-RUNTIME"
+        }
+      ],
+      "gates": [
+        {
+          "id": "SK-AS1-GPU-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "SK-AS1-GPU"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "cuda/scripts",
+            "cuda/tests",
+            "local-coding-worker",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-AS1-GPU in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "SK-AS1-ROUTING",
+      "parent_id": "SK-AS1-0000",
+      "kind": "task",
+      "title": "Make native skills role-efficient and preserve corpus routing",
+      "objective": "Update instruction routing for native agents and the observer adapter without rewriting technical skill content.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "cuda",
+          "local-coding-worker",
+          "todo-orchestrator",
+          "cpp-context-compiler",
+          "integrations",
+          "planning/adaptive-surface-v1",
+          "tests/as1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-AS1-SEMANTICS"
+        },
+        {
+          "type": "task",
+          "task_id": "SK-AS1-GPU"
+        }
+      ],
+      "gates": [
+        {
+          "id": "SK-AS1-ROUTING-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "SK-AS1-ROUTING"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "cuda",
+            "local-coding-worker",
+            "todo-orchestrator",
+            "cpp-context-compiler",
+            "integrations",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-AS1-ROUTING in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "SK-AS1-QUALIFY",
+      "parent_id": "SK-AS1-0000",
+      "kind": "task",
+      "title": "Qualify kernel, worker, CUDA and native-skill interoperation",
+      "objective": "Produce a paired Skills qualification receipt usable by Project Control without merging authorities.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "tests",
+          "todo-orchestrator/tests",
+          "cuda/tests",
+          "local-coding-worker/tests",
+          "integrations",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-AS1-ROUTING"
+        }
+      ],
+      "gates": [
+        {
+          "id": "SK-AS1-QUALIFY-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "SK-AS1-QUALIFY"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "tests",
+            "todo-orchestrator/tests",
+            "cuda/tests",
+            "local-coding-worker/tests",
+            "integrations",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-AS1-QUALIFY in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "SK-AS1-RELEASE",
+      "parent_id": "SK-AS1-0000",
+      "kind": "task",
+      "title": "Pin the qualified standalone release in Skills",
+      "objective": "Finish paired packaging by pinning the qualified standalone Project Control commit and publishing a bound release receipt.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "project-control",
+          ".gitmodules",
+          "integrations",
+          "planning/adaptive-surface-v1",
+          "tests/as1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-AS1-QUALIFY"
+        }
+      ],
+      "gates": [
+        {
+          "id": "SK-AS1-RELEASE-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "SK-AS1-RELEASE"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "project-control",
+            ".gitmodules",
+            "integrations",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read SK-AS1-RELEASE in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "SK-AS1-0000",
+      "kind": "epic",
+      "title": "AS1 skills: consolidated adaptive helper surface",
+      "objective": "Aggregate verified local outcomes only; never a coordinator claim or prerequisite of its children.",
+      "priority": 0,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated"
+        ]
+      },
+      "next_action": "Close after local outcome gates and paired release receipts are current. The package purpose is useful engineering progress, not framework administration.",
+      "gates": [
+        {
+          "id": "SK-AS1-SEMANTICS-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "SK-AS1-SEMANTICS",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "SK-AS1-RUNTIME-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "SK-AS1-RUNTIME",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "SK-AS1-GPU-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "SK-AS1-GPU",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "SK-AS1-ROUTING-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "SK-AS1-ROUTING",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "SK-AS1-QUALIFY-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "SK-AS1-QUALIFY",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "SK-AS1-RELEASE-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "SK-AS1-RELEASE",
+          "status": "done",
+          "track_git_head": false
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "SK-AS1-RUN-1",
+      "root_task_id": "SK-AS1-0000",
+      "charter": {
+        "objective": "Implement the complete consolidated role-efficient Project Control surface using canonical backend authorities.",
+        "motivation": "More useful engineering progress with less context, coordination and maintenance overhead.",
+        "boundaries": [
+          "Separate Todo/Git/host authorities; preserve dirty source, historical successful evidence and CUDA/atlas guidance.",
+          "Do not resume NF1A or mutate unrelated scientific projects. Destructive admin actions require explicit user permission.",
+          "Default serial lane; adapt concurrency only with valid ownership and actual payoff."
+        ],
+        "references": [
+          "planning/adaptive-surface-v1/START_HERE.md",
+          "planning/adaptive-surface-v1/planning/outcomes.json",
+          "planning/adaptive-surface-v1/contracts/requirements.json",
+          "planning/adaptive-surface-v1/planning/cross-authority.json"
+        ]
+      },
+      "lanes": [
+        {
+          "id": "SK-AS1-L-EXEC",
+          "role": "implementer",
+          "workspace": {
+            "mode": "exclusive"
+          },
+          "tasks": [
+            "SK-AS1-SEMANTICS",
+            "SK-AS1-RUNTIME",
+            "SK-AS1-GPU",
+            "SK-AS1-ROUTING",
+            "SK-AS1-QUALIFY",
+            "SK-AS1-RELEASE",
+            "SK-AS1-0000"
+          ]
+        }
+      ]
+    }
+  ]
+}

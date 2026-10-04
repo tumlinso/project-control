@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AS1 registration",
+  "type": "object",
+  "required": [
+    "format",
+    "project",
+    "action",
+    "intent",
+    "expected_revision",
+    "operation_id",
+    "payload"
+  ],
+  "properties": {
+    "format": {
+      "const": "pc-project-amendment/1"
+    },
+    "project": {
+      "type": "string"
+    },
+    "action": {
+      "enum": [
+        "register_identity",
+        "register_relation",
+        "register_generation",
+        "configure_provider",
+        "remove_registration",
+        "record_skill_use",
+        "update_orientation"
+      ]
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "payload": {
+      "type": "object"
+    },
+    "mode": {
+      "enum": [
+        "preview",
+        "apply"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

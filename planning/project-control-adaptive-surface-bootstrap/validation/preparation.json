@@ -1,0 +1,71 @@
+{
+  "format": "pc-as1-preparation/1",
+  "prepared_date": "2026-10-04",
+  "status": "package_prepared_and_validated",
+  "scope": "Design/bootstrap package only, not implemented Project Control product",
+  "checks": {
+    "package_consistency": {
+      "acceptance_cases": 72,
+      "checksums_verified": 45,
+      "kind": "package_consistency_not_product_acceptance",
+      "native_tasks": {
+        "project-control": 11,
+        "skills": 7
+      },
+      "outcomes": 16,
+      "requirements": 45,
+      "schema_checks": {
+        "examples": 6,
+        "status": "passed"
+      },
+      "status": "passed"
+    },
+    "python_syntax_files": 8,
+    "helper_tests": {
+      "status": "passed",
+      "tests": 22,
+      "subtests": 9,
+      "output": "validation/package-tests.txt"
+    },
+    "product_gate_missing_test_check": {
+      "status": "passed",
+      "expected_refusal": {
+        "status": "failed",
+        "reason": "product_acceptance_not_implemented",
+        "required_test_file": "tests/as1/test_pc_as1_contract.py",
+        "required_cases": [
+          "CON-01",
+          "CON-02",
+          "CON-03"
+        ]
+      },
+      "exit_code": 2
+    },
+    "live_native_previews": {
+      "project-control": "validation/project-control.live-preview.json",
+      "skills": "validation/skills.live-preview.json"
+    },
+    "exact_preview_digest_match": true
+  },
+  "live_effects": {
+    "todo_plans_applied": false,
+    "tasks_claimed_or_completed": false,
+    "source_modified": false,
+    "services_deployed": false,
+    "gpu_or_model_jobs_started": false
+  },
+  "product_acceptance": {
+    "status": "not_run_product_not_yet_implemented",
+    "required_cases": 72,
+    "cases_are_specifications_not_claimed_passes": true
+  },
+  "prior_failed_check": {
+    "status": "resolved_before_delivery",
+    "reason": "Initial aggregate dependencies back to child tasks formed a native parent/prerequisite cycle. Replaced with native task-state gates; both final full plans validate."
+  },
+  "limitations": [
+    "Current runtime was read and native-plan previews were exercised; the native apply bridge was tested with fixtures, not used to mutate live authority.",
+    "Native previews validate recorded source/authority observations only. Stage and revalidate through the installed runtime before applying.",
+    "Real installed local inference, GPU eviction, provider coverage, migration and rollout acceptance must be executed by the implementation epic."
+  ]
+}
