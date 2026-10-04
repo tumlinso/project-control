@@ -405,7 +405,7 @@
       "id": "REL-01",
       "outcome": "PC-AS1-RELEASE",
       "project": "project-control",
-      "behavior": "Paired runtime identity, Skills gitlink and exact new role surfaces are verified on the installed candidate and live registration.",
+      "behavior": "Paired runtime identity, standalone paired-release manifest and exact new role surfaces are verified on the installed candidate and live registration.",
       "required": true,
       "test_file": "tests/as1/test_pc_as1_release.py"
     },
@@ -565,7 +565,7 @@
       "id": "PIN-01",
       "outcome": "SK-AS1-RELEASE",
       "project": "skills",
-      "behavior": "Skills gitlink pins the qualified standalone Project Control release, not copied source or divergent runtime.",
+      "behavior": "An explicit paired-release manifest pins the qualified standalone Project Control and Skills releases; Skills contains no Project Control gitlink or source copy.",
       "required": true,
       "test_file": "tests/as1/test_sk_as1_release.py"
     },

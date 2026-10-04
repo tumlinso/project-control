@@ -79,7 +79,7 @@
       "consumers": [
         "PC-AS1-RELEASE"
       ],
-      "artifact": "Skills gitlink and bound paired runtime release receipt"
+      "artifact": "Standalone source commits and bound paired runtime release manifest"
     }
   ],
   "receipt_fields": [

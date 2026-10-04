@@ -1,7 +1,8 @@
 # Advisory skill knowledge
 
-Project Control owns skill discovery, bounded retrieval, indexing, and execution
-routing. Skills supply domain knowledge and semantic relationships. Their content
+Project Control brokers catalog access, bounded retrieval, indexing, persistence
+and provenance. The local worker follows installed Skills instructions for
+semantic navigation. Skills supply domain knowledge and relationships. Their content
 has `origin: agent_skill`, `authority: advisory_instruction`, and
 `mutation_authority: false`; authoritative project and Todo state takes precedence.
 
@@ -13,32 +14,30 @@ invalidate relevant skill evidence/index identities, never runtime identity.
 
 ## Public use
 
-Prefer `skill_context(query="Volta register pressure")`. It searches skill names
-and descriptions when `skill="auto"`, then retrieves bounded sections through
-Project Control's shared lexical index and validated semantic relationships.
-An opaque skill ID can select a specific corpus.
+Observer `skill()` cheaply returns installed catalog names/descriptions without
+loading a model. Use `skill(query="Volta register pressure", skill="cuda",
+request_id="volta-1")` for guidance; an omitted skill uses the registered discovery
+guide and installed catalog. Poll with `skill(job_id=<returned ID>)`, preserving
+the returned project scope. Local profiles use native skills, not this MCP adapter.
 
-For explicit inspection:
+Project Control brokers authorization, durable jobs, exact source reads, hashes,
+freshness and provenance. The local worker is the semantic navigator: it first
+reads each selected installed `SKILL.md`, then follows authored maps, references
+and prerequisites. Indexes and graphs may accelerate access but do not replace
+that routing. The discovery guide is bootstrap navigation, not authority over a
+selected skill's own entry. Skill and investigate use one durable broker.
 
-```text
-skill_list(query="CUDA")
-skill_read(skill_id=<returned ID>, resource="SKILL.md")
-skill_read(skill_id=<returned CUDA ID>, resource="references/architectures/volta/router.md")
-```
+Results separate small labeled synthesis from verified original excerpts with
+canonical skill/resource identity, content hashes and exact original ranges.
+Unread resources, stale text, missing prerequisites, redaction or unsupported
+registrations remain explicit omissions. Synthesis is advisory; excerpts retain
+their original source authority. Polling revalidates selected source bytes; an old
+packet alias is historical evidence, not a promise of current freshness.
+See [the adapter contract](as1-skill.md) and [surface examples](as1-surface.md).
 
-Discovery returns metadata and relative resource names, not all instructions.
-Reads report content identity, freshness and continuation lines. Discovery/context
-continuations are opaque strings; pass them back unchanged. Public tools accept
-no filesystem root, project registration, or execution backend selection.
-
-Direct retrieval covers at most two resources/8 KiB of selected material. Indexed
-retrieval covers up to eight resources/32 KiB. Larger retrieval or broad synthesis
-across at least four resources selects machine analysis. Project Control sends
-only selected immutable JSON evidence, below 64 KiB per packet, in at most four
-serial packets per call. The machine receives no filesystem roots, commands, workflow
-handles, or filesystem capabilities. The observer gets compact cited findings;
-capacity failure returns typed unavailable/partial evidence, never a corpus dump.
-Continuation and coverage describe remaining relevant evidence.
+Local native skill instructions remain available through the installed filesystem.
+No public `skill_list`, `skill_read` or `skill_context` alias is advertised by AS1.
+Public requests cannot choose filesystem roots, runtime models or execution policy.
 
 ## Boundary and archive ingestion
 

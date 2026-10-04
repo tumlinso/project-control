@@ -1,5 +1,11 @@
 # Mutation profile v1
 
+This document records the historical mutation/profile contract. Its old public
+tool names, counts and profile assignments are not the AS1 frontend. The current
+[role surface](as1-surface.md) retains canonical transaction safeguards and uses mutator
+`plan`, `amend_project`, and `maintain_execution`; coder/codex has four workflow
+tools. Historical backend/CLI contracts below remain references.
+
 Project Control now implements a deliberately narrow general Todo plan write
 surface in a separate **mutator** profile. This does not change the existing
 profiles:
