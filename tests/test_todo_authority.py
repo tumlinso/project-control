@@ -15,6 +15,7 @@ from project_control.app import Runtime, create_mcp
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import PlanPreviewInput, ProjectSnapshot, RepositoryIdentity
 from project_control.services.planning import plan_preview
+from mcp.server.fastmcp.exceptions import ToolError
 from project_control.snapshot import SnapshotBuilder
 from project_control.todo_authority import (
     REQUIRED_TODO_READ_CAPABILITIES,
@@ -231,9 +232,11 @@ class TodoAuthorityTests(unittest.TestCase):
         with patch("project_control.app.todo_read_port_factory", return_value=lambda _root: port), \
              patch("project_control.app.Runtime.todo_plan_reader", return_value=reader):
             mcp = create_mcp(self.config)
-            result = asyncio.run(mcp._tool_manager.call_tool("plan_preview", {
-                "project": "fixture", "mode": "validate", "proposal": {"schema_version": 2, "tasks": []},
-            }))
+            with self.assertRaises(ToolError):
+                asyncio.run(mcp.call_tool("plan_preview", {"project": "fixture"}))
+            result = plan_preview(self.config, Runtime(self.config).snapshot('fixture'),
+                PlanPreviewInput(project='fixture', mode='validate', proposal={'schema_version': 2, 'tasks': []}),
+                todo_plan_reader=reader, snapshot_refresher=lambda: Runtime(self.config).snapshot('fixture')).model_dump(mode='json')
         after = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
         self.assertTrue(result["data"]["valid"])
         self.assertEqual(len(calls), 1)
@@ -268,12 +271,10 @@ class TodoAuthorityTests(unittest.TestCase):
         runtime = getattr(mcp, "_project_control_runtime")
         with patch.object(runtime, "snapshot", return_value=missing), \
              patch.object(runtime, "todo_plan_reader", side_effect=AssertionError("reader must not construct")) as reader:
-            context = asyncio.run(mcp._tool_manager.call_tool("plan_preview", {
-                "project": "fixture", "mode": "context",
-            }))
-            unavailable = asyncio.run(mcp._tool_manager.call_tool("plan_preview", {
-                "project": "fixture", "mode": "validate", "proposal": {},
-            }))
+            with self.assertRaises(ToolError):
+                asyncio.run(mcp.call_tool('plan_preview', {'project': 'fixture', 'mode': 'context'}))
+            context = plan_preview(self.config, missing, PlanPreviewInput(project='fixture', mode='context')).model_dump(mode='json')
+            unavailable = plan_preview(self.config, missing, PlanPreviewInput(project='fixture', mode='validate', proposal={})).model_dump(mode='json')
         after = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
         self.assertEqual(context["data"]["mode"], "context")
         self.assertIn("todo_authority_unavailable", unavailable["warnings"])

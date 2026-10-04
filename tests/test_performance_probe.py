@@ -158,7 +158,7 @@ class PerformanceProbeTests(unittest.TestCase):
     def test_probe_is_explicit_observer_root_tool_not_investigator_protocol(self) -> None:
         with patch("project_control.app.todo_read_port_factory", return_value=lambda _root: None):
             tools = {tool.name: tool for tool in asyncio.run(create_mcp(self.config, profile="observer").list_tools())}
-        self.assertIn("performance_probe", tools)
-        self.assertFalse(tools["performance_probe"].annotations.readOnlyHint)
+        self.assertNotIn("performance_probe", tools)
+        self.assertTrue(tools["machine"].annotations.readOnlyHint)
         from project_control.services.local_investigate import PROTOCOL
         self.assertNotIn("performance_probe", PROTOCOL)

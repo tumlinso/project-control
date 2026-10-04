@@ -315,6 +315,26 @@ class ControlService:
         binding.validate()
         return result
 
+    def publish_workflow_context(self, project: str, request: Mapping, *, workflow_handle: str, protocol):
+        """Capability publication keeps credentials inside the canonical kernel.
+
+        The startup adapter supplies the verified protocol, never a model port or
+        raw token. The native port reauthenticates the live dispatch and owned
+        task inside its transaction before using this source verifier.
+        """
+        self._access(project, mutator=False)
+        if self.host.profile not in {'coder', 'codex'}:
+            raise PermissionError('authenticated_coder_claim_required')
+        if set(request) - {'kind', 'task_id', 'payload'}:
+            raise ValueError('invalid_publication_fields')
+        publisher = getattr(protocol, 'publish_project_context', None)
+        if not callable(publisher):
+            return {'status': 'unavailable', 'reason': 'capability_publication_port_unavailable'}
+        authority = mutation._authority_root(self.config, project)
+        return publisher(workflow_handle, kind=request['kind'], payload=request['payload'],
+            task_id=request.get('task_id'), source_verifier=self.verify_source,
+            expected_repository_root=authority)
+
     def maintain_execution(self, request: Mapping | MaintenanceRequest):
         parsed = MaintenanceRequest.model_validate(request)
         self._access(parsed.project)

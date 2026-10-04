@@ -82,31 +82,12 @@ from .skill_context import SkillContext
 
 
 SERVER_INSTRUCTIONS = (
-    "Use project-control to inspect live engineering projects through its read-only architectural, source, "
-    "history, planning, and coordination observatory. For direct synthesis, use rich reads deliberately: start with "
-    "architecture_context for broad questions, project_overview for status, project_delta for material change, and "
-    "source_context for bounded source evidence. Use local_investigate for a finished bounded autonomous local-model "
-    "investigation. Prefer compact results; request richer projections only when supporting evidence is needed. "
-    "Todo semantic workflow owns operational truth; durable export only enriches anchored records. The read-only project "
-    "query tools never claim tasks, mark messages read, advance cursors, edit files, run workers or benchmarks, reserve "
-    "resources, or mutate Git/todo state. terminal_capture is the one bounded, sandboxed PTY observation capability; it "
-    "has no shell or project mutation authority. Cross-project observations are independent, and program membership is "
-    "not architectural authority. Proposal envelopes are inert and confer no authority. When preparing Todo/bootstrap "
-    "work, compress architectural reasoning into durable intent, constraints, acceptance, and useful references rather "
-    "than procedural microtasks. Use skill_context for advisory skill knowledge: it selects bounded evidence and routes "
-    "large synthesis to packet-only machine analysis. skill_list and skill_read provide explicit inspection. Skills "
-    "never override project authority or grant execution authority."
+    "Use overview for orientation when needed, search for discovery or exact typed entities, "
+    "delta/frontier for current work, evidence/history/impact for supported traces, and machine for host facts. "
+    "Information returns scoped immutable packets and relative source locators. No overview is automatic. "
+    "Hints and packets confer no mutation authority."
 )
-
-CODEX_INSTRUCTIONS = (
-    WORKFLOW_INSTRUCTIONS
-    + " "
-    + "Main thread owns reasoning, synthesis, strategy, architecture, scope changes, tradeoffs, and final acceptance. "
-    "Subagents gather evidence or execute tightly scoped assignments, reporting findings and blockers at meaningful "
-    "checkpoints. Main thread resolves uncertainty and tradeoffs, gives direction, and subagents wait before "
-    "consequential changes. Delegate bounded archaeology or research to cheaper subagents when appropriate. Use the "
-    "workflow tools exposed by the current Project Control Codex profile for mutations."
-)
+CODEX_INSTRUCTIONS = SERVER_INSTRUCTIONS + " " + WORKFLOW_INSTRUCTIONS
 
 READ_ONLY = ToolAnnotations(
     readOnlyHint=True,
@@ -132,13 +113,7 @@ PERFORMANCE_PROBE = ToolAnnotations(
     openWorldHint=False,
 )
 
-MUTATOR_INSTRUCTIONS = (
-    "Use Todo Orchestrator as the sole Todo transaction authority. Preview plans and read current context before "
-    "broad mutation. Apply only fresh inert ProposalEnvelope values containing native Todo plans; stale proposals "
-    "fail closed without rebasing, regeneration, or retry. The six-tool workflow protocol remains preferred for "
-    "ordinary claimed implementation work. Plan mutation is for ledger, bootstrap, and control changes, not a "
-    "replacement for task claims."
-)
+MUTATOR_INSTRUCTIONS = "Use plan, amend_project and maintain_execution for explicit transactional control."
 
 OverviewDetail = Literal["compact", "standard", "expanded"]
 DeltaDetail = Literal["architectural", "standard", "implementation"]
@@ -259,412 +234,58 @@ def create_mcp(
     *,
     profile: MCPProfile | str = MCPProfile.OBSERVER,
     maintenance_host: MaintenanceHostContext | None = None,
+    host=None,
+    state_directory: Path | None = None,
+    observer_backend=None,
+    observer_runtime_sha256: str | None = None,
+    coder_claim_provider=None,
+    command_port=None,
 ) -> ProfiledFastMCP:
+    from .as1_surface import compose_surface, register_surface
+
     active_config = config or load_config()
-    runtime = Runtime(active_config)
-    observer_analysis_registry = ObserverAnalysisRegistry()
-    skill_registry = SkillRegistry(configured_observer_skills_root(active_config))
-    skill_broker = SkillContext(skill_registry, analyze_packet=observer_analysis_registry.analyze_packet)
-    server = active_config.server
     selected_profile = MCPProfile(profile)
     instructions = SERVER_INSTRUCTIONS
-    if selected_profile is MCPProfile.CODEX:
-        instructions = CODEX_INSTRUCTIONS
-    elif selected_profile is MCPProfile.MUTATOR:
-        instructions = CODEX_INSTRUCTIONS + " " + MUTATOR_INSTRUCTIONS
-
-    mcp = ProfiledFastMCP(
-        "project-control",
-        profile=selected_profile,
-        instructions=instructions,
-        host=server.host,
-        port=server.port,
-        streamable_http_path="/mcp",
-        stateless_http=True,
-        json_response=True,
-        max_request_body_size=384 * 1024,
-    )
-
-    def skill_operation(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
-        try:
-            return redact_output(operation())
-        except ValueError:
-            return {"status": "invalid_request", "reason": "skill_request_invalid",
-                    "origin": "agent_skill", "authority": "advisory_instruction", "mutation_authority": False}
-        except Exception:
-            return {"status": "unavailable", "reason": "skill_read_unavailable",
-                    "origin": "agent_skill", "authority": "advisory_instruction", "mutation_authority": False}
-
-    @mcp.tool(description="Discover advisory skill names/descriptions cheaply. Prefer skill_context for domain questions; only opaque IDs and relative resources are public.", annotations=READ_ONLY, structured_output=True)
-    def skill_list(query: Annotated[str, Field(max_length=12000)] = "", max_items: Annotated[int, Field(ge=1, le=128)] = 20, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
-        def operation() -> dict[str, Any]:
-            value = skill_registry.list(query=query, max_items=max_items, continuation_cursor=json.loads(continuation_cursor) if continuation_cursor else None)
-            if value.get("continuation_cursor") is not None:
-                value["continuation_cursor"] = json.dumps(value["continuation_cursor"], separators=(",", ":"))
-            return value
-        return skill_operation(operation)
-
-    @mcp.tool(description="Explicit bounded advisory skill text read by opaque ID and relative resource. No execution or filesystem roots. Use skill_context for normal retrieval and large synthesis.", annotations=READ_ONLY, structured_output=True)
-    def skill_read(skill_id: Annotated[str, Field(min_length=1, max_length=128)], resource: Annotated[str, Field(min_length=1, max_length=1024)] = "SKILL.md", line_start: Annotated[int, Field(ge=1)] = 1, line_end: Annotated[int | None, Field(ge=1)] = None, budget_bytes: Annotated[int, Field(ge=1024, le=65536)] = 32768, expected_identity: Annotated[str | None, Field(max_length=128)] = None) -> dict[str, Any]:
-        return skill_operation(lambda: skill_registry.read(skill_id, resource=resource, line_start=line_start, line_end=line_end, budget_bytes=budget_bytes, expected_identity=expected_identity))
-
-    @mcp.tool(description="Preferred advisory skill use: search metadata, retrieve indexed sections and semantic neighbors, and route large synthesis to bounded immutable machine packets. Auto selection needs no local paths; unavailable capacity returns bounded partial evidence.", annotations=READ_ONLY, structured_output=True)
-    def skill_context(query: Annotated[str, Field(min_length=1, max_length=12000)], skill: Annotated[str, Field(min_length=1, max_length=128)] = "auto", budget_bytes: Annotated[int, Field(ge=1024, le=65536)] = 16384, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
-        return skill_operation(lambda: skill_broker.context(query=query, skill=skill, budget_bytes=budget_bytes, continuation_cursor=continuation_cursor))
-
-    @mcp.tool(
-        description="Compact full-envelope current state: authority, active/ready/blocked work, freshness, coverage and an exact expansion cursor.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def project_overview(project: str, detail: OverviewDetail = "standard", max_items: Annotated[int, Field(ge=1, le=100)] = 20) -> dict[str, Any]:
-        request = ProjectOverviewInput(project=project, detail=detail, max_items=max_items)
-        return runtime.invoke("project_overview", project, lambda: project_overview_service(runtime.snapshot(project), detail=request.detail, max_items=request.max_items))
-
-    @mcp.tool(
-        description="Compact full-envelope material change since an explicit cursor; retains authority, coverage, blockers and a fresh exact cursor for expansion.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def project_delta(project: str, since: DeltaSince, detail: DeltaDetail = "standard", max_items: Annotated[int, Field(ge=1, le=200)] = 40) -> dict[str, Any]:
-        request = ProjectDeltaInput(project=project, since=since, detail=detail, max_items=max_items)
-        def operation() -> ToolEnvelope:
-            snapshot = runtime.snapshot(project)
-            registry = WorkspaceRegistry(active_config)
-            adapters = {alias: GitReadAdapter(registry.repository(project, alias).root) for alias in snapshot.repositories}
-            todo_adapter = runtime.todo_adapter(project)
-            return project_delta_service(snapshot, request.since, adapters, detail=request.detail, max_items=request.max_items, todo_adapter=todo_adapter)
-        return runtime.invoke("project_delta", project, operation)
-
-    @mcp.tool(
-        description="Compact full-envelope todo-authoritative frontier with active claims, blockers, safe parallelism and exact expansion cursor.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def project_frontier(project: str, max_ready: Annotated[int, Field(ge=1, le=100)] = 20, include_blocked: bool = True, include_parallel_groups: bool = True) -> dict[str, Any]:
-        request = ProjectFrontierInput(project=project, max_ready=max_ready, include_blocked=include_blocked, include_parallel_groups=include_parallel_groups)
-        return runtime.invoke("project_frontier", project, lambda: project_frontier_service(runtime.snapshot(project), max_ready=request.max_ready, include_blocked=request.include_blocked, include_parallel_groups=request.include_parallel_groups))
-
-    @mcp.tool(
-        description="Preferred high-level local read-only investigation. Project Control brokers bounded architecture, source, inspect and workflow reads to a tool-less local model; returns evidence-linked facts, inferences and uncertainty without claims, writes or paid-model fallback.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def local_investigate(project: str, questions: Annotated[list[Annotated[str, Field(min_length=1, max_length=12000)]], Field(min_length=1, max_length=2)], effort: Literal["quick", "standard", "deep"] = "standard", detail: Literal["standard", "trace"] = "standard", compute_profile: Literal["narrow", "wide"] = "wide", parallelism: Literal["layer", "tensor"] = "layer") -> dict[str, Any]:
-        request = LocalInvestigateInput(project=project, questions=questions, effort=effort, detail=detail, compute_profile=compute_profile, parallelism=parallelism)
-        def operation() -> ToolEnvelope:
-            snapshot = runtime.snapshot(project)
-            workspace = WorkspaceRegistry(active_config).workspace(project)
-            alias = workspace.authority_repository or (sorted(snapshot.repositories)[0] if snapshot.repositories else None)
-            root = WorkspaceRegistry(active_config).repository(project, alias).root if alias is not None else None
-            def run_branch(branch_question: str, session_id: str | None = None) -> ToolEnvelope:
-                branch_request = request.model_copy(update={
-                    "questions": [branch_question], "compute_profile": (
-                        "narrow" if len(request.questions) > 1 else request.compute_profile)})
-                return local_investigate_service(
-                    active_config, branch_request, snapshot=snapshot,
-                    snapshot_getter=lambda: runtime.snapshot(project),
-                    model_turn=lambda turn: ({"status": "unavailable", "reason": "project_has_no_repository"}
-                        if root is None else observer_analysis_registry.investigate_turn(
-                            root, {**turn, **({"session_id": session_id} if session_id else {})})),
-                )
-            branch_questions = list(request.questions)
-            started = time.monotonic()
-            concurrent = False
-            if root is None:
-                return envelope("local_investigate", snapshot, {"results": [], "status": "unavailable",
-                    "reason": "project_has_no_repository"}, warnings=["project_has_no_repository"])
-            if len(branch_questions) == 1:
-                branches = [run_branch(branch_questions[0])]
-                data: dict[str, Any] = {"results": [{"question": branch_questions[0], "result": {
-                    "status": branches[0].status.value, "data": branches[0].data,
-                    "warnings": branches[0].warnings}}]}
-                if request.detail == "trace":
-                    data["aggregate"] = {"branches": 1, "concurrent": False,
-                        "elapsed_ms": round((time.monotonic() - started) * 1000, 3)}
-                return envelope("local_investigate", snapshot, data, warnings=branches[0].warnings)
-            prepared = observer_analysis_registry.open_sessions(
-                root, count=len(branch_questions), compute_profile="narrow",
-                parallelism=request.parallelism)
-            sessions = [str(item) for item in prepared.get("session_ids", [])]
-            if prepared.get("status") == "available" and len(sessions) == len(branch_questions):
-                concurrent = len(branch_questions) > 1
-                try:
-                    with ThreadPoolExecutor(max_workers=2) as pool:
-                        futures = [pool.submit(contextvars.copy_context().run, run_branch, branch_question, session_id)
-                                   for branch_question, session_id in zip(branch_questions, sessions, strict=True)]
-                        branches = [future.result() for future in futures]
-                finally:
-                    for session_id in sessions:
-                        observer_analysis_registry.close_session(root, session_id)
-            else:
-                branches = []
-                for branch_question in branch_questions:
-                    prepared = observer_analysis_registry.open_sessions(
-                        root, count=1, compute_profile="narrow", parallelism=request.parallelism)
-                    branch_sessions = [str(item) for item in prepared.get("session_ids", [])]
-                    if prepared.get("status") != "available" or len(branch_sessions) != 1:
-                        unavailable = envelope("local_investigate", snapshot, {"status": "unavailable",
-                            "reason": str(prepared.get("reason", "resource_unavailable"))[:500]},
-                            warnings=["resource_unavailable"])
-                        branches.append(unavailable)
-                        continue
-                    try:
-                        branches.append(run_branch(branch_question, branch_sessions[0]))
-                    finally:
-                        observer_analysis_registry.close_session(root, branch_sessions[0])
-            data: dict[str, Any] = {"results": [
-                {"question": branch_question, "result": {
-                    "status": branch.status.value, "data": branch.data, "warnings": branch.warnings}}
-                for branch_question, branch in zip(branch_questions, branches, strict=True)]}
-            if request.detail == "trace":
-                data["aggregate"] = {"branches": len(branch_questions), "concurrent": concurrent,
-                    "elapsed_ms": round((time.monotonic() - started) * 1000, 3)}
-            return envelope("local_investigate", snapshot, data,
-                            warnings=[warning for branch in branches for warning in branch.warnings])
-        return runtime.invoke("local_investigate", project, operation)
-
-    @mcp.tool(
-        description="Inspect one bounded registered task, contract, decision, dependency, symbol, path, or subsystem with source location and freshness.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def inspect(project: str, kind: InspectKind, target: Annotated[str, Field(min_length=1, max_length=512)], repository: str | None = None, intent: InspectIntent = "architecture", budget_tokens: Annotated[int, Field(ge=256, le=32768)] = 4000, line_start: Annotated[int | None, Field(ge=1)] = None, line_end: Annotated[int | None, Field(ge=1)] = None, worktree_id: Annotated[str | None, Field(max_length=128)] = None, source_selector: Annotated[str, Field(max_length=128)] = "working_tree", continuation_cursor: Annotated[str | None, Field(max_length=2048)] = None) -> dict[str, Any]:
-        request = InspectInput(project=project, kind=kind, target=target, repository=repository, intent=intent, budget_tokens=budget_tokens, line_start=line_start, line_end=line_end, worktree_id=worktree_id, source_selector=source_selector, continuation_cursor=continuation_cursor)
-        return runtime.invoke("inspect", project, lambda: inspect_subject(active_config, runtime.snapshot(project), request))
-
-    @mcp.tool(
-        description="Synthesize support, contradictions, caveats, confidence, and bounded provenance for a project subject without raw logs or transcripts.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def evidence(project: str, subject: Annotated[str, Field(min_length=1, max_length=512)], kinds: list[EvidenceKind] | None = None, detail: EvidenceDetail = "summary", max_items: Annotated[int, Field(ge=1, le=100)] = 30) -> dict[str, Any]:
-        request = EvidenceInput(project=project, subject=subject, kinds=kinds or [], detail=detail, max_items=max_items)
-        return runtime.invoke("evidence", project, lambda: evidence_for(active_config, runtime.snapshot(project), request))
-
-    @mcp.tool(
-        description="Return planning context, non-mutating plan validation/diff, or a prospective Codex handoff; never applies a plan.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def plan_preview(project: str, mode: PlanMode, objective: Annotated[str | None, Field(max_length=4000)] = None, proposal: dict[str, Any] | None = None, detail: PlanDetail = "standard") -> dict[str, Any]:
-        request = PlanPreviewInput(project=project, mode=mode, objective=objective, proposal=proposal, detail=detail)
-        def operation() -> ToolEnvelope:
-            snapshot = runtime.snapshot(project)
-            workspace = runtime.builder.registry.workspace(project)
-            reader = None
-            refresher = None
-            if (
-                request.mode != "context"
-                and snapshot.todo_revision is not None
-                and workspace.authority_repository is not None
-            ):
-                reader = runtime.todo_plan_reader(project)
-                if reader is not None:
-                    refresher = lambda: runtime.snapshot(project)
-            return plan_preview_service(
-                active_config, snapshot, request,
-                todo_plan_reader=reader, snapshot_refresher=refresher,
-            )
-        return runtime.invoke("plan_preview", project, operation)
-
-    @mcp.tool(
-        description="Report observable todo agents, claims, child attempts, stale state, and existing local services without starting or inferring activity.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def agent_status(project: str, include_children: bool = True, include_local_services: bool = True) -> dict[str, Any]:
-        request = AgentStatusInput(project=project, include_children=include_children, include_local_services=include_local_services)
-        def operation() -> ToolEnvelope:
-            snapshot = runtime.snapshot(project)
-            observer_backend = observer_analysis_registry.status() if request.include_local_services else None
-            return agent_status_service(snapshot, request, observer_backend=observer_backend)
-        return runtime.invoke("agent_status", project, operation)
-
-    @mcp.tool(
-        description="Summarize existing CUDA campaigns, comparable measurements, regressions, contamination, worker slots, and optional host capacity without executing work.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def performance_status(project: str, campaign: Annotated[str | None, Field(max_length=256)] = None, detail: OverviewDetail = "standard", include_host_capacity: bool = True) -> dict[str, Any]:
-        request = PerformanceStatusInput(project=project, campaign=campaign, detail=detail, include_host_capacity=include_host_capacity)
-        return runtime.invoke("performance_status", project, lambda: performance_status_service(runtime.snapshot(project, host=request.include_host_capacity, campaign=request.campaign), request, active_config))
-
-    @mcp.tool(
-        description="Run one registered, already-built CUDA benchmark or profiler campaign through the host scheduler. Commands, datasets, typed parameter schema and GPU placement come only from the registered campaign; outputs stay app-private and the project worktree is verified unchanged. Set rebuild only for an explicit registered build.",
-        annotations=PERFORMANCE_PROBE,
-        structured_output=True,
-    )
-    def performance_probe(project: str, campaign: Annotated[str, Field(min_length=1, max_length=128)], mode: Literal["benchmark", "nsys", "ncu"] = "benchmark", parameters: dict[str, Any] | None = None, rebuild: bool = False) -> dict[str, Any]:
-        request = PerformanceProbeInput(project=project, campaign=campaign, mode=mode, parameters=parameters or {}, rebuild=rebuild)
-        return runtime.invoke(
-            "performance_probe", project,
-            lambda: performance_probe_service(
-                active_config, request, snapshot=runtime.snapshot(project),
-                snapshot_getter=lambda: runtime.snapshot(project),
-                skills_root=getattr(runtime.todo_read_port_factory, "_project_control_bound_skills_root", None),
-                allow_rebuild=selected_profile is not MCPProfile.OBSERVER,
-            ),
-        )
-
-    @mcp.tool(
-        description="Orient a broad architectural or planning question with multi-seed retrieval, authority labels, active context, risks, and observation preconditions.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def architecture_context(project: str, question: Annotated[str, Field(min_length=1, max_length=12000)], repository: str | None = None, worktree_id: Annotated[str | None, Field(max_length=128)] = None, detail: ContextDetail = "standard", scope: ArchitectureScope = "current_and_reference", inclusion_categories: Annotated[list[str] | None, Field(max_length=32)] = None, max_items: Annotated[int, Field(ge=1, le=500)] = 60, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
-        request = ArchitectureContextInput(project=project, question=question, repository=repository, worktree_id=worktree_id, detail=detail, scope=scope, inclusion_categories=inclusion_categories or [], max_items=max_items, continuation_cursor=continuation_cursor)
-        return runtime.invoke("architecture_context", project, lambda: architecture_context_service(runtime.snapshot(project), request))
-
-    @mcp.tool(
-        description="Observe todo-authoritative runs, lanes, dispatches and children separately, enriched read-only with messages, fragments, rendezvous and integration state.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def coordination_view(project: str, run_id: Annotated[str | None, Field(max_length=256)] = None, lane_id: Annotated[str | None, Field(max_length=256)] = None, task_id: Annotated[str | None, Field(max_length=256)] = None, since_revision: Annotated[int | None, Field(ge=0)] = None, detail: ContextDetail = "standard", include_resolved_messages: bool = False, include_historical_arrivals: bool = False, max_items: Annotated[int, Field(ge=1, le=1000)] = 100, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
-        request = CoordinationViewInput(project=project, run_id=run_id, lane_id=lane_id, task_id=task_id, since_revision=since_revision, detail=detail, include_resolved_messages=include_resolved_messages, include_historical_arrivals=include_historical_arrivals, max_items=max_items, continuation_cursor=continuation_cursor)
-        return runtime.invoke("coordination_view", project, lambda: coordination_view_service(runtime.snapshot(project), request))
-
-    @mcp.tool(
-        description="Read one to thirty-two registered source targets with worktree, line-range, relation, race, provenance and continuation controls.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def source_context(project: str, repository: str, targets: Annotated[list[SourceTarget], Field(min_length=1, max_length=32)], worktree_id: Annotated[str | None, Field(max_length=128)] = None, source_selector: Annotated[str, Field(min_length=1, max_length=128)] = "working_tree", intent: SourceSelectorIntent = "implementation", requested_relations: Annotated[list[SourceRelation] | None, Field(max_length=16)] = None, detail: ContextDetail = "standard", budget_bytes: Annotated[int, Field(ge=1024, le=128 * 1024)] = 48 * 1024, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
-        request = SourceContextInput(project=project, repository=repository, targets=targets, worktree_id=worktree_id, source_selector=source_selector, intent=intent, requested_relations=requested_relations or [], detail=detail, budget_bytes=budget_bytes, continuation_cursor=continuation_cursor)
-        return runtime.invoke("source_context", project, lambda: source_context_service(active_config, runtime.snapshot(project), request))
-
-    @mcp.tool(
-        description="Trace how a task, interface, architecture, path or subsystem reached its current state without exposing logs or inventing causality.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def history_trace(project: str, subject: Annotated[str, Field(min_length=1, max_length=1024)], from_revision: Annotated[int | None, Field(ge=0)] = None, from_time: Annotated[str | None, Field(max_length=64)] = None, from_task: Annotated[str | None, Field(max_length=256)] = None, from_checkpoint: Annotated[str | None, Field(max_length=256)] = None, from_interface: Annotated[str | None, Field(max_length=256)] = None, from_commit: Annotated[str | None, Field(max_length=128)] = None, to_revision: Annotated[int | None, Field(ge=0)] = None, to_commit: Annotated[str | None, Field(max_length=128)] = None, detail: ContextDetail = "standard", max_events: Annotated[int, Field(ge=1, le=1000)] = 100, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
-        request = HistoryTraceInput(project=project, subject=subject, from_revision=from_revision, from_time=from_time, from_task=from_task, from_checkpoint=from_checkpoint, from_interface=from_interface, from_commit=from_commit, to_revision=to_revision, to_commit=to_commit, detail=detail, max_events=max_events, continuation_cursor=continuation_cursor)
-        return runtime.invoke("history_trace", project, lambda: history_trace_service(runtime.snapshot(project), request))
-
-    @mcp.tool(
-        description="Preview proven, possible and unknown consequences of an architectural hypothesis and optionally return an inert proposal envelope.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def impact_preview(project: str, hypothesis: Annotated[str, Field(min_length=1, max_length=12000)], proposed_change: dict[str, Any] | None = None, target_entities: Annotated[list[str] | None, Field(max_length=64)] = None, detail: ImpactDetail = "standard", max_items: Annotated[int, Field(ge=1, le=1000)] = 100, include_proposal_envelope: bool = False) -> dict[str, Any]:
-        request = ImpactPreviewInput(project=project, hypothesis=hypothesis, proposed_change=proposed_change, target_entities=target_entities or [], detail=detail, max_items=max_items, include_proposal_envelope=include_proposal_envelope)
-        return runtime.invoke("impact_preview", project, lambda: impact_preview_service(runtime.snapshot(project), request))
-
-    @mcp.tool(
-        description="Synthesize independently observed context across a configured query-only program or explicit bounded registered workspace list.",
-        annotations=READ_ONLY,
-        structured_output=True,
-    )
-    def program_context(question: Annotated[str, Field(min_length=1, max_length=12000)], program_id: Annotated[str | None, Field(max_length=128)] = None, workspaces: Annotated[list[str] | None, Field(max_length=16)] = None, detail: ContextDetail = "standard", max_items: Annotated[int, Field(ge=1, le=1000)] = 100, continuation_cursor: Annotated[str | None, Field(max_length=4096)] = None) -> dict[str, Any]:
-        project = program_id or "program"
-        try:
-            request = ProgramContextInput(program_id=program_id, workspaces=workspaces or [], question=question, detail=detail, max_items=max_items, continuation_cursor=continuation_cursor)
-            return program_context_service(active_config, request)
-        except (RegistryError, ValidationError, ValueError) as exc:
-            return runtime.failure("program_context", project, ToolStatus.INVALID_REQUEST, str(exc))
-        except Exception:
-            return runtime.failure("program_context", project, ToolStatus.INTERNAL_ERROR, "bounded_read_failed")
-
-    @mcp.tool(
-        description="Launch one registered repository executable in a bounded sandboxed PTY, render its visible screen, or recapture the same live bonded terminal session.",
-        annotations=TERMINAL_OBSERVATION,
-        structured_output=True,
-    )
-    def terminal_capture(
-        project: str,
-        executable: Annotated[str | None, Field(min_length=1, max_length=512)] = None,
-        session: Annotated[str | None, Field(min_length=1, max_length=128)] = None,
-        repository: Annotated[str | None, Field(max_length=64)] = None,
-        argv: Annotated[list[Annotated[str, Field(max_length=1024)]], Field(max_length=64)] = [],
-        cwd: Annotated[str, Field(min_length=1, max_length=512)] = ".",
-        label: Annotated[str | None, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")] = None,
-        wait_ms: Annotated[int, Field(ge=0, le=30_000)] = 250,
-        rows: Annotated[int | None, Field(ge=5, le=200)] = None,
-        cols: Annotated[int | None, Field(ge=20, le=400)] = None,
-        kill_after_capture: bool = True,
-    ) -> dict[str, Any]:
-        request = TerminalCaptureInput(
-            project=project,
-            executable=executable,
-            session=session,
-            repository=repository,
-            argv=argv,
-            cwd=cwd,
-            label=label,
-            wait_ms=wait_ms,
-            rows=rows,
-            cols=cols,
-            kill_after_capture=kill_after_capture,
-        )
-
-        def operation() -> ToolEnvelope:
-            snapshot = runtime.snapshot(project)
-            compact_project, compact_cursor = snapshot.compact_identity()
-            if request.executable is not None:
-                result = runtime.terminals.launch(
-                    workspace_id=project,
-                    repository=request.repository,
-                    executable=request.executable,
-                    argv=request.argv,
-                    cwd=request.cwd,
-                    label=request.label,
-                    wait_ms=request.wait_ms,
-                    rows=request.rows,
-                    cols=request.cols,
-                    kill_after_capture=request.kill_after_capture,
-                )
-            else:
-                result = runtime.terminals.recapture(
-                    workspace_id=project,
-                    session_identity=request.session or "",
-                    wait_ms=request.wait_ms,
-                    rows=request.rows,
-                    cols=request.cols,
-                    kill_after_capture=request.kill_after_capture,
-                )
-            # Terminal screens can be large, while normal observer reads only
-            # need a bounded result and refreshable observation identity.
-            return bounded_envelope(ToolEnvelope(
-                tool="terminal_capture",
-                status=ToolStatus.OK,
-                project=compact_project,
-                data=bounded_payload(result.as_dict(), 8_000),
-                warnings=[],
-                cursor=compact_cursor,
-            ), 8_192)
-
-        return runtime.invoke("terminal_capture", project, operation)
+    if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
+        instructions += " " + WORKFLOW_INSTRUCTIONS
+    if selected_profile == MCPProfile.OBSERVER:
+        instructions += " Use read for exact files; investigate and skill submit durable jobs. Do not wait on accepted jobs; poll their IDs later."
+    if selected_profile == MCPProfile.MUTATOR:
+        instructions += " Use plan, amend_project and maintain_execution for explicit transactional control."
+    if maintenance_host is not None:
+        from .as1_context import ContextHost
+        if selected_profile != MCPProfile.MUTATOR or host is not None:
+            raise ValueError('maintenance requires an explicit mutator startup principal')
+        host = ContextHost('mutator', maintenance_host.recipient_principal, frozenset(active_config.workspaces))
+    runtime = Runtime(active_config)
+    composition = compose_surface(runtime, selected_profile, host=host,
+        state_directory=state_directory, backend=observer_backend,
+        observer_runtime_sha256=observer_runtime_sha256,
+        coder_claim_provider=coder_claim_provider, command_port=command_port)
+    server = active_config.server
+    mcp = ProfiledFastMCP("project-control", profile=selected_profile, instructions=instructions,
+        host=server.host, port=server.port, streamable_http_path="/mcp", stateless_http=True,
+        json_response=True, max_request_body_size=384 * 1024)
+    register_surface(mcp, composition)
+    if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
+        register_workflow_tools(mcp, protocol_factory=workflow_protocol, context_publisher=composition.publish_context)
 
     @mcp.custom_route("/healthz", methods=["GET"])
-    async def health(_: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok", "config": "parseable"})
+    async def health(_: Request):
+        return JSONResponse({"status": "ok", "jobs": composition.jobs.health()})
 
     @mcp.custom_route("/readyz", methods=["GET"])
-    async def ready(_: Request) -> JSONResponse:
-        workspaces = sorted(active_config.workspaces)
-        adapters_available = any(
-            runtime.builder._todo_provider(item).compatible for item in workspaces
-        )
-        ok = bool(workspaces and adapters_available)
-        return JSONResponse({"status": "ready" if ok else "unavailable", "workspaces": len(workspaces)}, status_code=200 if ok else 503)
+    async def ready(_: Request):
+        ok = bool(active_config.workspaces)
+        return JSONResponse({"status": "ready" if ok else "unavailable"}, status_code=200 if ok else 503)
 
     @mcp.custom_route("/version", methods=["GET"])
-    async def version(_: Request) -> JSONResponse:
-        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 9})
-
-    if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
-        register_workflow_tools(mcp, protocol_factory=workflow_protocol)
-    if selected_profile is MCPProfile.CODEX:
-        register_maintenance_tool(mcp, host=maintenance_host)
-    if selected_profile is MCPProfile.MUTATOR:
-        register_mutation_tools(mcp, active_config)
+    async def version(_: Request):
+        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 10,
+                             "features": mcp.feature_metadata})
 
     setattr(mcp, "_project_control_runtime", runtime)
-    setattr(mcp, "_project_control_skill_registry", skill_registry)
-    setattr(mcp, "_project_control_skill_context", skill_broker)
-    setattr(mcp, "_project_control_observer_analysis_registry", observer_analysis_registry)
+    setattr(mcp, "_project_control_surface", composition)
     return mcp
 
 
@@ -695,15 +316,16 @@ def create_asgi_app(config: ProjectControlConfig | None = None):
     app.add_middleware(AuditCallerMiddleware)
     original_lifespan = app.router.lifespan_context
     runtime = getattr(mcp, "_project_control_runtime")
-    observer_analysis_registry = getattr(mcp, "_project_control_observer_analysis_registry")
+    composition = getattr(mcp, "_project_control_surface")
 
     @asynccontextmanager
     async def application_lifespan(asgi_app):
         async with original_lifespan(asgi_app) as state:
+            composition.start()
             try:
                 yield state
             finally:
-                observer_analysis_registry.close()
+                composition.close()
                 runtime.terminals.shutdown()
 
     app.router.lifespan_context = application_lifespan
@@ -734,9 +356,10 @@ def _serve_stdio(
     """Run stdio MCP and release any cached observer model on EOF/error."""
     mcp = create_mcp(profile=profile, maintenance_host=maintenance_host)
     try:
+        getattr(mcp, "_project_control_surface").start()
         mcp.run(transport="stdio")
     finally:
-        getattr(mcp, "_project_control_observer_analysis_registry").close()
+        getattr(mcp, "_project_control_surface").close()
     return 0
 
 
@@ -747,11 +370,11 @@ def serve_codex() -> int:
 
 
 def serve_maintenance_operator(principal: str) -> int:
-    """Run a Codex stdio server bound to one trusted host principal."""
+    """Run a mutator stdio server bound to one trusted host principal."""
     from .workflow_tools import trusted_maintenance_context
 
     return _serve_stdio(
-        MCPProfile.CODEX,
+        MCPProfile.MUTATOR,
         maintenance_host=trusted_maintenance_context(principal),
     )
 
