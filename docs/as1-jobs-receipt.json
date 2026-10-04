@@ -1,0 +1,40 @@
+{
+  "format": "pc-as1-producer-receipt/1",
+  "producer_project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+  "producer_task_id": "PC-AS1-JOBS",
+  "gate_ids": [
+    "PC-AS1-JOBS-ACCEPT"
+  ],
+  "source_identity": {
+    "commit": "d4110d264f3ed7d587dbc5d56fab0b69c163d050",
+    "branch": "codex/pc-as1-l-observer",
+    "completion_revision": 847,
+    "gate_revision": 846,
+    "gate_evidence_id": "fc18476f-3e4b-4f3b-8a14-06b322aae7b5",
+    "integration_status": "pending observer lane completion and managed integration into PC-AS1-SURFACE"
+  },
+  "contract_hashes": {
+    "src/project_control/as1_jobs.py": "2f748a9f5a8d20b86aaf88ad30f2c5242f061891925a11a30b8e9985c54a72e8",
+    "tests/as1/test_pc_as1_jobs.py": "995405690c6b0f0f10621c44bd29e121872d2ba27892a8ac3e8d380e336da764",
+    "docs/as1-jobs.md": "49d128a6162041ae496221c68855d40c99b272e016df9af79ac7596ecde39393"
+  },
+  "coverage": {
+    "cases": [
+      "JOB-01",
+      "JOB-02",
+      "JOB-03",
+      "JOB-04",
+      "JOB-05",
+      "JOB-06",
+      "JOB-07"
+    ],
+    "tests_passed": 12,
+    "independent_review": "Three reproduced P1/P2 findings corrected and regression-tested; root inspected corrected retry, retention and UTF8 byte checks.",
+    "durability": "FULL SQLite admission and inline observations/outbox with scoped attempt fencing; restart-safe dispatch."
+  },
+  "limits": [
+    "CPU scripted worker behavior, realSQLite and actualBubblewrap; full agentic real inference remains paired SQA.",
+    "Nativegate evidence paired with explicit child source path/hash assertions; no live authority migration."
+  ],
+  "status": "passed"
+}
