@@ -170,9 +170,19 @@ def _freeze_skills(skills: Path, temporary: Path, destination: Path) -> dict:
         if source.is_dir():
             shutil.copytree(source, snapshot / name, ignore=shutil.ignore_patterns(
                 "__pycache__", "*.pyc", ".git", ".venv", "build", "dist", "*.egg-info", ".ctxpp", ".todo"))
+    resources = {}
+    for name in ("integrations/native-skill-catalog.json", "integrations/native-skill-routing.md"):
+        source = skills / name
+        if not source.is_file():
+            raise InstallError(f"required native Skills resource is missing: {source}")
+        target = snapshot / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        resources[name] = _sha256_file(target)
     fingerprint = _source_fingerprint(snapshot / "todo-orchestrator" / "todo_orchestrator")
     return {"schema_version": 2, "skills_root": str(destination / "runtime-skills"),
-            "todo_runtime_fingerprint": fingerprint, "tools_fingerprint": _source_fingerprint(snapshot)}
+            "todo_runtime_fingerprint": fingerprint, "tools_fingerprint": _source_fingerprint(snapshot),
+            "frozen_skill_resources": resources}
 
 
 def _bind_observer_analysis_skill(temporary: Path, destination: Path) -> dict[str, str] | None:

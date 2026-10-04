@@ -214,6 +214,24 @@ def _release(environment: Mapping[str, str]) -> tuple[Path, str, dict] | None:
         observed = package_fingerprint(Path(data["skills_root"]))
         if observed != tools_fingerprint:
             raise RuntimeIdentityError("Frozen Skills tools changed", expected=tools_fingerprint, observed=observed)
+    if "frozen_skill_resources" in data:
+        resources = data["frozen_skill_resources"]
+        allowed = {"integrations/native-skill-catalog.json", "integrations/native-skill-routing.md"}
+        if not isinstance(resources, dict) or set(resources) != allowed:
+            raise RuntimeIdentityError("Invalid frozen Skills resources", expected=str(sorted(allowed)), observed=str(resources))
+        root = Path(data["skills_root"]).resolve()
+        for relative, expected in resources.items():
+            if not isinstance(expected, str) or len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected):
+                raise RuntimeIdentityError("Invalid frozen Skills resource digest", expected="SHA256", observed=str(expected))
+            resource = root / relative
+            try:
+                if any(parent.is_symlink() for parent in (resource.parent, resource)) or not resource.resolve().is_relative_to(root):
+                    raise ValueError("resource must remain within frozen Skills without symlinks")
+                observed = hashlib.sha256(resource.read_bytes()).hexdigest()
+            except (OSError, ValueError) as exc:
+                raise RuntimeIdentityError("Frozen Skills resource changed", expected=f"{relative}:{expected}", observed=str(exc)) from exc
+            if observed != expected:
+                raise RuntimeIdentityError("Frozen Skills resource changed", expected=f"{relative}:{expected}", observed=observed)
     return path, digest, data
 
 
