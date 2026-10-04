@@ -1,0 +1,42 @@
+{
+  "format": "pc-as1-producer-receipt/1",
+  "producer_project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+  "producer_task_id": "PC-AS1-CONTRACT",
+  "gate_ids": [
+    "PC-AS1-CONTRACT-ACCEPT"
+  ],
+  "source_identity": {
+    "commit": "30db89dde2da67dd08e0f834cdef90204abfd402",
+    "completion_revision": 817,
+    "gate_evidence_id": "d2c64141-bf6a-4c2b-b638-ec33a56651fa"
+  },
+  "contract_hashes": {
+    "src/project_control/as1_contracts.py": "25f5c9ec43d1ab6e4bd640449e1f1bedd8d64934bc2c46a72222458b43ab94a5",
+    "planning/adaptive-surface-v1/contracts/surface.json": "9c42dc482ddbd7b458bc36b6a3a9b0a58f8b48ede6bfad451b67ef975069b4f0",
+    "planning/adaptive-surface-v1/contracts/registration.schema.json": "29f3aa39b76bdc3920a098c34f03e0b1783a38a3b462ed7efdf53a9e62c6aa03"
+  },
+  "artifact_locators": [
+    {
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "src/project_control/as1_contracts.py",
+      "content_sha256": "25f5c9ec43d1ab6e4bd640449e1f1bedd8d64934bc2c46a72222458b43ab94a5",
+      "revision": null,
+      "line_start": null,
+      "line_end": null,
+      "worktree": null
+    },
+    {
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/as1-contracts.md",
+      "content_sha256": "627a7cb80d8c1b8d650c4457f8ce5b44a80c463c7c119348dc1778f32de49010",
+      "revision": null,
+      "line_start": null,
+      "line_end": null,
+      "worktree": null
+    }
+  ],
+  "checked_at": "2026-10-04T17:35:52.790231+00:00",
+  "status": "passed"
+}
