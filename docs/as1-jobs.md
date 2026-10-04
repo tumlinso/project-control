@@ -84,3 +84,7 @@ scientific validation or production deployment claim. Host-provided roots,
 receipt digests, callbacks, and registered skill maps are trusted configuration,
 not model arguments. Run the native source acceptance helper with the absolute
 Project Control `.venv` interpreter and the project's `src` Python path.
+The separate dispatcher fixture selects candidate source only in its child
+environment, removes inherited deployment pins there, and verifies the Jobs
+and packet module paths and content hashes before admission. The native gate
+parent retains its deployed release binding.

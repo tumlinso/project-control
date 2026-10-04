@@ -1,6 +1,7 @@
 """CPU fixtures exercise real SQLite and the actual installed observer port."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -15,6 +16,7 @@ from project_control.as1_packets import SQLitePacketStore
 
 SCOPE = {'principal': 'alice', 'profile': 'observer', 'project': 'pc'}
 SKILLS = Path('/home/tumlinson/.agents/skills')
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def wait(predicate, timeout=5):
@@ -46,9 +48,14 @@ def test_admission_and_process_lived_dispatch_after_disconnect(tmp_path):
     admitted = tmp_path/'admitted.json'
     release = tmp_path/'release'
     script = r'''
-import json, pathlib, sys, time
+import hashlib, json, os, pathlib, sys, time
 from project_control.as1_jobs import JobService
 from project_control.as1_packets import SQLitePacketStore
+for name, expected in json.loads(os.environ['AS1_SOURCE_HASHES']).items():
+ module=__import__('project_control.'+name,fromlist=[''])
+ source=pathlib.Path(module.__file__).resolve()
+ assert source == pathlib.Path.cwd()/'src/project_control'/ (name+'.py')
+ assert hashlib.sha256(source.read_bytes()).hexdigest() == expected
 root=pathlib.Path(sys.argv[1]); scope=json.loads(sys.argv[2])
 def factory(service,job):
  class Worker:
@@ -66,7 +73,22 @@ while time.monotonic()<end:
 else: raise RuntimeError('not drained')
 s.shutdown()
 '''
-    child = subprocess.Popen([sys.executable, '-c', script, str(tmp_path), json.dumps(SCOPE)])
+    # Match the control fixtures: bind only the child to actual candidate source,
+    # leaving the native gate parent's deployed release identity untouched.
+    from project_control.runtime_identity import package_fingerprint
+    environment = dict(os.environ)
+    for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
+                'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_READ_ONLY', 'TODO_ORCHESTRATOR_STATE_DIR'):
+        environment.pop(key, None)
+    environment['PROJECT_CONTROL_SKILLS_ROOT'] = str(SKILLS)
+    environment['PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT'] = package_fingerprint(SKILLS/'todo-orchestrator/todo_orchestrator')
+    environment['PYTHONPATH'] = os.pathsep.join([str(ROOT/'src'), str(SKILLS/'todo-orchestrator')])
+    environment['AS1_SOURCE_HASHES'] = json.dumps({
+        name: hashlib.sha256((ROOT/'src/project_control'/ (name+'.py')).read_bytes()).hexdigest()
+        for name in ('as1_jobs', 'as1_packets')}, sort_keys=True)
+    child = subprocess.Popen([sys.executable, '-c', script, str(tmp_path), json.dumps(SCOPE)],
+                             cwd=ROOT, env=environment)
     try:
         wait(admitted.exists)
         accepted = json.loads(admitted.read_text())
