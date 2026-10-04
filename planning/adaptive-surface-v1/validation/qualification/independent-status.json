@@ -1,0 +1,22 @@
+{
+  "status": "partial",
+  "pytest_exitstatus": 0,
+  "executed_tests": 6,
+  "required_complete_cases": [
+    "E2E-01",
+    "E2E-02",
+    "E2E-04"
+  ],
+  "partial_cases": {
+    "E2E-03": "CPU stale-selection supplement passed; mandatory actual real-model test not executed by this selected run."
+  },
+  "pending": [
+    "E2E-03 real paired inference proof",
+    "E2E-05 paired report and independently verified findings"
+  ],
+  "selection": "not real_inference and not current_conformance",
+  "report": "independent-cases.json",
+  "limits": [
+    "No native gate completion or release activation is claimed."
+  ]
+}

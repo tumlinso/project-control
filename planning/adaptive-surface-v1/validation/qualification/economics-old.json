@@ -1,0 +1,447 @@
+{
+  "calls": [
+    {
+      "arguments": {
+        "detail": "compact",
+        "project": "demo"
+      },
+      "latency_seconds": 0.009406473996932618,
+      "request_bytes": 77,
+      "response_bytes": 3073,
+      "result": {
+        "cursor": {
+          "active_run_id": null,
+          "commits": {
+            "source": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+          },
+          "context_fragments": {},
+          "fingerprints": {},
+          "identity_digest": "d0bee86bbdb12ae0085db0013ed1ff68d020682d30396b3ab240ca7cf5e15191",
+          "observed_at": "2026-10-04T00:00:00Z",
+          "todo_revision": 10,
+          "todo_semantic_fingerprint": null,
+          "workflow_semantic_fingerprint": null,
+          "working_tree_fingerprints": {},
+          "worktrees": {}
+        },
+        "data": {
+          "architectural_attention": [],
+          "current_project_state": [],
+          "historical_state_filtered": {
+            "checkpoints": 0,
+            "gates": 1,
+            "performance_evidence": 0,
+            "tasks": 0
+          },
+          "performance_attention": [],
+          "recent_materially_completed": [],
+          "recommended_focus": [],
+          "validation_attention": [],
+          "workflow": {
+            "authority": "compatibility_fallback",
+            "available": false,
+            "reason": "todo_workflow_semantic_unavailable"
+          }
+        },
+        "project": {
+          "id": "demo",
+          "identity_digest": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "repositories": {
+            "source": {
+              "commit": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+              "current_worktree_id": null,
+              "dirty": false,
+              "git_common_id": null,
+              "working_tree_fingerprint": null,
+              "worktrees": {}
+            }
+          },
+          "todo_revision": 10
+        },
+        "schema_version": 1,
+        "status": "partial",
+        "tool": "project_overview",
+        "warnings": [
+          "todo_semantic_unavailable",
+          "stale_legacy_state_filtered",
+          "todo_workflow_semantic_unavailable"
+        ]
+      },
+      "tool": "project_overview"
+    },
+    {
+      "arguments": {
+        "detail": "compact",
+        "project": "demo",
+        "repository": "source",
+        "source_selector": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+        "targets": [
+          {
+            "kind": "path",
+            "value": "README.md"
+          },
+          {
+            "kind": "path",
+            "value": "module.py"
+          }
+        ]
+      },
+      "latency_seconds": 0.030384587997104973,
+      "request_bytes": 242,
+      "response_bytes": 3698,
+      "result": {
+        "cursor": {
+          "active_run_id": null,
+          "commits": {
+            "source": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+          },
+          "context_fragments": {},
+          "fingerprints": {},
+          "identity_digest": "d0bee86bbdb12ae0085db0013ed1ff68d020682d30396b3ab240ca7cf5e15191",
+          "observed_at": "2026-10-04T00:00:00Z",
+          "todo_revision": 10,
+          "todo_semantic_fingerprint": null,
+          "workflow_semantic_fingerprint": null,
+          "working_tree_fingerprints": {},
+          "worktrees": {}
+        },
+        "data": {
+          "continuation_cursor": null,
+          "counts": {
+            "considered": 2,
+            "returned": 2
+          },
+          "repository": "source",
+          "result_items": {
+            "considered": 0,
+            "returned": 0
+          },
+          "source_commit": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+          "source_freshness": "immutable_commit",
+          "source_selector": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+          "targets": [
+            {
+              "excerpt": "Fixture purpose: bounded calculations.",
+              "kind": "path",
+              "line_end": 1,
+              "line_start": 1,
+              "path": "README.md",
+              "target": "README.md"
+            },
+            {
+              "excerpt": "def calculate_total(value):\n    return value + 1",
+              "kind": "path",
+              "line_end": 2,
+              "line_start": 1,
+              "path": "module.py",
+              "target": "module.py"
+            }
+          ],
+          "workflow_mapping": [],
+          "worktree": {
+            "branch": "main",
+            "dirty": false,
+            "id": "wt-01207a72c52372b7"
+          }
+        },
+        "project": {
+          "id": "demo",
+          "identity_digest": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "repositories": {
+            "source": {
+              "commit": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+              "current_worktree_id": null,
+              "dirty": false,
+              "git_common_id": null,
+              "working_tree_fingerprint": null,
+              "worktrees": {}
+            }
+          },
+          "todo_revision": 10
+        },
+        "schema_version": 1,
+        "status": "ok",
+        "tool": "source_context",
+        "warnings": []
+      },
+      "tool": "source_context"
+    },
+    {
+      "arguments": {
+        "kind": "task",
+        "project": "demo",
+        "target": "T1"
+      },
+      "latency_seconds": 0.007630006999534089,
+      "request_bytes": 77,
+      "response_bytes": 5387,
+      "result": {
+        "cursor": {
+          "active_run_id": null,
+          "commits": {
+            "source": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+          },
+          "context_fragments": {},
+          "fingerprints": {},
+          "identity_digest": "d0bee86bbdb12ae0085db0013ed1ff68d020682d30396b3ab240ca7cf5e15191",
+          "observed_at": "2026-10-04T00:00:00Z",
+          "todo_revision": 10,
+          "todo_semantic_fingerprint": null,
+          "workflow_semantic_fingerprint": null,
+          "working_tree_fingerprints": {},
+          "worktrees": {}
+        },
+        "data": {
+          "freshness": "snapshot",
+          "intent": "architecture",
+          "kind": "task",
+          "matches": [
+            {
+              "attention_eligible": false,
+              "current_program_eligible": true,
+              "dependencies": [],
+              "effective_state": "planned",
+              "frontier_eligible": true,
+              "id": "T1",
+              "relevance": "current",
+              "relevance_reason": "legacy_raw_status_fallback",
+              "revision": 2,
+              "status": "ready",
+              "terminal": false,
+              "title": "Calculation"
+            }
+          ],
+          "related": [
+            {
+              "basis": "todo gate owner",
+              "confidence": "high",
+              "id": "G1",
+              "record": {
+                "attention_eligible": false,
+                "effective_state": "historical_invalid",
+                "id": "G1",
+                "relevance": "historical",
+                "relevance_reason": "legacy_raw_state_fallback",
+                "status": "pending",
+                "task_id": "T1",
+                "valid": false
+              },
+              "relation": "validated_by",
+              "relevance": "historical",
+              "title": "G1",
+              "type": "gate"
+            }
+          ],
+          "resolution": {
+            "candidates": [],
+            "entity": {
+              "aliases": [
+                "T1",
+                "Calculation"
+              ],
+              "id": "T1",
+              "key": "task:T1",
+              "record": {
+                "attention_eligible": false,
+                "current_program_eligible": true,
+                "dependencies": [],
+                "effective_state": "planned",
+                "frontier_eligible": true,
+                "id": "T1",
+                "relevance": "current",
+                "relevance_reason": "legacy_raw_status_fallback",
+                "revision": 2,
+                "status": "ready",
+                "terminal": false,
+                "title": "Calculation"
+              },
+              "relevance": "current",
+              "title": "Calculation",
+              "type": "task"
+            },
+            "reason": "exact_entity_id",
+            "status": "resolved"
+          },
+          "source": "reconciled_project_graph",
+          "target": "T1"
+        },
+        "project": {
+          "id": "demo",
+          "identity_digest": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "repositories": {
+            "source": {
+              "commit": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+              "current_worktree_id": null,
+              "dirty": false,
+              "git_common_id": null,
+              "working_tree_fingerprint": null,
+              "worktrees": {}
+            }
+          },
+          "todo_revision": 10
+        },
+        "schema_version": 1,
+        "status": "ok",
+        "tool": "inspect",
+        "warnings": []
+      },
+      "tool": "inspect"
+    },
+    {
+      "arguments": {
+        "project": "demo",
+        "subject": "T1"
+      },
+      "latency_seconds": 0.018619973998283967,
+      "request_bytes": 65,
+      "response_bytes": 2662,
+      "result": {
+        "cursor": {
+          "active_run_id": null,
+          "commits": {
+            "source": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+          },
+          "context_fragments": {},
+          "fingerprints": {},
+          "identity_digest": "d0bee86bbdb12ae0085db0013ed1ff68d020682d30396b3ab240ca7cf5e15191",
+          "observed_at": "2026-10-04T00:00:00Z",
+          "todo_revision": 10,
+          "todo_semantic_fingerprint": null,
+          "workflow_semantic_fingerprint": null,
+          "working_tree_fingerprints": {},
+          "worktrees": {}
+        },
+        "data": {
+          "claim": "T1",
+          "confidence": "insufficient",
+          "contradictions": [],
+          "stale_or_historical": [
+            {
+              "id": "G1",
+              "kind": "gate",
+              "last_run_at": null,
+              "relevance": "historical",
+              "status": "pending",
+              "task_id": "T1",
+              "type": null,
+              "valid": false
+            }
+          ],
+          "support": [],
+          "unmeasured_or_unvalidated": [
+            "T1"
+          ]
+        },
+        "project": {
+          "id": "demo",
+          "identity_digest": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "repositories": {
+            "source": {
+              "commit": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+              "current_worktree_id": null,
+              "dirty": false,
+              "git_common_id": null,
+              "working_tree_fingerprint": null,
+              "worktrees": {}
+            }
+          },
+          "todo_revision": 10
+        },
+        "schema_version": 1,
+        "status": "ok",
+        "tool": "evidence",
+        "warnings": []
+      },
+      "tool": "evidence"
+    }
+  ],
+  "correct_facts": [
+    "exact two file content",
+    "T1 Calculation",
+    "G1 pending",
+    "Git commit provenance"
+  ],
+  "identity": {
+    "module": "/home/tumlinson/.local/share/project-control/candidates/cuda-reconciliation-3a55e7c-20261003/lib/python3.13/site-packages/project_control/app.py",
+    "module_sha256": "0412cd9ee7e9f6dad114cfc1ab00e079f20ce66df765a8d33718e1daa6a18aec",
+    "release_digest": "e01182edf95a08378d745736922d81b2db7b834699dbe625c05249cefd0498b8",
+    "release_manifest": "/home/tumlinson/.local/share/project-control/candidates/cuda-reconciliation-3a55e7c-20261003/release-manifest.json"
+  },
+  "limits": [
+    "Fixed snapshot fixture port; not live authority timing.",
+    "No model token, monetary, GPU or energy comparison.",
+    "No historical baseline for newly added cross-project trace."
+  ],
+  "metrics": {
+    "authority_revalidation_calls": 0,
+    "calls": 4,
+    "human_prompts": 0,
+    "latency_seconds": 0.06604104299185565,
+    "model_starts": 0,
+    "model_tokens": null,
+    "model_usage_status": "unmetered_no_inference",
+    "prompt_bytes": 1517,
+    "queue_wait_seconds": 0,
+    "repeated_full_reads": 0,
+    "retries": 0,
+    "schema_bytes": 27482,
+    "startup_seconds": 0.14730222700018203,
+    "tool_request_bytes": 461,
+    "tool_response_bytes": 14820,
+    "total_client_visible_bytes": 44280
+  },
+  "mode": "old",
+  "snapshot": {
+    "component_authority": {},
+    "cuda": {},
+    "display_name": null,
+    "host": {},
+    "local_worker": {},
+    "observed_at": "2026-10-04T00:00:00Z",
+    "project_uuid": "fixed-economics-fixture",
+    "provider_warnings": {},
+    "repositories": {
+      "source": {
+        "commit": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+        "current_worktree_id": null,
+        "dirty": false,
+        "git_common_id": null,
+        "working_tree_fingerprint": null,
+        "worktrees": {}
+      }
+    },
+    "repository_fingerprints": {},
+    "todo_revision": 10,
+    "todo_semantic": {},
+    "todo_status": {},
+    "todo_tables": {
+      "gates": [
+        {
+          "id": "G1",
+          "status": "pending",
+          "task_id": "T1",
+          "valid": false
+        }
+      ],
+      "tasks": [
+        {
+          "id": "T1",
+          "revision": 2,
+          "status": "ready",
+          "title": "Calculation"
+        }
+      ]
+    },
+    "todo_workflow": {},
+    "warnings": [],
+    "workspace_id": "demo"
+  },
+  "source_sha256": {
+    "README.md": "b9cc3bb450a61eb8eca66261b68e8c941a43ab912b2b49b26ff9a2d60b162098",
+    "module.py": "185786c0cf30b2c243293185ea01490213e12452b3eb402f0ffa3e3a39b23331"
+  }
+}

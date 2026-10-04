@@ -1,0 +1,379 @@
+{
+  "calls": [
+    {
+      "arguments": {
+        "project": "demo"
+      },
+      "latency_seconds": 0.03220507499645464,
+      "request_bytes": 50,
+      "response_bytes": 2171,
+      "result": {
+        "coverage": {
+          "complete": false,
+          "context_project_uuid": null,
+          "context_revision": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "omissions": [
+            {
+              "reason": "semantic_context_extension_unavailable"
+            },
+            {
+              "reason": "semantic_context_extension_unavailable"
+            }
+          ],
+          "semantic_revision": 10
+        },
+        "data": {
+          "entry_points": [
+            {
+              "path": "README.md",
+              "repository": "source"
+            }
+          ],
+          "orientation": [],
+          "skill_uses": [],
+          "work": {
+            "architectural_attention": [],
+            "current_project_state": [],
+            "historical_state_filtered": {
+              "checkpoints": 0,
+              "gates": 1,
+              "performance_evidence": 0,
+              "tasks": 0
+            },
+            "performance_attention": [],
+            "recent_materially_completed": [],
+            "recommended_focus": [],
+            "validation_attention": [],
+            "workflow": {
+              "authority": "compatibility_fallback",
+              "available": false,
+              "reason": "todo_workflow_semantic_unavailable"
+            }
+          }
+        },
+        "packet": "pkt_b13c232134ce4353ab87cf5c90d5b2a6",
+        "sources": [],
+        "status": "partial"
+      },
+      "tool": "overview"
+    },
+    {
+      "arguments": {
+        "paths": [
+          "README.md",
+          "module.py"
+        ],
+        "project": "demo",
+        "repository": "source",
+        "revision": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+      },
+      "latency_seconds": 0.033965343005547766,
+      "request_bytes": 156,
+      "response_bytes": 3314,
+      "result": {
+        "coverage": {
+          "complete": true,
+          "context_project_uuid": null,
+          "context_revision": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "omissions": [],
+          "semantic_revision": 10
+        },
+        "data": {
+          "files": [
+            {
+              "content": "Fixture purpose: bounded calculations.\n",
+              "content_sha256": "b9cc3bb450a61eb8eca66261b68e8c941a43ab912b2b49b26ff9a2d60b162098",
+              "exact": true,
+              "line_end": 1,
+              "line_start": 1,
+              "path": "README.md",
+              "revision": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+              "status": "ok"
+            },
+            {
+              "content": "def calculate_total(value):\n    return value + 1\n",
+              "content_sha256": "185786c0cf30b2c243293185ea01490213e12452b3eb402f0ffa3e3a39b23331",
+              "exact": true,
+              "line_end": 2,
+              "line_start": 1,
+              "path": "module.py",
+              "revision": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+              "status": "ok"
+            }
+          ],
+          "repository": "source",
+          "revision": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+        },
+        "packet": "pkt_c155a5a5a3154bdd82540c432c256c79",
+        "sources": [
+          {
+            "content_sha256": "b9cc3bb450a61eb8eca66261b68e8c941a43ab912b2b49b26ff9a2d60b162098",
+            "line_end": 1,
+            "line_start": 1,
+            "path": "README.md",
+            "project": "demo",
+            "repository": "source",
+            "revision": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+          },
+          {
+            "content_sha256": "185786c0cf30b2c243293185ea01490213e12452b3eb402f0ffa3e3a39b23331",
+            "line_end": 2,
+            "line_start": 1,
+            "path": "module.py",
+            "project": "demo",
+            "repository": "source",
+            "revision": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94"
+          }
+        ],
+        "status": "ok"
+      },
+      "tool": "read"
+    },
+    {
+      "arguments": {
+        "project": "demo",
+        "query": {
+          "kind": "task",
+          "target": "T1"
+        }
+      },
+      "latency_seconds": 0.018710382995777763,
+      "request_bytes": 86,
+      "response_bytes": 4174,
+      "result": {
+        "coverage": {
+          "complete": true,
+          "context_project_uuid": null,
+          "context_revision": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "omissions": [],
+          "semantic_revision": 10
+        },
+        "data": {
+          "authority_revision": 10,
+          "freshness": "snapshot",
+          "intent": "architecture",
+          "kind": "task",
+          "matches": [
+            {
+              "attention_eligible": false,
+              "current_program_eligible": true,
+              "dependencies": [],
+              "effective_state": "planned",
+              "frontier_eligible": true,
+              "id": "T1",
+              "relevance": "current",
+              "relevance_reason": "legacy_raw_status_fallback",
+              "revision": 2,
+              "status": "ready",
+              "terminal": false,
+              "title": "Calculation"
+            }
+          ],
+          "related": [
+            {
+              "basis": "todo gate owner",
+              "confidence": "high",
+              "id": "G1",
+              "record": {
+                "attention_eligible": false,
+                "effective_state": "historical_invalid",
+                "id": "G1",
+                "relevance": "historical",
+                "relevance_reason": "legacy_raw_state_fallback",
+                "status": "pending",
+                "task_id": "T1",
+                "valid": false
+              },
+              "relation": "validated_by",
+              "relevance": "historical",
+              "title": "G1",
+              "type": "gate"
+            }
+          ],
+          "resolution": {
+            "candidates": [],
+            "entity": {
+              "aliases": [
+                "T1",
+                "Calculation"
+              ],
+              "id": "T1",
+              "key": "task:T1",
+              "record": {
+                "attention_eligible": false,
+                "current_program_eligible": true,
+                "dependencies": [],
+                "effective_state": "planned",
+                "frontier_eligible": true,
+                "id": "T1",
+                "relevance": "current",
+                "relevance_reason": "legacy_raw_status_fallback",
+                "revision": 2,
+                "status": "ready",
+                "terminal": false,
+                "title": "Calculation"
+              },
+              "relevance": "current",
+              "title": "Calculation",
+              "type": "task"
+            },
+            "reason": "exact_typed_lookup",
+            "status": "resolved"
+          },
+          "source": "reconciled_project_graph",
+          "target": "T1"
+        },
+        "packet": "pkt_192d3d4c002e4f92b57726c809c08822",
+        "sources": [],
+        "status": "ok"
+      },
+      "tool": "search"
+    },
+    {
+      "arguments": {
+        "project": "demo",
+        "subject": "T1"
+      },
+      "latency_seconds": 0.02791477500431938,
+      "request_bytes": 65,
+      "response_bytes": 2131,
+      "result": {
+        "coverage": {
+          "complete": true,
+          "context_project_uuid": null,
+          "context_revision": null,
+          "observed_at": "2026-10-04T00:00:00Z",
+          "omissions": [],
+          "semantic_revision": 10
+        },
+        "data": {
+          "claim": "T1",
+          "confidence": "insufficient",
+          "contradictions": [],
+          "registered_gates": [
+            {
+              "attention_eligible": false,
+              "effective_state": "historical_invalid",
+              "evidence_classification": "failed",
+              "id": "G1",
+              "relevance": "historical",
+              "relevance_reason": "legacy_raw_state_fallback",
+              "status": "pending",
+              "task_id": "T1",
+              "valid": false
+            }
+          ],
+          "source_mentions_are_proof": false,
+          "stale_or_historical": [
+            {
+              "id": "G1",
+              "kind": "gate",
+              "last_run_at": null,
+              "relevance": "historical",
+              "status": "pending",
+              "task_id": "T1",
+              "type": null,
+              "valid": false
+            }
+          ],
+          "support": [],
+          "unmeasured_or_unvalidated": [
+            "T1"
+          ]
+        },
+        "packet": "pkt_91548f63292a4bc4ba71b328861ac470",
+        "sources": [],
+        "status": "ok"
+      },
+      "tool": "evidence"
+    }
+  ],
+  "correct_facts": [
+    "exact two file content",
+    "T1 Calculation",
+    "G1 pending",
+    "Git commit provenance"
+  ],
+  "identity": {
+    "module": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/workflow-workspaces/pc-as1-l-integrate/src/project_control/app.py",
+    "module_sha256": "64539e7812d69a6a449ae3ec31f9ddf740ce37cab4fefd735efd3c3e19fd9fb3",
+    "release_digest": null,
+    "release_manifest": null
+  },
+  "limits": [
+    "Fixed snapshot fixture port; not live authority timing.",
+    "No model token, monetary, GPU or energy comparison.",
+    "No historical baseline for newly added cross-project trace."
+  ],
+  "metrics": {
+    "authority_revalidation_calls": 0,
+    "calls": 4,
+    "human_prompts": 0,
+    "latency_seconds": 0.11279557600209955,
+    "model_starts": 0,
+    "model_tokens": null,
+    "model_usage_status": "unmetered_no_inference",
+    "prompt_bytes": 464,
+    "queue_wait_seconds": 0,
+    "repeated_full_reads": 0,
+    "retries": 0,
+    "schema_bytes": 9374,
+    "startup_seconds": 0.10208191499987151,
+    "tool_request_bytes": 357,
+    "tool_response_bytes": 11790,
+    "total_client_visible_bytes": 21985
+  },
+  "mode": "new",
+  "snapshot": {
+    "component_authority": {},
+    "cuda": {},
+    "display_name": null,
+    "host": {},
+    "local_worker": {},
+    "observed_at": "2026-10-04T00:00:00Z",
+    "project_uuid": "fixed-economics-fixture",
+    "provider_warnings": {},
+    "repositories": {
+      "source": {
+        "commit": "73bcffeecbc7e8618a10d5e7a6d67ad2759bce94",
+        "current_worktree_id": null,
+        "dirty": false,
+        "git_common_id": null,
+        "working_tree_fingerprint": null,
+        "worktrees": {}
+      }
+    },
+    "repository_fingerprints": {},
+    "todo_revision": 10,
+    "todo_semantic": {},
+    "todo_status": {},
+    "todo_tables": {
+      "gates": [
+        {
+          "id": "G1",
+          "status": "pending",
+          "task_id": "T1",
+          "valid": false
+        }
+      ],
+      "tasks": [
+        {
+          "id": "T1",
+          "revision": 2,
+          "status": "ready",
+          "title": "Calculation"
+        }
+      ]
+    },
+    "todo_workflow": {},
+    "warnings": [],
+    "workspace_id": "demo"
+  },
+  "source_sha256": {
+    "README.md": "b9cc3bb450a61eb8eca66261b68e8c941a43ab912b2b49b26ff9a2d60b162098",
+    "module.py": "185786c0cf30b2c243293185ea01490213e12452b3eb402f0ffa3e3a39b23331"
+  }
+}
