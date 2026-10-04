@@ -1,34 +1,5 @@
 {
   "format": "as1-conformance-index/1",
-  "historical_paired_entry_producer": {
-    "documented_source_execution": {
-      "completion_chunk": "e12938",
-      "duration_seconds": 3.44,
-      "exec_session": "23896",
-      "passed_subtests": 11,
-      "passed_tests": 58,
-      "raw_report_available": false
-    },
-    "limits": [
-      "Native raw stdout proves10entrycases; documented58tests/11subtests has sourceworker session/chunk but no separate raw report supplied.",
-      "CPU/scripted evidence does not qualify actual model inference.",
-      "Native gate completed23:29:50 before reporting-only document created23:30:16; runtime/test bytes unchanged afterward. Exact later document hash bound without unnecessary functional retest."
-    ],
-    "native_execution": {
-      "native_evidence_id": "2574ce94-e356-492d-8f94-7455ecfd691b",
-      "original": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/evidence/2574ce94-e356-492d-8f94-7455ecfd691b/stdout.txt",
-      "passed_tests": 10,
-      "path": "native-entry-stdout.txt",
-      "sha256": "8c7c36904059b95b6313bab2fcf78d30044e9f921fd203022381ae49938b4fa4"
-    },
-    "qualified_observer_runtime_sha256": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd",
-    "source_commit": "9d19b348ca3630442bf6368e95e3e5a79865afa6",
-    "source_hashes": {
-      "docs/as1-observer-entry.md": "b3d38282e7a687f83a4c180f9d892d0e68a040dbed632e50e3679a0e5065c4f5",
-      "local-coding-worker/local_worker/observer_runtime.py": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd",
-      "tests/as1/test_sk_as1_observer_entry.py": "3565d8e73f4808aed5970553b4d0346cd0ec22bbf92a0d0292447c7ccf58a9f9"
-    }
-  },
   "historical_reports": [
     {
       "cases": [
@@ -63,53 +34,35 @@
     "Historical source identities, producer receipts, and failures are preserved; unaffected component executions are reused only with unchanged hashes.",
     "Current Surface execution has18 passing rows and1 obsolete fixture failure retained; corrected actual replay fixture has1 passing execution with unchanged completed/citation assertions.",
     "The precise failed node is excluded only after hash-bound later execution of that identical test node passes.",
-    "Current skill-protocol producer and PC two-case pin executions are source bound; actual complete Q11 proof remains required."
+    "No hardware or full E2E acceptance is supplied by this index; actual complete Q10_rollback proof remains required."
   ],
-  "paired_skill_protocol_producer": {
-    "artifacts": [
-      {
-        "capture_limit": "Middle warning text truncated; actual result summary and exit0 preserved",
-        "original": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification/observer-skill-protocol/dce84a.captured-output.txt",
-        "passed_tests": 67,
-        "path": "skill-protocol-dce84a.captured-output.txt",
-        "sha256": "2aabf3ae0ef8b24710bd9640a2ba56dbc501ca04617c6f87b94586534689ff5c"
-      },
-      {
-        "capture_limit": "Middle warning text truncated; actual result summary and exit0 preserved",
-        "original": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification/observer-skill-protocol/dce84a.tool-response.json",
-        "passed_tests": 67,
-        "path": "skill-protocol-dce84a.tool-response.json",
-        "sha256": "b0ae4c473fe41eb559d96e645ab6c4d3cf9a57b2c93df5109b3bdac9e6771ad8"
-      },
-      {
-        "capture_limit": "Complete captured tool response",
-        "original": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification/observer-skill-protocol/ef5b53.captured-output.txt",
-        "passed_tests": 3,
-        "path": "skill-protocol-ef5b53.captured-output.txt",
-        "sha256": "cf51c95bbcd461a7ca6710d1d11ec28c8c4e3cee2458020fff9c84bf41deb9b1"
-      },
-      {
-        "capture_limit": "Complete captured tool response",
-        "original": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification/observer-skill-protocol/ef5b53.tool-response.json",
-        "passed_tests": 3,
-        "path": "skill-protocol-ef5b53.tool-response.json",
-        "sha256": "1a1a112100b8d38545a8a830e6d90ad85958c8dfb5481e6afe827bd442331ee6"
-      }
-    ],
+  "paired_entry_producer": {
+    "documented_source_execution": {
+      "completion_chunk": "e12938",
+      "duration_seconds": 3.44,
+      "exec_session": "23896",
+      "passed_subtests": 11,
+      "passed_tests": 58,
+      "raw_report_available": false
+    },
     "limits": [
-      "CPU/scripted67passes+11subtests precede final narrow citation-policy correction; exact final source reran3affectedcases with no further review findings.",
-      "Captured tool outputs are actual executed results; dce84a middle warnings truncated explicitly, summary+exit0 intact.",
-      "No actual inference acceptance is supplied by these producer CPU artifacts."
+      "Native raw stdout proves10entrycases; documented58tests/11subtests has sourceworker session/chunk but no separate raw report supplied.",
+      "CPU/scripted evidence does not qualify actual model inference.",
+      "Native gate completed23:29:50 before reporting-only document created23:30:16; runtime/test bytes unchanged afterward. Exact later document hash bound without unnecessary functional retest."
     ],
-    "qualified_observer_runtime_sha256": "ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf",
-    "source_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828",
+    "native_execution": {
+      "native_evidence_id": "2574ce94-e356-492d-8f94-7455ecfd691b",
+      "original": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/evidence/2574ce94-e356-492d-8f94-7455ecfd691b/stdout.txt",
+      "passed_tests": 10,
+      "path": "native-entry-stdout.txt",
+      "sha256": "8c7c36904059b95b6313bab2fcf78d30044e9f921fd203022381ae49938b4fa4"
+    },
+    "qualified_observer_runtime_sha256": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd",
+    "source_commit": "9d19b348ca3630442bf6368e95e3e5a79865afa6",
     "source_hashes": {
-      "docs/as1-observer-skill-protocol.md": "f5ec4e6185184b82bf971a7fd39a4c159c7a412bb68a4362b1b30c0f326bd481",
-      "local-coding-worker/local_worker/observer_runtime.py": "ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf",
-      "tests/as1/test_sk_as1_observer_conversation.py": "ab16a81abcfd5c38dae54c5b859361bc3090843ecf011df050993be7d621da56",
-      "tests/as1/test_sk_as1_observer_entry.py": "a879d1efc71a2b7ffd325aa3bb80c4f211e827f449a70f819d71adfdfea4cc7d",
-      "tests/as1/test_sk_as1_observer_skill_protocol.py": "ba52e4702864f30d1133735bb1f35ce2a4a335674449a5442e32e5bd2d1b1b9c",
-      "tests/as1/test_sk_as1_runtime.py": "321bec4a99d4c00902ee729026624d80819b3421547eb04f1d6b1c9526e32601"
+      "docs/as1-observer-entry.md": "b3d38282e7a687f83a4c180f9d892d0e68a040dbed632e50e3679a0e5065c4f5",
+      "local-coding-worker/local_worker/observer_runtime.py": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd",
+      "tests/as1/test_sk_as1_observer_entry.py": "3565d8e73f4808aed5970553b4d0346cd0ec22bbf92a0d0292447c7ccf58a9f9"
     }
   },
   "receipt_hashes": {
@@ -305,18 +258,6 @@
       "sha256": "ed0c3a8231699c251e7094c32bc192744dbd9d98631117dfc83df3f7eb4e5f5a",
       "source_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41",
       "source_status": "Actual assistant-call/user-packet replay; exact entry/maps bytes+hash and selected maps packet citation"
-    },
-    {
-      "cases": [
-        "API-04",
-        "JOB-06"
-      ],
-      "kind": "pytest",
-      "original": "/tmp/pc-as1-skill-protocol-pin-cases.json",
-      "path": "conformance-skill-protocol-pin.json",
-      "sha256": "bb22000574616222508f639726eba3ea258fc50e2f37f90e5c304942057ff72f",
-      "source_commit": "6d1a7324acd2d2297ea3bf4fa3471d25ac67e2be",
-      "source_status": "Actual startup and native registered skill JOB06 two passing cases at qualified skill protocol runtime"
     }
   ],
   "source_hashes": {
@@ -336,7 +277,7 @@
     "src/project_control/as1_jobs.py": "05ff359d48aace9344b176371fd3b8ddadffb91db728d873bad31ae51e6218ff",
     "src/project_control/as1_packets.py": "cfb56e11a798dd0f062845a0cd469c44e9cc0a10b01c458d464f558315503504",
     "src/project_control/as1_skill.py": "0231a72b370318486e990a28de890e48a0ecfc8f48eb55814a3d373a17339a8a",
-    "src/project_control/as1_surface.py": "f4921fd9fe7bbf784b3e610de0b4f1ba2a3156cccda7ed35b44400ebb84d62c3",
+    "src/project_control/as1_surface.py": "4260e777d46f3ba7222adbcba0e3ed76d25119b6008319eed760a58252c120bb",
     "src/project_control/as1_trace.py": "cb15e08e71995989142b3e76b7bffd14e78981a73a32258aea1ccb97778b24f1",
     "src/project_control/mutation.py": "6a5cfee10d2eacd78d7bc6050bfecdcb8dfd07d64f029f308506e32bb4029935",
     "src/project_control/observer_analysis.py": "1a6399941265043a9e2993d40bef6c3c58ae20f5b7ee964f4b672ede80b27911",
@@ -356,12 +297,12 @@
     "tests/test_observer_analysis_registry.py": "24fa11892bfa473a2733efcd3bde964e66320f7d674fd01df233f3641b565aa7"
   },
   "source_history": {
-    "current_paired_proof_status": "Pending actual complete Q11 skill/scout/queue/preemption/restart proof; historical failures preserved",
-    "current_pc_commit": "6d1a7324acd2d2297ea3bf4fa3471d25ac67e2be",
-    "current_skills_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828",
-    "previous_index": "conformance-index-pre-skill-protocol.json",
-    "previous_index_sha256": "f378151b0cf0b624bb0ef398143f4bb1dd4b27a612fccb9879cf5c58bd1ea891",
-    "qualified_observer_runtime_sha256": "ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf"
+    "current_paired_proof_status": "Pending actual complete Q10_rollback skill/scout/queue/preemption/restart proof; historical failures preserved",
+    "current_pc_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41",
+    "current_skills_commit": "9d19b348ca3630442bf6368e95e3e5a79865afa6",
+    "previous_index": "conformance-index-pre-entry.json",
+    "previous_index_sha256": "48d94d4e55fb62070c0e014c1f55c7af665f32ad42c65c7ef194d6f7b86b62fb",
+    "qualified_observer_runtime_sha256": "8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd"
   },
   "superseding_source_checks": [
     {
@@ -450,14 +391,6 @@
       "path": "tests/as1/test_pc_as1_jobs.py",
       "reason": "Qualified entry runtime pin and actual conversation/replay JOB06 fixture",
       "source_commit": "c67699b8245cee4fc2d4f88cf39a8b191959ea41"
-    },
-    {
-      "current_sha256": "f4921fd9fe7bbf784b3e610de0b4f1ba2a3156cccda7ed35b44400ebb84d62c3",
-      "execution": "conformance-skill-protocol-pin.json",
-      "historical_sha256": "4260e777d46f3ba7222adbcba0e3ed76d25119b6008319eed760a58252c120bb",
-      "path": "src/project_control/as1_surface.py",
-      "reason": "Qualified native skill final grammar/correction runtime pin",
-      "source_commit": "6d1a7324acd2d2297ea3bf4fa3471d25ac67e2be"
     }
   ]
 }

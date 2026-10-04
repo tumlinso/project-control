@@ -1,0 +1,20 @@
+Warning: truncated output (original token count: 1715)
+Total output lines: 81
+
+........................... [ 91%]
+......                                                                   [100%]
+=============================== warnings summary ===============================
+tests/as1/test_sk_as1_runtime.py:98
+  /home/tumlinson/.agents/skills/tests/as1/test_sk_as1_runtime.py:98: PytestUnknownMarkWarning: Unknown pytest.mark.as1_case - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.as1_case('RUN-01', 'RUN-02')
+
+tests/as1/test_sk_as1_runtime.py:122
+  /home/tumlinson/.agents/skills/tests/as1/test_sk_as1_runtime.py:122: PytestUnknownMarkWarning: Unknown pytest.mark.a…1365 tokens truncated…: PytestUnknownMarkWarning: Unknown pytest.mark.as1_case - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.as1_case('RUN-03')
+
+tests/as1/test_sk_as1_runtime.py:415
+  /home/tumlinson/.agents/skills/tests/as1/test_sk_as1_runtime.py:415: PytestUnknownMarkWarning: Unknown pytest.mark.as1_case - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.as1_case('RUN-03')
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+67 passed, 19 warnings, 11 subtests passed in 3.85s
