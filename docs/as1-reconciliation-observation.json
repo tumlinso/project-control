@@ -1,0 +1,622 @@
+{
+  "format": "pc-as1-reconciliation-observation/1",
+  "purpose": "Read-only source adoption; no retirement, supersession or imported gate pass",
+  "observations": [
+    {
+      "schema_version": 1,
+      "tool": "inspect",
+      "status": "ok",
+      "project": {
+        "id": "project-control",
+        "observed_at": "2026-10-04T17:28:20Z",
+        "todo_revision": 811,
+        "identity_digest": null,
+        "repositories": {
+          "project-control": {
+            "commit": "39ac812281a7c5cd63c651bd142139bdbada2db8",
+            "dirty": true,
+            "working_tree_fingerprint": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81",
+            "git_common_id": "git-common-f6545584da01a168",
+            "current_worktree_id": "wt-e8e946a37a2ee13e",
+            "worktrees": {}
+          }
+        }
+      },
+      "data": {
+        "kind": "task",
+        "target": "PC-PCE2-RUNTIME",
+        "intent": "architecture",
+        "source": "reconciled_project_graph",
+        "freshness": "snapshot",
+        "resolution": {
+          "status": "resolved",
+          "candidates": []
+        },
+        "matches": [
+          {
+            "id": "PC-PCE2-RUNTIME",
+            "kind": "task",
+            "attention_reason": null,
+            "created_at": "2026-09-20T13:38:35Z",
+            "effective_state": "blocked",
+            "current_relevance": "current_attention",
+            "frontier_eligible": true,
+            "attention_eligible": true,
+            "current_program_eligible": true,
+            "authoritative_ready": false,
+            "execution": "blocked_scope",
+            "active_claim": null,
+            "ancestor_chain": [
+              "PC-PCE2-0000"
+            ],
+            "heuristic_program_id": null,
+            "dependencies": [],
+            "artifacts": [],
+            "relevance": "current_attention"
+          }
+        ],
+        "related": [
+          {
+            "type": "task",
+            "id": "PC-PCE2-0000",
+            "relevance": "current",
+            "basis": "todo parent_id",
+            "confidence": "high"
+          }
+        ],
+        "truncation": {
+          "truncated": true,
+          "budget_bytes": 907,
+          "items_considered": 214,
+          "items_returned": 3,
+          "historical_items_omitted": 0
+        },
+        "response_coverage": {
+          "budget_bytes": 2400,
+          "measurement": "canonical_json_utf8_full_envelope",
+          "expansion_cursor": "top_level.cursor",
+          "stale_cursor_behavior": "typed_refresh_required"
+        }
+      },
+      "warnings": [],
+      "cursor": {
+        "todo_revision": 811,
+        "commits": {
+          "project-control": "39ac812281a7c5cd63c651bd142139bdbada2db8"
+        },
+        "fingerprints": {},
+        "working_tree_fingerprints": {
+          "project-control": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81"
+        },
+        "todo_semantic_fingerprint": "62bcfa5f051eccd2e857b3fa1cefe42817731c297aace0f079a4fe2df29bf8f4",
+        "workflow_semantic_fingerprint": "62bcfa5f051eccd2e857b3fa1cefe42817731c297aace0f079a4fe2df29bf8f4",
+        "worktrees": {
+          "wt-e8e946a37a2ee13e": {
+            "head": "39ac812281a7c5cd63c651bd142139bdbada2db8",
+            "working_tree_fingerprint": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81"
+          }
+        },
+        "context_fragments": {},
+        "active_run_id": "PC-PCE2-RUN-1",
+        "observed_at": "2026-10-04T17:28:20Z",
+        "identity_digest": "fbfc6a4bed06a6f3437ce5e7c69f058d77e3fe1a559e8f574d4d67661989e53b"
+      }
+    },
+    {
+      "schema_version": 1,
+      "tool": "inspect",
+      "status": "ok",
+      "project": {
+        "id": "project-control",
+        "observed_at": "2026-10-04T17:28:19Z",
+        "todo_revision": 811,
+        "identity_digest": null,
+        "repositories": {
+          "project-control": {
+            "commit": "39ac812281a7c5cd63c651bd142139bdbada2db8",
+            "dirty": true,
+            "working_tree_fingerprint": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81",
+            "git_common_id": "git-common-f6545584da01a168",
+            "current_worktree_id": "wt-e8e946a37a2ee13e",
+            "worktrees": {}
+          }
+        }
+      },
+      "data": {
+        "kind": "task",
+        "target": "PC-PCE2-SURFACE",
+        "intent": "architecture",
+        "source": "reconciled_project_graph",
+        "freshness": "snapshot",
+        "resolution": {
+          "status": "resolved",
+          "candidates": []
+        },
+        "matches": [
+          {
+            "id": "PC-PCE2-SURFACE",
+            "attention_reason": null,
+            "created_at": "2026-09-20T13:38:35Z",
+            "effective_state": "blocked",
+            "current_relevance": "current_attention",
+            "frontier_eligible": true,
+            "attention_eligible": true,
+            "current_program_eligible": true,
+            "authoritative_ready": false,
+            "execution": "blocked_dependency",
+            "active_claim": null,
+            "ancestor_chain": [
+              "PC-PCE2-0000"
+            ],
+            "dependencies": [
+              {
+                "type": "task",
+                "prerequisite_task_id": "PC-PCE2-RUNTIME"
+              }
+            ],
+            "artifacts": [],
+            "relevance": "current_attention"
+          }
+        ],
+        "related": [
+          {
+            "type": "task",
+            "id": "PC-PCE2-0000",
+            "relevance": "current",
+            "basis": "todo parent_id",
+            "confidence": "high"
+          }
+        ],
+        "truncation": {
+          "truncated": true,
+          "budget_bytes": 907,
+          "items_considered": 213,
+          "items_returned": 4,
+          "historical_items_omitted": 0
+        },
+        "response_coverage": {
+          "budget_bytes": 2400,
+          "measurement": "canonical_json_utf8_full_envelope",
+          "expansion_cursor": "top_level.cursor",
+          "stale_cursor_behavior": "typed_refresh_required"
+        }
+      },
+      "warnings": [],
+      "cursor": {
+        "todo_revision": 811,
+        "commits": {
+          "project-control": "39ac812281a7c5cd63c651bd142139bdbada2db8"
+        },
+        "fingerprints": {},
+        "working_tree_fingerprints": {
+          "project-control": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81"
+        },
+        "todo_semantic_fingerprint": "62bcfa5f051eccd2e857b3fa1cefe42817731c297aace0f079a4fe2df29bf8f4",
+        "workflow_semantic_fingerprint": "62bcfa5f051eccd2e857b3fa1cefe42817731c297aace0f079a4fe2df29bf8f4",
+        "worktrees": {
+          "wt-e8e946a37a2ee13e": {
+            "head": "39ac812281a7c5cd63c651bd142139bdbada2db8",
+            "working_tree_fingerprint": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81"
+          }
+        },
+        "context_fragments": {},
+        "active_run_id": "PC-PCE2-RUN-1",
+        "observed_at": "2026-10-04T17:28:19Z",
+        "identity_digest": "fbfc6a4bed06a6f3437ce5e7c69f058d77e3fe1a559e8f574d4d67661989e53b"
+      }
+    },
+    {
+      "schema_version": 1,
+      "tool": "inspect",
+      "status": "ok",
+      "project": {
+        "id": "project-control",
+        "observed_at": "2026-10-04T17:28:22Z",
+        "todo_revision": 811,
+        "identity_digest": null,
+        "repositories": {
+          "project-control": {
+            "commit": "39ac812281a7c5cd63c651bd142139bdbada2db8",
+            "dirty": true,
+            "working_tree_fingerprint": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81",
+            "git_common_id": "git-common-f6545584da01a168",
+            "current_worktree_id": "wt-e8e946a37a2ee13e",
+            "worktrees": {}
+          }
+        }
+      },
+      "data": {
+        "kind": "task",
+        "target": "PC-PCE2-QUALIFY",
+        "intent": "architecture",
+        "source": "reconciled_project_graph",
+        "freshness": "snapshot",
+        "resolution": {
+          "status": "resolved",
+          "candidates": []
+        },
+        "matches": [
+          {
+            "id": "PC-PCE2-QUALIFY",
+            "attention_reason": null,
+            "created_at": "2026-09-20T13:38:35Z",
+            "effective_state": "blocked",
+            "current_relevance": "current_attention",
+            "frontier_eligible": true,
+            "attention_eligible": true,
+            "current_program_eligible": true,
+            "authoritative_ready": false,
+            "execution": "blocked_dependency",
+            "active_claim": null,
+            "ancestor_chain": [
+              "PC-PCE2-0000"
+            ],
+            "dependencies": [
+              {
+                "type": "task",
+                "prerequisite_task_id": "PC-PCE2-SURFACE"
+              }
+            ],
+            "artifacts": [],
+            "relevance": "current_attention"
+          }
+        ],
+        "related": [
+          {
+            "type": "task",
+            "id": "PC-PCE2-0000",
+            "relevance": "current",
+            "basis": "todo parent_id",
+            "confidence": "high"
+          }
+        ],
+        "truncation": {
+          "truncated": true,
+          "budget_bytes": 907,
+          "items_considered": 201,
+          "items_returned": 4,
+          "historical_items_omitted": 0
+        },
+        "response_coverage": {
+          "budget_bytes": 2400,
+          "measurement": "canonical_json_utf8_full_envelope",
+          "expansion_cursor": "top_level.cursor",
+          "stale_cursor_behavior": "typed_refresh_required"
+        }
+      },
+      "warnings": [],
+      "cursor": {
+        "todo_revision": 811,
+        "commits": {
+          "project-control": "39ac812281a7c5cd63c651bd142139bdbada2db8"
+        },
+        "fingerprints": {},
+        "working_tree_fingerprints": {
+          "project-control": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81"
+        },
+        "todo_semantic_fingerprint": "62bcfa5f051eccd2e857b3fa1cefe42817731c297aace0f079a4fe2df29bf8f4",
+        "workflow_semantic_fingerprint": "62bcfa5f051eccd2e857b3fa1cefe42817731c297aace0f079a4fe2df29bf8f4",
+        "worktrees": {
+          "wt-e8e946a37a2ee13e": {
+            "head": "39ac812281a7c5cd63c651bd142139bdbada2db8",
+            "working_tree_fingerprint": "5d780b205b3d2fbaddacc512bd65bfab28b91307a80108c238c6b8f41c40aa81"
+          }
+        },
+        "context_fragments": {},
+        "active_run_id": "PC-PCE2-RUN-1",
+        "observed_at": "2026-10-04T17:28:22Z",
+        "identity_digest": "fbfc6a4bed06a6f3437ce5e7c69f058d77e3fe1a559e8f574d4d67661989e53b"
+      }
+    },
+    {
+      "schema_version": 1,
+      "tool": "inspect",
+      "status": "ok",
+      "project": {
+        "id": "skills",
+        "observed_at": "2026-10-04T17:28:18Z",
+        "todo_revision": 888,
+        "identity_digest": null,
+        "repositories": {
+          "skills": {
+            "commit": "988cedf0637a83772b62ebbe096abba0e604959f",
+            "dirty": true,
+            "working_tree_fingerprint": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6",
+            "git_common_id": "git-common-93754cd99296d730",
+            "current_worktree_id": "wt-8cd7e7fdc07000dc",
+            "worktrees": {}
+          }
+        }
+      },
+      "data": {
+        "kind": "task",
+        "target": "SK-PCE2-OPERATE",
+        "intent": "architecture",
+        "source": "reconciled_project_graph",
+        "freshness": "snapshot",
+        "resolution": {
+          "status": "resolved",
+          "candidates": []
+        },
+        "matches": [
+          {
+            "id": "SK-PCE2-OPERATE",
+            "kind": "task",
+            "next_action": "Read SK-PCE2-OPERATE in planning/pce2/machine/outcomes.json; u…",
+            "attention_reason": null,
+            "created_at": "2026-09-20T13:38:44Z",
+            "effective_state": "ready",
+            "current_relevance": "current",
+            "frontier_eligible": true,
+            "attention_eligible": false,
+            "current_program_eligible": true,
+            "authoritative_ready": true,
+            "execution": "ready",
+            "active_claim": null,
+            "ancestor_chain": [
+              "SK-PCE2-0000"
+            ],
+            "heuristic_program_id": null,
+            "dependencies": [],
+            "artifacts": [],
+            "relevance": "current"
+          }
+        ],
+        "related": [
+          {
+            "type": "task",
+            "id": "SK-PCE2-0000",
+            "relevance": "current",
+            "basis": "todo parent_id",
+            "confidence": "high"
+          }
+        ],
+        "truncation": {
+          "truncated": true,
+          "budget_bytes": 943,
+          "items_considered": 158,
+          "items_returned": 3,
+          "historical_items_omitted": 0
+        },
+        "response_coverage": {
+          "budget_bytes": 2400,
+          "measurement": "canonical_json_utf8_full_envelope",
+          "expansion_cursor": "top_level.cursor",
+          "stale_cursor_behavior": "typed_refresh_required"
+        }
+      },
+      "warnings": [],
+      "cursor": {
+        "todo_revision": 888,
+        "commits": {
+          "skills": "988cedf0637a83772b62ebbe096abba0e604959f"
+        },
+        "fingerprints": {},
+        "working_tree_fingerprints": {
+          "skills": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6"
+        },
+        "todo_semantic_fingerprint": "96c5beb64ef83f45cdb02e9bcd975f727a0f51b6dc77e3644facff2d1bd94815",
+        "workflow_semantic_fingerprint": "96c5beb64ef83f45cdb02e9bcd975f727a0f51b6dc77e3644facff2d1bd94815",
+        "worktrees": {
+          "wt-8cd7e7fdc07000dc": {
+            "head": "988cedf0637a83772b62ebbe096abba0e604959f",
+            "working_tree_fingerprint": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6"
+          }
+        },
+        "context_fragments": {},
+        "active_run_id": "SK-PCE2-RUN-1",
+        "observed_at": "2026-10-04T17:28:18Z",
+        "identity_digest": "c354894edeeb2bf514cf79251c2b9824aa34541fb2bea962086cd43e7c03af79"
+      }
+    },
+    {
+      "schema_version": 1,
+      "tool": "inspect",
+      "status": "ok",
+      "project": {
+        "id": "skills",
+        "observed_at": "2026-10-04T17:28:22Z",
+        "todo_revision": 888,
+        "identity_digest": null,
+        "repositories": {
+          "skills": {
+            "commit": "988cedf0637a83772b62ebbe096abba0e604959f",
+            "dirty": true,
+            "working_tree_fingerprint": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6",
+            "git_common_id": "git-common-93754cd99296d730",
+            "current_worktree_id": "wt-8cd7e7fdc07000dc",
+            "worktrees": {}
+          }
+        }
+      },
+      "data": {
+        "kind": "task",
+        "target": "SK-PCE2-MAINTAIN",
+        "intent": "architecture",
+        "source": "reconciled_project_graph",
+        "freshness": "snapshot",
+        "resolution": {
+          "status": "resolved",
+          "candidates": []
+        },
+        "matches": [
+          {
+            "id": "SK-PCE2-MAINTAIN",
+            "kind": "task",
+            "attention_reason": null,
+            "created_at": "2026-09-20T13:38:44Z",
+            "effective_state": "blocked",
+            "current_relevance": "current_attention",
+            "frontier_eligible": true,
+            "attention_eligible": true,
+            "current_program_eligible": true,
+            "authoritative_ready": false,
+            "execution": "blocked_dependency",
+            "active_claim": null,
+            "ancestor_chain": [
+              "SK-PCE2-0000"
+            ],
+            "heuristic_program_id": null,
+            "dependencies": [
+              {
+                "type": "task",
+                "prerequisite_task_id": "SK-PCE2-OPERATE"
+              }
+            ],
+            "artifacts": [],
+            "relevance": "current_attention"
+          }
+        ],
+        "related": [
+          {
+            "type": "task",
+            "id": "SK-PCE2-0000",
+            "relevance": "current",
+            "basis": "todo parent_id",
+            "confidence": "high"
+          }
+        ],
+        "truncation": {
+          "truncated": true,
+          "budget_bytes": 943,
+          "items_considered": 183,
+          "items_returned": 4,
+          "historical_items_omitted": 0
+        },
+        "response_coverage": {
+          "budget_bytes": 2400,
+          "measurement": "canonical_json_utf8_full_envelope",
+          "expansion_cursor": "top_level.cursor",
+          "stale_cursor_behavior": "typed_refresh_required"
+        }
+      },
+      "warnings": [],
+      "cursor": {
+        "todo_revision": 888,
+        "commits": {
+          "skills": "988cedf0637a83772b62ebbe096abba0e604959f"
+        },
+        "fingerprints": {},
+        "working_tree_fingerprints": {
+          "skills": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6"
+        },
+        "todo_semantic_fingerprint": "96c5beb64ef83f45cdb02e9bcd975f727a0f51b6dc77e3644facff2d1bd94815",
+        "workflow_semantic_fingerprint": "96c5beb64ef83f45cdb02e9bcd975f727a0f51b6dc77e3644facff2d1bd94815",
+        "worktrees": {
+          "wt-8cd7e7fdc07000dc": {
+            "head": "988cedf0637a83772b62ebbe096abba0e604959f",
+            "working_tree_fingerprint": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6"
+          }
+        },
+        "context_fragments": {},
+        "active_run_id": "SK-PCE2-RUN-1",
+        "observed_at": "2026-10-04T17:28:22Z",
+        "identity_digest": "c354894edeeb2bf514cf79251c2b9824aa34541fb2bea962086cd43e7c03af79"
+      }
+    },
+    {
+      "schema_version": 1,
+      "tool": "inspect",
+      "status": "ok",
+      "project": {
+        "id": "skills",
+        "observed_at": "2026-10-04T17:28:21Z",
+        "todo_revision": 888,
+        "identity_digest": null,
+        "repositories": {
+          "skills": {
+            "commit": "988cedf0637a83772b62ebbe096abba0e604959f",
+            "dirty": true,
+            "working_tree_fingerprint": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6",
+            "git_common_id": "git-common-93754cd99296d730",
+            "current_worktree_id": "wt-8cd7e7fdc07000dc",
+            "worktrees": {}
+          }
+        }
+      },
+      "data": {
+        "kind": "task",
+        "target": "SK-PCE2-COLLABORATE",
+        "intent": "architecture",
+        "source": "reconciled_project_graph",
+        "freshness": "snapshot",
+        "resolution": {
+          "status": "resolved",
+          "candidates": []
+        },
+        "matches": [
+          {
+            "id": "SK-PCE2-COLLABORATE",
+            "attention_reason": null,
+            "created_at": "2026-09-20T13:38:44Z",
+            "effective_state": "blocked",
+            "current_relevance": "current_attention",
+            "frontier_eligible": true,
+            "attention_eligible": true,
+            "current_program_eligible": true,
+            "authoritative_ready": false,
+            "execution": "blocked_dependency",
+            "active_claim": null,
+            "ancestor_chain": [
+              "SK-PCE2-0000"
+            ],
+            "heuristic_program_id": null,
+            "dependencies": [
+              {
+                "type": "task",
+                "prerequisite_task_id": "SK-PCE2-MAINTAIN"
+              }
+            ],
+            "artifacts": [],
+            "relevance": "current_attention"
+          }
+        ],
+        "related": [
+          {
+            "type": "task",
+            "id": "SK-PCE2-0000",
+            "relevance": "current",
+            "basis": "todo parent_id",
+            "confidence": "high"
+          }
+        ],
+        "truncation": {
+          "truncated": true,
+          "budget_bytes": 943,
+          "items_considered": 166,
+          "items_returned": 4,
+          "historical_items_omitted": 0
+        },
+        "response_coverage": {
+          "budget_bytes": 2400,
+          "measurement": "canonical_json_utf8_full_envelope",
+          "expansion_cursor": "top_level.cursor",
+          "stale_cursor_behavior": "typed_refresh_required"
+        }
+      },
+      "warnings": [],
+      "cursor": {
+        "todo_revision": 888,
+        "commits": {
+          "skills": "988cedf0637a83772b62ebbe096abba0e604959f"
+        },
+        "fingerprints": {},
+        "working_tree_fingerprints": {
+          "skills": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6"
+        },
+        "todo_semantic_fingerprint": "96c5beb64ef83f45cdb02e9bcd975f727a0f51b6dc77e3644facff2d1bd94815",
+        "workflow_semantic_fingerprint": "96c5beb64ef83f45cdb02e9bcd975f727a0f51b6dc77e3644facff2d1bd94815",
+        "worktrees": {
+          "wt-8cd7e7fdc07000dc": {
+            "head": "988cedf0637a83772b62ebbe096abba0e604959f",
+            "working_tree_fingerprint": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6"
+          }
+        },
+        "context_fragments": {},
+        "active_run_id": "SK-PCE2-RUN-1",
+        "observed_at": "2026-10-04T17:28:21Z",
+        "identity_digest": "c354894edeeb2bf514cf79251c2b9824aa34541fb2bea962086cd43e7c03af79"
+      }
+    }
+  ]
+}
