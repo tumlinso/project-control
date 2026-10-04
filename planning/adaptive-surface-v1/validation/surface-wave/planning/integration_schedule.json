@@ -1,0 +1,11 @@
+{
+  "phases": [
+    {
+      "integration_task": "PC-AS1-SURFACE",
+      "required_tasks": [
+        "PC-AS1-CONTROL",
+        "PC-AS1-SKILL"
+      ]
+    }
+  ]
+}

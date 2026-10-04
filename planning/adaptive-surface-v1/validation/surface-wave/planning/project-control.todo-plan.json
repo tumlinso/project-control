@@ -1,0 +1,784 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "project-control"
+  },
+  "tasks": [
+    {
+      "id": "PC-AS1-CONTRACT",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Freeze contracts and reconcile existing work",
+      "objective": "Make this design executable against current runtime reality without losing prior work.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [],
+      "gates": [
+        {
+          "id": "PC-AS1-CONTRACT-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-CONTRACT"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-CONTRACT in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-PACKETS",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Build reusable source-bound information packets",
+      "objective": "Make information reusable through durable exact payloads, non-reused word aliases and freshness-aware hints.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-CONTRACT"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-PACKETS-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-PACKETS"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-PACKETS in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-CONTEXT",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Consolidate orientation and deterministic context",
+      "objective": "Deliver overview/delta/frontier/read/search/evidence/history/machine through canonical services.",
+      "priority": 100,
+      "parallel_policy": "parallel_safe",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-PACKETS"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-CONTEXT-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-CONTEXT"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-CONTEXT in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-TRACE",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Implement heterogeneous incremental dependency tracing",
+      "objective": "Make impact a directed, source-bound, cross-project tracer with honest provider-scoped completeness.",
+      "priority": 100,
+      "parallel_policy": "parallel_safe",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-CONTEXT"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-TRACE-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-TRACE"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-TRACE in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-JOBS",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Run durable command-first investigation jobs",
+      "objective": "Serve bounded scout questions with persistent queue/log/hints, independent dispatch and restart-safe attempts.",
+      "priority": 100,
+      "parallel_policy": "parallel_safe",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-PACKETS"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-JOBS-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-JOBS"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-JOBS in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-SKILL",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Deliver routed skill authority through one adapter",
+      "objective": "Use the shared local worker in skills-home mode to select sources; broker returns direct text plus tiny labeled synthesis.",
+      "priority": 100,
+      "parallel_policy": "parallel_safe",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-JOBS"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-SKILL-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-SKILL"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-SKILL in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-CONTROL",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Expose complete transactional mutator control",
+      "objective": "Give mutator independent planning, typed project registration and safe maintenance without raw admin ritual.",
+      "priority": 100,
+      "parallel_policy": "parallel_safe",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-CONTEXT"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-AS1-TRACE"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-CONTROL-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-CONTROL"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-CONTROL in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-SURFACE",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Wire and document the new role-aware frontend",
+      "objective": "Replace ordinary discovery, dispatch, descriptions, schemas, modes and routing with the consolidated API.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-CONTEXT"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-AS1-TRACE"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-AS1-JOBS"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-AS1-SKILL"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-AS1-CONTROL"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-SURFACE-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-SURFACE"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-SURFACE in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-QUALIFY",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Qualify complete role journeys and economics",
+      "objective": "Prove correctness and useful-context efficiency across the whole paired candidate, not individual renamed tools.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-SURFACE"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-QUALIFY-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-QUALIFY"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-QUALIFY in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-RELEASE",
+      "parent_id": "PC-AS1-0000",
+      "kind": "task",
+      "title": "Activate and verify the paired adaptive surface",
+      "objective": "Deploy the qualified bound runtime and prove live new profile surfaces with rollback and persisted jobs intact.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src",
+          "tests",
+          "docs",
+          "scripts",
+          "packaging",
+          "pyproject.toml",
+          "README.md",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-AS1-QUALIFY"
+        }
+      ],
+      "gates": [
+        {
+          "id": "PC-AS1-RELEASE-ACCEPT",
+          "type": "command",
+          "required": true,
+          "argv": [
+            "python3",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py",
+            "--outcome",
+            "PC-AS1-RELEASE"
+          ],
+          "cwd": ".",
+          "timeout": 1200,
+          "input_paths": [
+            "src/project_control",
+            "tests/as1",
+            "planning/adaptive-surface-v1/contracts",
+            "planning/adaptive-surface-v1/scripts/acceptance_gate.py"
+          ],
+          "track_git_head": false
+        }
+      ],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "next_action": "Read PC-AS1-RELEASE in planning/adaptive-surface-v1/planning/outcomes.json. Verify producer receipts and pass every required case."
+    },
+    {
+      "id": "PC-AS1-0000",
+      "kind": "epic",
+      "title": "AS1 project-control: consolidated adaptive helper surface",
+      "objective": "Aggregate verified local outcomes only; never a coordinator claim or prerequisite of its children.",
+      "priority": 0,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "depends_on": [],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated"
+        ]
+      },
+      "next_action": "Close after local outcome gates and paired release receipts are current. The package purpose is useful engineering progress, not framework administration.",
+      "gates": [
+        {
+          "id": "PC-AS1-CONTRACT-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-CONTRACT",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-PACKETS-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-PACKETS",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-CONTEXT-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-CONTEXT",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-TRACE-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-TRACE",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-JOBS-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-JOBS",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-SKILL-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-SKILL",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-CONTROL-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-CONTROL",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-SURFACE-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-SURFACE",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-QUALIFY-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-QUALIFY",
+          "status": "done",
+          "track_git_head": false
+        },
+        {
+          "id": "PC-AS1-RELEASE-CLOSED",
+          "type": "task_state",
+          "required": true,
+          "task_id": "PC-AS1-RELEASE",
+          "status": "done",
+          "track_git_head": false
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "PC-AS1-RUN-1",
+      "root_task_id": "PC-AS1-0000",
+      "charter": {
+        "objective": "Implement the complete consolidated role-efficient Project Control surface using canonical backend authorities.",
+        "motivation": "More useful engineering progress with less context, coordination and maintenance overhead.",
+        "boundaries": [
+          "Separate Todo/Git/host authorities; preserve dirty source, historical successful evidence and CUDA/atlas guidance.",
+          "Do not resume NF1A or mutate unrelated scientific projects. Destructive admin actions require explicit user permission.",
+          "Root retains lifecycle, claims, integration and acceptance; prepare the exclusive integration destination and isolated producers from the same reviewed foundation commit before producer dispatch. Preserve all existing obligations."
+        ],
+        "references": [
+          "planning/adaptive-surface-v1/START_HERE.md",
+          "planning/adaptive-surface-v1/planning/outcomes.json",
+          "planning/adaptive-surface-v1/contracts/requirements.json",
+          "planning/adaptive-surface-v1/planning/cross-authority.json",
+          "planning/adaptive-surface-v1/EXECUTION_HANDOFF.md"
+        ]
+      },
+      "lanes": [
+        {
+          "id": "PC-AS1-L-INTEGRATE",
+          "role": "integrator",
+          "workspace": {
+            "mode": "exclusive"
+          },
+          "tasks": [
+            "PC-AS1-CONTRACT",
+            "PC-AS1-PACKETS",
+            "PC-AS1-SURFACE",
+            "PC-AS1-QUALIFY",
+            "PC-AS1-RELEASE",
+            "PC-AS1-0000"
+          ]
+        },
+        {
+          "id": "PC-AS1-L-CONTEXT",
+          "role": "implementer",
+          "workspace": {
+            "mode": "isolated_merge",
+            "integration_task_id": "PC-AS1-SURFACE"
+          },
+          "tasks": [
+            "PC-AS1-CONTEXT",
+            "PC-AS1-TRACE",
+            "PC-AS1-CONTROL"
+          ],
+          "parent_lane_id": "PC-AS1-L-INTEGRATE"
+        },
+        {
+          "id": "PC-AS1-L-OBSERVER",
+          "role": "implementer",
+          "workspace": {
+            "mode": "isolated_merge",
+            "integration_task_id": "PC-AS1-SURFACE"
+          },
+          "tasks": [
+            "PC-AS1-JOBS",
+            "PC-AS1-SKILL"
+          ],
+          "parent_lane_id": "PC-AS1-L-INTEGRATE"
+        }
+      ]
+    }
+  ]
+}

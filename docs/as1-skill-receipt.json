@@ -1,0 +1,37 @@
+{
+  "format": "pc-as1-producer-receipt/1",
+  "producer_project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+  "producer_task_id": "PC-AS1-SKILL",
+  "gate_ids": [
+    "PC-AS1-SKILL-ACCEPT"
+  ],
+  "source_identity": {
+    "commit": "c94752ebf83cd2453589e812936a7b6470f660cd",
+    "branch": "codex/pc-as1-l-observer",
+    "completion_revision": 855,
+    "gate_revision": 854,
+    "gate_evidence_id": "0f834f69-9219-4e31-a8f2-8b72c83927f0",
+    "integration_status": "native sealed wave applied_pending_wave; public surface gate pending"
+  },
+  "contract_hashes": {
+    "src/project_control/as1_skill.py": "0231a72b370318486e990a28de890e48a0ecfc8f48eb55814a3d373a17339a8a",
+    "tests/as1/test_pc_as1_skill.py": "2f2baada2a6e06651c6305635d6453372f0c1d0a82780972d8f51e6e65c7ac3f",
+    "docs/as1-skill.md": "0d122e9b94145ba32cc5bde0d4fff40b93ffadcad25ad81f2b62ce96ada959f2"
+  },
+  "coverage": {
+    "cases": [
+      "SKL-01",
+      "SKL-02",
+      "SKL-03",
+      "SKL-04"
+    ],
+    "tests_passed": 24,
+    "independent_review": "Two confirmed P2 findings corrected: entry-before-resource provenance and preserved unresolved questions; actual regressions pass.",
+    "worker_navigation": "Installed SKILL.md and authored maps/references; broker only exact registrations, access, persistence, freshness and provenance."
+  },
+  "limits": [
+    "RealSQLite/Bwrap and actual installed worker port; scripted CPU backend. Full genuine model journey remains paired SQA.",
+    "One initial test process stalled; instrumented rerun and native gate passed, cause not reproduced."
+  ],
+  "status": "passed"
+}
