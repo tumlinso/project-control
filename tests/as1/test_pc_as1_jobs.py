@@ -255,8 +255,20 @@ def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_
     def tools(name, arguments, scope):
         calls.append((name, scope)); return {'text': 'shared semantic record'}
     def final(request):
-        observations = json.loads(request['messages'][1]['content'])['observations']
-        return {'answer': 'read sources', 'findings': [{'text': 'selected source', 'evidence_packets': [observations[-1]['packet_id']]}],
+        messages = request['messages']
+        replayed = [(json.loads(message['content']), json.loads(messages[index + 1]['content']))
+            for index, message in enumerate(messages[:-1])
+            if message['role'] == 'assistant' and messages[index + 1]['role'] == 'user']
+        assert [call['tool'] for call, packet in replayed] == ['command', 'command', 'search']
+        assert replayed[0][0]['arguments']['argv'] == ['cat', str(skill/'SKILL.md')]
+        assert replayed[0][1]['stdout'] == entry
+        selected_call, selected_packet = replayed[1]
+        assert selected_call['arguments']['argv'] == ['cat', str(skill/'maps.md')]
+        assert selected_packet['stdout'] == resource
+        assert selected_packet['source_reads'][0]['path'] == str(skill/'maps.md')
+        assert selected_packet['source_reads'][0]['content_sha256'] == hashlib.sha256(resource.encode()).hexdigest()
+        assert selected_packet['packet_id']
+        return {'answer': 'read sources', 'findings': [{'text': 'selected source', 'evidence_packets': [selected_packet['packet_id']]}],
             'skill_selection': {'format': 'pc-skill-selection/1', 'selections': [{'skill': 'fixture', 'resource': 'maps.md',
                 'content_sha256': hashlib.sha256(resource.encode()).hexdigest(), 'line_start': 1, 'line_end': 1, 'reason': 'useful'}],
                 'synthesis': 'selected', 'unresolved': []}}
@@ -272,8 +284,9 @@ def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_
         assert value['job']['status'] == 'completed', value
         assert calls == [('search', scope)]
         context = json.loads(backend.requests[0]['messages'][1]['content'])
-        assert set(context) == {'question', 'scope', 'hints', 'skill', 'observations'}
-        assert context['observations'] == []
+        assert set(context) == {'question', 'scope', 'hints', 'skill', 'progress', 'instruction'}
+        assert context['progress'] == {'stage': 'initial', 'observation_count': 0, 'remaining_steps': 6}
+        assert not any(message['role'] == 'assistant' for message in backend.requests[0]['messages'])
         assert not calls or 'overview' not in [c[0] for c in calls]
         assert SHARED_TOOLS == {'overview','delta','frontier','search','evidence','impact','history','machine'}
         assert value['job']['project'] is None

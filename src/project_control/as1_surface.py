@@ -17,8 +17,8 @@ from .config import configured_observer_skills_root
 from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis_state_root
 from .profiles import MCPProfile
 
-# Qualified SK-AS1-OBSERVER-CONVERSATION producer receipt; never derived from encountered bytes.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = '695981a69882c951487814425809659ec0abdccd428e329153a8acd6ce94d8e1'
+# Qualified SK-AS1-OBSERVER-ENTRY producer receipt; never derived from encountered bytes.
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '8f19069f55b6f9e24b396c269f18a6c5eb7d162a7eef4880e530fdee045447dd'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 
