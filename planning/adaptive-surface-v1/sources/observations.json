@@ -1,0 +1,318 @@
+{
+  "format": "pc-as1-observation-ledger/1",
+  "baseline": {
+    "project-control": {
+      "commit": "d7af16bcc9e61048eb555ec5b69e1264b84638e8",
+      "todo_revision": 809,
+      "dirty": true,
+      "working_tree_fingerprint": "359fd9ed093cc4728e3e75761a341d93f32c13942c32c9a13af22f38e92f3371",
+      "active_run": "PC-PCE2-RUN-1",
+      "project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7"
+    },
+    "skills": {
+      "commit": "7516ebf66a57370c6085ab46ee24773f5a23dd2a",
+      "todo_revision": 887,
+      "project_uuid": "460468fe-ee72-4a64-a565-87cfec640d0c",
+      "dirty": true,
+      "working_tree_fingerprint": "71a09960deb45468d5ae37fbd62689e770e873dc7c9b5b719273892932032fc6",
+      "active_run": "SK-PCE2-RUN-1"
+    }
+  },
+  "observations": [
+    {
+      "id": "E01",
+      "project": "project-control",
+      "tool": "project_frontier",
+      "path": null,
+      "range": null,
+      "observed_at": "2026-10-04T16:04:55Z",
+      "finding": "Todo revision 809; current PCE2 runtime/surface/qualify lane; no active dispatch shown in that frontier."
+    },
+    {
+      "id": "E02",
+      "project": "skills",
+      "tool": "project_overview",
+      "path": null,
+      "range": null,
+      "observed_at": "2026-10-04T16:04:34Z",
+      "finding": "Todo revision 887; PCE2 operate/maintain/collaborate; other attention records retained. Both current worktrees dirty."
+    },
+    {
+      "id": "E03",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/profiles.py",
+      "range": [
+        25,
+        115
+      ],
+      "observed_at": null,
+      "finding": "Current observer/codex/mutator policy lists. Investigator currently observer-only; rich read set contains redundant/public execution tools."
+    },
+    {
+      "id": "E04",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/cli.py",
+      "range": [
+        113,
+        127
+      ],
+      "observed_at": null,
+      "finding": "Current native CLI plan compile/validate/apply; no separate CLI plan diff subcommand."
+    },
+    {
+      "id": "E05",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/cli.py",
+      "range": [
+        291,
+        315
+      ],
+      "observed_at": null,
+      "finding": "plan validate uses validate_native_plan; plan apply creates current ProposalEnvelope then applies canonical mutation."
+    },
+    {
+      "id": "E06",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/mutation.py",
+      "range": [
+        141,
+        196
+      ],
+      "observed_at": null,
+      "finding": "Native validation/diff and selective replan have current authority/binding checks."
+    },
+    {
+      "id": "E07",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "docs/MAINTENANCE.md",
+      "range": [
+        1,
+        33
+      ],
+      "observed_at": null,
+      "finding": "Current exact prepared recovery/supersession, dirty preservation, principal-bound grants and live continuation."
+    },
+    {
+      "id": "E08",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/services/impact.py",
+      "range": [
+        19,
+        126
+      ],
+      "observed_at": null,
+      "finding": "One-hop graph neighbors; explicit targets labeled proven; lexical seeds and current workflow enrichment."
+    },
+    {
+      "id": "E09",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/graph.py",
+      "range": [
+        40,
+        155
+      ],
+      "observed_at": null,
+      "finding": "Graph rebuilt from snapshot; kind:id node keys; forward/reverse typed edges over Todo/interface/ownership records."
+    },
+    {
+      "id": "E10",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/services/history.py",
+      "range": [
+        99,
+        152
+      ],
+      "observed_at": null,
+      "finding": "Commit bounds currently compare SHA strings; material events and causal policy retained."
+    },
+    {
+      "id": "E11",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/services/evidence.py",
+      "range": [
+        198,
+        233
+      ],
+      "observed_at": null,
+      "finding": "Current confidence label is support/contradiction heuristic; evidence applicability needs stronger presentation."
+    },
+    {
+      "id": "E12",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/call_audit.py",
+      "range": [
+        15,
+        88
+      ],
+      "observed_at": null,
+      "finding": "Bounded call/message metadata audit; not a retained exact information-packet store."
+    },
+    {
+      "id": "E13",
+      "project": "skills",
+      "tool": "source_context",
+      "path": "cuda/SKILL.md",
+      "range": [
+        1,
+        73
+      ],
+      "observed_at": null,
+      "finding": "CUDA controller is front door, host-global physical interlocks; skill guidance currently tells native agents to use observer skill_context/skill_read."
+    },
+    {
+      "id": "E14",
+      "project": "skills",
+      "tool": "source_context",
+      "path": "local-coding-worker/references/resource-policy.md",
+      "range": [
+        1,
+        51
+      ],
+      "observed_at": null,
+      "finding": "Existing cooperative drain/eviction, scoped service slots, capacity cap, third-acquire rejection, TTL and quiescence."
+    },
+    {
+      "id": "E15",
+      "project": "skills",
+      "tool": "source_context",
+      "path": "local-coding-worker/references/integration-contract.md",
+      "range": [
+        1,
+        46
+      ],
+      "observed_at": null,
+      "finding": "Existing subordinate child authority and packet-before-admission lifecycle; preserve dormant coding delegation."
+    },
+    {
+      "id": "E16",
+      "project": "skills",
+      "tool": "source_context",
+      "path": "todo-orchestrator/references/project-plan-v2.md",
+      "range": [
+        1,
+        49
+      ],
+      "observed_at": null,
+      "finding": "Native declarative tasks, dependencies, scopes, resources, gates, interfaces and invariants."
+    },
+    {
+      "id": "E17",
+      "project": "skills",
+      "tool": "source_context",
+      "path": "todo-orchestrator/schemas/project-plan-v3.schema.json",
+      "range": [
+        1,
+        59
+      ],
+      "observed_at": null,
+      "finding": "Native schema-v3 run/lanes plus v2-compatible task entities."
+    },
+    {
+      "id": "E18",
+      "project": "skills",
+      "tool": "source_context",
+      "path": "todo-orchestrator/schemas/project-plan-v2.schema.json",
+      "range": [
+        1,
+        117
+      ],
+      "observed_at": null,
+      "finding": "Task/gate/dependency/scope grammar used for generated native plans."
+    },
+    {
+      "id": "E19",
+      "project": "skills",
+      "tool": "source_context",
+      "path": "planning/pce2/machine/skills.todo-plan.json",
+      "range": [
+        1,
+        176
+      ],
+      "observed_at": null,
+      "finding": "Existing paired PCE2 plan style, serial lane, independent aggregate epic and source preservation requirements."
+    },
+    {
+      "id": "E20",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "docs/ARCHITECTURE.md",
+      "range": [
+        1,
+        86
+      ],
+      "observed_at": null,
+      "finding": "Canonical Todo authority, independent clone/release then Skills gitlink, startup-bound profile isolation."
+    },
+    {
+      "id": "E21",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "AGENTS.md",
+      "range": null,
+      "observed_at": null,
+      "finding": "Read failed as unavailable or escaping registered repository; not treated as an empty instruction file. Local implementer must resolve actual native guidance."
+    },
+    {
+      "id": "E22",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": "src/project_control/services/planning.py",
+      "range": [
+        148,
+        292
+      ],
+      "observed_at": null,
+      "finding": "Current read-only plan_preview accepts native plans, validates/diffs and checks mutation guard; target frontend will remove it from observer."
+    },
+    {
+      "id": "E23",
+      "project": "project-control",
+      "tool": "source_context",
+      "path": ".todo-orchestrator/project.json",
+      "range": [
+        1,
+        18
+      ],
+      "observed_at": "2026-10-04T16:21:30Z",
+      "finding": "Tracked project UUID 76dc6bf0-1223-4dda-bf8b-c306fb7721a7; schema version 2. Used only to identify the observed authority, not as a future mutation precondition."
+    },
+    {
+      "id": "E24",
+      "project": "skills",
+      "repository": "skills",
+      "path": "todo-orchestrator/todo_orchestrator/graph.py",
+      "line_start": 13,
+      "line_end": 42,
+      "file_identity": "b37b8154891fada01b3fe0ed97fed3438cebf0c3d1cdc116f4f4813f1ed2b686",
+      "observed_at": "2026-10-04T16:32:50Z",
+      "finding": "Cycle validation includes parent and prerequisite edges. Aggregate epics must use closure gates rather than dependency back-edges to their own children."
+    },
+    {
+      "id": "E25",
+      "project": "skills",
+      "repository": "skills",
+      "path": "todo-orchestrator/todo_orchestrator/plan.py",
+      "line_start": 34,
+      "line_end": 250,
+      "file_identity": "0c8e36ad106b70e15c54bd679999ad2322a5f478e33d52eceb664180d1c43c2c",
+      "observed_at": "2026-10-04T16:32:40Z",
+      "finding": "Current native validator checks v2/v3 task/run structure, relative scope paths, registered gate specifications and graph acyclicity."
+    }
+  ],
+  "limits": [
+    "Working-tree observations, not proofs that the deployed code imports exactly those bytes. Revalidate runtime binding at bootstrap.",
+    "Paths/ranges are actual returned source anchors; some requested long snippets were truncated by the current tool and only visible text is used.",
+    "AGENTS.md could not be read through the current observer surface.",
+    "This artifact does not include or claim a clone of the remote repositories."
+  ]
+}

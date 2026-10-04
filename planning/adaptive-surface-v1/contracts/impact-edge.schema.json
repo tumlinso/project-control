@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AS1 impact-edge",
+  "type": "object",
+  "required": [
+    "format",
+    "source",
+    "target",
+    "relation",
+    "origin",
+    "provider",
+    "generation",
+    "input_manifest",
+    "resolution"
+  ],
+  "properties": {
+    "format": {
+      "const": "pc-impact-edge/1"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "project_uuid",
+        "repository",
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "project_uuid": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "project_uuid",
+        "repository",
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "project_uuid": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "string"
+    },
+    "origin": {
+      "enum": [
+        "observed",
+        "project_declared",
+        "candidate"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "generation": {
+      "type": "string"
+    },
+    "input_manifest": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "key",
+          "digest"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "file",
+              "configuration",
+              "provider",
+              "exports",
+              "manifest",
+              "directory_membership",
+              "registry",
+              "environment",
+              "semantic_revision"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "resolution": {
+      "enum": [
+        "resolved",
+        "unresolved",
+        "ambiguous",
+        "stale"
+      ]
+    },
+    "witness": {
+      "type": "object"
+    },
+    "change_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

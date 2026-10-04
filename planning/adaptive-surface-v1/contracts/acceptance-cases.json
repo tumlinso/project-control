@@ -1,0 +1,582 @@
+{
+  "format": "pc-as1-acceptance/1",
+  "cases": [
+    {
+      "id": "CON-01",
+      "outcome": "PC-AS1-CONTRACT",
+      "project": "project-control",
+      "behavior": "Requirement ledger, role matrix and current backend reuse map agree; no injected overview or duplicate authority.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_contract.py"
+    },
+    {
+      "id": "CON-02",
+      "outcome": "PC-AS1-CONTRACT",
+      "project": "project-control",
+      "behavior": "Current PCE2 affected work is mapped/adopted/superseded through supported means without unrelated or dirty-work loss.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_contract.py"
+    },
+    {
+      "id": "CON-03",
+      "outcome": "PC-AS1-CONTRACT",
+      "project": "project-control",
+      "behavior": "Cross-authority contracts are versioned and producer receipts identify separate authorities; no foreign native task dependencies.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_contract.py"
+    },
+    {
+      "id": "PKT-01",
+      "outcome": "PC-AS1-PACKETS",
+      "project": "project-control",
+      "behavior": "Returned authorized payloads and provenance survive restart; audit correlation is retained without hidden reasoning or tokens.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_packets.py"
+    },
+    {
+      "id": "PKT-02",
+      "outcome": "PC-AS1-PACKETS",
+      "project": "project-control",
+      "behavior": "Concurrent alias collision, expiry, tombstones, backup/restore and namespace handling never rebind an old alias.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_packets.py"
+    },
+    {
+      "id": "PKT-03",
+      "outcome": "PC-AS1-PACKETS",
+      "project": "project-control",
+      "behavior": "Hint lookup enforces scope, deduplicates content, preserves exact spans and reports stale/expired/omitted inputs.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_packets.py"
+    },
+    {
+      "id": "PKT-04",
+      "outcome": "PC-AS1-PACKETS",
+      "project": "project-control",
+      "behavior": "Retention pins active jobs, recent answer evidence and child packets; GC never deletes required live input.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_packets.py"
+    },
+    {
+      "id": "PKT-05",
+      "outcome": "PC-AS1-PACKETS",
+      "project": "project-control",
+      "behavior": "Negative/discovery and volatile evidence cannot reuse solely by seed/source-file hash; changed dependencies invalidate correctly.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_packets.py"
+    },
+    {
+      "id": "CTX-01",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Overview provides source-backed purpose/architecture/relative paths and catalog when project absent; no automatic injection.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-02",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Delta reports material changes and unavailable baselines without empty-success lies or heartbeat noise.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-03",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Frontier exposes compact and scoped deep coordination with current applicability, no repeated whole-project dossier.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-04",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Observer multi-file read preserves exact content, per-file errors/ranges and immutable revision semantics.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-05",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Absolute/traversal/drive/UNC paths, symlink components/Git blobs and source-read races are rejected or accurately flagged.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-06",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Search retrieves exact typed task, gate, interface, decision, run, packet and investigation identifiers through existing canonical lookup, handles ambiguity and scoped access, and does not invoke fuzzy/lexical retrieval unnecessarily or filesystem discovery; no public find or competing local inspector.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-07",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Search combines semantic/source mechanisms, discovers paths, preserves live fallback and correctly handles exact phrases/symbols. These discovery behaviors remain unchanged when exact typed lookup is absorbed; native/local filesystem discovery continues through find/rg/Git.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-08",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Evidence distinguishes registered/unrun/failed/current/frozen/stale gates and does not call source mentions proof.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-09",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "History handles real Git ancestry/merge ranges and every advertised selector; no lexical SHA ordering or inferred causality.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-10",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Machine is available to all roles, reports volatile source times, and cannot launch probes or mutate leases.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "CTX-11",
+      "outcome": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "behavior": "Applied-skill guidance and notes surface with attributed compact summaries and authoritative follow-up locators.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_context.py"
+    },
+    {
+      "id": "TRC-01",
+      "outcome": "PC-AS1-TRACE",
+      "project": "project-control",
+      "behavior": "Typed multi-hop dependents traversal has witness chains, cycle/fanout handling and correct relation direction.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_trace.py"
+    },
+    {
+      "id": "TRC-02",
+      "outcome": "PC-AS1-TRACE",
+      "project": "project-control",
+      "behavior": "C++ provider reuse, Python imports, manifest/generation, Markdown references and language-neutral export adapter have honest relation types.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_trace.py"
+    },
+    {
+      "id": "TRC-03",
+      "outcome": "PC-AS1-TRACE",
+      "project": "project-control",
+      "behavior": "Cross-project package/interface versions resolve through registered relationships, not names alone; inaccessible edges remain explicit.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_trace.py"
+    },
+    {
+      "id": "TRC-04",
+      "outcome": "PC-AS1-TRACE",
+      "project": "project-control",
+      "behavior": "Unchanged-file import resolution changes, new/untracked consumers, renames/deletions, configuration and watcher loss invalidate coverage.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_trace.py"
+    },
+    {
+      "id": "TRC-05",
+      "outcome": "PC-AS1-TRACE",
+      "project": "project-control",
+      "behavior": "Paths mode avoids full source reads; snippets match graph source identities or return stale/partial; lexical candidates do not explode closure.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_trace.py"
+    },
+    {
+      "id": "TRC-06",
+      "outcome": "PC-AS1-TRACE",
+      "project": "project-control",
+      "behavior": "Warm repeated queries reuse unaffected fragments; new provider plug-in/export fixture integrates without a new public tool.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_trace.py"
+    },
+    {
+      "id": "JOB-01",
+      "outcome": "PC-AS1-JOBS",
+      "project": "project-control",
+      "behavior": "Admission is durable before acceptance and queued work drains after caller disconnect without a later poll triggering execution.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_jobs.py"
+    },
+    {
+      "id": "JOB-02",
+      "outcome": "PC-AS1-JOBS",
+      "project": "project-control",
+      "behavior": "Soft threshold three returns accepted ID plus do-not-wait guidance; hard limits/storage failure never falsely claim acceptance.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_jobs.py"
+    },
+    {
+      "id": "JOB-03",
+      "outcome": "PC-AS1-JOBS",
+      "project": "project-control",
+      "behavior": "Request-ID retries and polling do not duplicate work or acquire GPUs; semantically related questions reuse context without accidental merging.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_jobs.py"
+    },
+    {
+      "id": "JOB-04",
+      "outcome": "PC-AS1-JOBS",
+      "project": "project-control",
+      "behavior": "Queued/running jobs survive dispatcher restart and GPU eviction; fenced old attempts cannot replace resumed output.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_jobs.py"
+    },
+    {
+      "id": "JOB-05",
+      "outcome": "PC-AS1-JOBS",
+      "project": "project-control",
+      "behavior": "Recent log finds prior answers/path/entity evidence, pins required backing packets and revalidates stale results.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_jobs.py"
+    },
+    {
+      "id": "JOB-06",
+      "outcome": "PC-AS1-JOBS",
+      "project": "project-control",
+      "behavior": "Scout uses shared compact tools plus command/log, optional project scope and native skills; no injected overview/recursive delegation/paid fallback.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_jobs.py"
+    },
+    {
+      "id": "JOB-07",
+      "outcome": "PC-AS1-JOBS",
+      "project": "project-control",
+      "behavior": "Sandbox command is no-network/read-only with useful scratch, bounded output, own-process cleanup and truthful coarse versus exact provenance.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_jobs.py"
+    },
+    {
+      "id": "SKL-01",
+      "outcome": "PC-AS1-SKILL",
+      "project": "project-control",
+      "behavior": "Observer-only skill accepts optional name/hints, catalog and unscoped catalog routing; no separate list/read/context surface.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_skill.py"
+    },
+    {
+      "id": "SKL-02",
+      "outcome": "PC-AS1-SKILL",
+      "project": "project-control",
+      "behavior": "Agent is homed in registered skills root and follows native CUDA/Volta/atlas routes and prerequisites.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_skill.py"
+    },
+    {
+      "id": "SKL-03",
+      "outcome": "PC-AS1-SKILL",
+      "project": "project-control",
+      "behavior": "Broker exact-read text/hash/range equals canonical resource; out-of-range, changed selection and redacted resource never masquerade as verbatim.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_skill.py"
+    },
+    {
+      "id": "SKL-04",
+      "outcome": "PC-AS1-SKILL",
+      "project": "project-control",
+      "behavior": "Small synthesis is separate and evidence-linked; shared job/alias/queue/preemption implementation is reused.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_skill.py"
+    },
+    {
+      "id": "MUT-01",
+      "outcome": "PC-AS1-CONTROL",
+      "project": "project-control",
+      "behavior": "Mutator can independently validate/diff/apply/amend/supersede/retire using canonical kernels; observer/coder cannot invoke these operations.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_control.py"
+    },
+    {
+      "id": "MUT-02",
+      "outcome": "PC-AS1-CONTROL",
+      "project": "project-control",
+      "behavior": "Normal no-op/retry/scoped freshness behavior avoids needless revisions or repeated approval, with real transactional postconditions.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_control.py"
+    },
+    {
+      "id": "MUT-03",
+      "outcome": "PC-AS1-CONTROL",
+      "project": "project-control",
+      "behavior": "Amend_project validates identity/relation/generator/provider/skill-use/orientation declarations and invalidates affected derived views.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_control.py"
+    },
+    {
+      "id": "MUT-04",
+      "outcome": "PC-AS1-CONTROL",
+      "project": "project-control",
+      "behavior": "Destructive effect classification requires fresh user permission and host safeguards; model flags or repository prose cannot self-authorize.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_control.py"
+    },
+    {
+      "id": "MUT-05",
+      "outcome": "PC-AS1-CONTROL",
+      "project": "project-control",
+      "behavior": "Maintenance preserves dirty work, successful proof and live ownership; exact grant/receipt replay returns current valid continuation.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_control.py"
+    },
+    {
+      "id": "API-01",
+      "outcome": "PC-AS1-SURFACE",
+      "project": "project-control",
+      "behavior": "Every profile exposes exactly surface.json names; forbidden hidden invocations and legacy aliases cannot bypass policy.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_surface.py"
+    },
+    {
+      "id": "API-02",
+      "outcome": "PC-AS1-SURFACE",
+      "project": "project-control",
+      "behavior": "Extended is schema/dispatch observer-only; native roles do not advertise read/skill adapters or mandatory overview.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_surface.py"
+    },
+    {
+      "id": "API-03",
+      "outcome": "PC-AS1-SURFACE",
+      "project": "project-control",
+      "behavior": "Delegate/collect implementations and state survive, but discovery/dispatch label them temporarily inactive with explicit reactivation.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_surface.py"
+    },
+    {
+      "id": "API-04",
+      "outcome": "PC-AS1-SURFACE",
+      "project": "project-control",
+      "behavior": "New tools share services/envelopes and startup does not start models/reserve GPUs/scan all corpora; doctor and installed docs use new routing.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_surface.py"
+    },
+    {
+      "id": "E2E-01",
+      "outcome": "PC-AS1-QUALIFY",
+      "project": "project-control",
+      "behavior": "Observer orientation-to-batch-read, evidence and cross-project trace journey succeeds with genuine locators.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_qualify.py"
+    },
+    {
+      "id": "E2E-02",
+      "outcome": "PC-AS1-QUALIFY",
+      "project": "project-control",
+      "behavior": "Coder and mutator native/task/planning journeys succeed without observer adapter or context tax.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_qualify.py"
+    },
+    {
+      "id": "E2E-03",
+      "outcome": "PC-AS1-QUALIFY",
+      "project": "project-control",
+      "behavior": "Busy scout and skill authority journeys execute against real local inference with restart/eviction reuse.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_qualify.py"
+    },
+    {
+      "id": "E2E-04",
+      "outcome": "PC-AS1-QUALIFY",
+      "project": "project-control",
+      "behavior": "Matched old/new journeys report total bytes/calls/retries/model usage/latency and no correctness or evidence loss.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_qualify.py"
+    },
+    {
+      "id": "E2E-05",
+      "outcome": "PC-AS1-QUALIFY",
+      "project": "project-control",
+      "behavior": "Independent review and all required conformance cases have current executed evidence; no missing/skipped required product gates.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_qualify.py"
+    },
+    {
+      "id": "REL-01",
+      "outcome": "PC-AS1-RELEASE",
+      "project": "project-control",
+      "behavior": "Paired runtime identity, Skills gitlink and exact new role surfaces are verified on the installed candidate and live registration.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_release.py"
+    },
+    {
+      "id": "REL-02",
+      "outcome": "PC-AS1-RELEASE",
+      "project": "project-control",
+      "behavior": "Rollback preserves forward state/queued jobs and prior launcher; no Todo database restoration over new work.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_release.py"
+    },
+    {
+      "id": "REL-03",
+      "outcome": "PC-AS1-RELEASE",
+      "project": "project-control",
+      "behavior": "PCE2 affected work is reconciled and AS1 receipts current; unrelated source and paused NF1A remain untouched.",
+      "required": true,
+      "test_file": "tests/as1/test_pc_as1_release.py"
+    },
+    {
+      "id": "SEM-01",
+      "outcome": "SK-AS1-SEMANTICS",
+      "project": "skills",
+      "behavior": "Additive kernel migration/read/export supports declarations and applied skill context with one authority and material revisions.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_semantics.py"
+    },
+    {
+      "id": "SEM-02",
+      "outcome": "SK-AS1-SEMANTICS",
+      "project": "skills",
+      "behavior": "Typed plan amendments/registration/maintenance reuse transactions, preservation, replay and truthful evidence applicability.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_semantics.py"
+    },
+    {
+      "id": "SEM-03",
+      "outcome": "SK-AS1-SEMANTICS",
+      "project": "skills",
+      "behavior": "Scoped coder publication and mutator project-wide declarations have distinct authority; derived indexes invalidate without manual edits.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_semantics.py"
+    },
+    {
+      "id": "RUN-01",
+      "outcome": "SK-AS1-RUNTIME",
+      "project": "skills",
+      "behavior": "Investigator/skill modes use one verified backend with job-scoped state and no task/child mutation authority.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_runtime.py"
+    },
+    {
+      "id": "RUN-02",
+      "outcome": "SK-AS1-RUNTIME",
+      "project": "skills",
+      "behavior": "Warm reuse, mode isolation, cooperative yields and bounded output work with durable broker attempt fencing.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_runtime.py"
+    },
+    {
+      "id": "RUN-03",
+      "outcome": "SK-AS1-RUNTIME",
+      "project": "skills",
+      "behavior": "Existing coding delegate/collect implementations/tests remain functional internally but native model routing marks them temporarily inactive.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_runtime.py"
+    },
+    {
+      "id": "GPU-01",
+      "outcome": "SK-AS1-GPU",
+      "project": "skills",
+      "behavior": "Foreground CUDA work evicts only overlapping idle observer residency through the existing host-global interlock.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_gpu.py"
+    },
+    {
+      "id": "GPU-02",
+      "outcome": "SK-AS1-GPU",
+      "project": "skills",
+      "behavior": "Quiescence/VRAM and physical lease release are observed before reassignment; live model processes cannot be expired away.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_gpu.py"
+    },
+    {
+      "id": "GPU-03",
+      "outcome": "SK-AS1-GPU",
+      "project": "skills",
+      "behavior": "Active cooperative yield/restart retains job evidence; separate islands and unrelated foreground work remain intact.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_gpu.py"
+    },
+    {
+      "id": "GPU-04",
+      "outcome": "SK-AS1-GPU",
+      "project": "skills",
+      "behavior": "Real installed multi-GPU eviction/reuse qualification leaves no residual model/test leases and discovers UUIDs/topology dynamically.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_gpu.py"
+    },
+    {
+      "id": "NAT-01",
+      "outcome": "SK-AS1-ROUTING",
+      "project": "skills",
+      "behavior": "Native coder/mutator/scout guidance uses filesystem/command skill access, not removed observer adapters or injected overview.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_routing.py"
+    },
+    {
+      "id": "NAT-02",
+      "outcome": "SK-AS1-ROUTING",
+      "project": "skills",
+      "behavior": "Applied-versus-consulted skill publishing is integrated into normal context/handoff flow with source-bound route relevance.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_routing.py"
+    },
+    {
+      "id": "NAT-03",
+      "outcome": "SK-AS1-ROUTING",
+      "project": "skills",
+      "behavior": "CUDA/atlas technical bodies, IDs, edges, compendium and ZIP match captured baseline except explicitly justified routing-reference repairs.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_routing.py"
+    },
+    {
+      "id": "NAT-04",
+      "outcome": "SK-AS1-ROUTING",
+      "project": "skills",
+      "behavior": "Skill catalog and maps cover accessible installed skills and nested native routes, with explicit missing/unsupported entries.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_routing.py"
+    },
+    {
+      "id": "SQA-01",
+      "outcome": "SK-AS1-QUALIFY",
+      "project": "skills",
+      "behavior": "Current canonical Todo/read/runtime identity and native workflows work against the Project Control surface candidate.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_qualify.py"
+    },
+    {
+      "id": "SQA-02",
+      "outcome": "SK-AS1-QUALIFY",
+      "project": "skills",
+      "behavior": "Real scout/skill/eviction journeys and preserved dormant coding delegation have executed evidence.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_qualify.py"
+    },
+    {
+      "id": "SQA-03",
+      "outcome": "SK-AS1-QUALIFY",
+      "project": "skills",
+      "behavior": "Producer receipts identify exact Skills authority/source/contracts and are consumed without foreign native dependency hacks.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_qualify.py"
+    },
+    {
+      "id": "PIN-01",
+      "outcome": "SK-AS1-RELEASE",
+      "project": "skills",
+      "behavior": "Skills gitlink pins the qualified standalone Project Control release, not copied source or divergent runtime.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_release.py"
+    },
+    {
+      "id": "PIN-02",
+      "outcome": "SK-AS1-RELEASE",
+      "project": "skills",
+      "behavior": "Bound installation/native instructions and rollback manifest are verified; queued state and user projects are preserved.",
+      "required": true,
+      "test_file": "tests/as1/test_sk_as1_release.py"
+    }
+  ],
+  "policy": "Each required ID must be represented by executed passing runtime tests, not docs/schema-only checks where effects are required."
+}

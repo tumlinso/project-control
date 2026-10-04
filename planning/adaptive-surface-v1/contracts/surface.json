@@ -1,0 +1,228 @@
+{
+  "format": "pc-adaptive-surface/1",
+  "profiles": {
+    "observer": {
+      "tools": [
+        "overview",
+        "delta",
+        "frontier",
+        "search",
+        "evidence",
+        "impact",
+        "history",
+        "machine",
+        "read",
+        "investigate",
+        "skill"
+      ],
+      "details": [
+        "compact",
+        "standard",
+        "extended"
+      ],
+      "native_filesystem": false,
+      "automatic_overview": false
+    },
+    "investigator": {
+      "tools": [
+        "overview",
+        "delta",
+        "frontier",
+        "search",
+        "evidence",
+        "impact",
+        "history",
+        "machine",
+        "command",
+        "log"
+      ],
+      "details": [
+        "compact",
+        "standard"
+      ],
+      "native_filesystem": true,
+      "automatic_overview": false,
+      "internal": true
+    },
+    "coder": {
+      "tools": [
+        "overview",
+        "delta",
+        "frontier",
+        "search",
+        "evidence",
+        "impact",
+        "history",
+        "machine",
+        "next_task",
+        "inspect_task",
+        "coordinate_task",
+        "finish_task"
+      ],
+      "details": [
+        "compact",
+        "standard"
+      ],
+      "native_filesystem": true,
+      "automatic_overview": false,
+      "compatibility_profile_name": "codex"
+    },
+    "mutator": {
+      "tools": [
+        "overview",
+        "delta",
+        "frontier",
+        "search",
+        "evidence",
+        "impact",
+        "history",
+        "machine",
+        "investigate",
+        "next_task",
+        "inspect_task",
+        "coordinate_task",
+        "finish_task",
+        "plan",
+        "amend_project",
+        "maintain_execution"
+      ],
+      "details": [
+        "compact",
+        "standard"
+      ],
+      "native_filesystem": true,
+      "automatic_overview": false
+    },
+    "skill_assembler": {
+      "tools": [
+        "overview",
+        "delta",
+        "frontier",
+        "search",
+        "evidence",
+        "impact",
+        "history",
+        "machine",
+        "command",
+        "log"
+      ],
+      "details": [
+        "compact",
+        "standard"
+      ],
+      "native_filesystem": true,
+      "automatic_overview": false,
+      "internal": true,
+      "mode_of": "investigator",
+      "home": "registered_skills_root"
+    }
+  },
+  "shared_information_tools": [
+    "overview",
+    "delta",
+    "frontier",
+    "search",
+    "evidence",
+    "impact",
+    "history",
+    "machine"
+  ],
+  "workflow_tools": [
+    "next_task",
+    "inspect_task",
+    "coordinate_task",
+    "finish_task"
+  ],
+  "removed_default_names": [
+    "project_overview",
+    "project_delta",
+    "project_frontier",
+    "architecture_context",
+    "source_context",
+    "inspect",
+    "coordination_view",
+    "program_context",
+    "history_trace",
+    "impact_preview",
+    "skill_list",
+    "skill_context",
+    "skill_read",
+    "plan_preview",
+    "apply_plan",
+    "terminal_capture",
+    "performance_probe",
+    "agent_status",
+    "performance_status",
+    "local_investigate",
+    "find"
+  ],
+  "temporarily_inactive": {
+    "delegate_task": {
+      "preserve_implementation": true,
+      "dispatch": "temporarily_inactive",
+      "reenable": "explicit operator decision; no timed reactivation"
+    },
+    "collect_delegation": {
+      "preserve_implementation": true,
+      "dispatch": "temporarily_inactive",
+      "reenable": "explicit operator decision; no timed reactivation"
+    }
+  },
+  "common_contract": {
+    "default_detail": "compact",
+    "proposed_response_budgets_bytes": {
+      "compact": 2048,
+      "standard": 8192,
+      "extended": 65536
+    },
+    "extended_profiles": [
+      "observer"
+    ],
+    "source_paths": "relative_only",
+    "source_locators": [
+      "project",
+      "repository",
+      "path",
+      "identity"
+    ],
+    "all_information_results_packetized": true,
+    "mutation_authority_from_hints": false
+  },
+  "mutator_actions": {
+    "plan": [
+      "validate",
+      "diff",
+      "apply",
+      "amend",
+      "supersede",
+      "retire"
+    ],
+    "amend_project": [
+      "register_identity",
+      "register_relation",
+      "register_generation",
+      "configure_provider",
+      "remove_registration",
+      "record_skill_use",
+      "update_orientation"
+    ],
+    "maintain_execution": [
+      "diagnose",
+      "prepare",
+      "execute"
+    ]
+  },
+  "search_contract": {
+    "query_forms": [
+      "discovery_query",
+      "exact_typed_entity"
+    ],
+    "exact_typed_entity": {
+      "kind": "semantic entity type",
+      "target": "exact canonical identifier"
+    },
+    "exact_routing": "existing canonical lookup directly; cheapest deterministic path; no unnecessary fuzzy or lexical retrieval; no filesystem discovery",
+    "discovery_behavior": "unchanged",
+    "native_filesystem_discovery": "native find/rg/Git"
+  }
+}

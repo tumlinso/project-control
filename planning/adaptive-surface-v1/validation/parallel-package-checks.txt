@@ -1,0 +1,11 @@
+Package-only validation; not product acceptance. No live plan import, claims, dispatch or workspace preparation.
+Installed candidate pure validate_plan: project-control valid=true, 11 tasks, 20 gates; skills valid=true, 7 tasks, 12 gates. Live authority validation remains required.
+
+$ .venv/bin/python planning/project-control-adaptive-surface-bootstrap/scripts/check_package.py --require-manifest
+{"acceptance_cases": 72, "checksums_verified": 53, "kind": "package_consistency_not_product_acceptance", "native_tasks": {"project-control": 11, "skills": 7}, "outcomes": 16, "requirements": 45, "schema_checks": {"examples": 7, "status": "passed"}, "status": "passed"}
+exit_status=0
+
+$ .venv/bin/python -m pytest planning/project-control-adaptive-surface-bootstrap/tests -q
+.........................                                [100%]
+25 passed, 16 subtests passed in 0.85s
+exit_status=0

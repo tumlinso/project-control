@@ -1,0 +1,41 @@
+{
+  "format": "pc-as1-preparation-preview-extract/1",
+  "provenance": "Selected fields copied from actual current project-control.plan_preview response, not a complete raw response or apply authorization.",
+  "project": "skills",
+  "tool": "plan_preview",
+  "mode": "validate",
+  "detail": "compact",
+  "observed_at": "2026-10-04T16:33:57Z",
+  "status": "ok",
+  "valid": true,
+  "would_add": [
+    "SK-AS1-0000",
+    "SK-AS1-GPU",
+    "SK-AS1-QUALIFY",
+    "SK-AS1-RELEASE",
+    "SK-AS1-ROUTING",
+    "SK-AS1-RUNTIME",
+    "SK-AS1-SEMANTICS"
+  ],
+  "would_modify": [],
+  "dependency_errors": [],
+  "scope_conflicts": [],
+  "interface_errors": [],
+  "warnings": [],
+  "plan_digest": "a86f9d362b68d26178c2919d456e4e64d3d867ed7d36cab09fa7d17c9ba6197a",
+  "plan_digest_algorithm": "sha256(json.dumps(native_plan, sort_keys=True, indent=2).encode(utf-8))",
+  "plan_file_sha256": "e297f040bcbd671ef9c945b853a45630309d565cf84601ab2d7a834e003f6c78",
+  "base_revision": 887,
+  "base_commits": {
+    "skills": "7516ebf66a57370c6085ab46ee24773f5a23dd2a"
+  },
+  "mutation_guard": "unchanged",
+  "plan_schema_version_observed": 3,
+  "accepted_plan_schema_versions": [
+    2,
+    3
+  ],
+  "authority_to_apply": false,
+  "file_matches_validated_payload": true,
+  "limits": "Validation at this observation only. Bootstrap must stage and revalidate against current authority before any import."
+}

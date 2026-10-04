@@ -1,0 +1,24 @@
+{
+  "format": "pc-as1-parallel-correction/1",
+  "reason": "Root-approved isolated Project Control producer lanes and exclusive integration; Skills remains one exclusive ordered lane. Search correction and all prior contracts remain intact.",
+  "authority_to_apply": false,
+  "requires_live_revalidation_before_import": true,
+  "plans": {
+    "project-control": {
+      "project": "project-control",
+      "historical_preview": "validation/project-control.live-preview.json",
+      "historical_plan_digest": "60fb8866eecaad579c605a4b02261930ad9507725d4b00a16caeb15fb4ef3523",
+      "corrected_plan_digest": "f7840a41e59ffa79ed01cac684e2d4d9deb8e5d7b15d37c69e309991155e3105",
+      "corrected_plan_file_sha256": "a1caedc0210ae78521e22e45d5ce077ef8059fdd62b2dff4e62da853e39cc029",
+      "live_preview_status": "stale_for_corrected_plan"
+    },
+    "skills": {
+      "project": "skills",
+      "historical_preview": "validation/skills.live-preview.json",
+      "historical_plan_digest": "a86f9d362b68d26178c2919d456e4e64d3d867ed7d36cab09fa7d17c9ba6197a",
+      "corrected_plan_digest": "904dd6213db4aada15d94546c51033ea5779b442ab5e1dc21c8c5a3cc084ff10",
+      "corrected_plan_file_sha256": "6531a43f77bb6d118ee3b6efbe3a65e703489bb8a0cb0c92e336ebc7a9f21a7f",
+      "live_preview_status": "stale_for_corrected_plan"
+    }
+  }
+}

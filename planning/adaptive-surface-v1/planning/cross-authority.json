@@ -1,0 +1,97 @@
+{
+  "format": "pc-as1-cross-authority/1",
+  "edges": [
+    {
+      "id": "B-CONTRACT",
+      "producer": "PC-AS1-CONTRACT",
+      "consumers": [
+        "SK-AS1-SEMANTICS",
+        "SK-AS1-RUNTIME",
+        "SK-AS1-ROUTING"
+      ],
+      "artifact": "surface/packet/job/provider/semantic contracts and current reconciliation decisions"
+    },
+    {
+      "id": "B-SEMANTICS",
+      "producer": "SK-AS1-SEMANTICS",
+      "consumers": [
+        "PC-AS1-CONTEXT",
+        "PC-AS1-TRACE",
+        "PC-AS1-CONTROL"
+      ],
+      "artifact": "canonical declaration/read/export/amendment and skill-use contracts"
+    },
+    {
+      "id": "B-WORKER",
+      "producer": "SK-AS1-RUNTIME",
+      "consumers": [
+        "PC-AS1-JOBS",
+        "PC-AS1-SKILL"
+      ],
+      "artifact": "verified read-only worker modes, session/yield/source policy"
+    },
+    {
+      "id": "B-GPU",
+      "producer": "SK-AS1-GPU",
+      "consumers": [
+        "PC-AS1-JOBS",
+        "PC-AS1-SKILL",
+        "PC-AS1-QUALIFY"
+      ],
+      "artifact": "host-global observer/skill residency preemption and quiescence proof"
+    },
+    {
+      "id": "B-ROUTING",
+      "producer": "SK-AS1-ROUTING",
+      "consumers": [
+        "PC-AS1-SKILL",
+        "PC-AS1-SURFACE"
+      ],
+      "artifact": "native skills/catalog/routes and preserved corpus identities"
+    },
+    {
+      "id": "B-SURFACE",
+      "producer": "PC-AS1-SURFACE",
+      "consumers": [
+        "SK-AS1-QUALIFY"
+      ],
+      "artifact": "fully wired candidate profile schemas and source/runtime identity"
+    },
+    {
+      "id": "B-SQA",
+      "producer": "SK-AS1-QUALIFY",
+      "consumers": [
+        "PC-AS1-QUALIFY"
+      ],
+      "artifact": "paired interoperability evidence"
+    },
+    {
+      "id": "B-PCQA",
+      "producer": "PC-AS1-QUALIFY",
+      "consumers": [
+        "SK-AS1-RELEASE"
+      ],
+      "artifact": "qualified standalone commit and contracts ready to pin"
+    },
+    {
+      "id": "B-SKPIN",
+      "producer": "SK-AS1-RELEASE",
+      "consumers": [
+        "PC-AS1-RELEASE"
+      ],
+      "artifact": "Skills gitlink and bound paired runtime release receipt"
+    }
+  ],
+  "receipt_fields": [
+    "producer_project_uuid",
+    "producer_task_id",
+    "gate_ids",
+    "source_identity",
+    "contract_hashes",
+    "artifact_locators",
+    "checked_at",
+    "status"
+  ],
+  "import_rule": "Receiver verifies current producing authority/gate/source relevance through canonical read/evidence. Publish an attributed imported context/receipt; never copy a foreign task into local Todo authority.",
+  "global_atomicity": false
+}

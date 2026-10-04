@@ -1,0 +1,35 @@
+{
+  "checked_on": "2026-10-04",
+  "references": [
+    {
+      "id": "X01",
+      "title": "SCIP Code Intelligence Protocol",
+      "url": "https://github.com/scip-code/scip",
+      "use": "Language-neutral symbol/reference/index interchange can be imported; it is not a complete behavioral dependency oracle."
+    },
+    {
+      "id": "X02",
+      "title": "Tree-sitter introduction",
+      "url": "https://tree-sitter.github.io/tree-sitter/",
+      "use": "Incremental concrete syntax trees support syntax extraction, not automatic full name/type resolution."
+    },
+    {
+      "id": "X03",
+      "title": "Rust Compiler Development Guide: incremental compilation in detail",
+      "url": "https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html",
+      "use": "Dependency/input fingerprints and changed output tracking motivate precise invalidation rather than file-only assumptions."
+    },
+    {
+      "id": "X04",
+      "title": "Git rev-list documentation",
+      "url": "https://git-scm.com/docs/git-rev-list",
+      "use": "Commit history is traversed through ancestry and revision-set/range semantics, not lexical SHA ordering."
+    },
+    {
+      "id": "X05",
+      "title": "SQLite write-ahead logging",
+      "url": "https://www.sqlite.org/wal.html",
+      "use": "Private durable queue storage must respect transaction/checkpoint and deployment-filesystem constraints."
+    }
+  ]
+}

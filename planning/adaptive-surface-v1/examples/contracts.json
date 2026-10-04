@@ -1,0 +1,126 @@
+{
+  "locator": {
+    "project": "fixture",
+    "repository": "main",
+    "path": "src/example.py",
+    "content_sha256": "6d03245c5ee4e8c46652da5c0cc055681eb0c20115d34ac34093299969e5ec9e",
+    "revision": "fixture-revision",
+    "line_start": 1,
+    "line_end": 2
+  },
+  "packet": {
+    "format": "pc-packet/1",
+    "packet_id": "fixture-packet-001",
+    "alias": "amber-finch",
+    "created_at": "2026-10-04T16:00:00Z",
+    "expires_at": "2026-10-11T16:00:00Z",
+    "tool": "read",
+    "payload": {
+      "status": "ok",
+      "text": "def example():\n    return 1\n"
+    },
+    "payload_sha256": "09779fe699cb19763d8c594d8d086a4d797ae8ddaa792fb4ca721885f244b606",
+    "sources": [
+      {
+        "project": "fixture",
+        "repository": "main",
+        "path": "src/example.py",
+        "content_sha256": "6d03245c5ee4e8c46652da5c0cc055681eb0c20115d34ac34093299969e5ec9e",
+        "revision": "fixture-revision",
+        "line_start": 1,
+        "line_end": 2
+      }
+    ],
+    "parents": [],
+    "access_scope": {
+      "project": "fixture"
+    },
+    "freshness": {
+      "state": "current_as_observed"
+    }
+  },
+  "job": {
+    "format": "pc-job/1",
+    "job_id": "fixture-job-001",
+    "mode": "investigate",
+    "question": "Where is the fixture implementation?",
+    "project": "fixture",
+    "hints": [
+      "amber-finch"
+    ],
+    "status": "queued",
+    "attempt": 0,
+    "created_at": "2026-10-04T16:00:00Z",
+    "findings": [],
+    "evidence_packets": [],
+    "unresolved_questions": []
+  },
+  "skill-selection": {
+    "format": "pc-skill-selection/1",
+    "selections": [
+      {
+        "skill": "fixture-skill",
+        "resource": "references/example.md",
+        "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "line_start": 1,
+        "line_end": 12,
+        "reason": "Relevant fixture guidance",
+        "prerequisites": []
+      }
+    ],
+    "synthesis": "Selection explanation only; broker direct-read text is the authority.",
+    "unresolved": []
+  },
+  "impact-edge": {
+    "format": "pc-impact-edge/1",
+    "source": {
+      "project_uuid": "fixture-consumer",
+      "repository": "main",
+      "kind": "module",
+      "id": "consumer",
+      "path": "consumer.py"
+    },
+    "target": {
+      "project_uuid": "fixture-provider",
+      "repository": "main",
+      "kind": "module",
+      "id": "provider",
+      "path": "provider.py"
+    },
+    "relation": "depends_on",
+    "origin": "observed",
+    "provider": "python-imports/1",
+    "generation": "fixture-generation-1",
+    "input_manifest": [
+      {
+        "kind": "file",
+        "key": "consumer.py",
+        "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      {
+        "kind": "exports",
+        "key": "provider",
+        "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ],
+    "resolution": "resolved"
+  },
+  "registration": {
+    "format": "pc-project-amendment/1",
+    "project": "fixture",
+    "action": "register_identity",
+    "intent": "Resolve the fixture package to its registered source project.",
+    "expected_revision": 4,
+    "operation_id": "fixture-operation-001",
+    "payload": {
+      "package": "fixture-provider",
+      "target_project": "fixture-provider",
+      "version": "1"
+    },
+    "mode": "preview"
+  },
+  "search-query": {
+    "kind": "task",
+    "target": "PC-AS1-CONTEXT"
+  }
+}

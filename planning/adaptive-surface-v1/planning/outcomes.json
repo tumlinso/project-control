@@ -1,0 +1,458 @@
+{
+  "format": "pc-as1-outcomes/1",
+  "outcomes": [
+    {
+      "id": "PC-AS1-CONTRACT",
+      "project": "project-control",
+      "title": "Freeze contracts and reconcile existing work",
+      "objective": "Make this design executable against current runtime reality without losing prior work.",
+      "depends_on": [],
+      "specs": [
+        "spec/00-purpose-and-decisions.md"
+      ],
+      "source_anchors": [
+        "src/project_control/profiles.py",
+        "src/project_control/models.py",
+        "src/project_control/workflow_tools.py",
+        "planning/pce2",
+        "docs/ARCHITECTURE.md"
+      ],
+      "acceptance_cases": [
+        "CON-01",
+        "CON-02",
+        "CON-03"
+      ],
+      "test_file": "tests/as1/test_pc_as1_contract.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-PACKETS",
+      "project": "project-control",
+      "title": "Build reusable source-bound information packets",
+      "objective": "Make information reusable through durable exact payloads, non-reused word aliases and freshness-aware hints.",
+      "depends_on": [
+        "PC-AS1-CONTRACT"
+      ],
+      "specs": [
+        "spec/02-packets-and-scouts.md"
+      ],
+      "source_anchors": [
+        "src/project_control/call_audit.py",
+        "src/project_control/normalize.py",
+        "src/project_control/models.py",
+        "src/project_control/context_fragments.py"
+      ],
+      "acceptance_cases": [
+        "PKT-01",
+        "PKT-02",
+        "PKT-03",
+        "PKT-04",
+        "PKT-05"
+      ],
+      "test_file": "tests/as1/test_pc_as1_packets.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-CONTEXT",
+      "project": "project-control",
+      "title": "Consolidate orientation and deterministic context",
+      "objective": "Deliver overview/delta/frontier/read/search/evidence/history/machine through canonical services.",
+      "depends_on": [
+        "PC-AS1-PACKETS"
+      ],
+      "specs": [
+        "spec/01-tools-and-profiles.md"
+      ],
+      "source_anchors": [
+        "src/project_control/services/overview.py",
+        "src/project_control/services/frontier.py",
+        "src/project_control/services/delta.py",
+        "src/project_control/services/source_context.py",
+        "src/project_control/services/inspect.py",
+        "src/project_control/services/architecture.py",
+        "src/project_control/services/coordination.py",
+        "src/project_control/services/evidence.py",
+        "src/project_control/services/history.py",
+        "src/project_control/services/machine_inspection.py",
+        "src/project_control/source_index.py"
+      ],
+      "acceptance_cases": [
+        "CTX-01",
+        "CTX-02",
+        "CTX-03",
+        "CTX-04",
+        "CTX-05",
+        "CTX-06",
+        "CTX-07",
+        "CTX-08",
+        "CTX-09",
+        "CTX-10",
+        "CTX-11"
+      ],
+      "test_file": "tests/as1/test_pc_as1_context.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-TRACE",
+      "project": "project-control",
+      "title": "Implement heterogeneous incremental dependency tracing",
+      "objective": "Make impact a directed, source-bound, cross-project tracer with honest provider-scoped completeness.",
+      "depends_on": [
+        "PC-AS1-CONTEXT"
+      ],
+      "specs": [
+        "spec/03-impact-history-evidence.md"
+      ],
+      "source_anchors": [
+        "src/project_control/graph.py",
+        "src/project_control/services/impact.py",
+        "src/project_control/registry.py",
+        "src/project_control/source_index.py",
+        "src/project_control/adapters/ctxpp.py",
+        "src/project_control/adapters/git.py"
+      ],
+      "acceptance_cases": [
+        "TRC-01",
+        "TRC-02",
+        "TRC-03",
+        "TRC-04",
+        "TRC-05",
+        "TRC-06"
+      ],
+      "test_file": "tests/as1/test_pc_as1_trace.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-JOBS",
+      "project": "project-control",
+      "title": "Run durable command-first investigation jobs",
+      "objective": "Serve bounded scout questions with persistent queue/log/hints, independent dispatch and restart-safe attempts.",
+      "depends_on": [
+        "PC-AS1-PACKETS"
+      ],
+      "specs": [
+        "spec/02-packets-and-scouts.md"
+      ],
+      "source_anchors": [
+        "src/project_control/services/local_investigate.py",
+        "src/project_control/services/readonly_exec.py",
+        "src/project_control/observer_analysis.py",
+        "src/project_control/app.py"
+      ],
+      "acceptance_cases": [
+        "JOB-01",
+        "JOB-02",
+        "JOB-03",
+        "JOB-04",
+        "JOB-05",
+        "JOB-06",
+        "JOB-07"
+      ],
+      "test_file": "tests/as1/test_pc_as1_jobs.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-SKILL",
+      "project": "project-control",
+      "title": "Deliver routed skill authority through one adapter",
+      "objective": "Use the shared local worker in skills-home mode to select sources; broker returns direct text plus tiny labeled synthesis.",
+      "depends_on": [
+        "PC-AS1-JOBS"
+      ],
+      "specs": [
+        "spec/04-skills-and-resources.md"
+      ],
+      "source_anchors": [
+        "src/project_control/skills.py",
+        "src/project_control/skill_context.py",
+        "src/project_control/observer_analysis.py",
+        "src/project_control/app.py"
+      ],
+      "acceptance_cases": [
+        "SKL-01",
+        "SKL-02",
+        "SKL-03",
+        "SKL-04"
+      ],
+      "test_file": "tests/as1/test_pc_as1_skill.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-CONTROL",
+      "project": "project-control",
+      "title": "Expose complete transactional mutator control",
+      "objective": "Give mutator independent planning, typed project registration and safe maintenance without raw admin ritual.",
+      "depends_on": [
+        "PC-AS1-CONTEXT",
+        "PC-AS1-TRACE"
+      ],
+      "specs": [
+        "spec/05-mutation-and-registration.md"
+      ],
+      "source_anchors": [
+        "src/project_control/mutation.py",
+        "src/project_control/mutation_tools.py",
+        "src/project_control/admin.py",
+        "src/project_control/workflow_core",
+        "src/project_control/maintenance_host.py"
+      ],
+      "acceptance_cases": [
+        "MUT-01",
+        "MUT-02",
+        "MUT-03",
+        "MUT-04",
+        "MUT-05"
+      ],
+      "test_file": "tests/as1/test_pc_as1_control.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-SURFACE",
+      "project": "project-control",
+      "title": "Wire and document the new role-aware frontend",
+      "objective": "Replace ordinary discovery, dispatch, descriptions, schemas, modes and routing with the consolidated API.",
+      "depends_on": [
+        "PC-AS1-CONTEXT",
+        "PC-AS1-TRACE",
+        "PC-AS1-JOBS",
+        "PC-AS1-SKILL",
+        "PC-AS1-CONTROL"
+      ],
+      "specs": [
+        "spec/01-tools-and-profiles.md"
+      ],
+      "source_anchors": [
+        "src/project_control/profiles.py",
+        "src/project_control/app.py",
+        "src/project_control/cli.py",
+        "docs",
+        "tests",
+        "packaging"
+      ],
+      "acceptance_cases": [
+        "API-01",
+        "API-02",
+        "API-03",
+        "API-04"
+      ],
+      "test_file": "tests/as1/test_pc_as1_surface.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-QUALIFY",
+      "project": "project-control",
+      "title": "Qualify complete role journeys and economics",
+      "objective": "Prove correctness and useful-context efficiency across the whole paired candidate, not individual renamed tools.",
+      "depends_on": [
+        "PC-AS1-SURFACE"
+      ],
+      "specs": [
+        "spec/06-acceptance-and-economics.md"
+      ],
+      "source_anchors": [
+        "tests",
+        "packaging",
+        "docs"
+      ],
+      "acceptance_cases": [
+        "E2E-01",
+        "E2E-02",
+        "E2E-03",
+        "E2E-04",
+        "E2E-05"
+      ],
+      "test_file": "tests/as1/test_pc_as1_qualify.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "PC-AS1-RELEASE",
+      "project": "project-control",
+      "title": "Activate and verify the paired adaptive surface",
+      "objective": "Deploy the qualified bound runtime and prove live new profile surfaces with rollback and persisted jobs intact.",
+      "depends_on": [
+        "PC-AS1-QUALIFY"
+      ],
+      "specs": [
+        "spec/07-bootstrap-and-release.md"
+      ],
+      "source_anchors": [
+        "packaging",
+        "scripts",
+        "docs",
+        "src/project_control/runtime_identity.py",
+        "planning/adaptive-surface-v1"
+      ],
+      "acceptance_cases": [
+        "REL-01",
+        "REL-02",
+        "REL-03"
+      ],
+      "test_file": "tests/as1/test_pc_as1_release.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "SK-AS1-SEMANTICS",
+      "project": "skills",
+      "title": "Extend canonical semantic and mutation contracts",
+      "objective": "Supply durable project declarations/skill usage/orientation and typed amendments through the existing Todo authority.",
+      "depends_on": [],
+      "specs": [
+        "spec/05-mutation-and-registration.md"
+      ],
+      "source_anchors": [
+        "todo-orchestrator",
+        "integrations/coding-workflow-mcp"
+      ],
+      "acceptance_cases": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "test_file": "tests/as1/test_sk_as1_semantics.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "SK-AS1-RUNTIME",
+      "project": "skills",
+      "title": "Adapt the existing local service for read-only scout modes",
+      "objective": "Reuse the model supervisor in investigator/skill modes without tying persistent jobs to GPU or child coding authority.",
+      "depends_on": [
+        "SK-AS1-SEMANTICS"
+      ],
+      "specs": [
+        "spec/02-packets-and-scouts.md"
+      ],
+      "source_anchors": [
+        "local-coding-worker",
+        "integrations/coding-workflow-mcp"
+      ],
+      "acceptance_cases": [
+        "RUN-01",
+        "RUN-02",
+        "RUN-03"
+      ],
+      "test_file": "tests/as1/test_sk_as1_runtime.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "SK-AS1-GPU",
+      "project": "skills",
+      "title": "Make warm observer models reclaimable by foreground work",
+      "objective": "Complete observer/skill residency participation in the existing host-global CUDA eviction/interlock protocol.",
+      "depends_on": [
+        "SK-AS1-RUNTIME"
+      ],
+      "specs": [
+        "spec/04-skills-and-resources.md"
+      ],
+      "source_anchors": [
+        "cuda/scripts",
+        "cuda/tests",
+        "local-coding-worker"
+      ],
+      "acceptance_cases": [
+        "GPU-01",
+        "GPU-02",
+        "GPU-03",
+        "GPU-04"
+      ],
+      "test_file": "tests/as1/test_sk_as1_gpu.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "SK-AS1-ROUTING",
+      "project": "skills",
+      "title": "Make native skills role-efficient and preserve corpus routing",
+      "objective": "Update instruction routing for native agents and the observer adapter without rewriting technical skill content.",
+      "depends_on": [
+        "SK-AS1-SEMANTICS",
+        "SK-AS1-GPU"
+      ],
+      "specs": [
+        "spec/04-skills-and-resources.md"
+      ],
+      "source_anchors": [
+        "cuda",
+        "local-coding-worker",
+        "todo-orchestrator",
+        "cpp-context-compiler",
+        "integrations"
+      ],
+      "acceptance_cases": [
+        "NAT-01",
+        "NAT-02",
+        "NAT-03",
+        "NAT-04"
+      ],
+      "test_file": "tests/as1/test_sk_as1_routing.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "SK-AS1-QUALIFY",
+      "project": "skills",
+      "title": "Qualify kernel, worker, CUDA and native-skill interoperation",
+      "objective": "Produce a paired Skills qualification receipt usable by Project Control without merging authorities.",
+      "depends_on": [
+        "SK-AS1-ROUTING"
+      ],
+      "specs": [
+        "spec/06-acceptance-and-economics.md"
+      ],
+      "source_anchors": [
+        "tests",
+        "todo-orchestrator/tests",
+        "cuda/tests",
+        "local-coding-worker/tests",
+        "integrations",
+        "planning/adaptive-surface-v1"
+      ],
+      "acceptance_cases": [
+        "SQA-01",
+        "SQA-02",
+        "SQA-03"
+      ],
+      "test_file": "tests/as1/test_sk_as1_qualify.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    },
+    {
+      "id": "SK-AS1-RELEASE",
+      "project": "skills",
+      "title": "Pin the qualified standalone release in Skills",
+      "objective": "Finish paired packaging by pinning the qualified standalone Project Control commit and publishing a bound release receipt.",
+      "depends_on": [
+        "SK-AS1-QUALIFY"
+      ],
+      "specs": [
+        "spec/07-bootstrap-and-release.md"
+      ],
+      "source_anchors": [
+        "project-control",
+        ".gitmodules",
+        "integrations",
+        "planning/adaptive-surface-v1"
+      ],
+      "acceptance_cases": [
+        "PIN-01",
+        "PIN-02"
+      ],
+      "test_file": "tests/as1/test_sk_as1_release.py",
+      "done": "Current executed behavioral evidence for every owned case, producer/consumer compatibility, and actual native gate pass. No stubs or silently skipped gates.",
+      "delegated_judgment": "Choose economical implementation and reuse current canonical services. Split only for concrete ownership/concurrency/blocking reasons; preserve requirements and evidence."
+    }
+  ]
+}

@@ -1,0 +1,352 @@
+{
+  "format": "pc-as1-requirements/1",
+  "precedence": "latest explicit user statements; spec/00 records corrected assistant drift",
+  "requirements": [
+    {
+      "id": "AS1-PURPOSE",
+      "requirement": "Progress and context quality per total cost, not tool count or token minimum.",
+      "owners": [
+        "PC-AS1-CONTRACT",
+        "PC-AS1-QUALIFY"
+      ]
+    },
+    {
+      "id": "AS1-REUSE",
+      "requirement": "Reuse Todo/Skills/CUDA/ctxpp authority and services; rebuild frontend fully.",
+      "owners": [
+        "PC-AS1-CONTRACT",
+        "PC-AS1-SURFACE",
+        "SK-AS1-SEMANTICS"
+      ]
+    },
+    {
+      "id": "AS1-ROLES",
+      "requirement": "Startup-bound role schemas, discovery and dispatch; extended only observer.",
+      "owners": [
+        "PC-AS1-SURFACE"
+      ]
+    },
+    {
+      "id": "AS1-ORIENT",
+      "requirement": "Overview first-look purpose, architecture, defining relative paths and state.",
+      "owners": [
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-NOINJECT",
+      "requirement": "Overview callable by all; no automatic injection even into scouts.",
+      "owners": [
+        "PC-AS1-CONTEXT",
+        "PC-AS1-JOBS",
+        "SK-AS1-ROUTING"
+      ]
+    },
+    {
+      "id": "AS1-DELTA",
+      "requirement": "Material changes without heartbeat churn; typed expired baseline.",
+      "owners": [
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-FRONTIER",
+      "requirement": "Absorb coordination into active-work frontier; preserve useful deep state.",
+      "owners": [
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-READ",
+      "requirement": "Observer reads multiple relative files/ranges; no symlink traversal or absolute escape.",
+      "owners": [
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-SEARCH-EXACT",
+      "requirement": "Exact typed semantic IDs/entities use search and route directly to existing canonical lookup by the cheapest deterministic path, without unnecessary fuzzy/lexical retrieval or filesystem discovery; no public find or local bespoke inspect tool. Existing discovery search behavior is preserved.",
+      "owners": [
+        "PC-AS1-CONTEXT",
+        "PC-AS1-JOBS"
+      ]
+    },
+    {
+      "id": "AS1-SEARCH",
+      "requirement": "Semantic/indexed discovery and live source/filesystem fallback both remain.",
+      "owners": [
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-EVIDENCE",
+      "requirement": "Keep registered gate applicability and distinguish mention/declaration from proof.",
+      "owners": [
+        "PC-AS1-CONTEXT",
+        "SK-AS1-SEMANTICS"
+      ]
+    },
+    {
+      "id": "AS1-IMPACT",
+      "requirement": "Deterministic directed multi-hop cross-project dependency traces with path/snippet views.",
+      "owners": [
+        "PC-AS1-TRACE"
+      ]
+    },
+    {
+      "id": "AS1-PROVIDERS",
+      "requirement": "Heterogeneous provider contract, installed compiler reuse, Python/manifest/text/export coverage.",
+      "owners": [
+        "PC-AS1-TRACE"
+      ]
+    },
+    {
+      "id": "AS1-FRESH",
+      "requirement": "Content and resolution-input freshness, new consumers, dirty files, scoped invalidation.",
+      "owners": [
+        "PC-AS1-TRACE",
+        "PC-AS1-PACKETS"
+      ]
+    },
+    {
+      "id": "AS1-HISTORY",
+      "requirement": "First-class material history; real ancestry and explicit causality across recorded boundaries.",
+      "owners": [
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-MACHINE",
+      "requirement": "Shared bounded machine facts, not execution/profiler aperture.",
+      "owners": [
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-COMMAND",
+      "requirement": "Command-first read-only sandbox for normal capable local agent.",
+      "owners": [
+        "PC-AS1-JOBS",
+        "SK-AS1-RUNTIME"
+      ]
+    },
+    {
+      "id": "AS1-OPTIONALSCOPE",
+      "requirement": "Investigation can be project-scoped or project-less under registered host access.",
+      "owners": [
+        "PC-AS1-JOBS"
+      ]
+    },
+    {
+      "id": "AS1-PACKETS",
+      "requirement": "Persist actual authorized information payloads separately from audit metadata.",
+      "owners": [
+        "PC-AS1-PACKETS"
+      ]
+    },
+    {
+      "id": "AS1-ALIASES",
+      "requirement": "Memorable random word aliases with retention and never-rebind semantics.",
+      "owners": [
+        "PC-AS1-PACKETS"
+      ]
+    },
+    {
+      "id": "AS1-HINTS",
+      "requirement": "Per-question hint aliases resolve and pack useful freshness-labeled context.",
+      "owners": [
+        "PC-AS1-PACKETS",
+        "PC-AS1-JOBS"
+      ]
+    },
+    {
+      "id": "AS1-QUEUE",
+      "requirement": "Durable admission and real dispatcher independent of MCP connection.",
+      "owners": [
+        "PC-AS1-JOBS"
+      ]
+    },
+    {
+      "id": "AS1-BUSY",
+      "requirement": "Soft saturation around three; accept/persist then tell caller do not wait.",
+      "owners": [
+        "PC-AS1-JOBS"
+      ]
+    },
+    {
+      "id": "AS1-LOG",
+      "requirement": "Searchable recent approximately 50 terminal questions plus active/pinned jobs.",
+      "owners": [
+        "PC-AS1-PACKETS",
+        "PC-AS1-JOBS"
+      ]
+    },
+    {
+      "id": "AS1-REUSEANS",
+      "requirement": "Exact idempotent retry, semantic prior-answer leads, dependency revalidation.",
+      "owners": [
+        "PC-AS1-JOBS"
+      ]
+    },
+    {
+      "id": "AS1-EVICTION",
+      "requirement": "Queue/findings/evidence survive eviction, restart and attempt fencing.",
+      "owners": [
+        "PC-AS1-JOBS",
+        "SK-AS1-RUNTIME",
+        "SK-AS1-GPU"
+      ]
+    },
+    {
+      "id": "AS1-NORECURSION",
+      "requirement": "No recursive scouts/adapters or paid-model fallback; native skills/read available.",
+      "owners": [
+        "PC-AS1-JOBS",
+        "PC-AS1-SKILL"
+      ]
+    },
+    {
+      "id": "AS1-SKILLAPI",
+      "requirement": "One observer-only skill query with optional name and hints, catalog completeness.",
+      "owners": [
+        "PC-AS1-SKILL",
+        "SK-AS1-ROUTING"
+      ]
+    },
+    {
+      "id": "AS1-SKILLHOME",
+      "requirement": "Skill worker homed in registered skills root, follows skill-defined routing.",
+      "owners": [
+        "PC-AS1-SKILL",
+        "SK-AS1-ROUTING"
+      ]
+    },
+    {
+      "id": "AS1-VERBATIM",
+      "requirement": "Broker directly reads authoritative excerpts; small synthesis separately attributed.",
+      "owners": [
+        "PC-AS1-SKILL"
+      ]
+    },
+    {
+      "id": "AS1-CORPUS",
+      "requirement": "Preserve CUDA atlas technical text, IDs, graph, compendium and ZIP.",
+      "owners": [
+        "SK-AS1-ROUTING"
+      ]
+    },
+    {
+      "id": "AS1-SKILLUSE",
+      "requirement": "Record meaningfully applied native skills; overview/search expose relevance and guidance.",
+      "owners": [
+        "SK-AS1-SEMANTICS",
+        "SK-AS1-ROUTING",
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-GPU",
+      "requirement": "Extend existing host-global CUDA interlock and warm observer eviction; no new scheduler.",
+      "owners": [
+        "SK-AS1-GPU"
+      ]
+    },
+    {
+      "id": "AS1-DORMANT",
+      "requirement": "Preserve delegate/collect implementations but hide and reject them temporarily.",
+      "owners": [
+        "PC-AS1-SURFACE",
+        "SK-AS1-RUNTIME"
+      ]
+    },
+    {
+      "id": "AS1-DEACTIVATE",
+      "requirement": "Remove terminal/probe/agent-status and collapse redundant frontend names.",
+      "owners": [
+        "PC-AS1-SURFACE"
+      ]
+    },
+    {
+      "id": "AS1-PERFNOTES",
+      "requirement": "Performance facts enter relevant ordinary semantic/evidence context.",
+      "owners": [
+        "SK-AS1-SEMANTICS",
+        "PC-AS1-CONTEXT"
+      ]
+    },
+    {
+      "id": "AS1-MUTATOR",
+      "requirement": "Independent planning with shared information/native access and optional investigate.",
+      "owners": [
+        "PC-AS1-CONTROL"
+      ]
+    },
+    {
+      "id": "AS1-PLAN",
+      "requirement": "Typed validate/diff/apply/amend/supersede/retire; no observer plan preview.",
+      "owners": [
+        "PC-AS1-CONTROL",
+        "SK-AS1-SEMANTICS"
+      ]
+    },
+    {
+      "id": "AS1-ADMIN",
+      "requirement": "Source-preserving maintenance reuses canonical grants/receipts/live-work safeguards.",
+      "owners": [
+        "PC-AS1-CONTROL",
+        "SK-AS1-SEMANTICS"
+      ]
+    },
+    {
+      "id": "AS1-PERMISSION",
+      "requirement": "Ask user before genuinely destructive admin effects; no needless routine confirmations.",
+      "owners": [
+        "PC-AS1-CONTROL"
+      ]
+    },
+    {
+      "id": "AS1-REGISTER",
+      "requirement": "Auto-detect providers; typed amend_project declarations and atomic invalidation.",
+      "owners": [
+        "PC-AS1-TRACE",
+        "PC-AS1-CONTROL",
+        "SK-AS1-SEMANTICS"
+      ]
+    },
+    {
+      "id": "AS1-SEPARATE",
+      "requirement": "Independent Todo/Git/host authorities; explicit cross-project locators and receipts.",
+      "owners": [
+        "PC-AS1-CONTRACT",
+        "PC-AS1-QUALIFY",
+        "SK-AS1-QUALIFY"
+      ]
+    },
+    {
+      "id": "AS1-PRESERVE",
+      "requirement": "No dirty-work loss, no unrelated source changes, NF1A remains paused.",
+      "owners": [
+        "PC-AS1-CONTRACT",
+        "PC-AS1-RELEASE"
+      ]
+    },
+    {
+      "id": "AS1-DEPLOY",
+      "requirement": "Complete native instructions, install/role wiring, qualified paired live activation/rollback.",
+      "owners": [
+        "PC-AS1-SURFACE",
+        "PC-AS1-RELEASE",
+        "SK-AS1-QUALIFY",
+        "SK-AS1-RELEASE"
+      ]
+    },
+    {
+      "id": "AS1-GRANULARITY",
+      "requirement": "Outcome-sized tasks and adaptive concurrency, no ritual/microtodo proliferation.",
+      "owners": [
+        "PC-AS1-CONTRACT",
+        "PC-AS1-QUALIFY"
+      ]
+    }
+  ]
+}

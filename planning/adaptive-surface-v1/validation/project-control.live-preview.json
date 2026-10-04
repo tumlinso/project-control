@@ -1,0 +1,45 @@
+{
+  "format": "pc-as1-preparation-preview-extract/1",
+  "provenance": "Selected fields copied from actual current project-control.plan_preview response, not a complete raw response or apply authorization.",
+  "project": "project-control",
+  "tool": "plan_preview",
+  "mode": "validate",
+  "detail": "compact",
+  "observed_at": "2026-10-04T16:35:05Z",
+  "status": "ok",
+  "valid": true,
+  "would_add": [
+    "PC-AS1-0000",
+    "PC-AS1-CONTEXT",
+    "PC-AS1-CONTRACT",
+    "PC-AS1-CONTROL",
+    "PC-AS1-JOBS",
+    "PC-AS1-PACKETS",
+    "PC-AS1-QUALIFY",
+    "PC-AS1-RELEASE",
+    "PC-AS1-SKILL",
+    "PC-AS1-SURFACE",
+    "PC-AS1-TRACE"
+  ],
+  "would_modify": [],
+  "dependency_errors": [],
+  "scope_conflicts": [],
+  "interface_errors": [],
+  "warnings": [],
+  "plan_digest": "60fb8866eecaad579c605a4b02261930ad9507725d4b00a16caeb15fb4ef3523",
+  "plan_digest_algorithm": "sha256(json.dumps(native_plan, sort_keys=True, indent=2).encode(utf-8))",
+  "plan_file_sha256": "72aadfb73a22055848368570107a2b2cf26cf31fa2f89e7000f8b92d7ff13b33",
+  "base_revision": 809,
+  "base_commits": {
+    "project-control": "d7af16bcc9e61048eb555ec5b69e1264b84638e8"
+  },
+  "mutation_guard": "unchanged",
+  "plan_schema_version_observed": 3,
+  "accepted_plan_schema_versions": [
+    2,
+    3
+  ],
+  "authority_to_apply": false,
+  "file_matches_validated_payload": true,
+  "limits": "Validation at this observation only. Bootstrap must stage and revalidate against current authority before any import."
+}
