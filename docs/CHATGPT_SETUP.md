@@ -50,35 +50,18 @@ performed by Codex:
 5. Run `uv run project-control doctor --tunnel --json`, then enable the tunnel
    client service.
 6. Create a custom ChatGPT app named `project-control` using that tunnel.
-7. Because tool schema v5 changes discovery, reconnect or recreate the custom
-   app, then verify discovery returns exactly these seventeen tools:
-   `project_overview`, `project_delta`, `project_frontier`, `inspect`,
-   `evidence`, `plan_preview`, `agent_status`, `performance_status`,
-   `architecture_context`, `coordination_view`, `source_context`,
-   `history_trace`, `impact_preview`, `program_context`, `local_investigate`,
-   `performance_probe`, and `terminal_capture`. `local_investigate` is the
-   supported local-analysis path. The read-only tools are idempotent.
-   `terminal_capture` is
-   intentionally non-read-only and non-idempotent because it owns bounded
-   app-private PTY runtime state; it is non-destructive and closed-world.
-8. Start a fresh ChatGPT conversation with the app enabled and run
-   `project_overview` against the registered disposable workspace before adding
-   active engineering projects.
+7. Reconnect or recreate the custom app after the AS1 schema change, then
+   verify exactly 11 observer tools: `overview`, `delta`, `frontier`, `search`,
+   `evidence`, `impact`, `history`, `machine`, `read`, `investigate`, `skill`.
+   Hidden workflow/control names and removed legacy tools are denied at dispatch.
+8. Start a fresh conversation and explicitly call `overview` for the registered
+   disposable project before adding active engineering projects. An omitted
+   project gives the registered catalog; overview is never automatically injected.
 
-ChatGPT may snapshot tool definitions at connection time. After any future tool
-schema change, explicitly reconnect or recreate the app. This v4 addition
-requires that reconnect. The original eight v1 calls and all six additive v2
-calls remain compatible and unchanged within the frozen fourteen-tool v2
-contract.
-
-`project-control doctor --json` reports whether the required bubblewrap backend
-is installed, whether its bounded namespace/mount probe succeeds, and whether
-the installed systemd address-family/namespace policy is compatible. A typical
-bonded call launches with `kill_after_capture=false`
-and a short unique label; later calls supply that label as `session` to capture
-the same emulator/process. The default `kill_after_capture=true` cleans up the
-whole owned process group. Bonded sessions end when Project Control restarts and
-must then be launched again.
+ChatGPT may snapshot definitions at connection time. Reconnect after a surface
+change and verify the actual live tool list. Source documentation does not prove
+candidate qualification or live cutover. The observer supports compact (default),
+standard and extended detail; local profiles do not support extended.
 
 Codex does not use this custom app or tunnel; it uses the separately configured
 stdio profile described in `CODEX_SETUP.md`. Deep research may use this app only
@@ -86,9 +69,20 @@ for its read/fetch behavior.
 
 ## Observer usage
 
-Use rich direct reads when you will synthesize their differentiated evidence
-yourself. Use `local_investigate` for a bounded autonomous investigation. Start
-compact and request standard, expanded, provenance, or source detail only when
-it changes the decision. When preparing Todo/bootstrap work, do the expensive
-architectural reasoning here and compress it into durable intent, constraints,
-acceptance, rationale, uncertainty, and references—not procedural microtasks.
+Use the eight shared information tools for direct evidence. `frontier` supplies
+active work and coordination; `overview` supplies purpose and architecture.
+`search` retains discovery and accepts exact typed semantic entities through a
+direct canonical lookup, for example `query={"kind": "task", "target": "T1"}`.
+Exact file reads use `read` with registered project/repository and relative paths.
+There is no observer shell or public Project Control `find`.
+
+Use `investigate` to submit bounded read-only questions and poll durable job IDs;
+continue useful work when a job is pending. `skill` searches the installed catalog
+or requests guidance through the same job broker. Project Control brokers source
+access and verified excerpts; the local worker reads installed SKILL.md and follows
+its authored routes. Start compact and request more detail deliberately. Examples,
+packet coverage and retry semantics are in [the adaptive surface guide](as1-surface.md).
+
+For Todo/bootstrap preparation, preserve durable intent, constraints, acceptance,
+rationale, uncertainty and references. Observer findings and packet hints grant
+no project or workflow mutation authority.

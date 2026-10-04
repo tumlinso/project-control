@@ -1,4 +1,4 @@
-"""Project Control's exact-six MCP adapter for the canonical workflow protocol.
+"""Project Control's handle-scoped MCP adapter for the canonical workflow protocol.
 
 This module is deliberately only a transport adapter.  Claims, capabilities,
 scheduling, response bounds, recovery, and all other workflow semantics remain
@@ -41,7 +41,7 @@ WORKFLOW_INSTRUCTIONS = (
     "directly without a task or claim. Finish_task runs required gates, so use run_gates "
     "separately only when earlier validation is useful. First-class Codex "
     "agents receive durable run lanes and roles. Local workers are subordinate bounded children "
-    "of one parent claim and never act as first-class lanes. Delegation is nonblocking. Opaque "
+    "of one parent claim and never act as first-class lanes. Use configured Codex subagents for delegation; delegate_task and collect_delegation are temporarily inactive until explicit operator reenable. Opaque "
     "handles are the only model-facing authorization."
 )
 
@@ -102,6 +102,7 @@ def register_workflow_tools(
     *,
     protocol_factory: Callable[[], "WorkflowProtocol | _WorkflowProtocolPort"] | None = None,
     diagnostic_factory: Callable[[], str] | None = None,
+    context_publisher: Callable[[_WorkflowProtocolPort, str, dict], dict] | None = None,
 ) -> tuple[str, ...]:
     """Register the canonical six tools on ``server`` without opening any authority.
 
@@ -126,7 +127,14 @@ def register_workflow_tools(
 
     def invoke(method: str, **arguments: object) -> dict[str, object]:
         try:
-            return getattr(active_protocol(), method)(**arguments)
+            selected = active_protocol()
+            body = arguments.get('payload')
+            if (method == 'coordinate_task' and arguments.get('action') == 'publish_context'
+                    and isinstance(body, dict) and body.get('kind') in {'skill_use', 'finding', 'candidate_relation'}):
+                if context_publisher is None:
+                    return {'status': 'unavailable', 'reason': 'capability_publication_port_unavailable'}
+                return context_publisher(selected, str(arguments['workflow_handle']), body)
+            return getattr(selected, method)(**arguments)
         except Exception as error:
             code = getattr(error, "code", None)
             if isinstance(code, str) and code:
@@ -311,6 +319,7 @@ def create_workflow_mcp(
     *,
     protocol_factory: Callable[[], "WorkflowProtocol | _WorkflowProtocolPort"] | None = None,
     diagnostic_factory: Callable[[], str] | None = None,
+    context_publisher: Callable[[_WorkflowProtocolPort, str, dict], dict] | None = None,
 ) -> FastMCP:
     """Create a standalone stdio-capable Project Control workflow server."""
 

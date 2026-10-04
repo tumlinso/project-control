@@ -8,10 +8,11 @@ and generated projections.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -89,12 +90,18 @@ def _todo_service(
     environment: Mapping[str, str],
     *,
     read_only: bool,
+    project_source_verifier: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
 ):
     binding = initialize_workflow_binding(environment)
     binding.validate()
     from todo_orchestrator.service import Service
 
-    service = Service(_authority_root(config, project), read_only=read_only)
+    options = {}
+    if project_source_verifier is not None and "project_source_verifier" in inspect.signature(Service).parameters:
+        # Trusted startup-only seam. No callback/policy is deserialized from a
+        # proposal or amendment, and older kernels retain their hard refusal.
+        options["project_source_verifier"] = project_source_verifier
+    service = Service(_authority_root(config, project), read_only=read_only, **options)
     binding.validate()
     return binding, service
 

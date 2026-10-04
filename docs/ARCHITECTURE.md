@@ -1,36 +1,31 @@
 # Architecture
 
-`project-control` is the only model-facing product for registered engineering
-workspaces. One package exposes two separately enforced MCP profiles. The
-observer profile is the existing ChatGPT architectural observatory. The Codex
-profile composes the canonical Todo workflow protocol with Project Control's
-rich reads.
+Project Control exposes the [adaptive role surface](as1-surface.md) through
+shared packetized information services and trusted startup profiles. Observer has
+11 tools, coder (`codex`) 12, mutator 16; investigator and skill assembler are
+internal modes with 10 each. Extended detail and the read/skill adapters are
+observer-only. No automatic overview, source scan or model load occurs at startup.
 
 Workflow authority remains external to Project Control. Todo controls plans,
 claims, gates, checkpoints, interfaces, and decisions. Git and canonical source
 control source identity. The local-worker and CUDA systems control their own
-lifecycle and resources. Project Control never repairs or initializes those
-authorities.
+lifecycle and resources. Project Control never initializes those authorities or
+repairs them independently; mutator maintenance uses the canonical native kernel.
 
 ```text
-ChatGPT -> observer / Streamable HTTP -> 16 rich reads + performance_probe + terminal_capture
-                                      -> invocation allowlist
-
-Codex   -> codex / stdio -> 6 workflow tools -> canonical WorkflowProtocol
-                       \-> 16 rich reads + performance_probe
-                                      -> invocation allowlist
-
-Project Control -> verified in-process Todo runtime -> WorkflowKernel/read port
-                                                   -> one Todo SQLite authority
+Observer -> HTTP -> shared information + read/investigate/skill -> scoped packets
+Coder    -> stdio -> shared information + four workflow tools  -> canonical Todo
+Mutator  -> stdio -> shared information + investigate/workflow/control -> Todo
+Internal investigator/skill mode -> shared information + sandboxed command/log
+Investigation/skill admission -> durable PC broker -> installed read-only worker
 ```
 
-Profile selection comes only from trusted startup configuration, an explicit
-entry point, or a separately configured endpoint. Registration is
-profile-specific and dispatch applies a second server-side allowlist. Client
-`clientInfo`, user-agent strings, model identity claims, annotations, and tool
-arguments cannot select or broaden a profile. Hidden workflow invocation on the
-observer is rejected before Todo is reached; `terminal_capture` is absent from
-Codex discovery and dispatch.
+Registration and dispatch both enforce startup-bound profile policy. Caller role
+strings, client metadata, annotations and hidden-name invocation cannot broaden
+access. Delegate/collect are temporarily inactive at discovery and dispatch.
+The broker retains jobs independently of model residency; the Skills supervisor
+and resource interlock own inference. The worker reads installed SKILL.md and
+follows authored navigation; PC verifies selected source authority and freshness.
 
 Project Control binds once to the canonical Todo Orchestrator distribution in a
 candidate environment containing both local packages. Runtime initialization
@@ -41,13 +36,18 @@ time. `PROJECT_CONTROL_SKILLS_ROOT` is canonical;
 recursion, workflow MCP subprocess, copied kernel logic, or independent join of
 workflow tables.
 
-Project Control remains independently cloneable, testable, and released from
-its standalone repository. Only after a standalone release is validated may
-Skills add that existing repository at the relative submodule path
-`project-control` and pin the validated commit. The parent records a gitlink and
-`.gitmodules` entry; it never copies Project Control history into Skills. The
-standalone checkout remains available as a rollback point until a later,
-explicit cleanup campaign.
+Project Control and Skills remain independently cloneable and released standalone
+repositories. Their explicit paired release manifest binds distinct authorities,
+exact commits, runtime identities and producer receipts. Skills contains no
+Project Control source copy or submodule. Frozen runtime inputs are deployment
+artifacts, not a merger of repositories or semantic authorities.
+
+## Historical v2/v3 backend architecture
+
+The remainder records preserved backend contracts and earlier surface behavior.
+Old public names, tool counts and execution apertures below are historical; they
+are not AS1 discovery or dispatch promises. The shared AS1 services reuse these
+canonical backends. See [the current surface](as1-surface.md).
 
 The v2 query data path remains the compatibility authority:
 

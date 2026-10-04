@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from project_control.app import create_mcp
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
@@ -15,12 +16,7 @@ from project_control.snapshot import SnapshotBuilder
 
 TODO = Path("/home/tumlinson/.agents/skills/todo-orchestrator/scripts/todo.py")
 SKILLS = Path("/home/tumlinson/.agents/skills")
-TOOLS = (
-    "project_overview", "project_delta", "project_frontier", "inspect",
-    "evidence", "plan_preview", "agent_status", "performance_status",
-    "architecture_context", "coordination_view", "source_context", "history_trace",
-    "impact_preview", "program_context",
-)
+TOOLS = ('overview', 'delta', 'frontier', 'search', 'evidence', 'history', 'impact', 'read')
 
 
 def run(argv: list[str], root: Path) -> str:
@@ -73,9 +69,14 @@ class ReadOnlyAuditTests(unittest.TestCase):
         self.config = ProjectControlConfig(skills_root=SKILLS, workspaces={
             "disposable": WorkspaceConfig(authority_repository="source", repositories={"source": RepositoryConfig(root=self.root)})
         })
-        self.mcp = create_mcp(self.config)
+        # This disposable audit deliberately exercises the compatibility CLI
+        # read provider; the gate parent retains its deployed runtime binding.
+        with patch('project_control.app.todo_read_port_factory', return_value=None):
+            self.mcp = create_mcp(self.config)
+
 
     def tearDown(self) -> None:
+        self.mcp._project_control_surface.close()
         self.temporary.cleanup()
 
     def sentinel(self):
@@ -98,20 +99,14 @@ class ReadOnlyAuditTests(unittest.TestCase):
         revision = json.loads(run(["python", str(TODO), "status", "--repo-root", ".", "--json"], self.root))["data"]["project_revision"]
         commit = run(["git", "rev-parse", "HEAD"], self.root).strip()
         calls = {
-            "project_overview": {"project": "disposable", "detail": "expanded", "max_items": 20},
-            "project_delta": {"project": "disposable", "since": {"todo_revision": revision, "commits": {"source": commit}}, "detail": "implementation", "max_items": 40},
-            "project_frontier": {"project": "disposable", "max_ready": 20, "include_blocked": True, "include_parallel_groups": True},
-            "inspect": {"project": "disposable", "kind": "path", "target": "source.cc", "repository": "source", "intent": "review", "budget_tokens": 4000},
-            "evidence": {"project": "disposable", "subject": "D-01", "kinds": ["source", "tests", "gates", "worker", "cuda", "git"], "detail": "provenance", "max_items": 30},
-            "plan_preview": {"project": "disposable", "mode": "validate", "proposal": self.proposal, "detail": "standard"},
-            "agent_status": {"project": "disposable", "include_children": True, "include_local_services": True},
-            "performance_status": {"project": "disposable", "detail": "expanded", "include_host_capacity": True},
-            "architecture_context": {"project": "disposable", "question": "How do planning, workflow and source authority fit together?", "detail": "compact"},
-            "coordination_view": {"project": "disposable", "detail": "compact"},
-            "source_context": {"project": "disposable", "repository": "source", "targets": [{"kind": "path", "value": "source.cc", "line_start": 1, "line_end": 1}], "detail": "compact"},
-            "history_trace": {"project": "disposable", "subject": "D-01", "detail": "compact"},
-            "impact_preview": {"project": "disposable", "hypothesis": "Change the source contract", "detail": "compact"},
-            "program_context": {"workspaces": ["disposable"], "question": "What is current?", "detail": "compact"},
+            'overview': {'project': 'disposable', 'detail': 'standard'},
+            'delta': {'project': 'disposable', 'since': {'todo_revision': revision, 'commits': {'source': commit}}},
+            'frontier': {'project': 'disposable'},
+            'search': {'project': 'disposable', 'query': {'kind': 'task', 'target': 'D-01'}},
+            'evidence': {'project': 'disposable', 'subject': 'D-01'},
+            'history': {'project': 'disposable', 'subject': 'D-01'},
+            'impact': {'project': 'disposable', 'targets': [{'repository': 'source', 'path': 'source.cc'}]},
+            'read': {'project': 'disposable', 'paths': ['source.cc']},
         }
         return {name: await self.mcp.call_tool(name, arguments) for name, arguments in calls.items()}
 
@@ -141,7 +136,7 @@ class ReadOnlyAuditTests(unittest.TestCase):
 
         async def calls():
             return await asyncio.gather(*[
-                self.mcp.call_tool("project_overview", {"project": "disposable", "detail": "compact", "max_items": 10})
+                self.mcp.call_tool("overview", {"project": "disposable", "detail": "compact"})
                 for _ in range(16)
             ])
 
@@ -160,12 +155,22 @@ class ReadOnlyAuditTests(unittest.TestCase):
         (self.root / "escape.txt").symlink_to(outside)
 
         async def inspect_path(path: str):
-            return await self.mcp.call_tool("inspect", {"project": "disposable", "kind": "path", "target": path, "repository": "source"})
+            return await self.mcp.call_tool("read", {"project": "disposable", "paths": [path], "repository": "source"})
 
         for target in ("/etc/passwd", ".env", "binary.dat", "oversized.txt", "escape.txt"):
             result = asyncio.run(inspect_path(target))
             payload = json.dumps(result, default=str)
-            self.assertIn("source_inspection_unavailable", payload)
+            self.assertNotIn("outside", payload)
+            self.assertNotIn("TOKEN=hidden", payload)
+            structured = result[1] if isinstance(result, tuple) else result
+            self.assertEqual(structured['status'], 'partial')
+            if target == 'oversized.txt':
+                self.assertIn('continuation', structured['data'])
+                self.assertGreater(structured['data']['needed_bytes'], 2 * 1024 * 1024)
+                self.assertFalse(structured['coverage']['complete'])
+            else:
+                self.assertEqual(structured['data']['files'][0]['status'], 'error')
+                self.assertNotIn('content', structured['data']['files'][0])
 
 
 if __name__ == "__main__":

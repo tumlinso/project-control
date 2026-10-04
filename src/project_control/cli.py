@@ -104,7 +104,7 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--tunnel", action="store_true")
 
     serve = commands.add_parser("serve")
-    serve.add_argument("profile", nargs="?", choices=("observer", "codex", "mutator"), default="observer")
+    serve.add_argument("profile", nargs="?", choices=("observer", "coder", "codex", "mutator", "investigator", "skill_assembler"), default="observer")
     serve.add_argument("--host")
     serve.add_argument("--port", type=int)
 
@@ -248,7 +248,7 @@ def _serve_profile(profile: str, *, host: str | None, port: int | None) -> int:
         return serve(host=host, port=port)
     if host is not None or port is not None:
         raise ValueError(f"{profile.capitalize()} stdio profile does not accept --host or --port")
-    if profile == "codex":
+    if profile in {"coder", "codex"}:
         from .app import serve_codex
 
         return serve_codex()
@@ -256,6 +256,10 @@ def _serve_profile(profile: str, *, host: str | None, port: int | None) -> int:
         from .app import serve_mutator
 
         return serve_mutator()
+    if profile in {"investigator", "skill_assembler"}:
+        from .app import _serve_stdio
+        from .profiles import MCPProfile
+        return _serve_stdio(MCPProfile(profile))
     raise ValueError(f"unsupported MCP profile: {profile!r}")
 
 
@@ -317,9 +321,12 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
     probe = terminal_sandbox.probe_diagnostics()
     service_constraints = _terminal_service_constraints()
     service_compatible = service_constraints.get("compatible")
+    from .profiles import profile_policy, MCPProfile, TEMPORARILY_INACTIVE
     checks: dict[str, object] = {
+        "surface": {"profiles": {p.value: list(profile_policy(p).tool_names) for p in MCPProfile},
+                    "temporarily_inactive": TEMPORARILY_INACTIVE, "automatic_overview": False},
         "config_path": str(config_path()),
-        "terminal_capture": {
+        "internal_command_sandbox": {
             "backend": "bubblewrap",
             "installed": probe["installed"],
             "ready": bool(probe["ready"] and service_compatible is not False),

@@ -1,56 +1,26 @@
-# Optional local observer analysis
+# Durable local observer analysis
 
-Project Control exposes `local_investigate(project, questions, effort, detail,
-compute_profile, parallelism)` as the preferred observer entry point. A versioned, bounded
-conversational broker validates heterogeneous local-model read requests, executes
-them through read-only services or the isolated `exec_readonly` sandbox, and returns
-an evidence-linked answer separated into facts, inferences, and uncertainty.
-`quick`, `standard`, and `deep` impose hard round, read, byte, and time ceilings;
-source and project identity are pinned and drift returns `refresh_required`.
+Use observer or mutator `investigate` for read-only local questions, with optional
+registered project scope, retained hint aliases and explicit retry-safe request
+IDs. Poll using the returned job ID instead of resubmitting. Accepted/pending
+means the service-private broker durably retained the request; continue other
+useful work and poll later. Capacity/provider failures are explicit.
 
-`compute_profile="wide"` is the default and runs the configured Qwen3-Coder-Next
-candidate on one topology-derived four-GPU bundle. `compute_profile="narrow"`
-runs the configured Qwen3-Coder-30B candidate on one two-GPU island. Switching
-profiles reuses only a compatible idle service; an incompatible idle service is
-evicted and the selected model is reloaded. Active generation is never evicted,
-and unavailable resources return the normal bounded unavailable result.
-Observer calls use `parallelism="layer"` by default and may select `tensor` with
-either profile for diagnostic comparisons. Split changes reload an incompatible
-idle service and never interrupt active generation. Unsupported modes fail
-visibly rather than falling back.
-Local llama.cpp services enable CUDA peer-to-peer and preserve runtime-discovered
-NVLink-pair adjacency in their private device order.
+Investigation and observer `skill` share one broker, durable observations,
+attempt fencing, eviction retry, packet outbox and restart polling. Model/GPU
+residency is independent of persistence. Polling needs no GPU. Startup does not
+load a model or inject overview; runtime policy owns model, topology and resource
+selection, not ordinary caller parameters.
 
-A one-question investigation uses `questions=["..."]`. Supplying two questions
-automatically prefers two concurrent narrow services on disjoint NVLink islands,
-and otherwise runs available work serially. Results retain input order and are
-returned without an additional synthesis stage.
+The local worker has shared information tools and sandboxed read-only command/log;
+it cannot recursively investigate, claim work, edit sources, mutate Todo or use
+coding delegation. Project Control brokers allowed access and source provenance;
+the Skills supervisor and resource interlock own inference and preemption.
+Skill-mode workers read installed SKILL.md and follow authored maps/references.
 
-The broker also accepts `inspect_machine` for bounded GPU, topology, process,
-memory, filesystem, Project Control service, kernel, device, log, and runtime
-observations. Project Control owns fixed diagnostic commands and validates
-structured filesystem reads under registered repositories and useful local
-roots including home, `/mnt`, `/proc`, and `/sys`. Traversal, symlink escape,
-special files, process secret surfaces, credential stores, private keys, and
-oversized or binary reads are rejected; returned text is redacted and bounded.
-External diagnostics run unprivileged in a no-network, read-only bubblewrap
-sandbox with private scratch directories and resource ceilings. The internal
-`exec_readonly` action permits model-selected argv in a broader read-only,
-no-network bubblewrap sandbox; it is not a public MCP tool and provides no
-privilege, host device, socket, or mutation surface.
-
-The lower-level observer-analysis provider remains an internal primitive. It
-passes an immutable JSON evidence packet (at most 64 KiB and 64 evidence IDs)
-to Skills' existing serialized `ProductionBackend.analyze_observer_packet`
-boundary.  The backend owns cached-model discovery, llama-server lifecycle,
-and topology-aware reservations; Project Control never passes a repository
-handle, workflow handle, callable tool, claim, or child-execution context.
-
-Both paths are explicitly non-authoritative and mutation-free. A missing,
-busy, malformed, or unsupported local provider deterministically returns
-an explicit local-only fallback; they never escalate to a paid model.
-
-The implementation reuses the installed cached model and llama-server support;
-it does not import writable local-coding-worker protocol, coding-agent tools,
-claims, recursive delegation, or scheduler machinery. One serialized model
-service is sufficient.
+Use `machine` for bounded current host facts, not benchmark launching. Source
+mentions and previous answers are attributed evidence, not fresh verification.
+Explicit coverage reports unavailable, stale, omitted or unresolved material.
+See [surface examples](as1-surface.md), [job ports](as1-jobs.md), and
+[skill navigation](SKILLS.md). This guide does not establish genuine local-model
+reasoning quality, GPU qualification, or live release acceptance.

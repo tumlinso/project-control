@@ -1,5 +1,16 @@
 # Maintenance continuation
 
+AS1 public maintenance is mutator-only: `maintain_execution` has native
+`diagnose`, `prepare`, and `execute` actions; `plan` handles supersession and
+retirement. See [control](as1-control.md) and [the role surface](as1-surface.md).
+Coder/codex and observer cannot invoke broad maintenance.
+
+## Preserved owner/operator CLI compatibility
+
+The following owner CLI and legacy grant route remain compatibility mechanisms,
+not extra coder MCP permissions. Trusted startup and current native grants govern
+any operator invocation; retained histories do not enable inactive public tools.
+
 Use `project-control admin prepare-maintenance --repo REPO --task TASK --recipient PRINCIPAL` to issue one bounded operator assignment.  Add `--run RUN` when the task has more than one active membership; when recovery identifies one stopped target execution, that exact run is selected automatically.
 
 The operator calls `maintain_execution` with the opaque authorization.  Its receipt reports a current, read-only continuation assessment.  A `recommended_next_call` is present only when the named run, lane, task, workspace, dependencies, and resources are currently eligible; invoke its exact arguments without substituting another run or workspace.  A replay reassesses current readiness and does not promise the historical result remains claimable.

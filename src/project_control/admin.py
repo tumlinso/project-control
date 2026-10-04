@@ -191,7 +191,7 @@ def prepare_retire_run_batch(repo: str | Path, intent_file: str | Path, output_f
             raise ValueError("intent task_ids and dispositions must match exactly")
     except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
         raise ValueError(f"invalid retirement intent file: {exc}") from exc
-    service = Service(repo, mutation_mode="self_debug")
+    service = Service(repo, mutation_mode="self_debug", read_only=True)
     with service.db.read() as conn:
         rows = {str(row["id"]): row for row in conn.execute(
             "SELECT * FROM tasks WHERE id IN (" + ",".join("?" for _ in task_ids) + ")", task_ids
