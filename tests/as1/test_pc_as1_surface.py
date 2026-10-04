@@ -232,3 +232,116 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
         time.sleep(.01)
     assert backend.closed == ['scripted-session']
     assert c.jobs.lookup(admitted['job_id'], access_scope={**c.host.scope(None), 'principal': 'forged'})['status'] == 'forbidden'
+
+
+@pytest.mark.as1_case('API-04')
+@pytest.mark.parametrize('scenario', [
+    'skill_use', 'finding', 'candidate_relation', 'wrong_role', 'wrong_repository',
+    'wrong_task', 'stale_source', 'symlink_source', 'out_of_scope', 'forged_handle',
+    'generic_context',
+])
+def test_public_native_capability_publication_consumer(scenario):
+    """A child selects paired source without changing deployment pins in the gate."""
+    import os
+    import subprocess
+    import sys
+    from project_control.runtime_identity import package_fingerprint
+    skills = Path('/home/tumlinson/.agents/skills')
+    native = skills / 'todo-orchestrator'
+    files = [BASE / 'src/project_control' / name for name in ('app.py', 'as1_surface.py', 'as1_control.py', 'workflow_tools.py')]
+    files += [native / 'todo_orchestrator' / name for name in ('project_amendments.py', 'workflow/protocol.py', 'workflow/service.py', 'workflow/capabilities.py', 'workflow/roles.py')]
+    hashes = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
+    env = os.environ.copy()
+    for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
+                'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_STATE_DIR', 'TODO_ORCHESTRATOR_READ_ONLY'):
+        env.pop(key, None)
+    env.update(PROJECT_CONTROL_SKILLS_ROOT=str(skills),
+        PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT=package_fingerprint(native / 'todo_orchestrator'),
+        PYTHONPATH=os.pathsep.join([str(BASE / 'src'), str(native), str(native / 'tests')]),
+        AS1_SURFACE_SOURCE_HASHES=json.dumps(hashes), AS1_SURFACE_SCENARIO=scenario,
+        PYTHONDONTWRITEBYTECODE='1')
+    script = r'''
+import asyncio, hashlib, json, os
+from pathlib import Path
+from v2_helpers import V2Repo, base_plan, safe_task
+from project_control.app import create_mcp
+from project_control.config import ProjectControlConfig, WorkspaceConfig, RepositoryConfig
+from project_control.workflow_binding import workflow_protocol
+from todo_orchestrator.workflow.capabilities import default_first_class_operations
+import project_control.app, project_control.as1_surface, project_control.as1_control, project_control.workflow_tools
+import todo_orchestrator.project_amendments, todo_orchestrator.workflow.protocol, todo_orchestrator.workflow.service, todo_orchestrator.workflow.capabilities, todo_orchestrator.workflow.roles
+modules = (project_control.app, project_control.as1_surface, project_control.as1_control, project_control.workflow_tools,
+    todo_orchestrator.project_amendments, todo_orchestrator.workflow.protocol, todo_orchestrator.workflow.service, todo_orchestrator.workflow.capabilities, todo_orchestrator.workflow.roles)
+assert {str(Path(m.__file__).resolve()):hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest() for m in modules} == json.loads(os.environ['AS1_SURFACE_SOURCE_HASHES'])
+scenario = os.environ['AS1_SURFACE_SCENARIO']
+repo = V2Repo()
+server = None
+try:
+    os.environ['XDG_STATE_HOME'] = str(repo.root / 'private-state')
+    repo.apply(base_plan([safe_task('A', 'src/a')]))
+    source = repo.root / 'src/a/contract.txt'; source.parent.mkdir(parents=True); source.write_text('exact fixture source\n')
+    config = ProjectControlConfig(skills_root=Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT']),
+        workspaces={'demo':WorkspaceConfig(authority_repository='source',repositories={'source':RepositoryConfig(root=repo.root)})})
+    server = create_mcp(config, profile='coder', state_directory=repo.root / 'private-state/as1')
+    def call(name, arguments):
+        result = asyncio.run(server.call_tool(name, arguments))
+        return result[1] if isinstance(result, tuple) else result
+    claimed = call('next_task', {'repo_root':str(repo.root),'task_id':'A'})
+    handle = claimed['workflow_handle']
+    anchor = {'project':repo.service.project['project_uuid'], 'repository':str(repo.root),
+        'path':'src/a/contract.txt', 'content_sha256':hashlib.sha256(source.read_bytes()).hexdigest()}
+    kind = scenario if scenario in ('skill_use','candidate_relation') else 'finding'
+    payload = {'id':'frontend-fact', 'anchors':[anchor]}
+    if kind == 'skill_use': payload.update(skill='todo-orchestrator',reason='native source contract',status='applied')
+    body = {'kind':kind,'payload':payload}
+    if scenario == 'wrong_task': body['task_id'] = 'OTHER'
+    if scenario == 'stale_source': anchor['content_sha256'] = '0' * 64
+    if scenario == 'symlink_source':
+        link = source.with_name('link.txt'); link.symlink_to(source); anchor['path'] = 'src/a/link.txt'
+    if scenario == 'out_of_scope':
+        outside = repo.root / 'elsewhere.txt'; outside.write_bytes(source.read_bytes()); anchor['path']='elsewhere.txt'
+    if scenario == 'forged_handle': handle = 'wfc_forged'
+    if scenario == 'wrong_repository':
+        server._project_control_surface.control.config.workspaces['demo'].repositories['source'].root = repo.root / 'unregistered'
+    if scenario in ('wrong_role', 'generic_context'):
+        role = 'validator' if scenario == 'wrong_role' else 'coordinator'
+        def alter(conn, revision):
+            conn.execute('UPDATE workflow_lanes SET role=?',(role,))
+            conn.execute('UPDATE workflow_capabilities SET role=?,allowed_operations_json=?',
+                (role,json.dumps(sorted(default_first_class_operations(role)))))
+        repo.service.db.mutate(actor_session_id=None, entity_type='fixture', entity_id=None, event_type='fixture', payload={}, operation=alter)
+    before = repo.service.db.revision()
+    with repo.service.db.read() as conn: before_dump = list(conn.iterdump())
+    if scenario == 'generic_context':
+        result = call('coordinate_task', {'workflow_handle':handle,'action':'publish_context',
+            'payload':{'content':{'summary':'Native generic context remains separate'},'anchors':[{'kind':'path','value':'src/a/contract.txt'}],'series_key':'generic-contract'}})
+        assert 'context_note' in result, result
+        with repo.service.db.read() as conn:
+            assert conn.execute('SELECT COUNT(*) FROM project_declarations').fetchone()[0] == 0
+        assert repo.service.db.revision() == before + 1
+    else:
+        result = call('coordinate_task', {'workflow_handle':handle,'action':'publish_context','payload':body})
+        if scenario in ('skill_use','finding','candidate_relation'):
+            assert result['status'] == 'published' and result['id'] == 'A:frontend-fact', result
+            assert repo.service.db.revision() == before + 1
+            assert call('coordinate_task', {'workflow_handle':handle,'action':'publish_context','payload':body})['status'] == 'noop'
+            context = server._project_control_surface.control.project_context('demo')
+            records = [row for row in context['skill_uses' if kind == 'skill_use' else 'declarations'] if row['id'] == 'A:frontend-fact']
+            assert len(records) == 1 and records[0]['kind'] == kind, context
+            assert records[0]['payload'] == payload
+            if kind == 'candidate_relation': assert records[0]['origin'] == 'candidate'
+        else:
+            assert result['status'] in ('attention_required','unavailable'), result
+            assert repo.service.db.revision() == before, result
+            with repo.service.db.read() as conn:
+                assert list(conn.iterdump()) == before_dump
+                assert conn.execute('SELECT COUNT(*) FROM project_declarations').fetchone()[0] == 0
+    assert 'claim_token' not in json.dumps(result) and 'session_token' not in json.dumps(result)
+    print(json.dumps({'scenario':scenario,'status':result['status'],'source_hashes':json.loads(os.environ['AS1_SURFACE_SOURCE_HASHES'])}))
+finally:
+    if server: server._project_control_surface.close()
+    repo.close()
+'''
+    result = subprocess.run([sys.executable, '-c', script], cwd=BASE, env=env, text=True, capture_output=True)
+    assert result.returncode == 0, result.stdout + '\n' + result.stderr
