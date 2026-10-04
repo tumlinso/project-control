@@ -8,7 +8,7 @@ Reduce the cost of turning an engineering intention into correct, verified progr
 
 Read `README.md`, `spec/00-purpose-and-decisions.md`, `spec/01-tools-and-profiles.md`, and `spec/07-bootstrap-and-release.md` first. Then read only the specs/outcomes relevant to the next work. `WORKPACKAGES.md` and `planning/outcomes.json` are the execution map; `contracts/requirements.json` is the user-requirement ledger. Resolve any later live-source drift without losing those requirements.
 
-**Important correction:** overview is callable by all roles, never automatically injected. Observer-only adapters are `read` and `skill`; extended output is observer-only. Investigator is command-first with shared compact semantic tools. Mutator may independently plan and investigate. Keep local coder delegation implemented but hidden/temporarily inactive.
+**Important correction:** the shared information surface has eight tools. `search` retains all discovery behavior and absorbs exact typed canonical lookup through its cheapest deterministic path; there is no public `find`. Native filesystem discovery remains `find`/`rg`/Git. overview is callable by all roles, never automatically injected. Observer-only adapters are `read` and `skill`; extended output is observer-only. Investigator is command-first with shared compact semantic tools. Mutator may independently plan and investigate. Keep local coder delegation implemented but hidden/temporarily inactive.
 
 ## Bootstrap using the installed surface
 

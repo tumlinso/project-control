@@ -4,7 +4,7 @@
 
 ## Common information contract
 
-Ordinary reads return compact `status`, `packet` reference, `data`, `sources`, and `coverage`. A source locator has registered `project`, `repository`, optional `worktree`, **relative** `path`, optional exact `range`, and actual content/revision identity. Non-file entities have typed stable IDs and authority revision; do not invent a filesystem path for a database row. Their exact follow-up is `find`.
+Ordinary reads return compact `status`, `packet` reference, `data`, `sources`, and `coverage`. A source locator has registered `project`, `repository`, optional `worktree`, **relative** `path`, optional exact `range`, and actual content/revision identity. Non-file entities have typed stable IDs and authority revision; do not invent a filesystem path for a database row. Their exact follow-up is `search` with an exact typed identifier/entity.
 
 Coverage states what was considered, returned, omitted, stale, unresolved or unavailable and carries a targeted continuation when needed. Do not repeat the complete source/Todo/worktree envelope per result. Sources and identifiers can be deduplicated in a shared table. A persisted packet retains the exact authorized response and the fuller provenance manifest; small caller responses do not imply small durable evidence.
 
@@ -32,11 +32,11 @@ Remote observer only. Batch one or many exact files, with per-file status, retur
 
 Known revision reads must use the requested immutable revision, not current indexes. Working-tree reads record actual content hashes and detect races; revalidate before emitting a claim of exactness. Preserve byte/text content; where policy requires masking, mark redaction explicitly and do not call that fragment verbatim authority. Foreign-project results are read with that registered project/repository plus its relative path, not a global absolute path.
 
-### `find(project?, kind, target, detail=compact)`
-
-Exact lookup of an already identified task, interface, decision, gate, checkpoint, source symbol, context record, run/lane/workspace, registration, packet, or investigation. Return canonical typed record and navigable locations/relationships; ambiguous IDs get candidates without guessing. It is the one semantic exact-lookup tool shared with scouts. Unix `find` remains available through `command`; it cannot authoritatively query Todo semantics. Packet/investigation access is scoped to permitted caller/project domains; aliases are not permission tokens.
-
 ### `search(project?, query, scope?, detail=compact)`
+
+`query` accepts the existing discovery query or an exact typed entity reference `{kind, target}`. For an exact typed ID/entity, route directly to the existing canonical exact lookup backend using the cheapest deterministic path; do not invoke fuzzy or lexical retrieval unnecessarily, expand into filesystem discovery, or fall back to discovery after a missing exact record. Preserve the canonical machinery internally rather than exposing a separate public `find` tool.
+
+Exact lookup covers an already identified task, interface, decision, gate, checkpoint, source symbol, context record, run/lane/workspace, registration, packet, or investigation. Return the canonical typed record and navigable locations/relationships; ambiguous IDs get candidates without guessing. Packet/investigation access remains scoped to permitted caller/project domains; aliases are not permission tokens. For native/local agents, filesystem discovery remains ordinary Unix `find`, `rg`, and Git through native capabilities or investigator `command`; exact semantic lookup does not become filesystem discovery.
 
 One deterministic discovery entry point combines project-graph/entities, source/symbol indexes, lexical search and live filesystem/source fallback. Typed results distinguish exact reference, structural relation, declared relation, lexical hit and summarized guidance. Include why matched, origin, relative locator or entity ID, and freshness. Allow file/path discovery and scoped queries; do not force a natural-language search to retrieve a known file.
 
@@ -72,7 +72,7 @@ Observer-only local adapter. Omitted skill searches the installed catalog; an em
 
 `command(argv, cwd?, limits?)` is internal scout/skill-mode command execution in the existing OS sandbox, not an observer shell. Host code clamps resource limits. Use standard Unix/Git/parser tools by default. It may use disposable scratch; it cannot mutate host/project/Todo state or delegate.
 
-`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers compact recent investigation/skill-job findings with source refs. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known job through investigate/find or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
+`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers compact recent investigation/skill-job findings with source refs. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known job through investigate/search or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
 
 ## Workflow and mutator additions
 
@@ -84,10 +84,10 @@ Mutator adds `plan`, `amend_project`, and `maintain_execution`. `plan` consolida
 
 | Profile | Shared information tools | Adapters/extras | Mutation |
 |---|---|---|---|
-| Observer | overview, delta, frontier, find, search, evidence, impact, history, machine | read, investigate, skill; extended available | No project or Todo mutation |
-| Investigator, internal | Same nine, compact/standard | command, log; native files/skills; no automatic brief | None |
-| Coder (`codex` compatibility identity) | Same nine, compact/standard | Native files, shell and skills; four workflow tools | Scoped workflow only |
-| Mutator | Same nine, compact/standard | investigate; native files/skills; four workflow tools | plan, amend_project, maintain_execution |
+| Observer | overview, delta, frontier, search, evidence, impact, history, machine | read, investigate, skill; extended available | No project or Todo mutation |
+| Investigator, internal | Same eight, compact/standard | command, log; native files/skills; no automatic brief | None |
+| Coder (`codex` compatibility identity) | Same eight, compact/standard | Native files, shell and skills; four workflow tools | Scoped workflow only |
+| Mutator | Same eight, compact/standard | investigate; native files/skills; four workflow tools | plan, amend_project, maintain_execution |
 | Skill assembler, internal mode | Same semantic implementation with permitted scope, compact/standard | command, log; home=registered skills root | None; only proposes source selections |
 
 This deliberately does not expose Project Control read/skill to local profiles or recursive investigator adapters. Native capabilities are not reimplemented as MCP tools. Temporarily disabled coder delegation tools are absent from discovery and rejected at dispatch with `temporarily_inactive`; feature metadata gives reason and explicit reactivation policy, not a scheduled date.

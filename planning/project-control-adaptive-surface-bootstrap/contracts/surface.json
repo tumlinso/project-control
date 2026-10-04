@@ -6,7 +6,6 @@
         "overview",
         "delta",
         "frontier",
-        "find",
         "search",
         "evidence",
         "impact",
@@ -29,7 +28,6 @@
         "overview",
         "delta",
         "frontier",
-        "find",
         "search",
         "evidence",
         "impact",
@@ -51,7 +49,6 @@
         "overview",
         "delta",
         "frontier",
-        "find",
         "search",
         "evidence",
         "impact",
@@ -75,7 +72,6 @@
         "overview",
         "delta",
         "frontier",
-        "find",
         "search",
         "evidence",
         "impact",
@@ -102,7 +98,6 @@
         "overview",
         "delta",
         "frontier",
-        "find",
         "search",
         "evidence",
         "impact",
@@ -126,7 +121,6 @@
     "overview",
     "delta",
     "frontier",
-    "find",
     "search",
     "evidence",
     "impact",
@@ -159,7 +153,8 @@
     "performance_probe",
     "agent_status",
     "performance_status",
-    "local_investigate"
+    "local_investigate",
+    "find"
   ],
   "temporarily_inactive": {
     "delegate_task": {
@@ -216,5 +211,18 @@
       "prepare",
       "execute"
     ]
+  },
+  "search_contract": {
+    "query_forms": [
+      "discovery_query",
+      "exact_typed_entity"
+    ],
+    "exact_typed_entity": {
+      "kind": "semantic entity type",
+      "target": "exact canonical identifier"
+    },
+    "exact_routing": "existing canonical lookup directly; cheapest deterministic path; no unnecessary fuzzy or lexical retrieval; no filesystem discovery",
+    "discovery_behavior": "unchanged",
+    "native_filesystem_discovery": "native find/rg/Git"
   }
 }

@@ -32,7 +32,7 @@ Current executed behavioral evidence for every owned case, producer/consumer com
 
 ## PC-AS1-CONTEXT — Consolidate orientation and deterministic context
 
-Deliver overview/delta/frontier/read/find/search/evidence/history/machine through canonical services.
+Deliver overview/delta/frontier/read/search/evidence/history/machine through canonical services.
 
 Repository: `project-control`. Local prerequisites: `PC-AS1-PACKETS`.
 

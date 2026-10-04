@@ -64,8 +64,8 @@
       ]
     },
     {
-      "id": "AS1-FIND",
-      "requirement": "One shared exact typed semantic find; no local bespoke inspect tool.",
+      "id": "AS1-SEARCH-EXACT",
+      "requirement": "Exact typed semantic IDs/entities use search and route directly to existing canonical lookup by the cheapest deterministic path, without unnecessary fuzzy/lexical retrieval or filesystem discovery; no public find or local bespoke inspect tool. Existing discovery search behavior is preserved.",
       "owners": [
         "PC-AS1-CONTEXT",
         "PC-AS1-JOBS"

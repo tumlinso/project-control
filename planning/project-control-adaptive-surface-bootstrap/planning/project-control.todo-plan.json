@@ -122,7 +122,7 @@
       "parent_id": "PC-AS1-0000",
       "kind": "task",
       "title": "Consolidate orientation and deterministic context",
-      "objective": "Deliver overview/delta/frontier/read/find/search/evidence/history/machine through canonical services.",
+      "objective": "Deliver overview/delta/frontier/read/search/evidence/history/machine through canonical services.",
       "priority": 100,
       "parallel_policy": "serial",
       "scope": {

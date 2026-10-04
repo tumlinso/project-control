@@ -58,7 +58,7 @@
       "id": "PC-AS1-CONTEXT",
       "project": "project-control",
       "title": "Consolidate orientation and deterministic context",
-      "objective": "Deliver overview/delta/frontier/read/find/search/evidence/history/machine through canonical services.",
+      "objective": "Deliver overview/delta/frontier/read/search/evidence/history/machine through canonical services.",
       "depends_on": [
         "PC-AS1-PACKETS"
       ],

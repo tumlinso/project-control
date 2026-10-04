@@ -118,5 +118,9 @@
       "version": "1"
     },
     "mode": "preview"
+  },
+  "search-query": {
+    "kind": "task",
+    "target": "PC-AS1-CONTEXT"
   }
 }

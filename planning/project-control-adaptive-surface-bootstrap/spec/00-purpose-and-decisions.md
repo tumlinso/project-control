@@ -15,7 +15,7 @@ The machine-readable requirement ledger is `contracts/requirements.json`. In par
 * `overview`, `delta`, and `frontier` survive with distinct jobs. Overview is first-look project understanding and defining paths; frontier is active work and coordination; delta is material change.
 * `read` accepts **multiple relative paths** and is remote-observer-only. Coders, mutators and local scouts read files natively.
 * `search` combines semantic/project-graph discovery and source/filesystem discovery, with the latter preserved as fallback. It is an option, not the only way into a project.
-* `find` is exact typed semantic lookup; no extra local-only `inspect_entity` vocabulary. It is distinct from invoking the Unix `find` executable through `command`.
+* `search` includes exact typed semantic lookup through the existing canonical backend, taking the cheapest deterministic path for exact IDs/entities without unnecessary fuzzy or lexical retrieval. There is no public `find` or extra local-only `inspect_entity` vocabulary. Native filesystem discovery still uses Unix `find`, `rg`, and Git; it is not exact semantic lookup.
 * `evidence`, deterministic `impact`, and deterministic `history` stay first-class. Coordination moves into frontier. Machine facts become a shared `machine` tool.
 * `investigate` is a short-lived, command-first read-only scout service with durable queue/history. It can be invoked without a project, within registered host access policy.
 * `command` is the final name for `exec_readonly`. The sandbox enforces effects; avoid unnecessary command allowlists and content mutilation.

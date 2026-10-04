@@ -109,7 +109,7 @@
       "id": "CTX-06",
       "outcome": "PC-AS1-CONTEXT",
       "project": "project-control",
-      "behavior": "Find performs exact typed lookup and ambiguity handling, with no competing local inspector.",
+      "behavior": "Search retrieves exact typed task, gate, interface, decision, run, packet and investigation identifiers through existing canonical lookup, handles ambiguity and scoped access, and does not invoke fuzzy/lexical retrieval unnecessarily or filesystem discovery; no public find or competing local inspector.",
       "required": true,
       "test_file": "tests/as1/test_pc_as1_context.py"
     },
@@ -117,7 +117,7 @@
       "id": "CTX-07",
       "outcome": "PC-AS1-CONTEXT",
       "project": "project-control",
-      "behavior": "Search combines semantic/source mechanisms, discovers paths, preserves live fallback and correctly handles exact phrases/symbols.",
+      "behavior": "Search combines semantic/source mechanisms, discovers paths, preserves live fallback and correctly handles exact phrases/symbols. These discovery behaviors remain unchanged when exact typed lookup is absorbed; native/local filesystem discovery continues through find/rg/Git.",
       "required": true,
       "test_file": "tests/as1/test_pc_as1_context.py"
     },

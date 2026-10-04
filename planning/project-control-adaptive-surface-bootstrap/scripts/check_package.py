@@ -69,6 +69,8 @@ def verify_manifest(root: Path, *, required: bool = False) -> int:
 def check(root: Path = ROOT, *, require_manifest: bool = False) -> dict[str, Any]:
     root = root.resolve()
     surface = read_json(root, 'contracts/surface.json')
+    if len(surface['shared_information_tools'])!=8 or 'find' in surface['shared_information_tools']:
+        raise ValueError('shared information surface must have eight tools without public find')
     expected_profiles = {'observer','investigator','coder','mutator','skill_assembler'}
     if set(surface['profiles']) != expected_profiles: raise ValueError('profile set drift')
     old = set(surface['removed_default_names']) | set(surface['temporarily_inactive'])
@@ -98,8 +100,22 @@ def check(root: Path = ROOT, *, require_manifest: bool = False) -> dict[str, Any
         if preview_path.exists():
             preview=json.loads(preview_path.read_text())
             digest=hashlib.sha256(json.dumps(plan,sort_keys=True,indent=2).encode()).hexdigest()
-            if not preview.get('valid') or preview.get('plan_digest')!=digest:
-                raise ValueError('native plan no longer matches its recorded live preview')
+            if not preview.get('valid'):
+                raise ValueError('recorded native plan preview was invalid')
+            if preview.get('plan_digest')!=digest:
+                correction_path=root/'validation/search-correction.json'
+                correction=json.loads(correction_path.read_text()) if correction_path.exists() else {}
+                if not (project=='project-control'
+                        and correction.get('format')=='pc-as1-package-correction/1'
+                        and correction.get('project')==project
+                        and correction.get('historical_preview')==f'validation/{project}.live-preview.json'
+                        and correction.get('historical_plan_digest')==preview.get('plan_digest')
+                        and correction.get('corrected_plan_digest')==digest
+                        and correction.get('corrected_plan_file_sha256')==hashlib.sha256((root/f'planning/{project}.todo-plan.json').read_bytes()).hexdigest()
+                        and correction.get('live_preview_status')=='stale_for_corrected_plan'
+                        and correction.get('authority_to_apply') is False
+                        and correction.get('requires_live_revalidation_before_import') is True):
+                    raise ValueError('native plan no longer matches its recorded live preview or explicit stale correction')
         run=plan['runs'][0]; root_id=run['root_task_id']; queue=run['lanes'][0]['tasks']
         if set(queue)!=ids or len(queue)!=len(ids) or queue[-1]!=root_id: raise ValueError('lane membership/aggregate order')
         for t in tasks:

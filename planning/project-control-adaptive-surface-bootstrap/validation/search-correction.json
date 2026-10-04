@@ -1,0 +1,12 @@
+{
+  "format": "pc-as1-package-correction/1",
+  "reason": "User removed public find; search retains discovery and absorbs exact typed canonical lookup.",
+  "project": "project-control",
+  "historical_preview": "validation/project-control.live-preview.json",
+  "historical_plan_digest": "60fb8866eecaad579c605a4b02261930ad9507725d4b00a16caeb15fb4ef3523",
+  "corrected_plan_digest": "e27cd64270baa43ac62411baaac479e51f333354c969771708dd4fc904176fcb",
+  "corrected_plan_file_sha256": "8ed577d3cff267d62183beef3b0b3e804158b1363ad3595a8271d9e4d5ff8612",
+  "live_preview_status": "stale_for_corrected_plan",
+  "authority_to_apply": false,
+  "requires_live_revalidation_before_import": true
+}
