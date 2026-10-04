@@ -1,0 +1,235 @@
+{
+  "command": [
+    "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp",
+    "--root",
+    "/tmp/pytest-of-tumlinson/pytest-88/test_observer_genuine_compiler0/native",
+    "--json",
+    "scan",
+    "."
+  ],
+  "returncode": 0,
+  "stdout": "{\"backend\":\"libclang-runtime\",\"cache_hits\":0,\"edges\":9,\"failures\":0,\"files\":2,\"format\":\"CTXPP-SCAN/1\",\"index\":\"/tmp/pytest-of-tumlinson/pytest-88/test_observer_genuine_compiler0/native/.ctxpp/index.jsonl\",\"symbols\":4}\n",
+  "stderr": "",
+  "index_sha256": "4c2a8f57ab73e58b3a5917535ebd9478cd1025db176e00da9f254351a105f7b8",
+  "manifest_sha256": "fd5bdbe5187858605b45b97c3272dc4fc4b14d0dee9756b381e6764e2410d56a",
+  "producer_identities": {
+    "/home/tumlinson/.agents/skills/cpp-context-compiler/tool/build/ctxpp-core": "0d6f35eda2886f3fe7aed5a43218f775671be442caf16d1c20ad9fa9adfb1a48",
+    "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp": "bb58c191079a058b1d8aa0c3bd1a5ff4698f6ab4ff7a01b77d6c3ce785c5f864",
+    "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp_lib.py": "749599d2309db968c0deee0b352a96f2e96d0ed6f3f23d4958262a24a0194ac5",
+    "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp_recipe.py": "517058a11364159d87e0887eaba41e67f90569c092538ab80f7b1f70c41a7ebf",
+    "/usr/lib/llvm-18/bin/clang": "8ef402d453d1ba4902e4ee0f0f847f6cfa01400c95aa43c24e97818b9c0e3f45"
+  },
+  "native_call_count": 1,
+  "consumer_call_count": 1,
+  "input_observations": [
+    {
+      "normalized_config_agrees": true,
+      "normalized_command_hash": "bc609a6baed6dd5afcc7395219ba0cfe24771fee268e1ae0fc0ba2ba80f0b18c",
+      "runtime_library_and_system_headers": "unverified"
+    }
+  ],
+  "coverage": {
+    "complete_graph_cut": false,
+    "providers": [
+      {
+        "project": "native",
+        "project_uuid": "fixture-native-compiler",
+        "repository": "source@45f03b218a777f6ac0d656b1",
+        "provider": "syntax/1",
+        "generation": "23b3c1610cc966fb4a6a2dd85218d44c7a1354c7dfd5d943370d32b0d35a60ff",
+        "relations": [
+          "imports",
+          "mentions",
+          "package_dependency"
+        ],
+        "complete": false,
+        "freshness": "current",
+        "input_manifest": [
+          {
+            "kind": "provider",
+            "key": "syntax/1",
+            "digest": "b5a8f8f61324dc5b0a10cd5395abbf86a9986c12436e68ded19bdb16a8c0a6b5"
+          },
+          {
+            "kind": "directory_membership",
+            "key": "source",
+            "digest": "52f2e1f3e72e4d0dca0b68800e631fba7abae1e5efc5cb49aad1c56ea8891e3f"
+          },
+          {
+            "kind": "configuration",
+            "key": "source",
+            "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "kind": "exports",
+            "key": "source",
+            "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "gaps": [
+          "installed_semantic_export_required:include/helper.hpp",
+          "installed_semantic_export_required:src/entry.cpp"
+        ]
+      },
+      {
+        "project": "native",
+        "project_uuid": "fixture-native-compiler",
+        "repository": "source@45f03b218a777f6ac0d656b1",
+        "provider": "todo/1",
+        "generation": "e52827f0c68707e9deed41b9fe3e1161b42f6b88baab5aef26de3c5a215074a1",
+        "relations": [],
+        "complete": true,
+        "freshness": "current",
+        "input_manifest": [
+          {
+            "kind": "semantic_revision",
+            "key": "native",
+            "digest": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+          }
+        ],
+        "gaps": [
+          "workflow_declarations_do_not_prove_source_calls"
+        ]
+      },
+      {
+        "project": "native",
+        "project_uuid": "fixture-native-compiler",
+        "repository": "source@45f03b218a777f6ac0d656b1",
+        "provider": "semantic-registration/1",
+        "generation": "ceadd35427b02f8e8514130d727f1bee4f40b27ab2e92ad0ca9f644254619287",
+        "relations": [],
+        "complete": true,
+        "freshness": "current",
+        "input_manifest": [
+          {
+            "kind": "semantic_revision",
+            "key": "native",
+            "digest": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+          },
+          {
+            "kind": "registry",
+            "key": "native",
+            "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          }
+        ],
+        "gaps": []
+      },
+      {
+        "project": "native",
+        "project_uuid": "fixture-native-compiler",
+        "repository": "source@45f03b218a777f6ac0d656b1",
+        "provider": "ctxpp-export/1",
+        "generation": "11302e2c8ae1beb8d55d451d5d648b448e02aec2c7c7595b1cc3ae3cdddbc9f8",
+        "relations": [
+          "calls",
+          "includes"
+        ],
+        "complete": false,
+        "freshness": "unknown",
+        "input_manifest": [
+          {
+            "kind": "provider",
+            "key": "ctxpp-export/1",
+            "digest": "39bb7947774e7661391e6fca73dfb2c9641d6aa1d43840a72087d3057136d9de"
+          },
+          {
+            "kind": "file",
+            "key": ".ctxpp/index.jsonl",
+            "digest": "4c2a8f57ab73e58b3a5917535ebd9478cd1025db176e00da9f254351a105f7b8"
+          },
+          {
+            "kind": "file",
+            "key": ".ctxpp/manifest.json",
+            "digest": "fd5bdbe5187858605b45b97c3272dc4fc4b14d0dee9756b381e6764e2410d56a"
+          },
+          {
+            "kind": "directory_membership",
+            "key": "source",
+            "digest": "52f2e1f3e72e4d0dca0b68800e631fba7abae1e5efc5cb49aad1c56ea8891e3f"
+          },
+          {
+            "kind": "file",
+            "key": "include/helper.hpp",
+            "digest": "f709a0319709f3774798fbbe258f982ae8270388abd949387c2a9de6998c7713"
+          },
+          {
+            "kind": "file",
+            "key": "src/entry.cpp",
+            "digest": "6f2594fc42bcc514d0a153d65e838f35f31fe9436defa819c81716da254afc4a"
+          },
+          {
+            "kind": "configuration",
+            "key": "normalized-ctxpp-config",
+            "digest": "f6df1151edab808fc843d40eb7f2f8cc7dc0962d0402e9919c4634e0c46f10b9"
+          },
+          {
+            "kind": "configuration",
+            "key": "normalized-compile-command",
+            "digest": "bc609a6baed6dd5afcc7395219ba0cfe24771fee268e1ae0fc0ba2ba80f0b18c"
+          },
+          {
+            "kind": "environment",
+            "key": "fixture-unverified-runtime-dimensions",
+            "digest": "c94e7c7775ae1f2614af03bf24c45a0554583056d788e84301216d267359652e"
+          },
+          {
+            "kind": "provider",
+            "key": "/home/tumlinson/.agents/skills/cpp-context-compiler/tool/build/ctxpp-core",
+            "digest": "0d6f35eda2886f3fe7aed5a43218f775671be442caf16d1c20ad9fa9adfb1a48"
+          },
+          {
+            "kind": "provider",
+            "key": "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp",
+            "digest": "bb58c191079a058b1d8aa0c3bd1a5ff4698f6ab4ff7a01b77d6c3ce785c5f864"
+          },
+          {
+            "kind": "provider",
+            "key": "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp_lib.py",
+            "digest": "749599d2309db968c0deee0b352a96f2e96d0ed6f3f23d4958262a24a0194ac5"
+          },
+          {
+            "kind": "provider",
+            "key": "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp_recipe.py",
+            "digest": "517058a11364159d87e0887eaba41e67f90569c092538ab80f7b1f70c41a7ebf"
+          },
+          {
+            "kind": "provider",
+            "key": "/usr/lib/llvm-18/bin/clang",
+            "digest": "8ef402d453d1ba4902e4ee0f0f847f6cfa01400c95aa43c24e97818b9c0e3f45"
+          },
+          {
+            "kind": "configuration",
+            "key": "ctxpp-verification-state",
+            "digest": "dcca3ea613f220eb33bd52d59c9b131cdd38648f0b00295f8bd54dc96a4bedb7"
+          },
+          {
+            "kind": "registry",
+            "key": "native",
+            "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          {
+            "kind": "semantic_revision",
+            "key": "native",
+            "digest": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+          }
+        ],
+        "gaps": [
+          "compiler_export_scope_only;dynamic_dispatch_unknown",
+          "compiler_configuration_or_source_unverified",
+          "compiler_export_incomplete_or_degraded"
+        ]
+      }
+    ],
+    "repositories": [
+      {
+        "project": "native",
+        "project_uuid": "fixture-native-compiler",
+        "repository": "source@45f03b218a777f6ac0d656b1",
+        "commit": "d98f89707426662648b384bc5b2bf51787e2fbeb",
+        "working_tree_fingerprint": "95ac162cc3819f3333c4749163c8206a198f4ab3283170ceee12c2254dce366f",
+        "observed_at": "2026-10-04T00:00:00Z"
+      }
+    ]
+  },
+  "generation": "93d2ebff73f59348641647a7324c291d9bbed7083154d6d3d4bc5c73ab26e5ed"
+}

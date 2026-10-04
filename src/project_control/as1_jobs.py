@@ -323,6 +323,16 @@ class JobService:
         result, _ = mask_payload(result)
         if result.get('status') == 'stale_attempt':
             return False
+        # Ordinary turn exhaustion is terminal, including legacy producer output.
+        # Foreground preemption and session eviction retain their resumable status.
+        if (result.get('status'), result.get('reason')) in {
+                ('yielding', 'step_budget'), ('partial', 'step_budget_exhausted')}:
+            result['status'] = 'partial'
+            result['reason'] = 'step_budget_exhausted'
+            if not result.get('unresolved_questions'):
+                result['unresolved_questions'] = [
+                    'The observer exhausted its bounded turn budget before answering the question. '
+                    'Review retained observations and submit a new question for further investigation.']
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             try:

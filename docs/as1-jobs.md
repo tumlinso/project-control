@@ -46,7 +46,11 @@ increments the generation immediately, preserving previous evidence, and late
 worker outputs cannot change the cancelled record. Worker sessions are closed
 in `finally`, including failures and cancellation. Bounded inflight inference
 may finish before cancellation is observed; it cannot commit afterwards.
-Yield/eviction preserve observations and requeue after configurable retry time.
+Foreground preemption, unavailable sessions and eviction preserve observations
+and requeue after configurable retry time. Ordinary turn-budget exhaustion
+(including legacy `yielding/step_budget`) terminates as `partial` with a result
+packet and unresolved question. Polling and same-ID resubmission return that
+retained partial result without automatically claiming another attempt.
 No transaction waits for inference, commands or packet materialization.
 
 The observation and its stable packet identity are committed together to the

@@ -1,0 +1,51 @@
+{
+  "question": "Orient, read both defining files, find exact task T1, inspect pending gate evidence.",
+  "old": {
+    "schema_bytes": 27482,
+    "prompt_bytes": 1517,
+    "tool_request_bytes": 461,
+    "tool_response_bytes": 14820,
+    "calls": 4,
+    "retries": 0,
+    "repeated_full_reads": 0,
+    "authority_revalidation_calls": 0,
+    "startup_seconds": 0.14730222700018203,
+    "latency_seconds": 0.06604104299185565,
+    "model_tokens": null,
+    "model_usage_status": "unmetered_no_inference",
+    "queue_wait_seconds": 0,
+    "model_starts": 0,
+    "human_prompts": 0,
+    "total_client_visible_bytes": 44280
+  },
+  "new": {
+    "schema_bytes": 9374,
+    "prompt_bytes": 464,
+    "tool_request_bytes": 357,
+    "tool_response_bytes": 11790,
+    "calls": 4,
+    "retries": 0,
+    "repeated_full_reads": 0,
+    "authority_revalidation_calls": 0,
+    "startup_seconds": 0.10208191499987151,
+    "latency_seconds": 0.11279557600209955,
+    "model_tokens": null,
+    "model_usage_status": "unmetered_no_inference",
+    "queue_wait_seconds": 0,
+    "model_starts": 0,
+    "human_prompts": 0,
+    "total_client_visible_bytes": 21985
+  },
+  "correctness_and_provenance_regression": false,
+  "source_sha256": {
+    "README.md": "b9cc3bb450a61eb8eca66261b68e8c941a43ab912b2b49b26ff9a2d60b162098",
+    "module.py": "185786c0cf30b2c243293185ea01490213e12452b3eb402f0ffa3e3a39b23331"
+  },
+  "limits": [
+    "Fixed snapshot fixture port; not live authority timing.",
+    "No model token, monetary, GPU or energy comparison.",
+    "No historical baseline for newly added cross-project trace."
+  ],
+  "tradeoff": "New response packets include durable evidence/source identity; total exposure is compared including all discovered schemas and wire content.",
+  "total_bytes_delta": -22295
+}

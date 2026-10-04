@@ -18,7 +18,7 @@ from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis
 from .profiles import MCPProfile
 
 # Qualified Skills producer receipt cd149c328 / 9ffcf14; never derived from encountered bytes.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = '99ebb05632b7768403e103bc32bb5f04885c86662272cef14bf83fb25e57ce8b'
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '0cb31c565e02a5aa524ba6cff8af0a35f94246385fac53d692260573e519336b'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 
@@ -105,7 +105,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                 # skill jobs never acquire implicit project filesystem access.
                 permitted = [root]
                 if job.mode != 'skill' and scope['project'] != 'catalog':
-                    permitted += [r.root for r in config.workspaces[scope['project']].repositories.values()]
+                    permitted = [r.root for r in config.workspaces[scope['project']].repositories.values()] + [root]
                 bound = TrustedObserverFactory(root, self.digest, backend=self.backend,
                     roots=permitted, tools=self.tools, skills=self.skills)
                 return bound(service, job)

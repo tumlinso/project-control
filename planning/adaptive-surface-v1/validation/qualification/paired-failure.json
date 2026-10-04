@@ -1,0 +1,26 @@
+{
+  "status": "failed",
+  "proof": "/home/tumlinson/.agents/skills/planning/adaptive-surface-v1/validation/sqa-real/as1-paired-daaab5a-e2ea75a-20261004-q2/receipt.json",
+  "proof_sha256": "3967bde4036333ba90a4a2d6e615d5549335d2927b55c51e0c4a9b49500e7401",
+  "source_identity": {
+    "candidate_root": "/home/tumlinson/.local/share/project-control/candidates/as1-paired-daaab5a-e2ea75a-20261004",
+    "fixture_commit": "ab4f6d54934a982dce2ed3232d70f7ffb7d81559",
+    "helper_sha256": "3b6479c11768214a39c8dd7a63d7373c6463b0aeef8af60049a7cbb58ff47c1a",
+    "native_catalog_sha256": "d1b054bdd6f38a54fb197f15b8abeb4f35ea23fe53aaeabcdd4d0d1fa34aadf7",
+    "native_routing_sha256": "153b4b75da688822e5f961a8f05711d3af6acdc770ce4f975247b425d271b239",
+    "observer_runtime_sha256": "99ebb05632b7768403e103bc32bb5f04885c86662272cef14bf83fb25e57ce8b",
+    "pc_commit": "daaab5aeb800390c529edfe976db03ad28c5b850",
+    "release_sha256": "f0aa9d267ccf4c5ad83f397a3c4c70e2329ce1b38d310ae31bcb96ca7caf92ad",
+    "skills_commit": "e2ea75a550f876ba0bd8836c0d1d47fd5aa13f7e"
+  },
+  "failed_or_unexecuted_cases": [
+    "E2E-03",
+    "E2E-05"
+  ],
+  "diagnostic": "/home/tumlinson/.agents/skills/planning/adaptive-surface-v1/validation/sqa-real/as1-paired-daaab5a-e2ea75a-20261004-q2/failure-diagnostic.json",
+  "diagnostic_sha256": "dfd99d71215a56c793d92be41c237b5a6cc85d34e7ee295a5c2d8e06bae37a1a",
+  "limits": [
+    "Actual real-model journey did not complete; no skill or complete restart/reuse qualification is claimed from q2.",
+    "Root owns producer repair and final acceptance; no local native authority or GPU mutation by PC qualification worker."
+  ]
+}
