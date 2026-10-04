@@ -265,6 +265,16 @@ def test_current_conformance_and_independent_review_are_executed():
         assert sha(REPORTS/native['path'])==native['sha256']
         assert '10 passed' in (REPORTS/native['path']).read_text()
         assert entry['source_hashes']['local-coding-worker/local_worker/observer_runtime.py']==entry['qualified_observer_runtime_sha256']
+    protocol=index.get('paired_skill_protocol_producer')
+    if protocol:
+        for relative,expected_hash in protocol['source_hashes'].items():
+            assert sha(Path('/home/tumlinson/.agents/skills')/relative)==expected_hash,relative
+        assert protocol['source_hashes']['local-coding-worker/local_worker/observer_runtime.py']==protocol['qualified_observer_runtime_sha256']
+        for artifact in protocol['artifacts']:
+            path=REPORTS/artifact['path'];assert sha(path)==artifact['sha256']
+            if path.name.endswith('.tool-response.json'):
+                result=json.loads(path.read_text());assert result['exit_code']==0
+                assert str(artifact['passed_tests'])+' passed' in result['output']
     paired=paired_consumer()
     report_path=Path(os.environ.get('AS1_SQA_REPORT','/home/tumlinson/.local/state/project-control/as1-bootstrap/sqa/final-acceptance-report.json'))
     assert report_path.is_file(), 'Current executed SQA report required'

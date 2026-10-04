@@ -117,3 +117,13 @@ consumer requires no particular new unit name and does not require restarting
 the older protected unit. NF1A checks preserve actual native before/after state
 and prohibit resumption; they do not infer a paused status from historical plan
 text. Root observed Cellerator and GlassHelix NF1A records as completed/done.
+
+The current functional candidate binds PC `6d1a732` and Skills `269646d`, with
+observer runtime `ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf`.
+Actual captured skill-protocol execution reports 67 passes/11 subtests, followed
+by three affected cases on the final citation-policy correction. The broader
+capture omits middle warning text but retains the result and exit zero; the
+focused capture is complete. Captured outputs and tool responses are hash-bound.
+Current PC startup/JOB-06 execution passed two cases; historical entry evidence
+and previous source identities remain preserved. Actual full Q11 SQA evidence
+remains required before dependent E2E acceptance.
