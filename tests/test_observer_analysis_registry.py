@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,6 +14,16 @@ from project_control.observer_analysis import (
     SkillsObserverAnalysisProvider,
     observer_analysis_state_root,
 )
+
+
+class _Client:
+    def __init__(self, service_root, **kwargs):
+        self.root = Path(service_root)
+    def observer_status(self, **kwargs):
+        source = Path(os.environ["PROJECT_CONTROL_SKILLS_ROOT"]) / "local-coding-worker/local_worker/supervisor.py"
+        return {"observer_contract": "PC-OBSERVER-SUPERVISOR/1", "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                "service_state_root": str(self.root), "runtime_root": str(self.root / "runtime"),
+                "observer_only": True, "supervisor_pid": 123, "supervisor_process_start": "start"}
 
 
 class _Provider:
@@ -41,7 +52,7 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
                   "evidence": [{"id": "ev-1", "resource": "references/volta.md", "content": "original"}]}
         registry = ObserverAnalysisRegistry(PacketProvider)
         result = registry.analyze_packet(packet)
-        self.assertEqual(result["status"], "available")
+        self.assertEqual(result["status"], "available", result)
         self.assertEqual(packet["evidence"][0]["content"], "original")
         self.assertIsNone(registry._providers["local-observer-service"].root)
         self.assertFalse(result["mutation_authority"])
@@ -117,13 +128,14 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
             skills = base / "skills"
             module_root = skills / "local-coding-worker" / "local_worker"
             module_root.mkdir(parents=True)
+            (module_root / "supervisor.py").write_text("# bound source\n")
             captured = []
-            class Backend:
-                def __init__(self, *_args, **_kwargs): pass
+            class Backend(_Client):
+                def __init__(self, *args, **kwargs): super().__init__(*args, **kwargs)
                 def run_observer_turn(self, request):
                     captured.append(request)
                     return {"status": "available", "text": '{"action":"answer","answer":{}}'}
-            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), ProductionBackend=Backend)
+            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), SupervisorClient=Backend)
             with mock.patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(skills), "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}, clear=False), \
                  mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
                 result = SkillsObserverAnalysisProvider(base / "observed").investigate_turn({
@@ -131,7 +143,7 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
                     "compute_profile": "wide", "parallelism": "row", "messages": [{"role": "system", "content": "system"},
                         {"role": "user", "content": "question"}, {"role": "assistant", "content": "prior"}],
                 })
-            self.assertEqual(result["status"], "available")
+            self.assertEqual(result["status"], "available", result)
             self.assertEqual(captured[0]["format"], "PC-LOCAL-INVESTIGATOR-TURN/2")
             self.assertEqual(captured[0]["messages"][0], {"role": "system", "content": "system"})
             self.assertEqual(captured[0]["messages"][1]["content"], "question")
@@ -149,16 +161,18 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
             skills = base / "skills"
             module_root = skills / "local-coding-worker" / "local_worker"
             module_root.mkdir(parents=True)
+            (module_root / "supervisor.py").write_text("# bound source\n")
             module = SimpleNamespace(__file__=str(module_root / "supervisor.py"))
             captured: list[Path] = []
             captured_state: list[Path] = []
 
-            class Backend:
-                def __init__(self, service_root, *, service_state_root):
+            class Backend(_Client):
+                def __init__(self, service_root, *, root):
+                    super().__init__(service_root)
                     captured.append(Path(service_root))
-                    captured_state.append(Path(service_state_root))
+                    captured_state.append(Path(root))
 
-            module.ProductionBackend = Backend
+            module.SupervisorClient = Backend
             with mock.patch.dict(os.environ, {
                 "PROJECT_CONTROL_SKILLS_ROOT": str(skills),
                 "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "service-state"),
@@ -166,7 +180,7 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
                 provider = SkillsObserverAnalysisProvider(observed)
                 provider._get_backend()
                 self.assertEqual(captured, [base / "service-state"])
-                self.assertEqual(captured_state, [base / "service-state"])
+                self.assertEqual(captured_state, [base / "service-state/runtime"])
                 self.assertNotEqual(captured[0], observed)
                 self.assertTrue(captured[0].is_dir())
                 self.assertFalse((observed / ".todo-orchestrator").exists())
@@ -216,16 +230,18 @@ class ObserverDeadlineTests(unittest.TestCase):
             base = Path(temporary)
             module_root = base / "skills/local-coding-worker/local_worker"
             module_root.mkdir(parents=True)
+            (module_root / "supervisor.py").write_text("# bound source\n")
             created, calls = [], []
             barrier = threading.Barrier(2)
-            class Backend:
+            class Backend(_Client):
                 def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
                     time.sleep(.03)
                     created.append(self)
                 def open_observer_sessions(self, count, **kwargs):
                     calls.append(kwargs)
                     return {"status": "available", "session_ids": ["session"]}
-            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), ProductionBackend=Backend)
+            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), SupervisorClient=Backend)
             with mock.patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(base / "skills"),
                     "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}), \
                     mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
@@ -244,6 +260,7 @@ class ObserverDeadlineTests(unittest.TestCase):
     def test_provider_close_propagates_retryable_owned_cleanup_failure(self):
         provider = SkillsObserverAnalysisProvider()
         provider._backend = SimpleNamespace(close_observer_session=mock.Mock(side_effect=RuntimeError("cleanup_pending")))
+        provider._checked_client = mock.Mock(return_value=provider._backend)
         with self.assertRaisesRegex(RuntimeError, "cleanup_pending"):
             provider.close_session("owned-session")
 
@@ -251,6 +268,7 @@ class ObserverDeadlineTests(unittest.TestCase):
     def test_provider_close_requires_verified_release(self):
         provider = SkillsObserverAnalysisProvider()
         provider._backend = SimpleNamespace(close_observer_session=mock.Mock(return_value={"released": False}))
+        provider._checked_client = mock.Mock(return_value=provider._backend)
         with self.assertRaisesRegex(RuntimeError, "observer_session_not_quiescent"):
             provider.close_session("owned-session")
         provider._backend.close_observer_session.return_value = {"released": True}

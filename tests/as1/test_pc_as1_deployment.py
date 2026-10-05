@@ -1,5 +1,6 @@
 """Operator GPU policy reaches the lazy native constructor without GPU work."""
 import json
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,12 +23,22 @@ def native_constructor(tmp_path, monkeypatch):
                        '[storage]\ncache_root = "/operator/model-cache"\n'
                        '[server]\nbinary = "/operator/llama-server"\n')
     calls, imports = [], []
-    class Backend:
-        def __init__(self, repo_root, *, service_state_root, profile=None, runtime=None):
-            calls.append({'root': repo_root, 'state': service_state_root,
-                          'profile': profile, 'runtime': runtime})
-    native = SimpleNamespace(__file__=str(root / 'local_worker/supervisor.py'),
-                             ProductionBackend=Backend)
+    source = root / 'local_worker/supervisor.py'
+    source.write_text('# release-bound supervisor\n')
+    state = tmp_path / 'private'
+    class Client:
+        def __init__(self, repo_root, *, root):
+            calls.append({'root': repo_root, 'runtime': root})
+        def observer_status(self, **kwargs):
+            return {'observer_contract': 'PC-OBSERVER-SUPERVISOR/1',
+                    'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+                    'service_state_root': str(state), 'runtime_root': str(state / 'runtime'),
+                    'observer_only': True, 'supervisor_pid': 42, 'supervisor_process_start': '123',
+                    'allowed_gpu_uuids': native.allowed_gpu_uuids}
+    def forbidden_backend(*args, **kwargs):
+        raise AssertionError('frontend must never construct ProductionBackend')
+    native = SimpleNamespace(__file__=str(source), SupervisorClient=Client,
+                             ProductionBackend=forbidden_backend, allowed_gpu_uuids=[])
     def load(name):
         imports.append(name)
         assert name == 'local_worker.supervisor'
@@ -36,12 +47,13 @@ def native_constructor(tmp_path, monkeypatch):
     monkeypatch.setenv('PROJECT_CONTROL_SKILLS_ROOT', str(root.parent))
     monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR', str(tmp_path / 'private'))
     monkeypatch.delenv('PROJECT_CONTROL_OBSERVER_GPU_UUIDS', raising=False)
+    monkeypatch.delenv('PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256', raising=False)
     return root, profile, calls, imports, native
 
 
 @pytest.mark.as1_case('API-04')
 def test_operator_gpu_policy_is_snapshotted_lazy_and_reused(native_constructor, monkeypatch):
-    root, profile_path, calls, imports, _ = native_constructor
+    root, profile_path, calls, imports, native = native_constructor
     original_profile = profile_path.read_bytes()
     monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_GPU_UUIDS', json.dumps([GPU_A, GPU_B, GPU_A]))
     provider = module.SkillsObserverAnalysisProvider('/observed/project')
@@ -51,14 +63,14 @@ def test_operator_gpu_policy_is_snapshotted_lazy_and_reused(native_constructor, 
     backend = provider._get_backend()
     assert imports == ['local_worker.supervisor'] and len(calls) == 1
     call = calls[0]
-    assert call['root'] == call['state'] == root.parents[1] / 'private'
-    assert call['runtime'] is None
-    assert call['profile']['deployment_policy'] == {'max_real_workers': 1, 'allowed_gpu_uuids': [GPU_A, GPU_B]}
-    assert call['profile']['compute_profiles']['narrow'] == 'installed-qualified-model'
-    assert call['profile']['storage']['cache_root'] == '/operator/model-cache'
-    assert call['profile']['server']['binary'] == '/operator/llama-server'
+    assert call == {'root': root.parents[1] / 'private', 'runtime': root.parents[1] / 'private/runtime'}
+    native.allowed_gpu_uuids = [GPU_A, GPU_B]
+    assert provider.central_status()['allowed_gpu_uuids'] == [GPU_A, GPU_B]
+    native.allowed_gpu_uuids = [GPU_A]
+    with pytest.raises(RuntimeError, match='central_supervisor_gpu_policy_mismatch'):
+        provider.central_status()
     assert profile_path.read_bytes() == original_profile
-    profile_path.unlink()  # Reuse the validated configuration/backend, without another read.
+    profile_path.unlink()  # Frontends never load or rewrite the daemon profile.
     monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_GPU_UUIDS', 'malformed-after-startup')
     assert provider._get_backend() is backend
     assert len(calls) == len(imports) == 1
@@ -72,8 +84,9 @@ def test_unset_operator_gpu_policy_keeps_native_defaults(native_constructor, mon
     monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_GPU_UUIDS', json.dumps([GPU_A]))
     profile_path.unlink()  # Default constructor retains native responsibility for its profile.
     provider._get_backend()
-    assert len(calls) == 1 and calls[0]['profile'] is None
-    assert calls[0]['runtime'] is None
+    assert len(calls) == 1
+    assert set(calls[0]) == {'root', 'runtime'}
+    assert provider.central_status()['allowed_gpu_uuids'] == []
 
 
 @pytest.mark.as1_case('API-04')

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import contextvars
 import time
 from contextlib import asynccontextmanager
@@ -75,7 +76,7 @@ from .workflow_tools import (
     register_maintenance_tool,
     register_workflow_tools,
 )
-from .observer_analysis import ObserverAnalysisRegistry
+from .observer_analysis import ObserverAnalysisRegistry, SkillsObserverAnalysisProvider
 from .skills import SkillRegistry
 from .config import configured_observer_skills_root
 from .skill_context import SkillContext
@@ -270,14 +271,29 @@ def create_mcp(
     if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
         register_workflow_tools(mcp, protocol_factory=workflow_protocol, context_publisher=composition.publish_context)
 
+    def central_health():
+        status = getattr(composition.backend, "central_status", None)
+        if not callable(status):
+            return {"status": "unavailable", "reason": "central_supervisor_status_unavailable"}
+        try:
+            value = status()
+            return {"status": "available", "observer_contract": value.get("observer_contract"),
+                    "supervisor_pid": value.get("supervisor_pid"),
+                    "supervisor_process_start": value.get("supervisor_process_start"),
+                    "source_sha256": value.get("source_sha256")}
+        except Exception as error:
+            return {"status": "unavailable", "reason": SkillsObserverAnalysisProvider._failure(error)}
+
     @mcp.custom_route("/healthz", methods=["GET"])
     async def health(_: Request):
-        return JSONResponse({"status": "ok", "jobs": composition.jobs.health()})
+        central = await asyncio.to_thread(central_health)
+        return JSONResponse({"status": "ok", "jobs": composition.jobs.health(), "central_inference": central})
 
     @mcp.custom_route("/readyz", methods=["GET"])
     async def ready(_: Request):
-        ok = bool(active_config.workspaces)
-        return JSONResponse({"status": "ready" if ok else "unavailable"}, status_code=200 if ok else 503)
+        central = await asyncio.to_thread(central_health)
+        ok = bool(active_config.workspaces) and central.get("status") == "available"
+        return JSONResponse({"status": "ready" if ok else "unavailable", "central_inference": central}, status_code=200 if ok else 503)
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request):
@@ -353,7 +369,7 @@ def _serve_stdio(
     *,
     maintenance_host: MaintenanceHostContext | None = None,
 ) -> int:
-    """Run stdio MCP and release any cached observer model on EOF/error."""
+    """Run stdio MCP and disconnect its observer client on EOF/error."""
     mcp = create_mcp(profile=profile, maintenance_host=maintenance_host)
     try:
         getattr(mcp, "_project_control_surface").start()

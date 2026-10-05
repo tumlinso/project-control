@@ -48,7 +48,7 @@ class MCPServerTests(unittest.TestCase):
         tools = asyncio.run(self.make().list_tools())
         self.assertEqual({t.name for t in tools}, set(OBSERVER_TOOL_NAMES))
         for tool in tools:
-            self.assertEqual(tool.annotations.readOnlyHint, tool.name not in {'investigate', 'skill'})
+            self.assertTrue(tool.annotations.readOnlyHint)
         schemas = {t.name: t.inputSchema for t in tools}
         self.assertEqual(schemas['overview']['properties']['detail']['enum'], ['compact', 'standard', 'extended'])
         self.assertEqual(schemas['overview']['properties']['detail']['default'], 'compact')
@@ -81,9 +81,16 @@ class MCPServerTests(unittest.TestCase):
         create.return_value._project_control_surface.start.assert_called_once()
         create.return_value._project_control_surface.close.assert_called_once()
     def test_health_ready_version_and_nonloopback_refusal(self):
-        with TestClient(create_asgi_app(self.config)) as client:
+        owner = {'observer_contract': 'PC-OBSERVER-SUPERVISOR/1', 'supervisor_pid': 42,
+                 'supervisor_process_start': 'fixture', 'source_sha256': 'a' * 64}
+        with patch('project_control.app.SkillsObserverAnalysisProvider.central_status', return_value=owner) as central, \
+                TestClient(create_asgi_app(self.config)) as client:
             self.assertEqual(client.get('/healthz').status_code, 200)
             self.assertEqual(client.get('/readyz').status_code, 200)
+            central.side_effect = RuntimeError('central_supervisor_unavailable')
+            unavailable = client.get('/readyz')
+            self.assertEqual(unavailable.status_code, 503)
+            self.assertEqual(unavailable.json()['central_inference']['reason'], 'central_supervisor_unavailable')
             version = client.get('/version').json()
             self.assertEqual(version['tool_schema_version'], 10)
             self.assertFalse(version['features']['automatic_overview'])
