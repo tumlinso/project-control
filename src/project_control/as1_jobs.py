@@ -502,6 +502,16 @@ class JobService:
                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
                     observations = self._public_observations(db, current)
                 return {'status': previous.status, 'job': previous.model_dump(), 'observations': observations}
+            if self._freshness_unverifiable(freshness, scope):
+                # Do not start a new generation when its retained evidence is
+                # inherently unverifiable; an identical retry cannot repair it.
+                with self._db() as db:
+                    current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
+                    if not current or current['id'] != row['id'] or current['record'] != row['record']:
+                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                    if not self._inquiry_authorized(json.loads(current['record']), scope):
+                        return {'status': 'unavailable', 'reason': 'access_unavailable'}
+                return {'status': 'unavailable', 'reason': 'freshness_unverifiable'}
         admitted = self.submit(question=question, access_scope=scope, mode=mode, skill=skill,
             hints=hints, request_id=request_id, _identity=identity, _execution_question=execution_question,
             _freshness_snapshot=freshness_snapshot)
@@ -538,6 +548,34 @@ class JobService:
         return (job['status'] in {'completed', 'partial'}
                 and bool((job.get('answer') or '').strip()
                          or any(f['text'].strip() and f['evidence_packets'] for f in job['findings'])))
+
+    def _freshness_unverifiable(self, freshness, access_scope):
+        """Return true only for stale evidence another identical run cannot fix."""
+        changes = freshness.get('changed_sources') if isinstance(freshness, dict) else None
+        if not isinstance(changes, list) or not changes:
+            return False
+
+        def contains_unverifiable(item):
+            if not isinstance(item, dict):
+                return False
+            reason = item.get('reason')
+            if reason in {'unverified', 'selection_proof_missing', 'selection_manifest_missing'}:
+                return True
+            if reason == 'volatile_observation_expired':
+                ref = item.get('reference')
+                packet = self.packets.lookup(ref, access_scope=access_scope).packet if isinstance(ref, str) else None
+                metadata = packet.freshness if packet is not None else None
+                max_age = metadata.get('max_age_seconds') if isinstance(metadata, dict) else None
+                return not (isinstance(max_age, (int, float)) and not isinstance(max_age, bool) and max_age > 0)
+            for key in ('dependencies', 'detail'):
+                nested = item.get(key)
+                if isinstance(nested, list) and any(contains_unverifiable(value) for value in nested):
+                    return True
+                if isinstance(nested, dict) and contains_unverifiable(nested):
+                    return True
+            return False
+
+        return any(contains_unverifiable(item) for item in changes)
 
     @staticmethod
     def _inquiry_failure_class(job):

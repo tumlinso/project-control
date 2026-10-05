@@ -23,7 +23,7 @@ from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
 from .services.machine_inspection import MachineDiagnostic
 
 # Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = '3a018df02ad04c03eb3057a9eabb58be1cb03f85ed4a6737b2a656cd0c59067e'
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '3e24b875323b89ef0b2762eeca6000b6f741a7f8f6fcda08e1cad6aa8993eb19'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
@@ -194,7 +194,19 @@ class InquiryFreshness:
                 for read in reads:
                     valid = (packet.payload.get('status') == 'completed' and packet.payload.get('exit_code') == 0
                              and not packet.payload.get('truncated') and not packet.payload.get('timed_out'))
-                    actual = file_hash(read.get('path', '')) if valid and read.get('method') == 'direct_cat' else None
+                    method = read.get('method')
+                    line_ranges = read.get('line_ranges')
+                    line_window_valid = (method == 'direct_sed_lines'
+                        and isinstance(read.get('line_count'), int) and not isinstance(read.get('line_count'), bool)
+                        and read['line_count'] > 0
+                        and isinstance(line_ranges, list) and 1 <= len(line_ranges) <= 16
+                        and all(isinstance(item, dict)
+                                and isinstance(item.get('start'), int) and not isinstance(item.get('start'), bool)
+                                and isinstance(item.get('end'), int) and not isinstance(item.get('end'), bool)
+                                and 1 <= item['start'] <= item['end'] <= read['line_count']
+                                for item in line_ranges))
+                    proof_valid = method == 'direct_cat' or line_window_valid
+                    actual = file_hash(read.get('path', '')) if valid and proof_valid else None
                     checked.append({'path': read.get('path'), 'content_sha256': read.get('content_sha256')})
                     if not actual or actual != read.get('content_sha256'):
                         changed.append({'path': read.get('path'), 'reason': 'unverified' if actual is None else 'changed'})

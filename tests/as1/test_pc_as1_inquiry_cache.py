@@ -267,6 +267,27 @@ def test_freshness_callback_outside_transaction_and_generation_cas(tmp_path):
     with s._db() as db: assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==1
 
 
+def test_unverifiable_terminal_freshness_does_not_start_identical_refresh(tmp_path):
+    calls=[]
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                calls.append(request)
+                return {'status':'completed','answer':'retained answer'}
+        return Worker()
+    s=make(tmp_path,worker_factory=factory,freshness_provider=lambda job:{
+        'fresh':False,'changed_sources':[{'reference':'pkt_unverified', 'reason':'stale',
+            'dependencies':[{'dependency':'source', 'reason':'unverified'}]}]}).start()
+    try:
+        assert s.inquire('same evidence question',SCOPE,foreground_timeout=2)['status']=='completed'
+        retry=s.inquire('same evidence question',SCOPE,foreground_timeout=0)
+        assert retry=={'status':'unavailable','reason':'freshness_unverifiable'}
+        with s._db() as db:
+            assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==1
+        assert len(calls)==1
+    finally:s.shutdown()
+
+
 @pytest.mark.parametrize("cleanup", ["exception", "unreleased"])
 def test_cleanup_failure_keeps_durable_capacity_after_owner_death(tmp_path, cleanup):
     now=[1000.]

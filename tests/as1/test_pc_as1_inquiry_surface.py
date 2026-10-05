@@ -377,6 +377,52 @@ def test_finding_dependencies_still_require_accessible_result(tmp_path, result_s
                for item in result['changed_sources'])
 
 
+def test_verified_sed_line_window_revalidates_full_source_hash(tmp_path):
+    root, store, jobs, fresh = fixture_cache(tmp_path)
+    source = root/'fixture/resource.md'; source.write_text('first\nsecond\nthird\n')
+    scope = {'principal': 'alice', 'profile': 'observer'}
+    read = {'method': 'direct_sed_lines', 'path': str(source),
+            'content_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+            'line_count': 3, 'line_ranges': [{'start': 2, 'end': 2}]}
+    cited = store.create(tool='command', access_scope=scope, payload={
+        'status': 'completed', 'exit_code': 0, 'truncated': False, 'timed_out': False,
+        'source_reads': [read]})
+    answer = store.create(tool='investigate', access_scope=scope, payload={'answer': 'second'})
+    job = {'scope': scope, 'mode': 'investigate', 'hints': [],
+           'evidence_packets': [cited.packet_id],
+           'findings': [{'text': 'Second line', 'evidence_packets': [cited.packet_id]}],
+           'result_packet': answer.packet_id}
+    assert fresh(job)['fresh']
+    source.write_text('first\nchanged\nthird\n')
+    result = fresh(job)
+    assert not result['fresh']
+    assert {'path': str(source), 'reason': 'changed'} in result['changed_sources']
+
+
+@pytest.mark.parametrize('metadata', [
+    {'method': 'direct_sed_lines', 'line_count': 3, 'line_ranges': []},
+    {'method': 'direct_sed_lines', 'line_count': 3, 'line_ranges': [{'start': 0, 'end': 2}]},
+    {'method': 'unknown_filtered_read', 'line_count': 3, 'line_ranges': [{'start': 1, 'end': 2}]},
+])
+def test_invalid_or_unknown_sed_line_window_proofs_remain_unverified(tmp_path, metadata):
+    root, store, jobs, fresh = fixture_cache(tmp_path)
+    source = root/'fixture/resource.md'; source.write_text('first\nsecond\nthird\n')
+    scope = {'principal': 'alice', 'profile': 'observer'}
+    read = {**metadata, 'path': str(source),
+            'content_sha256': hashlib.sha256(source.read_bytes()).hexdigest()}
+    cited = store.create(tool='command', access_scope=scope, payload={
+        'status': 'completed', 'exit_code': 0, 'truncated': False, 'timed_out': False,
+        'source_reads': [read]})
+    answer = store.create(tool='investigate', access_scope=scope, payload={'answer': 'second'})
+    job = {'scope': scope, 'mode': 'investigate', 'hints': [],
+           'evidence_packets': [cited.packet_id],
+           'findings': [{'text': 'Second line', 'evidence_packets': [cited.packet_id]}],
+           'result_packet': answer.packet_id}
+    result = fresh(job)
+    assert not result['fresh']
+    assert {'path': str(source), 'reason': 'unverified'} in result['changed_sources']
+
+
 def test_skill_literal_identity_separate_execution_and_required_entry_proof(tmp_path):
     root, store, jobs, fresh = fixture_cache(tmp_path)
     jobs.inquire = Mock(return_value={'status': 'thinking'})
@@ -399,6 +445,14 @@ def test_skill_literal_identity_separate_execution_and_required_entry_proof(tmp_
     jobs.lookup = Mock(return_value={'observations': [{'packet_id': packet.packet_id}]})
     assert not fresh(job)['fresh']
     entry = root/'fixture/SKILL.md'
+    entry.write_text('entry')
+    window_entry = store.create(tool='command', access_scope=scope, payload={
+        'status': 'completed', 'exit_code': 0, 'source_reads': [{'method': 'direct_sed_lines',
+            'path': str(entry), 'content_sha256': hashlib.sha256(entry.read_bytes()).hexdigest(),
+            'line_count': 1, 'line_ranges': [{'start': 1, 'end': 1}]}]})
+    job['evidence_packets'].insert(0, window_entry.packet_id)
+    jobs.lookup.return_value['observations'].insert(0, {'packet_id': window_entry.packet_id})
+    assert not fresh(job)['fresh']
     entrypacket = store.create(tool='command', access_scope=scope, payload={
         'status': 'completed', 'exit_code': 0, 'source_reads': [{'method': 'direct_cat',
             'path': str(entry), 'content_sha256': hashlib.sha256(entry.read_bytes()).hexdigest()}]})
