@@ -2,8 +2,13 @@
 
 `JobService` owns service-private SQLite admission, leases, attempt generations,
 visible observations and an immutable packet outbox. It does not mutate Todo,
-choose a semantic skill, or schedule a GPU. The installed Skills supervisor and
-its host resource interlock remain responsible for inference and eviction.
+choose a semantic skill, or schedule a GPU. One central Project Control
+inference supervisor owns the persistent warm pool shared by local MCP, remote
+HTTP and all profile clients. It cooperates with the installed runtime and host
+resource interlock for inference and eviction. ProductionBackend pools belong
+to that supervisor, rather than individual profile processes. Profile EOF leaves
+the central pool warm; the global two-executing/four-waiting limit applies across
+all clients.
 
 Host startup constructs `SQLitePacketStore`, verifies the installed
 `observer_runtime.py` digest against the producer receipt, then constructs
@@ -15,12 +20,15 @@ machine and the internal log are allowed. Command uses the actual installed
 The worker reads installed SKILL.md and selected resources agentically.
 
 Construct `JobService(directory, packets=store, worker_factory=factory,
-backend=provider)` and call `start()` in the server process lifespan. Admission
+backend=provider)` using a client of the central inference supervisor and call
+`start()` in the broker host lifespan. Profile hosts do not construct their own
+ProductionBackend pools. Admission
 fails honestly when the dispatcher is stopped, a hard cap is reached, or SQLite
-fails. An accepted response follows a FULL synchronous SQLite commit. Hint scope is validated and inputs are pinned before the admission reply.
-Unregistered skill names are rejected before admission. Request
-IDs are scoped to the exact principal/profile/project dictionary; a changed
-request under the same ID is refused. Similar questions are separate inquiries. Two executing and four waiting inquiries
+fails. An accepted response follows a FULL synchronous SQLite commit. Configured project/source access is validated and supplied evidence is pinned before the admission reply.
+Unregistered skill names are rejected before admission. Legacy private submit
+request IDs are operationally scoped to the principal/profile/project dictionary;
+a changed request under the same ID is refused. This compatibility bookkeeping
+does not partition shared oracle knowledge. Similar questions are separate inquiries. Two executing and four waiting inquiries
 are permitted. A hard-cap response is busy and means not accepted.
 `shutdown(timeout=95)` stops new claims and waits for bounded inflight work;
 its boolean reports whether the dispatcher actually stopped. Client disconnect
@@ -32,8 +40,11 @@ request_id, execution_question, foreground_timeout=30)` through the inquiry
 adapter. One global cache/log retains the last 50 answered inquiries across
 trusted callers/profiles. Original literal question, mode, selected skill and
 project/authority context identify the inquiry; principal/profile do not.
-Caller project/source allowlists and private-hint-derived answer protection
-remain enforced for reuse and delivery, without creating private cache partitions. Public callers receive answers or `thinking`, `busy` and
+Project knowledge, evidence, supplied hints, answers and log entries are shared
+oracle context reusable across roles. Configured project/source access, profile
+tool permissions and credential exclusions remain enforced. Caller/profile
+identity is provenance rather than an answer or evidence privacy boundary.
+Public callers receive answers or `thinking`, `busy` and
 `unavailable`, never job IDs, leases, attempts or queue positions. The observer
 contract and stale recomputation are described in [as1-inquiry-cache.md](as1-inquiry-cache.md).
 

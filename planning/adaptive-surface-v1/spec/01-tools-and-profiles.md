@@ -36,7 +36,7 @@ Known revision reads must use the requested immutable revision, not current inde
 
 `query` accepts the existing discovery query or an exact typed entity reference `{kind, target}`. For an exact typed ID/entity, route directly to the existing canonical exact lookup backend using the cheapest deterministic path; do not invoke fuzzy or lexical retrieval unnecessarily, expand into filesystem discovery, or fall back to discovery after a missing exact record. Preserve the canonical machinery internally rather than exposing a separate public `find` tool.
 
-Exact lookup covers an already identified task, interface, decision, gate, checkpoint, source symbol, context record, run/lane/workspace, registration, packet, or investigation. Return the canonical typed record and navigable locations/relationships; ambiguous IDs get candidates without guessing. Packet/investigation access remains scoped to permitted caller/project domains; aliases are not permission tokens. For native/local agents, filesystem discovery remains ordinary Unix `find`, `rg`, and Git through native capabilities or investigator `command`; exact semantic lookup does not become filesystem discovery.
+Exact lookup covers an already identified task, interface, decision, gate, checkpoint, source symbol, context record, run/lane/workspace, registration, packet, or investigation. Return the canonical typed record and navigable locations/relationships; ambiguous IDs get candidates without guessing. Packets and investigation answers belong to the shared oracle across roles; configured project/source access and credential exclusions still apply, and aliases are not permission tokens. For native/local agents, filesystem discovery remains ordinary Unix `find`, `rg`, and Git through native capabilities or investigator `command`; exact semantic lookup does not become filesystem discovery.
 
 One deterministic discovery entry point combines project-graph/entities, source/symbol indexes, lexical search and live filesystem/source fallback. Typed results distinguish exact reference, structural relation, declared relation, lexical hit and summarized guidance. Include why matched, origin, relative locator or entity ID, and freshness. Allow file/path discovery and scoped queries; do not force a natural-language search to retrieve a known file.
 
@@ -70,10 +70,12 @@ contextualize or refine a later question.
 One global cache/log covers the last 50 answered inquiries across trusted
 callers and profiles. Original literal question, mode, selected skill and
 project/authority context determine identity, excluding caller principal/profile.
-Details, request IDs and advisory hints do not duplicate an inquiry. Caller
-project/source allowlists still apply to candidate reuse and evidence delivery.
-Private hints protect their derived answers without creating a separate cache
-identity or log partition. Pending exact repeats preserve existing scheduler state; current
+Details, request IDs and advisory hints do not duplicate an inquiry. Project
+knowledge, evidence, supplied hints, answers and the log form a shared oracle
+reusable across roles. Caller/profile identity records provenance and tool
+permissions, without dividing collective knowledge into privacy scopes.
+Configured project/source access and credential exclusions remain enforced.
+Pending exact repeats preserve existing scheduler state; current
 answers return immediately. Stale supported answers refresh in a new generation
 seeded with old answer/evidence and changed-source information. Empty terminal
 results remain unavailable on exact repeat without automatic refresh. Failure
@@ -98,13 +100,20 @@ query is saved separately from augmented execution instructions. See `spec/04`.
 
 `command(argv, cwd?, limits?)` is internal scout/skill-mode command execution in the existing OS sandbox, not an observer shell. Host code clamps resource limits. Use standard Unix/Git/parser tools by default. It may use disposable scratch; it cannot mutate host/project/Todo state or delegate.
 
-`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers up to five lexical matches from the single global window of the last 50 answered inquiries, with source refs filtered by caller project/source access and private-hint visibility. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known private job record through exact search or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
+`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers up to five lexical matches from the single global window of the last 50 answered inquiries, with shared source refs governed by configured project/source access and credential exclusions. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known internal job record through exact search or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
 
 ## Workflow and mutator additions
 
 Coder and mutator retain `next_task`, `inspect_task`, `coordinate_task`, `finish_task`. `inspect_task` is retained as the existing handle-scoped context mechanism, not a competing general source reader. New context operations must reuse shared semantic services beneath its authority checks. Surface contracts for its existing supported actions remain compatible.
 
 Mutator adds `plan`, `amend_project`, and `maintain_execution`. `plan` consolidates validate/diff/apply/amend/supersede/retire using existing kernels; `amend_project` manages durable semantic declarations; maintenance handles exceptional state repair through existing preconditions and receipts. Exact actions are in `spec/05`. Keep model permissions distinct from CLI owner compatibility.
+
+The inference architecture has one central Project Control supervisor and a
+persistent warm pool shared by local MCP, remote HTTP and profile clients.
+ProductionBackend pool ownership stays in that supervisor; each profile process
+connects to it. Profile EOF leaves the central pool warm. The two-executing/four-
+waiting scheduler and last-50 answered-inquiry cache/log are global across clients.
+Profile tool permissions remain distinct while project knowledge is collective.
 
 ## Profiles
 

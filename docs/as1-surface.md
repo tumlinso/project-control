@@ -19,6 +19,13 @@ The eight shared tools are `overview`, `delta`, `frontier`, `search`, `evidence`
 `find`, `rg`, Git, and native skills remain native capabilities. Project Control
 `read` and `skill` are observer adapters, not local MCP substitutes.
 
+The shared-oracle architecture uses one central Project Control inference
+supervisor and persistent warm pool for local MCP, remote HTTP and all profile
+clients. ProductionBackend construction and pool ownership belong to that central
+supervisor; profile processes connect as clients. Profile EOF closes its client
+connection and leaves the central pool warm. The two executing/four waiting
+inquiry limit and recent-answer cache/log are global across these clients.
+
 Startup is lazy: no profile automatically receives overview, scans every
 registered project, or loads a model. Empty skill catalog discovery and retrieval of
 current cached answers need no inference. The runtime supervisor and resource interlock
@@ -56,7 +63,8 @@ actual content/revision identity. Semantic records carry typed IDs rather than
 invented file paths. Compact is the default; 2 KiB compact, 8 KiB standard, and
 64 KiB observer extended are soft whole-response budgets. Omissions, stale or
 unavailable sources, and exact continuations stay visible. Retained packet aliases
-are scoped references to evidence, never mutation capabilities.
+identify shared project evidence under configured project/source access; they are
+not mutation capabilities.
 
 `investigate(question="What invalidates this packet?", project="demo",
 request_id="packet-question-1")` reads a cached inquiry. Public calls return a
@@ -69,9 +77,11 @@ or refine a later question. Missing providers and unavailable results are explic
 One global cache/log retains the last 50 answered inquiries across trusted
 callers and profiles. Identity is the original literal question, mode, selected
 skill and project/authority context; caller principal/profile are not cache keys.
-Detail, request IDs and advisory hints do not duplicate the inquiry. Caller
-project/source allowlists still govern reuse. Private hints and their derived
-answers remain protected; a global index does not grant access to private context. Pending
+Detail, request IDs and advisory hints do not duplicate the inquiry. Project
+Control is a shared oracle: project knowledge, evidence, supplied hints, answers
+and the log form collective context reusable across roles. Caller/profile identity
+records provenance and tool permissions rather than a privacy boundary.
+Configured project/source access and credential exclusions still apply. Pending
 exact repeats preserve its scheduler state. Current answers return immediately.
 A stale supported answer starts a new generation seeded with its old answer,
 evidence and changed-source information so the agent preserves still-valid work.

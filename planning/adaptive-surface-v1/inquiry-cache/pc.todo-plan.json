@@ -8,7 +8,7 @@
       "id": "PC-AS1-INQUIRY-CACHE",
       "kind": "task",
       "title": "Implement bounded read-only inquiry cache and incremental refresh",
-      "objective": "Implement one global cache/log of the last 50 answered inquiries across trusted callers/profiles; exact identity is original literal question, mode, selected skill and project/authority context, not principal/profile. Enforce caller project/source allowlists and private-hint-derived answer access. Preserve stale incremental refresh, top-five lexical retrieval, two execution slots plus four waiting, 30s foreground and 300s lifetime; validate and deploy paired observer runtime.",
+      "objective": "Make Project Control a shared oracle of collective project knowledge, evidence, supplied hints, reusable answers and log entries across roles; caller/profile identity is provenance and tool permission, not a privacy boundary. Use one global last-50 answered-inquiry cache/log, with exact identity original literal question, mode, selected skill and project/authority context. Preserve configured project/source access and credential exclusions. Use one central Project Control inference supervisor and persistent warm pool across local MCP, remote HTTP and profile clients; no per-process ProductionBackend pools, and profile EOF leaves the central pool warm. Preserve global two-executing/four-waiting admission, stale incremental refresh, top-five lexical retrieval, 30s foreground and 300s lifetime; validate and deploy paired observer runtime.",
       "priority": 100,
       "parallel_policy": "serial",
       "scope": {
@@ -23,7 +23,8 @@
           "tests/test_observer_analysis_registry.py",
           "docs",
           "planning/adaptive-surface-v1",
-          "src/project_control/as1_packets.py"
+          "src/project_control/as1_packets.py",
+          "tests/test_mcp_server.py"
         ],
         "read_paths": [
           "src",
@@ -47,7 +48,7 @@
       "id": "PC-AS1-CACHE-RUN-1",
       "root_task_id": "PC-AS1-INQUIRY-CACHE",
       "charter": {
-        "objective": "Implement one global cache/log of the last 50 answered inquiries across trusted callers/profiles; exact identity is original literal question, mode, selected skill and project/authority context, not principal/profile. Enforce caller project/source allowlists and private-hint-derived answer access. Preserve stale incremental refresh, top-five lexical retrieval, two execution slots plus four waiting, 30s foreground and 300s lifetime; validate and deploy paired observer runtime.",
+        "objective": "Make Project Control a shared oracle of collective project knowledge, evidence, supplied hints, reusable answers and log entries across roles; caller/profile identity is provenance and tool permission, not a privacy boundary. Use one global last-50 answered-inquiry cache/log, with exact identity original literal question, mode, selected skill and project/authority context. Preserve configured project/source access and credential exclusions. Use one central Project Control inference supervisor and persistent warm pool across local MCP, remote HTTP and profile clients; no per-process ProductionBackend pools, and profile EOF leaves the central pool warm. Preserve global two-executing/four-waiting admission, stale incremental refresh, top-five lexical retrieval, 30s foreground and 300s lifetime; validate and deploy paired observer runtime.",
         "motivation": "Read inquiries reuse prior supported work without exposing a durable job workflow.",
         "boundaries": [
           "No project/Todo writes by observer.",

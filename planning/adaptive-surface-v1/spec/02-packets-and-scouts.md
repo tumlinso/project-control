@@ -4,7 +4,7 @@
 
 Separate three objects: an invocation audit event, an immutable information packet, and a durable question/job. Existing call-audit metadata is not a packet store. Reuse its call correlation and logging hooks, but persist the actual authorized tool result rather than just an excerpt or tool name.
 
-A packet has an immutable opaque ID, a memorable random word alias, origin tool/profile/principal scope, normalized request, creation time, exact delivered payload, content hash, source/evidence manifest, parent packet IDs, and declared completeness/omissions. Do not retain credentials, bearer capabilities, hidden reasoning or private conversation context that was not intentionally supplied. Store output after policy enforcement; masking must be recorded. Store source observations, not claims of authority invented by a local model.
+A packet has an immutable opaque ID, a memorable random word alias, origin tool/profile/principal provenance, configured project/source access, normalized request, creation time, exact delivered payload, content hash, source/evidence manifest, parent packet IDs, and declared completeness/omissions. Do not retain credentials, bearer capabilities, hidden reasoning or private conversation context that was not intentionally supplied. Store output after policy enforcement; masking must be recorded. Store source observations, not claims of authority invented by a local model.
 
 Word aliases should be short two-word combinations sampled from a curated human/model-readable list. Reserve them transactionally and collision-check. They are labels, not capabilities or globally secret identifiers. A durable namespace and a never-rebind alias table survive daemon restart, backup/restore and packet-body expiry. An expired alias yields `expired`; it must not point to a new packet. Use a longer word combination if the small vocabulary becomes exhausted, not silent recycling.
 
@@ -22,7 +22,13 @@ Negative findings need special care: “no consumers” depends on the searched 
 
 ## One durable job engine, two modes
 
-`investigate` and `skill` use one service-private durable job engine with separate job modes/prompts. Reuse the existing local-worker supervisor and model service. Do not implement a second GPU scheduler, a separate skill daemon, or a tool-call-only pseudo-queue.
+`investigate` and `skill` use one service-private durable job engine with separate
+modes/prompts. One central Project Control inference supervisor owns the
+persistent warm pool used by local MCP, remote HTTP and profile clients.
+ProductionBackend pools are constructed centrally; profile processes connect to
+that supervisor. Profile EOF leaves the central pool warm. The central supervisor
+cooperates with the existing installed runtime and physical GPU resource interlock;
+no separate skill daemon or GPU scheduler is introduced.
 
 The public observer inquiry contract is cached question reading, not a queue
 workflow. Public investigate/skill schemas have no job ID. Answers are completed
@@ -34,10 +40,11 @@ source manifests, compact visible findings and restart recovery.
 
 One global cache/log retains the last 50 answered inquiries across trusted
 callers/profiles. Exact cache identity is original literal question, mode, selected
-skill and project/authority context, excluding caller principal/profile. Caller
-project/source allowlists and private-hint-derived answer protection still govern
-reuse and delivery; the global index does not grant private access or create
-separate per-caller partitions. Store original skill queries separately from
+skill and project/authority context, excluding caller principal/profile. Project
+knowledge, evidence, supplied hints, answers and log entries are collective oracle
+context reusable across roles. Caller/profile identity records provenance and tool
+permissions, not a privacy partition. Configured project/source access and
+credential exclusions remain enforced. Store original skill queries separately from
 augmented execution questions.
 Details, advisory hints and request IDs do not duplicate inquiries. Pending exact
 repeats do not restart work, consume capacity, change order or extend expiry.
@@ -51,7 +58,8 @@ cannot be declared fresh. Stale inquiry generations receive the old answer,
 evidence and changed-source information so the agent checks changes and preserves
 valid work. Visible context is persisted; hidden reasoning is not cached.
 
-The internal scheduler permits two executing and four waiting inquiries, a
+The global scheduler permits two executing and four waiting inquiries across
+local MCP, remote HTTP and all profile clients, a
 30 second foreground wait and 300 second lifetime. Internal log retrieval searches
 the last 50 answered questions and returns at most five lexical matches. Retained
 answers remain attributed evidence, not proof of current verification. Volatile
@@ -74,7 +82,10 @@ Each command returns exit status, stdout/stderr, truncation, timing, working sco
 
 Final investigation packets contain a concise answer, evidence-backed facts, explicitly labeled inferences, unresolved questions, source paths/entities and packet references. A valid evidence ID only proves the evidence was issued; the implementation must not claim that ID validation proves entailment. Test claim-to-source alignment, especially search-hit-only ownership claims, stale read sets and unrelated citations. Keep useful existing structured-output repair but avoid turning formatting trouble into a complete loss of gathered evidence.
 
-Persistence retains compact observed findings, not hidden reasoning or a full chain-of-thought transcript. A restarted/replaced local model resumes from question, selected evidence and unresolved issues, not from opaque KV state. Independent queued questions must not inherit another caller's context. The shared model server may be warm; semantic conversation state is job-scoped.
+Persistence retains compact observed findings, not hidden reasoning or a full chain-of-thought transcript. A restarted/replaced local model resumes from question, selected evidence and unresolved issues, not from opaque KV state. Each inquiry has its explicit question and bounded visible context while reusing
+collective project knowledge, evidence and prior supported answers across roles.
+The central pool stays warm independently of profile connections; opaque model
+conversation state remains inquiry-specific.
 
 ## Practical storage
 

@@ -8,9 +8,12 @@ The final public skill interface is `skill(query?, skill?, project?, hints?, req
 Specific skill requests use the single global cache/log of the last 50 answered
 inquiries across trusted callers and profiles. Original literal query, mode,
 selected skill and project/authority context determine identity; caller
-principal/profile do not. Navigation augmentation is saved separately. Caller
-project/source allowlists remain enforced for reuse, and private hints continue
-to protect their derived answers rather than forming a private cache partition. Pending exact repeats return thinking without restarting
+principal/profile do not. Navigation augmentation is saved separately. Installed
+skill knowledge, evidence, supplied hints and supported answers contribute to the
+shared oracle across roles. Configured project/source access, profile tool
+permissions and credential exclusions remain enforced; caller/profile identity
+is provenance rather than a privacy fence. Pending exact repeats return thinking
+without restarting
 work; current supported answers return immediately. Only thinking advises
 repeating the identical question later without variants. Busy means not accepted
 and suggests search/read/evidence to contextualize or refine a later question.
@@ -58,6 +61,12 @@ Native agent publishes a lightweight semantic context record only when a skill m
 ## GPU interlock: extend the existing path
 
 The observed local-worker resource policy already defines idle model residency, cooperative preemption, draining, process-group termination, quiescence and physical lease release. The CUDA controller already distinguishes foreground work from background activity and uses host-global interlocks. Reuse these paths; the required change is making the observer/skill-job services participate reliably in them.
+
+One central Project Control inference supervisor owns a persistent warm pool for
+local MCP, remote HTTP and profile clients. ProductionBackend pools are central,
+and profile processes connect to the supervisor instead of owning separate pools.
+Profile EOF leaves the central pool warm. The shared scheduler permits two
+executing and four waiting inquiries globally, with one last-50 answered cache/log.
 
 Physical GPU/profiler/host-pressure authority remains host-global. No separate observer reservation table should claim ownership independent of it. Startup does not reserve GPUs/load models/scan corpora merely because tools are listed. Reuse compatible idle residency on demand. Queue admission is independent of GPU admission.
 
