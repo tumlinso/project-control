@@ -18,7 +18,7 @@ from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis
 from .profiles import MCPProfile
 
 # Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = '5e632aa35ec592a77eef5386ddcc629317befe774e9e54959ab20a90bfd6caea'
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '5a584994366b07d3b97bef7f31906826f5e92cdd86ff7ef9f23cf86cac8f845e'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
