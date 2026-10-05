@@ -17,7 +17,7 @@ import time
 import uuid
 
 from .as1_contracts import DurableJob, Finding, InformationPacket, canonical_digest
-from .as1_packets import mask_payload
+from .as1_packets import SQLITE_CONNECTION_LOCK, mask_payload
 
 TERMINAL = {'completed', 'partial', 'failed', 'cancelled'}
 SHARED_TOOLS = frozenset({'overview', 'delta', 'frontier', 'search', 'evidence', 'impact', 'history', 'machine'})
@@ -113,11 +113,12 @@ class JobService:
         self.last_error = None
         # WAL mode persists; set it once, before dispatch, not on every racing connection.
         with _DB_LOCK:
-            initial = sqlite3.connect(self.path, timeout=10)
-            try:
-                initial.execute('PRAGMA journal_mode=WAL').fetchone()
-            finally:
-                initial.close()
+            with SQLITE_CONNECTION_LOCK:
+                initial = sqlite3.connect(self.path, timeout=10)
+                try:
+                    initial.execute('PRAGMA journal_mode=WAL').fetchone()
+                finally:
+                    initial.close()
         with self._db() as db:
             db.executescript('''CREATE TABLE IF NOT EXISTS jobs(
                 id TEXT PRIMARY KEY, scope TEXT NOT NULL, request_id TEXT, request_hash TEXT NOT NULL,
@@ -141,16 +142,23 @@ class JobService:
 
     @contextmanager
     def _db(self):
-        # Bound same-process SQLite open/close races; transactions remain short.
+        # Lock order is broker transactions, then cross-store native lifecycle.
+        # The shared lifecycle lock is never held while yielding a transaction.
         with _DB_LOCK:
-            db = sqlite3.connect(self.path, timeout=10)
-            db.row_factory = sqlite3.Row
-            db.execute('PRAGMA synchronous=FULL')
+            with SQLITE_CONNECTION_LOCK:
+                db = sqlite3.connect(self.path, timeout=10)
+                try:
+                    db.row_factory = sqlite3.Row
+                    db.execute('PRAGMA synchronous=FULL')
+                except Exception:
+                    db.close()
+                    raise
             try:
                 with db:
                     yield db
             finally:
-                db.close()
+                with SQLITE_CONNECTION_LOCK:
+                    db.close()
 
 
     def health(self):
