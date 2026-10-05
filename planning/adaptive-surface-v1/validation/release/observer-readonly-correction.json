@@ -1,0 +1,18 @@
+{
+  "correction": "PC-AS1-OBSERVER-READONLY",
+  "installed_date": "2026-10-05",
+  "project_control_commit": "55ac9a00287b5e33d659da2dffd77bd9899f2db9",
+  "skills_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828",
+  "release_manifest_sha256": "f6d2cb5f3a64a45a2ec93fe2def713ee70b7cec584b0b99b2b396e6d06744ad5",
+  "live_observer_tools": 11,
+  "all_observer_read_only": true,
+  "analysis_idempotent": false,
+  "mutator_controls_remain_write": true,
+  "live_ready": true,
+  "tunnel_upstream": "http://127.0.0.1:8768/mcp",
+  "targeted_distinct_passes": 46,
+  "baseline_skill_suite": {"commit": "0efcdd22248db5a13a9b79f064165476ee214d62", "passes": 8, "failures": 16},
+  "corrected_skill_suite": {"passes": 8, "failures": 16, "same_failure_cases_as_baseline": true},
+  "qualification_scope": "Metadata, guidance, scripted read-only admission/retry/polling and installed live tools/list; no new GPU inference qualification.",
+  "historical_as1_release_receipts": "Preserved unchanged. This receipt records the subsequent correction pair."
+}

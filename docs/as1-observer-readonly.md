@@ -24,3 +24,12 @@ observer instructions, public admission/retry/polling and forbidden-principal
 lookup. The AS1 surface, jobs and skill suites exercise the existing source
 fences, admission limits, deduplication and restart persistence with scripted
 CPU ports; they do not establish live deployment or GPU inference qualification.
+
+The correction was installed on the existing AS1 service on 2026-10-05.
+Live HTTP `tools/list` confirmed all eleven observer tools are read-only;
+readiness and the tunnel upstream were verified against the new runtime.
+The installed source pair and validation limits are recorded in
+`planning/adaptive-surface-v1/validation/release/observer-readonly-correction.json`.
+There are 46 passing distinct targeted cases. Sixteen skill-suite failures
+reproduce unchanged against the previous Project Control commit `0efcdd2`;
+the full skill suite is therefore not passing.
