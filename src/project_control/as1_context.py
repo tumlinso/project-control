@@ -170,7 +170,9 @@ class InformationService:
                 data = {'targets': params.get('targets', []), 'provider': 'unavailable'}
                 omissions.append({'reason': 'impact_provider_unavailable'}); status = 'partial'
             else:
-                data = self.impact_provider(project=project, detail=detail, **params)
+                data = self.impact_provider(project=project, detail=detail,
+                                            max_payload_bytes=max(1024, self.store.max_payload_bytes - 8192),
+                                            **params)
                 if hasattr(data, 'model_dump'): data = data.model_dump(mode='json')
         elif tool == 'machine':
             view = params.pop('query_or_view', 'host_memory')
@@ -208,14 +210,118 @@ class InformationService:
                                    freshness=freshness, omissions=omissions)
         response = {'status': status, 'packet': packet.packet_id, 'data': packet.payload['data'],
                     'sources': [s.model_dump(exclude_none=True) for s in sources], 'coverage': coverage}
-        if len(json.dumps(response, ensure_ascii=False).encode()) > RESPONSE_BUDGETS_BYTES[detail]:
+        response_size = len(json.dumps(response, ensure_ascii=False).encode())
+        if response_size > RESPONSE_BUDGETS_BYTES[detail]:
             # Exact excerpts are indivisible units. Keep them in the immutable
             # packet; return a targeted continuation instead of text slicing.
-            response['data'] = {'continuation': {'tool': 'search', 'query': {'kind': 'packet', 'target': query.get('target') if tool == 'search' and isinstance(query, dict) and query.get('kind') == 'packet' else packet.packet_id}, 'detail': 'extended' if self.host.profile == 'observer' else 'standard'},
-                                'needed_bytes': len(json.dumps(response, ensure_ascii=False).encode())}
-            response['coverage'] = {**coverage, 'complete': False, 'omissions': [*omissions, {'reason': 'response_budget', 'unit': 'utf8_bytes'}]}
+            continuation = {'tool': 'search', 'query': {'kind': 'packet',
+                            'target': query.get('target') if tool == 'search' and isinstance(query, dict) and query.get('kind') == 'packet' else packet.packet_id},
+                            'detail': 'extended' if self.host.profile == 'observer' else 'standard'}
+            if tool == 'impact':
+                source_count = len(response['sources'])
+                if len(response['sources']) > 2:
+                    response['sources'] = response['sources'][:2]
+                response['coverage'] = {'complete': False,
+                    'omissions': [*omissions[:2],
+                                  *([{'reason': 'source_locators', 'omitted_count': source_count - 2}]
+                                    if source_count > 2 else []),
+                                  {'reason': 'response_budget', 'unit': 'utf8_bytes',
+                                   'omitted_count': max(0, len(omissions) - 2)}]}
+                base_size = len(json.dumps({**response, 'data': {}}, ensure_ascii=False).encode())
+                preview_budget = max(256, RESPONSE_BUDGETS_BYTES[detail] - base_size - 64)
+                response['data'] = self._impact_preview(packet.payload['data'], continuation, preview_budget)
+                # The wrapper budget includes sources and coverage too. If they
+                # are unusually large, retry with the exact remaining space.
+                actual_size = len(json.dumps(response, ensure_ascii=False).encode())
+                if actual_size > RESPONSE_BUDGETS_BYTES[detail]:
+                    response['data'] = self._impact_preview(packet.payload['data'], continuation,
+                        max(256, preview_budget - (actual_size - RESPONSE_BUDGETS_BYTES[detail]) - 64))
+            else:
+                response['data'] = {'continuation': continuation, 'needed_bytes': response_size}
+                response['coverage'] = {**coverage, 'complete': False, 'omissions': [*omissions, {'reason': 'response_budget', 'unit': 'utf8_bytes'}]}
             response['status'] = 'partial'
+            if tool == 'impact' and len(json.dumps(response, ensure_ascii=False).encode()) > RESPONSE_BUDGETS_BYTES[detail]:
+                response['sources'] = []
+                response['coverage'] = {'complete': False,
+                                        'omissions': [{'reason': 'response_budget', 'unit': 'utf8_bytes'}]}
+                base_size = len(json.dumps({**response, 'data': {}}, ensure_ascii=False).encode())
+                response['data'] = self._impact_preview(packet.payload['data'], continuation,
+                    max(128, RESPONSE_BUDGETS_BYTES[detail] - base_size - 32))
         return response
+
+    @staticmethod
+    def _impact_preview(data, continuation, budget):
+        """Show a compact affected-path sample while keeping the packet addressable."""
+        dependencies = data.get('dependencies', [])
+        compact_node = lambda node: {key: node[key] for key in
+                                     ('project_uuid', 'repository', 'kind', 'id', 'path') if key in node}
+        sample = []
+        for item in dependencies[:2]:
+            chain = item.get('witness_chain', [])
+            sample.append({'node': compact_node(item.get('node', {})), 'witness_chain': {
+                'edge_count': len(chain), 'sha256': hashlib.sha256(json.dumps(chain, sort_keys=True,
+                    separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()}})
+        full_dependency_digest = hashlib.sha256(json.dumps(dependencies, sort_keys=True,
+            separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+        groups = data.get('traversal', {}).get('omitted_groups', [])
+        traversal = {key: data.get('traversal', {}).get(key, 0) for key in
+                     ('visited_nodes', 'examined_edges', 'cycle_or_shared_path_count')}
+        traversal['omitted_group_count'] = len(groups)
+        unknown = []
+        unknown_values = data.get('unknown_scope', [])
+        selected_unknown = [*([item for item in unknown_values if item.get('target')][:1]),
+                            *([item for item in unknown_values if not item.get('target')][:1])]
+        for item in selected_unknown:
+            compact = {key: item[key] for key in ('target', 'reason', 'count', 'project', 'repository') if key in item}
+            if isinstance(compact.get('target'), dict): compact['target'] = compact_node(compact['target'])
+            if isinstance(item.get('edge'), dict):
+                compact['edge'] = {key: item['edge'][key] for key in
+                                   ('relation', 'provider', 'generation', 'resolution') if key in item['edge']}
+            unknown.append(compact)
+        if len(unknown_values) > len(selected_unknown):
+            unknown.append({'omitted_count': len(data['unknown_scope']) - len(unknown),
+                            'full_count': len(unknown_values)})
+        preview = {'generation': data.get('generation'),
+                   'seeds': [compact_node(n) for n in data.get('seeds', [])[:1]],
+                   'dependencies': sample,
+                   'unknown_scope': unknown,
+                   'coverage': {'complete_graph_cut': data.get('coverage', {}).get('complete_graph_cut')},
+                   'traversal': traversal, 'warnings': data.get('warnings', [])[:1],
+                   'continuation': continuation}
+        if len(data.get('warnings', [])) > len(preview['warnings']):
+            preview['warning_omissions'] = {'full_count': len(data['warnings']),
+                                            'omitted_count': len(data['warnings']) - len(preview['warnings'])}
+        if len(groups):
+            preview['traversal']['omitted_groups_sha256'] = hashlib.sha256(json.dumps(groups, sort_keys=True,
+                separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+        if len(dependencies) > len(sample) or any(len(d.get('witness_chain', [])) > 1 for d in dependencies[:len(sample)]):
+            preview['omissions'] = {'section': 'dependencies_or_witness_chains', 'preview_count': len(sample),
+                                    'full_count': len(dependencies), 'full_sha256': full_dependency_digest}
+        if data.get('payload_budget'):
+            payload_summary = data['payload_budget']
+            preview['payload_budget'] = {'full_result_sha256': payload_summary.get('full_result_sha256'),
+                                         'omitted_sections': [entry.get('section') for entry in
+                                                              payload_summary.get('omissions', [])[:3]]}
+
+        encoded = lambda value: json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode()
+        while sample and len(encoded(preview)) > budget:
+            sample.pop()
+            preview['dependencies'] = sample
+            preview.setdefault('omissions', {'section': 'dependencies', 'full_count': len(dependencies),
+                'full_sha256': full_dependency_digest})['preview_count'] = len(sample)
+        if len(encoded(preview)) > budget:
+            # Keep the request identity and one useful locator when the wrapper
+            # leaves almost no room. The packet continuation retains full proof.
+            seed = (data.get('seeds') or [{}])[0]
+            target = compact_node(seed) if isinstance(seed, dict) else {}
+            affected = dependencies[0].get('node', {}) if dependencies else {}
+            preview = {'generation': data.get('generation'), 'target': target,
+                       'affected_node': compact_node(affected), 'unknown_scope': unknown[:1], 'continuation': continuation,
+                       'omissions': {'section': 'trace_preview', 'full_sha256': full_dependency_digest}}
+            while len(encoded(preview)) > budget and preview.get('affected_node'):
+                preview.pop('affected_node')
+                preview['omissions']['affected_node_omitted'] = True
+        return preview
 
     def _context(self, project):
         if not self.semantic_provider: return {}, 'semantic_context_extension_unavailable'

@@ -230,6 +230,74 @@ def test_provider_extension_warm_reuse_replacement_and_information_port(world):
     assert lost['status'] == 'partial'
 
 
+@pytest.mark.parametrize('targets', [[{'path': 'README.md'}], [{'kind': 'task', 'id': 'T1'}]])
+def test_impact_payload_cap_has_bounded_preview_and_schema_is_discoverable(world, targets):
+    roots, _, contexts, service, config, host, tmp = world
+
+    class BulkyImpactProvider:
+        name = 'bulky-fixture/1'
+        def detect(self, obs): return obs['project'] == 'demo'
+        def observe(self, obs):
+            return [{'kind': 'environment', 'key': f'input-{i:05d}-' + 'x' * 160,
+                     'digest': digest(f'value-{i}')} for i in range(18000)]
+        def refresh(self, obs, inputs):
+            source = TraceService._node(obs, 'file', 'base.py', 'base.py')
+            target = TraceService._node(obs, 'file', 'README.md', 'README.md')
+            edge = TraceService._edge(source, target, 'imports', self.name, digest(inputs), inputs,
+                                      witness={'path': 'base.py', 'start_line': 1, 'end_line': 1,
+                                               'content_sha256': digest(b'VALUE = 1\n')})
+            return ProviderFragment(self.name, digest(inputs), inputs, [edge], [source, target],
+                                    ('imports',), True, 'current', [])
+
+    service.providers = (BulkyImpactProvider(),)
+    store = SQLitePacketStore(tmp / 'impact-cap-packets', max_payload_bytes=4 * 1024 * 1024)
+    information = InformationService(config, store, service.snapshots, host, impact_provider=service)
+    result = information.call('impact', project='demo', targets=targets,
+                              change_class='interface', mode='paths', detail='compact')
+
+    assert result['packet']
+    assert result['status'] == 'partial'
+    assert result['data']['generation']
+    assert result['data']['continuation']['query']['target'] == result['packet']
+    assert result['data']['dependencies'] or result['data']['unknown_scope'], result['data']
+    if result['data']['dependencies']:
+        preview_node = result['data']['dependencies'][0]['node']
+        assert preview_node['project_uuid'].startswith('fixture-') and preview_node['repository'].startswith('source@')
+    assert len(json.dumps(result, ensure_ascii=False).encode()) <= 2048
+    stored = store.lookup(result['packet'], access_scope=host.scope('demo')).packet.payload['data']
+    assert stored['dependencies'], stored.get('payload_budget')
+    assert stored.get('payload_budget'), len(json.dumps(stored, separators=(',', ':')).encode())
+    provider = next(p for p in stored['coverage']['providers'] if p['provider'] == 'bulky-fixture/1')
+    expected_inputs = service.providers[0].observe({'project': 'demo'}) + [
+        {'kind': 'registry', 'key': 'demo', 'digest': digest(contexts['demo']['declarations'])},
+        {'kind': 'semantic_revision', 'key': 'demo', 'digest': digest(contexts['demo']['project_revision'])}]
+    assert provider.get('input_manifest_count') == 18002, (provider.keys(), len(provider.get('input_manifest', [])))
+    assert provider['input_manifest_sha256'] == digest(expected_inputs)
+    assert stored['continuation'] is None
+    assert any(o['section'] == 'input_manifests' for o in stored['payload_budget']['omissions'])
+    assert len(json.dumps(store.lookup(result['packet'], access_scope=host.scope('demo')).packet.payload,
+                          separators=(',', ':')).encode()) <= store.max_payload_bytes
+    assert result['coverage']['omissions']
+
+    from project_control.as1_surface import observer_tool_argument_models
+    schema = observer_tool_argument_models('observer')['impact'].model_json_schema()
+    target_ref = schema['properties']['targets']['items']['$ref'].split('/')[-1]
+    assert schema['$defs'][target_ref]['properties'].keys() >= {'project', 'repository', 'kind', 'id', 'path'}
+    assert schema['properties']['change_class']['enum'] == ['body', 'interface', 'configuration', 'generator', 'removal', 'unknown']
+
+    import asyncio
+    from project_control.as1_surface import register_surface
+    from project_control.profiles import ProfiledFastMCP, enumerate_tool_schemas
+    public = ProfiledFastMCP(name='impact-schema', profile='observer')
+    register_surface(public, object())
+    public_schema = asyncio.run(enumerate_tool_schemas(public))['impact']
+    public_target_ref = public_schema['properties']['targets']['items']['$ref'].split('/')[-1]
+    public_target = public_schema['$defs'][public_target_ref]['properties']
+    assert public_target.keys() >= {'project', 'repository', 'kind', 'id', 'path'}
+    assert public_schema['properties']['change']['enum'] == ['body', 'interface', 'configuration', 'generator', 'removal', 'unknown']
+    assert public_schema['properties']['view']['enum'] == ['paths', 'snippets']
+
+
 def test_absolute_relative_child_imports_and_scope_identity(world):
     roots, _, _, service, *_ = world
     root = roots['demo']; (root/'pkg').mkdir()

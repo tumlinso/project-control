@@ -67,6 +67,15 @@ class ExactEntityQuery(Contract):
 
 SearchQuery = str | ExactEntityQuery
 _SEARCH = TypeAdapter(SearchQuery)
+
+
+class ImpactTarget(Contract):
+    """Public selectors accepted by the bounded impact trace."""
+    project: str | None = None
+    repository: str | None = None
+    kind: str | None = None
+    id: str | None = None
+    path: str | None = None
 R = TypeVar("R")
 
 

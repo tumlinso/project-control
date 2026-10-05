@@ -632,16 +632,148 @@ class TraceService:
 
     def __call__(self, *, project: str, detail='compact', targets=None, mode='paths',
                  change_class='unknown', max_nodes=200, max_edges=2000, time_budget_ms=1000,
-                 since=None, cursor=None, watcher_lost=False, query=None) -> dict:
+                 since=None, cursor=None, watcher_lost=False, query=None, max_payload_bytes=None) -> dict:
         if project not in self.host.projects: raise PermissionError('project_not_permitted')
         self.registry.workspace(project)
         if mode not in {'paths', 'snippets'}: raise ValueError('unsupported_trace_mode')
         if change_class not in {'body', 'interface', 'configuration', 'generator', 'removal', 'unknown'}: raise ValueError('unsupported_change_class')
         if not isinstance(targets, list) or not targets or len(targets) > 32: raise ValueError('trace_requires_1_to_32_targets')
         if not (1 <= max_nodes <= 10000 and 1 <= max_edges <= 100000 and 1 <= time_budget_ms <= 30000): raise ValueError('invalid_trace_budget')
+        if max_payload_bytes is not None and (not isinstance(max_payload_bytes, int) or max_payload_bytes < 1024):
+            raise ValueError('invalid_payload_budget')
         with self._lock:
             state = self._build(project, watcher_lost)
-            return self._trace(state, project, targets, mode, change_class, max_nodes, max_edges, time_budget_ms, since, cursor, query)
+            result = self._trace(state, project, targets, mode, change_class, max_nodes, max_edges, time_budget_ms, since, cursor, query)
+            return self._bound_result(result, max_payload_bytes) if max_payload_bytes is not None else result
+
+    @staticmethod
+    def _bound_result(result, budget):
+        """Return a useful impact preview when its immutable packet would overflow."""
+        wire = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+        original_size = len(wire(result))
+        if original_size <= budget:
+            return result
+        full_digest = digest(result)
+        value = deepcopy(result)
+        omitted = []
+        full_manifest_count = 0
+        omitted_manifest_count = 0
+        manifest_digests = []
+
+        def summarize_manifest(item):
+            nonlocal full_manifest_count, omitted_manifest_count
+            manifest = item.get('input_manifest') if isinstance(item, dict) else None
+            if not isinstance(manifest, list): return
+            full_manifest_count += len(manifest)
+            manifest_digests.append(digest(manifest))
+            if len(manifest) <= 8: return
+            omitted_manifest_count += len(manifest) - 8
+            kept = manifest[:8]
+            item.update(input_manifest_count=len(manifest), input_manifest_sha256=digest(manifest),
+                        input_manifest_omitted=len(manifest) - len(kept), input_manifest_complete=False,
+                        input_manifest=kept)
+
+        def summarize_edge(item):
+            if not isinstance(item, dict): return
+            summarize_manifest(item)
+            nested = item.get('witness')
+            if isinstance(nested, dict): summarize_edge(nested)
+
+        for provider in value.get('coverage', {}).get('providers', []):
+            manifest = provider.get('input_manifest', [])
+            summarize_manifest(provider)
+            gaps = provider.get('gaps', [])
+            if isinstance(gaps, list) and len(gaps) > 8:
+                provider.update(gaps_count=len(gaps), gaps_sha256=digest(gaps), gaps_omitted=len(gaps) - 8,
+                                gaps=gaps[:8])
+        for dependency in value.get('dependencies', []):
+            for edge in dependency.get('witness_chain', []): summarize_edge(edge)
+        for edge in value.get('nonpropagating_relations', []): summarize_edge(edge)
+
+        def summarize_nested(item):
+            if isinstance(item, dict):
+                if isinstance(item.get('input_manifest'), list): summarize_manifest(item)
+                for child in item.values(): summarize_nested(child)
+            elif isinstance(item, list):
+                for child in item: summarize_nested(child)
+
+        # An unresolved provider edge can be repeated under unknown_scope, and
+        # deltas can carry the same producer evidence. Compact those copies too.
+        for section in ('unknown_scope', 'delta'):
+            summarize_nested(value.get(section))
+        for section in ('unknown_scope',):
+            entries = value.get(section, [])
+            if isinstance(entries, list) and len(entries) > 8:
+                omitted.append({'section': section, 'full_count': len(entries), 'full_sha256': digest(result.get(section, [])),
+                                'preview_count': 8})
+                value[section] = entries[:8]
+        for section in ('possible_related_candidates', 'nonpropagating_relations'):
+            entries = value.get(section, [])
+            if isinstance(entries, list) and len(entries) > 8:
+                omitted.append({'section': section, 'full_count': len(entries), 'full_sha256': digest(result.get(section, [])),
+                                'preview_count': 8})
+                value[section] = entries[:8]
+
+        if omitted_manifest_count:
+            omitted.append({'section': 'input_manifests', 'full_count': full_manifest_count,
+                            'full_sha256': digest(manifest_digests),
+                            'omitted_count': omitted_manifest_count, 'preview_count': 'summarized'})
+
+        # Keep complete witness chains for every retained dependency. If that
+        # still exceeds the store limit, retain a stable prefix and identify
+        # exactly how much of the original dependency list was left out.
+        dependencies = value.get('dependencies', [])
+        dependency_count, dependency_digest = len(dependencies), digest(result.get('dependencies', []))
+        while dependencies and len(wire(value)) > budget:
+            keep = max(0, len(dependencies) // 2)
+            dependencies = dependencies[:keep]
+            value['dependencies'] = dependencies
+        if len(dependencies) < dependency_count:
+            omitted.append({'section': 'dependencies', 'full_count': dependency_count,
+                            'full_sha256': dependency_digest, 'preview_count': len(dependencies)})
+            traversal = value.get('traversal', {})
+            traversal['omitted_groups'] = [*traversal.get('omitted_groups', []),
+                {'reason': 'packet_payload_budget', 'full_count': dependency_count,
+                 'omitted_count': dependency_count - len(dependencies), 'full_sha256': dependency_digest}]
+            value['coverage']['complete_graph_cut'] = False
+
+        # If one retained witness alone cannot fit, preserve seed and coverage
+        # orientation while reporting the witness omission instead of failing
+        # packet creation.
+        if len(wire(value)) > budget:
+            old_dependencies = value.get('dependencies', [])
+            if old_dependencies:
+                omitted.append({'section': 'dependencies', 'full_count': dependency_count,
+                                'full_sha256': dependency_digest, 'preview_count': 0})
+                value['dependencies'] = []
+                value['coverage']['complete_graph_cut'] = False
+                value.setdefault('traversal', {})['omitted_groups'] = [
+                    {'reason': 'packet_payload_budget', 'full_count': dependency_count,
+                     'omitted_count': dependency_count, 'full_sha256': dependency_digest}]
+
+        value['status'] = 'partial'
+        value.setdefault('warnings', []).append('impact_payload_budget_preview')
+        value['payload_budget'] = {'limit_bytes': budget, 'full_result_bytes': original_size,
+                                   'full_result_sha256': full_digest, 'omissions': omitted}
+        # Account for the summary itself. The store wrapper reserves 8 KiB for
+        # packet status, freshness, and cursor metadata.
+        if len(wire(value)) > budget:
+            value['possible_related_candidates'] = []
+            value['unknown_scope'] = []
+            value['nonpropagating_relations'] = []
+            for provider in value.get('coverage', {}).get('providers', []):
+                provider.pop('gaps', None)
+                provider.pop('input_manifest', None)
+        if len(wire(value)) > budget:
+            # A low-cap store can still persist an honest pointer to the trace.
+            return {'status': 'partial', 'generation': result.get('generation'), 'seeds': [],
+                    'dependencies': [], 'coverage': {'complete_graph_cut': False, 'providers': []},
+                    'traversal': {'visited_nodes': 0, 'examined_edges': 0, 'omitted_groups': []},
+                    'continuation': None, 'warnings': ['impact_payload_budget_preview'],
+                    'payload_budget': {'limit_bytes': budget, 'full_result_bytes': original_size,
+                                       'full_result_sha256': full_digest,
+                                       'omissions': [{'section': 'trace', 'full_sha256': full_digest}]}}
+        return value
 
     def _trace(self, state, project, targets, mode, change_class, max_nodes, max_edges, time_budget_ms, since, cursor, query):
         unknown = deepcopy(state['unknown'])

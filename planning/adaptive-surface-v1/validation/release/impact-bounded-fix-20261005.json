@@ -1,0 +1,27 @@
+{
+  "status": "source_validated_pending_deployment",
+  "baseline_source_pin": "748b6c868ce9bb74046eb1df61b8950dce4de786",
+  "problem": "Tiny valid source-path and task targets failed with packet exceeds configured payload cap; public schema hid actual selectors/change values.",
+  "change": "Impact-specific packet projection and compact preview preserve target/dependency identity, witness evidence, explicit omission counts/hashes and packet lookup continuation. Public/internal schemas expose the supported target keys and change enum.",
+  "focused_validation": {
+    "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_trace.py tests/as1/test_pc_as1_surface.py --tb=short",
+    "result": "34 passed before final fallback-locator identity addition",
+    "final_changed_case": {
+      "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_trace.py -k impact_payload_cap --tb=short",
+      "result": "2 passed after final fallback identity/assertion change"
+    },
+    "diff_check": "passed"
+  },
+  "independent_review": {
+    "profile": "reviewer",
+    "result": "No blocker for normal-cap path/task fix",
+    "limits": "Read-only review did not rerun tests; very small custom packet caps not qualified."
+  },
+  "coverage_limits": [
+    "Configured 4 MiB packet cap and 2 KiB compact response covered",
+    "No broad qualification or unrelated failure clearance",
+    "No supervisor/scheduler/runtime changes; reuse pool/capacity/dedup evidence",
+    "Negative filesystem dependencies remain deferred as recorded in negative-resource-freshness.json"
+  ],
+  "private_deployment_evidence": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005"
+}

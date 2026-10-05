@@ -8,7 +8,7 @@ from typing import Any, Literal, get_args
 from mcp.types import ToolAnnotations
 from pydantic import ConfigDict, Field, ValidationError, create_model
 from .as1_context import ContextHost, InformationService
-from .as1_contracts import ExactEntityQuery
+from .as1_contracts import ExactEntityQuery, ImpactTarget
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
 from .as1_jobs import JobService, TrustedObserverFactory, InvalidToolArguments, ObserverLogArguments
 from .as1_packets import SQLitePacketStore
@@ -51,7 +51,7 @@ def observer_tool_argument_models(profile):
         'search': {'query': (str | _WORKER_EXACT_QUERY, ...), 'scope': (dict[str, Any] | None, None)},
         'evidence': native_fields(EvidenceInput, ('subject', 'kinds', 'max_items')),
         'history': native_fields(HistoryTraceInput, tuple(name for name in HistoryTraceInput.model_fields if name not in {'project', 'detail'})),
-        'impact': {'targets': (list[dict[str, Any]], ...),
+        'impact': {'targets': (list[ImpactTarget], Field(min_length=1, max_length=32)),
                    'change_class': (Literal['body', 'interface', 'configuration', 'generator', 'removal', 'unknown'], 'unknown'),
                    'mode': (Literal['paths', 'snippets'], 'paths')},
         'machine': {'query_or_view': (MachineDiagnostic, 'host_memory')},
@@ -460,8 +460,10 @@ def register_surface(mcp, c):
         return c.information.call('search', project=project, query=query.model_dump() if isinstance(query, ExactEntityQuery) else query, detail=detail, **params)
     def evidence(project: str, subject: str, kinds: list[str] | None = None, detail: str = 'compact') -> dict[str, Any]:
         return c.information.call('evidence', project=project, subject=subject, kinds=kinds or [], detail=detail)
-    def impact(project: str, targets: list[dict[str, Any]], change: str = 'unknown', direction: Literal['dependents'] = 'dependents', view: Literal['paths', 'snippets'] = 'paths', detail: str = 'compact') -> dict[str, Any]:
-        return c.information.call('impact', project=project, targets=targets, change_class=change, mode=view, detail=detail)
+    def impact(project: str, targets: list[ImpactTarget], change: Literal['body', 'interface', 'configuration', 'generator', 'removal', 'unknown'] = 'unknown', direction: Literal['dependents'] = 'dependents', view: Literal['paths', 'snippets'] = 'paths', detail: str = 'compact') -> dict[str, Any]:
+        return c.information.call('impact', project=project,
+                                  targets=[target.model_dump(exclude_none=True) for target in targets],
+                                  change_class=change, mode=view, detail=detail)
     def history(project: str, subject: str, from_revision: int | None = None, to_revision: int | None = None, detail: str = 'compact') -> dict[str, Any]:
         return c.information.call('history', project=project, subject=subject, from_revision=from_revision, to_revision=to_revision, detail=detail)
     def machine(query_or_view: str = 'host_memory', detail: str = 'compact') -> dict[str, Any]:
