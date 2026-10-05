@@ -58,7 +58,7 @@ class ObserverAnalysisProvider(Protocol):
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]: ...
 
     def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]: ...
-    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str) -> dict[str, Any]: ...
+    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str, deadline_epoch: float | None = None) -> dict[str, Any]: ...
     def close_session(self, session_id: str) -> None: ...
 
 
@@ -71,7 +71,7 @@ class DisabledObserverAnalysisProvider:
     def investigate_turn(self, request: dict[str, Any]) -> dict[str, Any]:
         return {"status": "unavailable", "reason": "local_investigator_disabled"}
 
-    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str) -> dict[str, Any]:
+    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str, deadline_epoch: float | None = None) -> dict[str, Any]:
         return {"status": "unavailable", "reason": "local_investigator_disabled"}
 
     def close_session(self, session_id: str) -> None:
@@ -92,6 +92,7 @@ class SkillsObserverAnalysisProvider:
         # Kept for compatibility; observed roots never initialize the backend.
         self._repo_root = Path(repo_root) if repo_root is not None else None
         self._backend: Any | None = None
+        self._backend_lock = threading.RLock()
         # Only a trusted operator startup setting grants this resource restriction.
         # Snapshot it before discovery; later environment changes cannot widen it.
         raw = os.environ.get("PROJECT_CONTROL_OBSERVER_GPU_UUIDS")
@@ -109,30 +110,31 @@ class SkillsObserverAnalysisProvider:
             self._allowed_gpu_uuids = tuple(dict.fromkeys(values))
 
     def _get_backend(self) -> Any:
-        if self._backend is None:
-            module = importlib.import_module("local_worker.supervisor")
-            # The release installer binds this path through a manifest-pinned,
-            # path-only .pth. Reject an ambient local-worker package rather
-            # than accidentally broadening this observer boundary.
-            expected = (Path(os.environ.get("PROJECT_CONTROL_SKILLS_ROOT", "")) /
-                        "local-coding-worker").resolve()
-            source = Path(str(getattr(module, "__file__", ""))).resolve()
-            if not expected.is_dir() or expected not in source.parents:
-                raise RuntimeError("observer_analysis_runtime_binding_invalid")
-            ProductionBackend = getattr(module, "ProductionBackend")
-            # A local model service has its own private sidecars (SQLite
-            # resource state, logs and runtime files).  The observed project
-            # is evidence only and must never become its writable root.
-            state_root = observer_analysis_state_root()
-            options: dict[str, Any] = {"service_state_root": state_root}
-            if self._allowed_gpu_uuids is not None:
-                # Load only the bound native profile on first backend use. Keep its
-                # model/server defaults and canonical runtime/global host admission.
-                profile = tomllib.loads((expected / "config/production-profile.toml").read_text(encoding="utf-8"))
-                profile.setdefault("deployment_policy", {})["allowed_gpu_uuids"] = list(self._allowed_gpu_uuids)
-                options["profile"] = profile
-            self._backend = ProductionBackend(state_root, **options)
-        return self._backend
+        with self._backend_lock:
+            if self._backend is None:
+                module = importlib.import_module("local_worker.supervisor")
+                # The release installer binds this path through a manifest-pinned,
+                # path-only .pth. Reject an ambient local-worker package rather
+                # than accidentally broadening this observer boundary.
+                expected = (Path(os.environ.get("PROJECT_CONTROL_SKILLS_ROOT", "")) /
+                            "local-coding-worker").resolve()
+                source = Path(str(getattr(module, "__file__", ""))).resolve()
+                if not expected.is_dir() or expected not in source.parents:
+                    raise RuntimeError("observer_analysis_runtime_binding_invalid")
+                ProductionBackend = getattr(module, "ProductionBackend")
+                # A local model service has its own private sidecars (SQLite
+                # resource state, logs and runtime files).  The observed project
+                # is evidence only and must never become its writable root.
+                state_root = observer_analysis_state_root()
+                options: dict[str, Any] = {"service_state_root": state_root}
+                if self._allowed_gpu_uuids is not None:
+                    # Load only the bound native profile on first backend use. Keep its
+                    # model/server defaults and canonical runtime/global host admission.
+                    profile = tomllib.loads((expected / "config/production-profile.toml").read_text(encoding="utf-8"))
+                    profile.setdefault("deployment_policy", {})["allowed_gpu_uuids"] = list(self._allowed_gpu_uuids)
+                    options["profile"] = profile
+                self._backend = ProductionBackend(state_root, **options)
+            return self._backend
 
     def analyze(self, immutable_packet: dict[str, Any]) -> dict[str, Any]:
         started = time.monotonic()
@@ -177,6 +179,7 @@ class SkillsObserverAnalysisProvider:
                 "timeout_seconds": float(request.get("timeout_seconds", 90)),
                 "compute_profile": request.get("compute_profile", "wide"),
                 "parallelism": request.get("parallelism", "default"),
+                **({"deadline_epoch": request["deadline_epoch"]} if "deadline_epoch" in request else {}),
                 **({"session_id": request["session_id"]} if request.get("session_id") else {}),
             }
             encoded = json.dumps(backend_request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -194,10 +197,11 @@ class SkillsObserverAnalysisProvider:
                          "operation": "investigate_turn", "outcome": outcome,
                          "duration_ms": round((time.monotonic() - started) * 1000, 1)})
 
-    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str) -> dict[str, Any]:
+    def open_sessions(self, count: int, *, compute_profile: str, parallelism: str, deadline_epoch: float | None = None) -> dict[str, Any]:
         try:
             return self._get_backend().open_observer_sessions(
-                count, compute_profile=compute_profile, parallelism=parallelism)
+                count, compute_profile=compute_profile, parallelism=parallelism,
+                **({"deadline_epoch": deadline_epoch} if deadline_epoch is not None else {}))
         except Exception as error:
             return {"status": "unavailable", "reason": str(error)[:500]}
 
@@ -316,14 +320,15 @@ class ObserverAnalysisRegistry:
                 backend.poll()
 
     def open_sessions(self, repo_root: str | Path, *, count: int, compute_profile: str,
-                      parallelism: str) -> dict[str, Any]:
+                      parallelism: str, deadline_epoch: float | None = None) -> dict[str, Any]:
         key = "local-observer-service"
         with self._lock:
             provider = self._providers.get(key)
             if provider is None:
                 provider = self._factory(str(Path(repo_root).resolve()))
                 self._providers[key] = provider
-        return provider.open_sessions(count, compute_profile=compute_profile, parallelism=parallelism)
+        return provider.open_sessions(count, compute_profile=compute_profile, parallelism=parallelism,
+                **({"deadline_epoch": deadline_epoch} if deadline_epoch is not None else {}))
 
     def close_session(self, repo_root: str | Path, session_id: str) -> None:
         key = "local-observer-service"

@@ -205,3 +205,37 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
         self.assertEqual(first["root"], second["root"])
         self.assertEqual(_Provider.created, 1)
         registry.close()
+
+
+class ObserverDeadlineTests(unittest.TestCase):
+    def test_concurrent_lazy_backend_constructs_once_and_forwards_deadline(self):
+        import threading
+        import time
+        from concurrent.futures import ThreadPoolExecutor
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            module_root = base / "skills/local-coding-worker/local_worker"
+            module_root.mkdir(parents=True)
+            created, calls = [], []
+            barrier = threading.Barrier(2)
+            class Backend:
+                def __init__(self, *args, **kwargs):
+                    time.sleep(.03)
+                    created.append(self)
+                def open_observer_sessions(self, count, **kwargs):
+                    calls.append(kwargs)
+                    return {"status": "available", "session_ids": ["session"]}
+            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), ProductionBackend=Backend)
+            with mock.patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(base / "skills"),
+                    "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}), \
+                    mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
+                provider = SkillsObserverAnalysisProvider()
+                deadline = time.time() + 10
+                def open_session():
+                    barrier.wait()
+                    return provider.open_sessions(1, compute_profile="narrow", parallelism="default", deadline_epoch=deadline)
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    results = list(pool.map(lambda _: open_session(), range(2)))
+            self.assertEqual(len(created), 1)
+            self.assertTrue(all(row["status"] == "available" for row in results))
+            self.assertEqual([row["deadline_epoch"] for row in calls], [deadline, deadline])
