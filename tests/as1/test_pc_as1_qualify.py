@@ -185,6 +185,8 @@ def test_real_inference_busy_skill_restart_eviction_reuse(tmp_path):
         'proof_sha256':sha(paired.PROOF),'consumer_sha256':sha(SKILLS/'tests/as1/test_sk_as1_qualify.py'),
         'source_identity':proof['source_identity'],'installed_product_hashes':hashes,'usage':usage,
         'actual_broker_metrics':proof['metrics'],
+        'reused_skill_proof':json.loads((paired.PROOF.parent/'reused_skill_proof.json').read_text()) if 'reused_skill_proof.json' in proof['artifacts'] else None,
+        'queued_outcomes':json.loads((paired.PROOF.parent/'queued_outcomes.json').read_text()) if 'queued_outcomes.json' in proof['artifacts'] else None,
         'status':'passed'},indent=2)+'\n')
 
 
@@ -285,6 +287,8 @@ def test_current_conformance_and_independent_review_are_executed():
     # passed. Its hash must match the E2E03 consumption just performed.
     consumption=json.loads((REPORTS/'paired-real-consumption.json').read_text())
     assert consumption['proof_sha256']==sha(paired.PROOF)
+    assert index['paired_realproof']['sha256']==consumption['proof_sha256']
+    assert index['paired_realproof']['source_identity']==consumption['source_identity']
     assert consumption['consumer_sha256']==sha(SKILLS/'tests/as1/test_sk_as1_qualify.py')
     review_path=SKILLS/'planning/adaptive-surface-v1/validation/skills-paired-qualification-review.json'
     review=json.loads(review_path.read_text())

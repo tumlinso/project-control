@@ -135,3 +135,16 @@ The changed Jobs source, new checkpoint test and document are hash-bound; prior
 Jobs source hashes and executions remain retained. No tests were rerun by this
 consumer refresh. Actual Q13 proof is required before root executes the native
 eight-test qualification gate once.
+
+Q14 executed proof passed on the `3905649`/`269646d` candidate, receipt SHA256
+`b7418afb156af547fa0419c8dc2f5914f920e599fca99f7c0250691e8747f5b2`.
+Its main answer cites two retained packets after restart without rereading the
+removed source. Two queued questions completed and one honestly remained partial;
+unsupported findings were not accepted. All eight cleanup checks passed while
+protected GPU 0/2 services retained their identities and approved GPU 1/3 cleared.
+Skill provenance is reused from hash-bound actual Q11 entry/maps traversal under
+qualified source equivalence. Its selected canonical resource/hash/range/excerpt
+is exact; the wrong-line narrative is explicitly unverified and its synthesis
+packing remained partial. No fresh skill inference in Q14 or verified semantic
+answer is claimed. Shared consumer defaults, full SQA report and current review
+must agree before root runs the PC native acceptance gate once.
