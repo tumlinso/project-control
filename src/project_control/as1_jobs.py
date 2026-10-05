@@ -152,7 +152,8 @@ class JobService:
     def __init__(self, directory, *, packets, worker_factory=None, backend=None,
                  hard_limit=100, max_storage_bytes=64 * 1024 * 1024,
                  lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None,
-                 inquiry_context_provider=None, legacy_directory=None):
+                 inquiry_context_provider=None, legacy_directory=None,
+                 analysis_runtime_identity=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'jobs.sqlite3'
@@ -169,6 +170,13 @@ class JobService:
         self.inquiry_access = inquiry_access
         self.can_execute = can_execute
         self.inquiry_context_provider = inquiry_context_provider
+        if analysis_runtime_identity is not None:
+            if (not isinstance(analysis_runtime_identity, str)
+                    or not analysis_runtime_identity or len(analysis_runtime_identity) > 512):
+                raise ValueError('invalid_analysis_runtime_identity')
+            # Hash caller supplied identity once so persisted inquiry keys stay bounded.
+            analysis_runtime_identity = canonical_digest({'analysis_runtime_identity': analysis_runtime_identity})
+        self._analysis_runtime_identity = analysis_runtime_identity
         self.last_error = None
         self._central_preflight_lock = threading.Lock()
         self._central_preflight_checked = 0.0
@@ -228,6 +236,11 @@ class JobService:
         os.chmod(self.path, 0o600)
         if self._legacy_snapshot_marker_to_write is not None:
             self._write_legacy_snapshot_marker(self._legacy_snapshot_marker_to_write)
+
+    @property
+    def analysis_runtime_identity(self):
+        """Read-only, process-configured epoch used by inquiry cache keys."""
+        return self._analysis_runtime_identity
 
     def _snapshot_legacy_broker(self, legacy_directory):
         """Publish one quiescent legacy broker snapshot into a fresh namespace."""
@@ -460,7 +473,9 @@ class JobService:
         scope = dict(access_scope)
         if not scope.get('principal') or not scope.get('profile'):
             raise ValueError('trusted principal/profile scope required')
-        identity = canonical_digest({'question': question, 'context': self.inquiry_context(scope), 'mode': mode, 'skill': skill})
+        identity = canonical_digest({'question': question,
+            'context': self.inquiry_context(scope, self.analysis_runtime_identity),
+            'mode': mode, 'skill': skill})
         # Read-only fast path: a duplicate does not validate new hints, touch order,
         # mutate TTL, or require a live dispatcher.
         with self._db() as db:
@@ -654,9 +669,12 @@ class JobService:
     poll = lookup
 
     @staticmethod
-    def inquiry_context(scope):
+    def inquiry_context(scope, analysis_runtime_identity=None):
         """Only caller identity is excluded; authority context remains exact."""
-        return {k: v for k, v in scope.items() if k not in {'principal', 'profile'}}
+        context = {k: v for k, v in scope.items() if k not in {'principal', 'profile'}}
+        if analysis_runtime_identity is not None:
+            context['analysis_runtime_identity'] = analysis_runtime_identity
+        return context
 
     def _inquiry_authorized(self, job, scope, *, log=False):
         required = self.inquiry_context(job['scope'])

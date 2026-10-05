@@ -224,6 +224,7 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
     started = time.monotonic()
     deadline = started + args.budget_seconds
     slowest_baseline_tps: float | None = None
+    slowest_baseline_prompt_tps: float | None = None
     sampler = Sampler(args.gpu_uuid)
     sampler.start()
     continuation_answers: dict[str, str] = {}
@@ -282,6 +283,9 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
             generation = {'reasoning_tokens': max(1, reasoning_tokens), 'preserve_reasoning': preserve}
             if reasoning_tokens and slowest_baseline_tps is not None:
                 generation['conservative_tokens_per_second'] = round(0.7 * slowest_baseline_tps, 3)
+            if reasoning_tokens and slowest_baseline_prompt_tps is not None:
+                generation['conservative_prompt_tokens_per_second'] = round(
+                    0.7 * slowest_baseline_prompt_tps, 3)
             adapter.set_observer_generation(handle, generation)
             reasoning_key = state_key or trial_id
             context_target = target_context_tokens(settings['context'])
@@ -317,6 +321,9 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
                          'prompt_per_second', 'reasoning_prompt_tokens', 'answer_prompt_tokens',
                          'reasoning_prompt_ms', 'answer_prompt_ms', 'reasoning_tokens_per_second',
                          'reasoning_prompt_tokens_per_second', 'answer_prompt_tokens_per_second',
+                         'reasoning_prompt_evaluated_tokens', 'reasoning_prompt_cached_tokens',
+                         'answer_prompt_evaluated_tokens', 'answer_prompt_cached_tokens',
+                         'uncached_prompt_tokens', 'estimated_prefill_ms',
                          'visible_tokens_per_second', 'context_tokens', 'effective_context_size',
                          'reasoning_token_budget') if k in usage},
                         'duration_ms': response.get('duration_ms'),
@@ -329,6 +336,14 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
             rate = usage.get('visible_tokens_per_second')
             if not reasoning_tokens and isinstance(rate, (int, float)) and rate > 0:
                 row['native_visible_tokens_per_second'] = round(float(rate), 3)
+            prompt_rate = usage.get('answer_prompt_tokens_per_second')
+            if not isinstance(prompt_rate, (int, float)) or prompt_rate <= 0:
+                evaluated = usage.get('answer_prompt_evaluated_tokens')
+                prompt_ms = usage.get('answer_prompt_ms')
+                if isinstance(evaluated, (int, float)) and evaluated > 0 and isinstance(prompt_ms, (int, float)) and prompt_ms > 0:
+                    prompt_rate = evaluated * 1000 / prompt_ms
+            if not reasoning_tokens and isinstance(prompt_rate, (int, float)) and prompt_rate > 0:
+                row['native_answer_prompt_tokens_per_second'] = round(float(prompt_rate), 3)
             row['within_turn_time_limit'] = (response.get('duration_ms') or 1e12) <= TURN_LIMIT * 1000
             row['answer_output_time_ms'] = usage.get('visible_ms')
             row['answer_time_reserve_ok'] = usage.get('visible_ms', 0) <= 45000
@@ -390,11 +405,14 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
         viable = [r for r in results if r.get('ok')]
         viable.sort(key=lambda r: r.get('duration_ms') or 1e12)
         if viable:
-            baseline_rates = [r['native_visible_tokens_per_second'] for r in viable
-                              if r.get('native_visible_tokens_per_second')]
-            if baseline_rates:
-                slowest_baseline_tps = min(baseline_rates)
             base = dict(viable[0]['settings'])
+            selected_baselines = [r for r in viable if r.get('settings') == base]
+            baseline_rates = [r['native_visible_tokens_per_second'] for r in selected_baselines
+                              if r.get('native_visible_tokens_per_second')]
+            prompt_rates = [r['native_answer_prompt_tokens_per_second'] for r in selected_baselines
+                            if r.get('native_answer_prompt_tokens_per_second')]
+            if baseline_rates: slowest_baseline_tps = min(baseline_rates)
+            if prompt_rates: slowest_baseline_prompt_tps = min(prompt_rates)
             # Grow context in order, then spend remaining budget on thinking caps.
             if not args.context_only:
                 for context in (65536, 131072, 262144):

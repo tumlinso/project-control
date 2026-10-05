@@ -9,7 +9,7 @@ from typing import Any, Literal, get_args
 from mcp.types import ToolAnnotations
 from pydantic import ConfigDict, Field, ValidationError, create_model
 from .as1_context import ContextHost, InformationService
-from .as1_contracts import ExactEntityQuery, ImpactTarget
+from .as1_contracts import ExactEntityQuery, ImpactTarget, canonical_digest
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
 from .as1_jobs import JobService, TrustedObserverFactory, InvalidToolArguments, ObserverLogArguments
 from .as1_packets import SQLitePacketStore
@@ -77,6 +77,31 @@ def observer_tool_argument_schemas(profile):
             return [compact(item) for item in value]
         return value
     return compact(schemas)
+
+
+def _analysis_runtime_identity(skills_root, observer_runtime_sha256, *, qualification_state='verified'):
+    """Bind inquiry cache entries to the frozen model and inference runtime."""
+    root = Path(skills_root).resolve(strict=True)
+    runtime_files = (
+        'local-coding-worker/config/production-profile.toml',
+        'local-coding-worker/local_worker/servers/llama_cpp.py',
+        'local-coding-worker/local_worker/supervisor.py',
+    )
+    digests = {}
+    for relative in runtime_files:
+        path = (root / relative).resolve(strict=True)
+        path.relative_to(root)
+        if path.stat().st_size > 1024 * 1024:
+            raise ValueError('analysis_runtime_identity_file_too_large')
+        data = path.read_bytes()
+        if len(data) > 1024 * 1024:
+            raise ValueError('analysis_runtime_identity_file_too_large')
+        digests[relative] = hashlib.sha256(data).hexdigest()
+    return canonical_digest({
+        'qualified_observer_runtime_sha256': observer_runtime_sha256,
+        'qualification_state': qualification_state,
+        'frozen_skills_files_sha256': digests,
+    })
 
 
 # Broker mechanics remain private even when a producer nests a result/continuation.
@@ -351,6 +376,8 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     c.worker_unavailable = None
     c.command = command_port
     factory = None
+    analysis_runtime_identity = None
+    trusted = None
     try:
         catalog = json.loads((root / 'integrations/native-skill-catalog.json').read_text())
         skills = {entry['name']: {'name': entry['name'], 'root': str(root / entry['name'])}
@@ -434,9 +461,17 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
             c.command = command
     except (OSError, ValueError, KeyError) as exc:
         c.worker_unavailable = type(exc).__name__
+    # Derive outside the worker-availability catch: a missing or corrupt frozen
+    # model/runtime file must fail startup rather than reuse an unscoped cache.
+    # An unqualified observer remains gracefully unavailable, with its own epoch.
+    analysis_runtime_identity = _analysis_runtime_identity(root,
+        trusted.digest if trusted is not None else
+            (observer_runtime_sha256 or QUALIFIED_OBSERVER_RUNTIME_SHA256),
+        qualification_state='verified' if trusted is not None else 'unavailable')
     c.jobs = JobService(state_root / 'jobs-v2', legacy_directory=state_root / 'jobs',
                         packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,
-                        inquiry_context_provider=inquiry_context)
+                        inquiry_context_provider=inquiry_context,
+                        analysis_runtime_identity=analysis_runtime_identity)
     c.store.authority_access = c.packet_access
     c.information.job_lookup = lambda ident, scope: c.jobs.lookup(ident, access_scope=scope)
     c.skills = SkillService(c.jobs, skills_root=root)
