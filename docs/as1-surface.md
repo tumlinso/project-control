@@ -20,8 +20,8 @@ The eight shared tools are `overview`, `delta`, `frontier`, `search`, `evidence`
 `read` and `skill` are observer adapters, not local MCP substitutes.
 
 Startup is lazy: no profile automatically receives overview, scans every
-registered project, or loads a model. Empty skill catalog discovery and polling
-retained jobs need no inference. The runtime supervisor and resource interlock
+registered project, or loads a model. Empty skill catalog discovery and retrieval of
+current cached answers need no inference. The runtime supervisor and resource interlock
 own inference residency and GPU policy; callers do not choose models or GPUs.
 
 ## Choosing a tool
