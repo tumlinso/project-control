@@ -6,22 +6,69 @@ from pathlib import Path
 from typing import Any, Literal
 
 from mcp.types import ToolAnnotations
+from pydantic import ConfigDict, Field, ValidationError, create_model
 from .as1_context import ContextHost, InformationService
 from .as1_contracts import ExactEntityQuery
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
-from .as1_jobs import JobService, TrustedObserverFactory
+from .as1_jobs import JobService, TrustedObserverFactory, InvalidToolArguments, ObserverLogArguments
 from .as1_packets import SQLitePacketStore
 from .as1_skill import SkillService, SkillObserverFactory, _verified_reads, _entry_precedes_resource
 from .as1_trace import TraceService
 from .config import configured_observer_skills_root
 from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis_state_root
 from .profiles import MCPProfile
+from .models import DeltaSince, EvidenceInput, HistoryTraceInput
+from .services.machine_inspection import MachineDiagnostic
 
 # Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'b97e0725aee0dc52332f41ded1879a0f904c30c940a16f4f9b0ba80e9fa586c0'
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '9d4fdb3fb6c60aee65d8d0ce0a9a696d85bb6461808b7bd4952bcc9aa9291b79'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
+
+
+def observer_tool_argument_models(profile):
+    """Describe the internal information adapter, using native field contracts.
+
+    Project is optional because the durable admission scope supplies its default.
+    Detail follows the original inquiry profile, never the dispatcher's profile.
+    """
+    detail = Literal['compact', 'standard', 'extended'] if profile == 'observer' else Literal['compact', 'standard']
+    common = {'project': (str | None, None), 'detail': (detail, 'compact')}
+    def native_fields(model, names):
+        return {name: (model.model_fields[name].annotation, model.model_fields[name]) for name in names}
+    fields = {
+        'overview': {},
+        'delta': {'since': (str | DeltaSince, ...)},
+        'frontier': {'scope': (dict[str, Any] | None, None)},
+        'search': {'query': (str | ExactEntityQuery, ...), 'scope': (dict[str, Any] | None, None)},
+        'evidence': native_fields(EvidenceInput, ('subject', 'kinds', 'max_items')),
+        'history': native_fields(HistoryTraceInput, tuple(name for name in HistoryTraceInput.model_fields if name not in {'project', 'detail'})),
+        'impact': {'targets': (list[dict[str, Any]], ...),
+                   'change_class': (Literal['body', 'interface', 'configuration', 'generator', 'removal', 'unknown'], 'unknown'),
+                   'mode': (Literal['paths', 'snippets'], 'paths')},
+        'machine': {'query_or_view': (MachineDiagnostic, 'host_memory')},
+    }
+    return {name: create_model('Observer' + name.title() + 'Arguments',
+        __config__=ConfigDict(extra='forbid', strict=True), **common, **arguments)
+        for name, arguments in fields.items()}
+
+
+def observer_tool_argument_schemas(profile):
+    schemas = {name: model.model_json_schema() for name, model in observer_tool_argument_models(profile).items()}
+    schemas['log'] = ObserverLogArguments.model_json_schema()
+    command = create_model('ObserverCommandArguments', __config__=ConfigDict(extra='forbid', strict=True),
+        argv=(list[str], Field(min_length=1, max_length=128)), cwd=(str, ...),
+        timeout_seconds=(int | float, Field(default=10, gt=0, le=60)),
+        max_output_bytes=(int, Field(default=8192, ge=1, le=65536)))
+    schemas['command'] = command.model_json_schema()
+    def compact(value):
+        if isinstance(value, dict):
+            return {key: compact(item) for key, item in value.items() if key not in {'title', 'description'}}
+        if isinstance(value, list):
+            return [compact(item) for item in value]
+        return value
+    return compact(schemas)
 
 
 # Broker mechanics remain private even when a producer nests a result/continuation.
@@ -271,7 +318,8 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
         return {'inquiry_repositories': [
             {'project': project, 'repository': alias, 'root': repository_root}
             for project, alias, repository_root in inquiry_repositories if project in projects],
-            'installed_skill_roots': list(installed_skill_roots)}
+            'installed_skill_roots': list(installed_skill_roots),
+            'tool_argument_schemas': observer_tool_argument_schemas(scope['profile'])}
     c.worker_unavailable = None
     c.command = command_port
     factory = None
@@ -289,9 +337,26 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                 raise PermissionError('job_scope_not_permitted')
             args = dict(arguments)
             project = args.pop('project', None)
+            if project is not None and not isinstance(project, str):
+                raise InvalidToolArguments('project must be a string or null')
             if scope['project'] != 'catalog' and project not in {None, scope['project']}:
                 raise PermissionError('job_project_not_permitted')
             project = project or (None if scope['project'] == 'catalog' else scope['project'])
+            if project is not None and project not in c.host.projects:
+                raise PermissionError('job_project_not_permitted')
+            if args.get('detail') == 'extended' and scope['profile'] != 'observer':
+                raise PermissionError('detail_not_permitted')
+            try:
+                observer_tool_argument_models(scope['profile'])[name].model_validate({'project': project, **args})
+                if project is None and name not in {'overview', 'search', 'machine'}:
+                    raise InvalidToolArguments('project_required')
+                if name in {'evidence', 'history'}:
+                    model = EvidenceInput if name == 'evidence' else HistoryTraceInput
+                    # The outer packet detail is distinct from the underlying
+                    # native evidence/history detail vocabulary.
+                    model.model_validate({'project': project, **{key: value for key, value in args.items() if key != 'detail'}})
+            except ValidationError as error:
+                raise InvalidToolArguments(str(error)) from error
             class AdmissionHost(ContextHost):
                 def scope(self, project):
                     return {k: v for k, v in scope.items() if not k.startswith('_')}

@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .as1_contracts import DurableJob, Finding, InformationPacket, SourceLocator, canonical_digest
 from .as1_packets import SQLITE_CONNECTION_LOCK, mask_payload
@@ -26,6 +27,16 @@ CHECKPOINT_MAX_FRAME_BYTES = 32768
 CHECKPOINT_MAX_BYTES = 60000
 _DB_LOCK = threading.RLock()
 BUSY = 'Read-only analysis is pending. Continue reasoning or other useful work and poll with job_id; reuse request_id for retries.'
+
+
+class InvalidToolArguments(ValueError):
+    """Pre-dispatch argument error, distinct from authority/backend failures."""
+
+
+class ObserverLogArguments(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    query: str = ''
+    limit: int = Field(default=5, ge=1, le=50)
 
 
 def stamp(now):
@@ -71,12 +82,23 @@ class TrustedObserverFactory:
                     method = getattr(backend._get_backend(), 'preemption_status', None)
                 return method(session) if method else {}
         def tools(name, arguments):
-            if name == 'log':
-                payload = {'records': service.log(access_scope=job.scope, **arguments)}
-            elif name in SHARED_TOOLS:
-                payload = self.tools(name, arguments, job.scope)
-            else:
-                raise ValueError('tool denied')
+            try:
+                if name == 'log':
+                    try:
+                        ObserverLogArguments.model_validate(arguments)
+                    except ValidationError as error:
+                        raise InvalidToolArguments(str(error)) from error
+                    payload = {'records': service.log(access_scope=job.scope, **arguments)}
+                elif name in SHARED_TOOLS:
+                    payload = self.tools(name, arguments, job.scope)
+                else:
+                    raise ValueError('tool denied')
+            except InvalidToolArguments as error:
+                payload = {'status': 'denied', 'reason': 'invalid_arguments',
+                    'accepted': False, 'dispatched': False, 'tool': name,
+                    'validation_error': str(error)[:800],
+                    'validation_data': {'is_source_evidence': False},
+                    'corrective_action': 'Use the advertised argument schema and retained evidence; correct the arguments before calling again.'}
             ident = service.observe(job.job_id, job.attempt, payload, tool=name)
             return {**payload, 'packet_id': ident}
         scope = dict(job.scope)

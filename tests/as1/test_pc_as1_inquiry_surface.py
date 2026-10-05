@@ -2,6 +2,7 @@
 import hashlib
 from types import SimpleNamespace
 from unittest.mock import Mock
+import pytest
 
 from project_control.as1_contracts import SourceLocator
 from project_control.as1_surface import InquiryFreshness, public_inquiry
@@ -27,7 +28,10 @@ def test_registered_inquiry_targets_are_labeled_separately_from_installed_skills
     # Caller/profile provenance and caller hints do not change trusted targets.
     changed = {**c.scope('p'), 'principal': 'another-caller', 'profile': 'mutator',
                'root': '/untrusted', 'inquiry_repositories': [{'root': '/untrusted'}]}
-    assert provider(SimpleNamespace(scope=changed)) == original
+    changed_context = provider(SimpleNamespace(scope=changed))
+    assert changed_context['inquiry_repositories'] == original['inquiry_repositories']
+    assert changed_context['installed_skill_roots'] == original['installed_skill_roots']
+    assert changed_context['tool_argument_schemas']['overview']['properties']['detail']['enum'] == ['compact', 'standard']
     # Neither mutating returned labels nor later config mutation changes the
     # immutable admission configuration snapshot.
     original['inquiry_repositories'][0]['root'] = '/untrusted'
@@ -62,6 +66,100 @@ def test_dispatch_passes_trusted_target_context_without_hint_override(tmp_path):
         assert captured[0]['hints']
     finally:
         service.shutdown()
+
+
+@pytest.mark.parametrize('cite_feedback', [False, True])
+def test_invalid_internal_arguments_retain_feedback_then_answer_without_retry(servers, cite_feedback):
+    import json
+    class Backend:
+        def __init__(self): self.turns = 0; self.feedback = []
+        def open_sessions(self, count, **policy): return {'status': 'available', 'session_ids': ['cpu']}
+        def close_session(self, session): return {'released': True}
+        def run_observer_turn(self, request):
+            self.turns += 1
+            if self.turns == 1:
+                system = request['messages'][0]['content']
+                assert 'Tool argument schemas' in system and '"subject"' in system
+                value = {'tool': 'log', 'arguments': {'offset': 0}}
+            elif self.turns == 2:
+                value = {'tool': 'evidence', 'arguments': {}}
+            elif self.turns == 3:
+                value = {'tool': 'overview', 'arguments': {}}
+            else:
+                observations = [json.loads(m['content']) for m in request['messages'] if m['role'] == 'user']
+                self.feedback = [p for p in observations if p.get('reason') == 'invalid_arguments']
+                assert len(self.feedback) == 2
+                assert all(p['validation_data']['is_source_evidence'] is False for p in self.feedback)
+                evidence = next(p for p in observations if p.get('data', {}).get('projects') == [])
+                if cite_feedback:
+                    evidence = self.feedback[0]
+                value = {'answer': 'Catalog observed.', 'findings': [
+                    {'text': 'Registered catalog.', 'evidence_packets': [evidence['packet_id']]}]}
+            return {'status': 'available', 'text': json.dumps(value)}
+    backend = Backend()
+    c = servers(observer_backend=backend)._project_control_surface
+    c.start()
+    value = c.jobs.inquire('Read the catalog', c.scope(None))
+    if cite_feedback:
+        assert value['status'] == 'unavailable', value
+        assert backend.turns == 4
+        return
+    assert value['status'] == 'completed', value
+    assert value['job']['attempt'] == 1 and backend.turns == 4
+    retained = c.jobs.lookup(value['job']['job_id'], access_scope=c.scope(None))['observations']
+    assert len([p for p in retained if p.get('reason') == 'invalid_arguments']) == 2
+
+
+def test_argument_validation_preserves_authority_and_backend_failures(servers, monkeypatch):
+    import pytest
+    from project_control.as1_jobs import InvalidToolArguments
+    c = servers()._project_control_surface
+    tools = c.jobs.worker_factory.trusted.tools
+    scope = c.scope(None)
+    with pytest.raises(InvalidToolArguments): tools('evidence', {}, scope)
+    with pytest.raises(PermissionError): tools('overview', {'project': 'outside'}, scope)
+    def failed(*args, **kwargs): raise TypeError('true backend implementation failure')
+    monkeypatch.setattr('project_control.as1_surface.InformationService.call', failed)
+    with pytest.raises(TypeError, match='true backend'): tools('overview', {}, scope)
+
+
+@pytest.mark.parametrize('project', [{'id': 'outside'}, ['outside']])
+def test_malformed_project_argument_is_noncitable_feedback_without_dispatch(servers, monkeypatch, project):
+    c = servers()._project_control_surface
+    scope = c.scope(None)
+    class Live:
+        def is_alive(self): return True
+    c.jobs._thread = Live()
+    admitted = c.jobs.submit(question='Argument feedback fixture', access_scope=scope)
+    job = c.jobs.claim()
+    assert job.job_id == admitted['job_id']
+    # Build the actual trusted tool bridge without executing its model loop.
+    worker = c.jobs.worker_factory.trusted(c.jobs, job)
+    dispatch = Mock(side_effect=AssertionError('invalid/unauthorized arguments dispatched'))
+    monkeypatch.setattr('project_control.as1_surface.InformationService.call', dispatch)
+    result = worker.tools('overview', {'project': project})
+    assert result['status'] == 'denied' and result['reason'] == 'invalid_arguments'
+    assert result['dispatched'] is False
+    assert result['validation_data']['is_source_evidence'] is False
+    assert result['packet_id']
+    retained = c.jobs.lookup(job.job_id, access_scope=scope)['observations']
+    assert any(p.get('packet_id') == result['packet_id'] for p in retained)
+    with pytest.raises(PermissionError): worker.tools('overview', {'project': 'outside'})
+    dispatch.assert_not_called()
+
+
+def test_internal_argument_schemas_preserve_native_constraints_and_original_profile():
+    import json
+    from project_control.as1_surface import observer_tool_argument_schemas
+    schema = observer_tool_argument_schemas('observer')
+    assert set(schema) == {'overview', 'delta', 'frontier', 'search', 'evidence', 'impact', 'history', 'machine', 'log', 'command'}
+    assert schema['evidence']['required'] == ['subject']
+    assert schema['evidence']['properties']['subject']['minLength'] == 1
+    assert schema['log']['additionalProperties'] is False and 'offset' not in schema['log']['properties']
+    assert schema['overview']['properties']['detail']['enum'] == ['compact', 'standard', 'extended']
+    assert observer_tool_argument_schemas('mutator')['overview']['properties']['detail']['enum'] == ['compact', 'standard']
+    assert '$defs' in schema['search'] and '$ref' in json.dumps(schema['search'])
+    assert len(json.dumps(schema).encode()) < 12000
 
 
 def test_actual_tools_schemas_and_recursive_projection(servers):
