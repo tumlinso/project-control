@@ -1,5 +1,5 @@
 {
-  "status": "source_validated_pending_deployment",
+  "status": "deployed",
   "baseline_source_pin": "748b6c868ce9bb74046eb1df61b8950dce4de786",
   "problem": "Tiny valid source-path and task targets failed with packet exceeds configured payload cap; public schema hid actual selectors/change values.",
   "change": "Impact-specific packet projection and compact preview preserve target/dependency identity, witness evidence, explicit omission counts/hashes and packet lookup continuation. Public/internal schemas expose the supported target keys and change enum.",
@@ -23,5 +23,79 @@
     "No supervisor/scheduler/runtime changes; reuse pool/capacity/dedup evidence",
     "Negative filesystem dependencies remain deferred as recorded in negative-resource-freshness.json"
   ],
-  "private_deployment_evidence": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005"
+  "private_deployment_evidence": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005",
+  "deployed_project_control_pin": "88865b39744aa8da8cb4306d7577003430d5a4a0",
+  "paired_skills_pin": "7390bc7fbc221da175defe30dc1f3df9e9c1abe8",
+  "candidate": "/home/tumlinson/.local/share/project-control/candidates/as1-impact-bounded-20261005",
+  "manifest_sha256": "0b11f8e3805c85b9ccfcace4c41e24f29e927cb5acbc8302c977733d19dabdb3",
+  "build_count": 1,
+  "live_validation": {
+    "status": "passed",
+    "http_tools": 11,
+    "stdio_codex_tools": 12,
+    "exact_impact_cases": 2,
+    "compact_response_limit_bytes": 2048,
+    "inference_calls": 0,
+    "http_pid": 499331,
+    "supervisor_pid": 499329,
+    "systemd_identity_override_unchanged": true,
+    "source_sha256_unchanged": true,
+    "checks": [
+      "healthz/readyz/version",
+      "fresh HTTP and codex stdio impact schemas",
+      "valid README.md path and PC-AS1-INQUIRY-CACHE task target",
+      "full runtime and peer process identity",
+      "candidate manifest digest"
+    ],
+    "case_provenance": "Two live HTTP checks completed before a stdio helper command error. Packet references were recovered read-only and passed checks reused; no impact traces repeated."
+  },
+  "deployment_notes": {
+    "quiescence": "No active admissions, leases, resident slots or broker execution slots immediately before restart; only terminal inquiry records.",
+    "required_restart": "Paired runtime identity includes candidate/module paths; both services switched with matching manifest/runtime roots. Supervisor source itself unchanged.",
+    "prebuild_helper_error": "An incorrect full pin failed before source worktree creation/installer invocation; actual installer build count remained one.",
+    "stdio_helper_error": "Unsupported mcp subcommand corrected to documented codex command; no code rebuild/restart or repeated impact trace.",
+    "live_full_metadata_bytes": [
+      10877217,
+      10864640
+    ],
+    "stored_payload_bytes": [
+      44802,
+      41360
+    ],
+    "live_dependency_counts": [
+      0,
+      0
+    ],
+    "interpretation": "Tiny task/path traces overflowed because shared coverage/unknown metadata exceeded the cap, even with zero dependencies."
+  },
+  "receipts": [
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005/pair.json",
+      "sha256": "ea2cea6498e187892772b825209733dc4ef1c25cbc0f4a8f3c3d3cdbb355a29e"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005/build.json",
+      "sha256": "c1f141eeac0e02a2b88a1c8074dd06907ef714b863e981ea7d04b4f113679bb6"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005/verification.json",
+      "sha256": "ff158f978039fc8299fbc0671c6e7a8d53408c3597be87c011a607da30759ac6"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005/source-manifest-proof.json",
+      "sha256": "74cc8c5da9a2edfd343678fb634ddc139cff9a9dbe79774557fd1aed20ef510e"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005/deployment.json",
+      "sha256": "6cd0d83a3f6153548ace96b54d82f058a0dbd4609b9055853898eeeed9a941ad"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005/http-impact-completed.json",
+      "sha256": "78aa1cef816c3f34d3f5980c59ea2d5c83acea80b69ad91a35c904fefeaa0340"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/impact-bounded-20261005/live-impact-receipt.json",
+      "sha256": "1f9d8c0b39fa854ce0b1b3bf8621c01f300d3bf8c19e246460ab7d6d2f7d733c"
+    }
+  ]
 }

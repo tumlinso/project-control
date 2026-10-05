@@ -108,5 +108,13 @@
     "result": "Appearing missing resource does not invalidate cached partial answer in direct InquiryFreshness fixture",
     "decision": "Implementation deferred: trusted producer absence attestation and explicit material unresolved/citation linkage required",
     "regression": "strict expected failure; no stderr or prose parsing"
+  },
+  "impact_fix": {
+    "receipt": "planning/adaptive-surface-v1/validation/release/impact-bounded-fix-20261005.json",
+    "status": "deployed",
+    "code_pin": "88865b39744aa8da8cb4306d7577003430d5a4a0",
+    "skills_pin": "7390bc7fbc221da175defe30dc1f3df9e9c1abe8",
+    "build_count": 1,
+    "inference_calls": 0
   }
 }
