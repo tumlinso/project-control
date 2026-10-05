@@ -127,3 +127,11 @@ focused capture is complete. Captured outputs and tool responses are hash-bound.
 Current PC startup/JOB-06 execution passed two cases; historical entry evidence
 and previous source identities remain preserved. Actual full Q11 SQA evidence
 remains required before dependent E2E acceptance.
+
+Current functional PC pin `3905649` preserves public observer conversation in
+scoped durable checkpoints. The complete executed CPU case report contains 24
+unique passing tests, with a separate two-test composed Surface regression.
+The changed Jobs source, new checkpoint test and document are hash-bound; prior
+Jobs source hashes and executions remain retained. No tests were rerun by this
+consumer refresh. Actual Q13 proof is required before root executes the native
+eight-test qualification gate once.
