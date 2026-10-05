@@ -66,6 +66,11 @@
     "Current checkpoint CPU report has24 unique passing tests and separate2-test Surface regression; no extra local test execution or actual model qualification supplied here.",
     "Actual Q14 proof passed under its bounded queue/provenance scope; source-bound native acceptance and independent review remain required."
   ],
+  "paired_independent_review": {
+    "original": "/home/tumlinson/.agents/skills/planning/adaptive-surface-v1/validation/skills-paired-qualification-review.json",
+    "path": "paired-independent-review.json",
+    "sha256": "4d3a2a508e244920ed872a32e690ff9cead3129b80eb1670a674b55cd86d0989"
+  },
   "paired_realproof": {
     "artifacts": {
       "approval.json": "17ce8bdcc44abcf6dbb849ce68182e8495802a25428a4e5043f4798f90dbc201",
@@ -456,12 +461,32 @@
     "tests/test_observer_analysis_registry.py": "24fa11892bfa473a2733efcd3bde964e66320f7d674fd01df233f3641b565aa7"
   },
   "source_history": {
-    "current_paired_proof_status": "Actual Q14 receipt passed; complete SQA/review and PC native gate pending",
+    "current_paired_proof_status": "Actual Q14 proof and native SQA4 passed; independent review executed_verified; PC native8 gate ready and unexecuted",
     "current_pc_commit": "3905649ff9b03e3acec4211553a52cf2389489e9",
     "current_skills_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828",
     "previous_index": "conformance-index-pre-realproof.json",
     "previous_index_sha256": "7f1e739b03fd3ed3bee69967aeb26553c97250d5248896c8ba5007ea61f46f05",
     "qualified_observer_runtime_sha256": "ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf"
+  },
+  "sqa_acceptance": {
+    "consumer_sha256": "aa97923f8e3a69dae511c685bb68897e9178c7e59f1ef6d7225254e1a51114f8",
+    "kind": "native_gate",
+    "native_evidence_id": "47985492-fd1a-471f-bf6d-e178507dcd20",
+    "original": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/evidence/47985492-fd1a-471f-bf6d-e178507dcd20/stdout.txt",
+    "path": "conformance-sqa-native.json",
+    "sha256": "a1b77aabf62efcb9674d5a1b59e2cecb503b403e2f3d7c6f0e90ba949f34f723",
+    "source_consumer_commit": "4f368be811bb4e21716a968e179111ce555238c6",
+    "source_identity": {
+      "candidate_root": "/home/tumlinson/.local/share/project-control/candidates/as1-paired-3905649-269646d-20261005",
+      "fixture_commit": "4a0a0295472e1e50fc2b45ffd45ab913e7d8d24e",
+      "helper_sha256": "8ef754dea9657d7a44ac8a3d4e18845ac976921588710cd11572fc62b4dcde0f",
+      "native_catalog_sha256": "d1b054bdd6f38a54fb197f15b8abeb4f35ea23fe53aaeabcdd4d0d1fa34aadf7",
+      "native_routing_sha256": "153b4b75da688822e5f961a8f05711d3af6acdc770ce4f975247b425d271b239",
+      "observer_runtime_sha256": "ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf",
+      "pc_commit": "3905649ff9b03e3acec4211553a52cf2389489e9",
+      "release_sha256": "0a968d2456e5a576ef0fc74c05b0543f4479c27385caa800e083018f507bbc34",
+      "skills_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828"
+    }
   },
   "superseding_source_checks": [
     {

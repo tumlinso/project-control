@@ -278,11 +278,19 @@ def test_current_conformance_and_independent_review_are_executed():
                 result=json.loads(path.read_text());assert result['exit_code']==0
                 assert str(artifact['passed_tests'])+' passed' in result['output']
     paired=paired_consumer()
-    report_path=Path(os.environ.get('AS1_SQA_REPORT','/home/tumlinson/.local/state/project-control/as1-bootstrap/sqa/final-acceptance-report.json'))
-    assert report_path.is_file(), 'Current executed SQA report required'
-    sqa=json.loads(report_path.read_text());assert sqa['pytest_exitstatus']==0
-    for case in ('SQA-01','SQA-02','SQA-03'):
-        assert sqa['cases'][case] and all(row['outcome']=='passed' for row in sqa['cases'][case]),case
+    sqa_reference=index['sqa_acceptance']
+    report_path=Path(os.environ.get('AS1_SQA_REPORT',str(REPORTS/sqa_reference['path'])))
+    assert report_path.is_file() and sha(report_path)==sqa_reference['sha256']
+    sqa=json.loads(report_path.read_text())
+    required_sqa={'SQA-01','SQA-02','SQA-03'}
+    if sqa.get('kind')=='executed_product_acceptance':
+        assert sqa['status']=='passed' and sqa['pytest_returncode']==0
+        assert not sqa['missing_or_failed_cases']
+        assert required_sqa==set(sqa['required_cases'])==set(sqa['passed_cases'])
+    else:
+        assert sqa['pytest_exitstatus']==0
+        for case in required_sqa:
+            assert sqa['cases'][case] and all(row['outcome']=='passed' for row in sqa['cases'][case]),case
     # Source-bound raw proof remains mandatory even if a typed SQA report says
     # passed. Its hash must match the E2E03 consumption just performed.
     consumption=json.loads((REPORTS/'paired-real-consumption.json').read_text())
@@ -292,6 +300,7 @@ def test_current_conformance_and_independent_review_are_executed():
     assert consumption['consumer_sha256']==sha(SKILLS/'tests/as1/test_sk_as1_qualify.py')
     review_path=SKILLS/'planning/adaptive-surface-v1/validation/skills-paired-qualification-review.json'
     review=json.loads(review_path.read_text())
+    assert sha(review_path)==index['paired_independent_review']['sha256']
     assert review['independent_review_completed'] is True
     assert review['reviewer'] and review['configured_role']=='wf2-reviewer'
     for finding in review['findings']:
