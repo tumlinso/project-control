@@ -19,6 +19,9 @@ from .as1_packets import mask_payload
 
 TERMINAL = {'completed', 'partial', 'failed', 'cancelled'}
 SHARED_TOOLS = frozenset({'overview', 'delta', 'frontier', 'search', 'evidence', 'impact', 'history', 'machine'})
+CHECKPOINT_MAX_OBSERVATIONS = 24
+CHECKPOINT_MAX_FRAME_BYTES = 32768
+CHECKPOINT_MAX_BYTES = 60000
 _DB_LOCK = threading.RLock()
 BUSY = 'Queue busy. Your question is queued. Do not wait; continue reasoning or other useful work and ask again later using this ID.'
 
@@ -74,8 +77,16 @@ class TrustedObserverFactory:
                 raise ValueError('tool denied')
             ident = service.observe(job.job_id, job.attempt, payload, tool=name)
             return {**payload, 'packet_id': ident}
+        scope = dict(job.scope)
+        def fence(job_id, attempt):
+            return (job_id == job.job_id and attempt == job.attempt
+                    and service.fence(job_id, attempt, access_scope=scope))
+        def checkpoint(job_id, attempt, observations):
+            if job_id != job.job_id or attempt != job.attempt:
+                raise RuntimeError('stale_attempt')
+            service.checkpoint(job_id, attempt, observations, access_scope=scope)
         return module.ObserverWorkerPort(Adapter(), command=command, tools=tools,
-            fence=service.fence, checkpoint=service.checkpoint)
+            fence=fence, checkpoint=checkpoint)
 
 
 class JobService:
@@ -110,7 +121,10 @@ class JobService:
                 updated REAL NOT NULL, lease REAL NOT NULL DEFAULT 0, available REAL NOT NULL DEFAULT 0,
                 UNIQUE(scope,request_id));
                 CREATE TABLE IF NOT EXISTS outbox(id TEXT PRIMARY KEY, job TEXT NOT NULL,
-                packet TEXT NOT NULL, materialized INTEGER NOT NULL DEFAULT 0);''')
+                packet TEXT NOT NULL, materialized INTEGER NOT NULL DEFAULT 0);
+                CREATE TABLE IF NOT EXISTS job_checkpoints(
+                job TEXT PRIMARY KEY, scope TEXT NOT NULL, attempt INTEGER NOT NULL,
+                frames TEXT NOT NULL);''')
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -194,8 +208,7 @@ class JobService:
                     return {'accepted': False, 'reason': 'durable_processing_unavailable'}
                 records = [json.loads(r[0]) for r in db.execute('SELECT record FROM jobs')]
                 count = sum(r['status'] not in TERMINAL for r in records)
-                usage = db.execute('SELECT coalesce(sum(length(CAST(record AS BLOB))+length(CAST(observations AS BLOB))),0) FROM jobs').fetchone()[0]
-                usage += db.execute('SELECT coalesce(sum(length(CAST(packet AS BLOB))),0) FROM outbox').fetchone()[0]
+                usage = self._storage_bytes(db)
                 if count >= self.hard_limit or usage + len(wire(job.model_dump()).encode()) > self.max_storage_bytes:
                     return {'accepted': False, 'reason': 'admission_limit'}
                 db.execute('INSERT INTO jobs(id,scope,request_id,request_hash,record,updated) VALUES(?,?,?,?,?,?)',
@@ -217,15 +230,37 @@ class JobService:
         return {'accepted': True, 'job_id': job.job_id, 'status': job.status, 'retry': retry,
                 'poll': {'job_id': job.job_id}, 'message': BUSY if busy else 'Accepted. Continue other work and poll this ID later.'}
 
+    def _storage_bytes(self, db):
+        usage = db.execute('SELECT coalesce(sum(length(CAST(record AS BLOB))+length(CAST(observations AS BLOB))),0) FROM jobs').fetchone()[0]
+        usage += db.execute('SELECT coalesce(sum(length(CAST(packet AS BLOB))),0) FROM outbox').fetchone()[0]
+        usage += db.execute('SELECT coalesce(sum(length(CAST(frames AS BLOB))),0) FROM job_checkpoints').fetchone()[0]
+        return usage
+
+    def _public_observations(self, db, row):
+        raw = json.loads(row['observations'])
+        checkpoint = db.execute('SELECT * FROM job_checkpoints WHERE job=?', (row['id'],)).fetchone()
+        if checkpoint is None:
+            return raw
+        if checkpoint['scope'] != row['scope']:
+            raise PermissionError('checkpoint_scope_mismatch')
+        job = DurableJob.model_validate_json(row['record'])
+        if checkpoint['attempt'] > job.attempt:
+            raise RuntimeError('invalid_checkpoint_attempt')
+        saved = {frame['packet_id']: frame for frame in json.loads(checkpoint['frames'])}
+        # Preserve raw observations committed after the last checkpoint/crash.
+        return [saved.get(observation['packet_id'], observation) for observation in raw]
+
     def lookup(self, job_id, *, access_scope):
         with self._db() as db:
+            db.execute('BEGIN')
             row = db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
-        if not row:
-            return {'status': 'not_found'}
-        if json.loads(row['scope']) != dict(access_scope):
-            return {'status': 'forbidden'}
+            if not row:
+                return {'status': 'not_found'}
+            if json.loads(row['scope']) != dict(access_scope):
+                return {'status': 'forbidden'}
+            observations = self._public_observations(db, row)
         return {'status': 'ok', 'job': DurableJob.model_validate_json(row['record']).model_dump(),
-                'observations': json.loads(row['observations'])}
+                'observations': observations}
 
     poll = lookup
 
@@ -246,10 +281,10 @@ class JobService:
                 break
         return result
 
-    def fence(self, job_id, attempt):
+    def fence(self, job_id, attempt, *, access_scope=None):
         with self._db() as db:
-            row = db.execute('SELECT record,lease FROM jobs WHERE id=?', (job_id,)).fetchone()
-        if not row:
+            row = db.execute('SELECT record,lease,scope FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if not row or (access_scope is not None and json.loads(row['scope']) != dict(access_scope)):
             return False
         job = json.loads(row['record'])
         return job['attempt'] == attempt and job['status'] == 'running' and row['lease'] > self.clock()
@@ -288,8 +323,7 @@ class JobService:
             payload_sha256=canonical_digest(cleaned), sources=[], parents=[],
             access_scope=job.scope, omissions=omissions,
             freshness={'volatile': True, 'max_age_seconds': 0}, pinned_by=[job.job_id])
-        usage = db.execute('SELECT coalesce(sum(length(CAST(record AS BLOB))+length(CAST(observations AS BLOB))),0) FROM jobs').fetchone()[0]
-        usage += db.execute('SELECT coalesce(sum(length(CAST(packet AS BLOB))),0) FROM outbox').fetchone()[0]
+        usage = self._storage_bytes(db)
         if usage + 2 * len(packet.model_dump_json().encode()) > self.max_storage_bytes:
             raise ValueError('durable observation storage cap')
         if len(packet.model_dump_json().encode()) > self.packets.max_payload_bytes:
@@ -309,15 +343,56 @@ class JobService:
         self.reconcile()
         return ident
 
-    def checkpoint(self, job_id, attempt, observations):
+    def checkpoint(self, job_id, attempt, observations, *, access_scope=None):
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
-            _, job = self._running(db, job_id, attempt)
-            cleaned, _ = mask_payload(observations)
-            if any(o.get('packet_id') not in job.evidence_packets for o in cleaned):
-                raise ValueError('checkpoint requires broker observations')
-            # Canonical observations already persisted by observe; checkpoint only renews lease.
-            db.execute('UPDATE jobs SET lease=? WHERE id=?', (self.clock()+self.lease_seconds, job_id))
+            row, job = self._running(db, job_id, attempt)
+            if wire(job.scope) != row['scope'] or (access_scope is not None and dict(access_scope) != job.scope):
+                raise PermissionError('checkpoint_scope_mismatch')
+            if not isinstance(observations, list) or len(observations) > CHECKPOINT_MAX_OBSERVATIONS:
+                raise ValueError('checkpoint observation count cap')
+            canonical = {o['packet_id']: o for o in json.loads(row['observations'])}
+            positions = {ident: index for index, ident in enumerate(canonical)}
+            frames, seen, previous = [], set(), -1
+            for observation in observations:
+                if not isinstance(observation, dict):
+                    raise ValueError('checkpoint requires broker observations')
+                ident = observation.get('packet_id')
+                if not isinstance(ident, str) or ident not in job.evidence_packets or ident not in canonical or ident in seen:
+                    raise ValueError('checkpoint requires unique same-job broker observations')
+                if positions[ident] <= previous:
+                    raise ValueError('checkpoint observations out of order')
+                previous = positions[ident]
+                seen.add(ident)
+                payload, _ = mask_payload({k: v for k, v in observation.items() if k != 'public_tool_call'})
+                frame = dict(payload)
+                if 'public_tool_call' in observation:
+                    call = observation['public_tool_call']
+                    if (not isinstance(call, dict) or set(call) != {'tool', 'arguments'}
+                            or not isinstance(call['tool'], str) or call['tool'] not in SHARED_TOOLS | {'command', 'log'} or not isinstance(call['arguments'], dict)):
+                        raise ValueError('invalid checkpoint public tool call')
+                    # Preserve the actual accepted public JSON, never a differently
+                    # masked/reconstructed call. Only the packet payload is masked.
+                    frame['public_tool_call'] = json.loads(json.dumps(call, ensure_ascii=False, allow_nan=False))
+                full = {**canonical[ident], **({'public_tool_call': frame['public_tool_call']} if 'public_tool_call' in frame else {})}
+                omission = {'packet_id': ident, 'omissions': ['tool payload exceeded worker context budget']}
+                if payload != canonical[ident] and not (
+                        payload == omission and len(json.dumps(full, ensure_ascii=False).encode()) > CHECKPOINT_MAX_FRAME_BYTES):
+                    raise ValueError('checkpoint payload differs from broker observation')
+                if len(json.dumps(frame, ensure_ascii=False, allow_nan=False).encode()) > CHECKPOINT_MAX_FRAME_BYTES:
+                    raise ValueError('checkpoint frame byte cap')
+                frames.append(frame)
+            if len(json.dumps(frames, ensure_ascii=False, allow_nan=False).encode()) > CHECKPOINT_MAX_BYTES:
+                raise ValueError('checkpoint byte cap')
+            encoded = wire(frames)
+            old = db.execute('SELECT length(CAST(frames AS BLOB)) FROM job_checkpoints WHERE job=?', (job_id,)).fetchone()
+            if self._storage_bytes(db) - (old[0] if old else 0) + len(encoded.encode()) > self.max_storage_bytes:
+                raise ValueError('durable checkpoint storage cap')
+            db.execute('INSERT INTO job_checkpoints(job,scope,attempt,frames) VALUES(?,?,?,?) '
+                       'ON CONFLICT(job) DO UPDATE SET scope=excluded.scope,attempt=excluded.attempt,frames=excluded.frames',
+                       (job_id, row['scope'], attempt, encoded))
+            db.execute('UPDATE jobs SET lease=?,updated=? WHERE id=?',
+                       (self.clock()+self.lease_seconds, self.clock(), job_id))
 
     def finish(self, job_id, attempt, result):
         result, _ = mask_payload(result)
