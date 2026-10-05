@@ -8,6 +8,8 @@ import fcntl
 import importlib.util
 import json
 import os
+import math
+import re
 from pathlib import Path
 import sqlite3
 import threading
@@ -97,7 +99,7 @@ class JobService:
     """
     def __init__(self, directory, *, packets, worker_factory=None, backend=None,
                  hard_limit=100, max_storage_bytes=64 * 1024 * 1024,
-                 lease_seconds=120, retry_seconds=1, clock=time.time):
+                 lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'jobs.sqlite3'
@@ -106,6 +108,8 @@ class JobService:
         self.lease_seconds, self.retry_seconds, self.clock = lease_seconds, retry_seconds, clock
         self._stop, self._wake = threading.Event(), threading.Event()
         self._thread = None
+        self._threads = []
+        self.freshness_provider = freshness_provider
         self.last_error = None
         # WAL mode persists; set it once, before dispatch, not on every racing connection.
         with _DB_LOCK:
@@ -124,7 +128,15 @@ class JobService:
                 packet TEXT NOT NULL, materialized INTEGER NOT NULL DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS job_checkpoints(
                 job TEXT PRIMARY KEY, scope TEXT NOT NULL, attempt INTEGER NOT NULL,
-                frames TEXT NOT NULL);''')
+                frames TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS inquiry_index(identity TEXT PRIMARY KEY, job TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0);''')
+            if 'owner_pid' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
+                db.execute('ALTER TABLE execution_slots ADD COLUMN owner_pid INTEGER')
+            if 'owner_start' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
+                db.execute('ALTER TABLE execution_slots ADD COLUMN owner_start TEXT')
+            if 'cleanup_failed' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
+                db.execute('ALTER TABLE execution_slots ADD COLUMN cleanup_failed INTEGER NOT NULL DEFAULT 0')
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -150,26 +162,32 @@ class JobService:
             raise RuntimeError('durable_processing_unavailable')
         if not self._thread or not self._thread.is_alive():
             self._stop.clear()
-            self._thread = threading.Thread(target=self._drain, name='pc-job-dispatch', daemon=True)
-            self._thread.start()
+            self._threads = [threading.Thread(target=self._drain, name=f'pc-job-dispatch-{i}', daemon=True) for i in range(2)]
+            self._thread = self._threads[0]
+            for thread in self._threads:
+                thread.start()
         return self
 
     def shutdown(self, timeout=95):
         self._stop.set(); self._wake.set()
-        if self._thread:
-            self._thread.join(timeout)
-        return not (self._thread and self._thread.is_alive())
+        end = time.monotonic() + timeout
+        for thread in self._threads:
+            thread.join(max(0, end-time.monotonic()))
+        return not any(thread.is_alive() for thread in self._threads)
 
-    def submit(self, *, question, access_scope, request_id=None, mode='investigate', hints=(), skill=None):
+    def submit(self, *, question, access_scope, request_id=None, mode='investigate', hints=(), skill=None,
+               _identity=None, _execution_question=None, _freshness_snapshot=None):
         scope = dict(access_scope)
         if not scope.get('principal') or not scope.get('profile'):
             raise ValueError('trusted principal/profile scope required')
-        question = ' '.join(question.split())
+        if _identity is None:
+            question = ' '.join(question.split())
         hints = list(dict.fromkeys(hints))
         job = DurableJob(job_id='job_' + uuid.uuid4().hex, mode=mode, question=question,
             hints=hints, status='queued', attempt=0, created_at=stamp(self.clock()), findings=[],
             evidence_packets=[], unresolved_questions=[], project=scope.get('project'),
-            scope=scope, request_id=request_id, skill=skill)
+            scope=scope, request_id=request_id if _identity is None else None, skill=skill,
+            deadline_epoch=float(self.clock()+300), execution_question=_execution_question)
         request_hash = canonical_digest({'question': question, 'scope': scope, 'mode': mode,
                                          'hints': hints, 'skill': skill})
         if len(wire(job.model_dump()).encode()) > 32768:
@@ -178,7 +196,7 @@ class JobService:
         pinned = False
         try:
             # Retries must survive expiry of their original inputs.
-            if request_id:
+            if request_id and _identity is None:
                 with self._db() as db:
                     old = db.execute('SELECT * FROM jobs WHERE scope=? AND request_id=?',
                                      (wire(scope), request_id)).fetchone()
@@ -186,37 +204,56 @@ class JobService:
                     if old['request_hash'] != request_hash:
                         return {'accepted': False, 'reason': 'request_id_mismatch'}
                     return self._accepted(DurableJob.model_validate_json(old['record']), False, retry=True)
-            if mode == 'skill' and skill not in getattr(self.worker_factory, 'skills', {}):
-                return {'accepted': False, 'reason': 'unregistered_skill'}
-            # Pin before admission so concurrent packet GC cannot expire accepted inputs.
-            # The owner is unique; unsuccessful admission releases its temporary pins.
-            for ref in hints:
-                if self.packets.lookup(ref, access_scope=scope).status != 'ok':
-                    return {'accepted': False, 'reason': 'hint_unavailable'}
-            if hints:
-                self.packets.pin(job.job_id, hints)
-                pinned = True
             with self._db() as db:
                 db.execute('BEGIN IMMEDIATE')
-                old = db.execute('SELECT * FROM jobs WHERE scope=? AND request_id=?',
-                                 (wire(scope), request_id)).fetchone() if request_id else None
+                if _identity is not None:
+                    old = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (_identity,)).fetchone()
+                    if old:
+                        previous = DurableJob.model_validate_json(old['record'])
+                        if previous.status not in TERMINAL or db.execute('SELECT 1 FROM execution_slots WHERE job=?', (previous.job_id,)).fetchone():
+                            return self._accepted(previous, False, retry=True)
+                        if (_freshness_snapshot is None or _freshness_snapshot['job_id'] != old['id']
+                                or _freshness_snapshot['record'] != old['record']):
+                            return {'accepted': False, 'reason': 'inquiry_changed'}
+                        freshness = _freshness_snapshot['freshness']
+                        if previous.status in {'completed', 'partial'} and freshness.get('fresh'):
+                            return self._accepted(previous, False, retry=True)
+                        job.refresh_context = {'prior_job': previous.model_dump(exclude={'refresh_context', 'execution_question'}),
+                            'observations': self._public_observations(db, old), 'change_info': freshness}
+                    old = None
+                else:
+                    old = db.execute('SELECT * FROM jobs WHERE scope=? AND request_id=?',
+                                     (wire(scope), request_id)).fetchone() if request_id else None
                 if old:
                     if old['request_hash'] != request_hash:
                         return {'accepted': False, 'reason': 'request_id_mismatch'}
                     return self._accepted(DurableJob.model_validate_json(old['record']), False, retry=True)
                 if not self._thread or not self._thread.is_alive():
                     return {'accepted': False, 'reason': 'durable_processing_unavailable'}
+                if mode == 'skill' and skill not in getattr(self.worker_factory, 'skills', {}):
+                    return {'accepted': False, 'reason': 'unregistered_skill'}
+                # Pin before admission so concurrent packet GC cannot expire accepted inputs.
+                # The owner is unique; unsuccessful admission releases its temporary pins.
+                for ref in hints:
+                    if self.packets.lookup(ref, access_scope=scope).status != 'ok':
+                        return {'accepted': False, 'reason': 'hint_unavailable'}
+                if hints:
+                    self.packets.pin(job.job_id, hints)
+                    pinned = True
                 records = [json.loads(r[0]) for r in db.execute('SELECT record FROM jobs')]
-                count = sum(r['status'] not in TERMINAL for r in records)
+                occupied_terminal = db.execute("SELECT count(*) FROM execution_slots JOIN jobs ON jobs.id=execution_slots.job WHERE json_extract(jobs.record,'$.status') IN ('completed','partial','failed','cancelled')").fetchone()[0]
+                count = sum(r['status'] not in TERMINAL for r in records) + occupied_terminal
                 usage = self._storage_bytes(db)
-                if count >= self.hard_limit or usage + len(wire(job.model_dump()).encode()) > self.max_storage_bytes:
+                if count >= min(6, self.hard_limit) or usage + len(wire(job.model_dump()).encode()) > self.max_storage_bytes:
                     return {'accepted': False, 'reason': 'admission_limit'}
                 db.execute('INSERT INTO jobs(id,scope,request_id,request_hash,record,updated) VALUES(?,?,?,?,?,?)',
-                    (job.job_id, wire(scope), request_id, request_hash, job.model_dump_json(), self.clock()))
+                    (job.job_id, wire(scope), job.request_id, request_hash, job.model_dump_json(), self.clock()))
+                if _identity is not None:
+                    db.execute('INSERT INTO inquiry_index(identity,job) VALUES(?,?) ON CONFLICT(identity) DO UPDATE SET job=excluded.job', (_identity, job.job_id))
             committed = True
             # Packet references are reconciled from committed broker state.
             self._wake.set()
-            return self._accepted(job, count >= 3)
+            return {**self._accepted(job, count >= 2), "immediate": count < 2}
         except (sqlite3.Error, OSError):
             return {'accepted': False, 'reason': 'storage_unavailable'}
         except ValueError:
@@ -224,6 +261,66 @@ class JobService:
         finally:
             if pinned and not committed:
                 self.packets.unpin(job.job_id)
+
+    def inquire(self, question, access_scope, mode='investigate', skill=None, hints=(),
+                request_id=None, execution_question=None, foreground_timeout=30):
+        try:
+            return self._inquire(question, access_scope, mode, skill, hints, request_id,
+                                 execution_question, foreground_timeout)
+        except (sqlite3.Error, OSError):
+            return {'status': 'unavailable', 'reason': 'storage_unavailable'}
+
+    def _inquire(self, question, access_scope, mode, skill, hints, request_id,
+                 execution_question, foreground_timeout):
+        scope = dict(access_scope)
+        if not scope.get('principal') or not scope.get('profile'):
+            raise ValueError('trusted principal/profile scope required')
+        identity = canonical_digest({'question': question, 'scope': scope, 'mode': mode, 'skill': skill})
+        # Read-only fast path: a duplicate does not validate new hints, touch order,
+        # mutate TTL, or require a live dispatcher.
+        with self._db() as db:
+            row = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
+        freshness_snapshot = None
+        if row:
+            previous = DurableJob.model_validate_json(row['record'])
+            if previous.status not in TERMINAL or not self._settled(previous.job_id):
+                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+            freshness = self.freshness_provider(previous.model_dump()) if self.freshness_provider else {'fresh': False}
+            freshness_snapshot = {'job_id': row['id'], 'record': row['record'], 'freshness': freshness}
+            if previous.status in {'completed', 'partial'} and freshness.get('fresh'):
+                with self._db() as db:
+                    current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
+                    if not current or current['id'] != row['id'] or current['record'] != row['record']:
+                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                    observations = self._public_observations(db, current)
+                return {'status': previous.status, 'job': previous.model_dump(), 'observations': observations}
+        admitted = self.submit(question=question, access_scope=scope, mode=mode, skill=skill,
+            hints=hints, request_id=request_id, _identity=identity, _execution_question=execution_question,
+            _freshness_snapshot=freshness_snapshot)
+        if not admitted['accepted']:
+            if admitted['reason'] == 'inquiry_changed':
+                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+            return {'status': 'busy' if admitted['reason'] == 'admission_limit' else 'unavailable',
+                    'reason': admitted['reason']}
+        value = self.lookup(admitted['job_id'], access_scope=scope)
+        if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
+            return {**value, 'status': value['job']['status']}
+        if not admitted.get('immediate') or admitted.get('retry'):
+            return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+        end = time.monotonic() + max(0, min(30, foreground_timeout))
+        while time.monotonic() < end:
+            value = self.lookup(admitted['job_id'], access_scope=scope)
+            if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
+                return {**value, 'status': value['job']['status']}
+            if value['job']['status'] in {'failed', 'cancelled'}:
+                return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
+            time.sleep(min(.02, max(0, end-time.monotonic())))
+        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+
+    def _settled(self, job_id):
+        with self._db() as db:
+            return (not db.execute('SELECT 1 FROM execution_slots WHERE job=?', (job_id,)).fetchone()
+                    and not db.execute('SELECT 1 FROM outbox WHERE job=? AND materialized=0', (job_id,)).fetchone())
 
     @staticmethod
     def _accepted(job, busy, retry=False):
@@ -264,21 +361,52 @@ class JobService:
 
     poll = lookup
 
-    def log(self, *, access_scope, query='', limit=50, current_dependencies=None):
+    def log(self, *, access_scope, query='', limit=5, current_dependencies=None):
         if not 1 <= limit <= 50:
             raise ValueError('log limit must be 1..50')
         with self._db() as db:
-            rows = db.execute('SELECT * FROM jobs WHERE scope=? ORDER BY updated DESC', (wire(dict(access_scope)),)).fetchall()
-        result = []
+            rows = db.execute('SELECT * FROM jobs WHERE scope=? ORDER BY updated DESC,id DESC', (wire(dict(access_scope)),)).fetchall()
+        candidates = []
         for row in rows:
-            job = json.loads(row['record']); observations = json.loads(row['observations'])
-            if query.casefold() not in wire({'job': job, 'observations': observations}).casefold():
+            job = json.loads(row['record'])
+            if job['status'] not in {'completed', 'partial'}:
                 continue
-            refs = list(dict.fromkeys(job['hints'] + job['evidence_packets'] + ([job['result_packet']] if job['result_packet'] else [])))
-            result.append({'job': job, 'evidence': self.packets.assemble_hints(refs,
-                access_scope=access_scope, current_dependencies=current_dependencies), 'authoritative': False})
-            if len(result) >= limit:
+            if job['status'] == 'partial' and not (job.get('answer') or job['findings']):
+                continue
+            candidates.append((job, json.loads(row['observations'])))
+            if len(candidates) == 50:
                 break
+        tokens = lambda value: re.findall(r'\w+', value.casefold())
+        documents = [tokens(wire({'question': j['question'], 'answer': j.get('answer'),
+                                  'findings': j['findings'], 'evidence': obs})) for j, obs in candidates]
+        terms = tokens(query)
+        ranks = []
+        average = sum(map(len, documents))/max(1, len(documents))
+        for index, document in enumerate(documents):
+            score = 0.
+            for term in set(terms):
+                frequency = document.count(term)
+                if not frequency:
+                    continue
+                df = sum(term in d for d in documents)
+                idf = math.log(1 + (len(documents)-df+.5)/(df+.5))
+                score += idf*frequency*2.2/(frequency+1.2*(.25+.75*len(document)/max(1, average)))
+            if not terms or score > 0:
+                ranks.append((score, index))
+        ranks.sort(key=lambda x: (-x[0], x[1]))
+        result = []
+        for _, index in ranks[:min(5, limit)]:
+            job, _ = candidates[index]
+            refs = list(dict.fromkeys(job['hints'] + job['evidence_packets'] + ([job['result_packet']] if job['result_packet'] else [])))
+            evidence = self.packets.assemble_hints(refs, access_scope=access_scope, current_dependencies=current_dependencies)
+            # Retain compact source/evidence summaries, never nested log packets or
+            # complete historical jobs in the next worker's tool response.
+            evidence = {**evidence, 'packets': [
+                {'packet': {key: item['packet'][key] for key in ('packet_id', 'tool', 'sources') if key in item['packet']}, 'freshness': item['freshness']}
+                for item in evidence.get('packets', [])]}
+            result.append({'question': job['question'], 'answer': (job.get('answer') or ' '.join(f['text'] for f in job['findings']))[:2000],
+                           'status': job['status'], 'evidence': evidence,
+                           'freshness': self.freshness_provider(job) if self.freshness_provider else {'fresh': False}, 'authoritative': False})
         return result
 
     def fence(self, job_id, attempt, *, access_scope=None):
@@ -287,29 +415,69 @@ class JobService:
         if not row or (access_scope is not None and json.loads(row['scope']) != dict(access_scope)):
             return False
         job = json.loads(row['record'])
-        return job['attempt'] == attempt and job['status'] == 'running' and row['lease'] > self.clock()
+        return job['attempt'] == attempt and job['status'] == 'running' and row['lease'] > self.clock() and (job.get('deadline_epoch') is None or self.clock() < job['deadline_epoch'])
 
-    def claim(self):
+    @staticmethod
+    def _process_start(pid):
+        try:
+            # comm can contain spaces and parentheses; fields after its final
+            # parenthesis begin at field 3, with starttime at field 22.
+            return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+        except (OSError, IndexError):
+            return None
+
+    @classmethod
+    def _owner_alive(cls, pid, start):
+        return pid is not None and start is not None and cls._process_start(pid) == start
+
+    def claim(self, *, _dispatch=False):
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             now = self.clock()
-            rows = db.execute('SELECT * FROM jobs WHERE available<=? ORDER BY updated,id', (now,)).fetchall()
+            for expired in db.execute('SELECT * FROM execution_slots WHERE lease<=?', (now,)).fetchall():
+                # A live host still owns its underlying operation even when a
+                # noncooperative startup or clock jump outlasts the lease.
+                if not expired['cleanup_failed'] and not self._owner_alive(expired['owner_pid'], expired['owner_start']):
+                    db.execute('DELETE FROM execution_slots WHERE job=? AND attempt=?', (expired['job'], expired['attempt']))
+            rows = db.execute('SELECT * FROM jobs ORDER BY updated,id').fetchall()
             for row in rows:
                 job = DurableJob.model_validate_json(row['record'])
-                if job.status in TERMINAL or (job.status == 'running' and row['lease'] > now):
+                if job.status in TERMINAL:
+                    continue
+                occupied = db.execute('SELECT 1 FROM execution_slots WHERE job=?', (job.job_id,)).fetchone()
+                if occupied:
+                    continue
+                if (job.deadline_epoch is not None and now >= job.deadline_epoch) or job.attempt >= 3:
+                    job.status = 'partial' if job.findings else 'failed'
+                    job.unresolved_questions = ['Analysis deadline or attempt budget exhausted.']
+                    db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?', (job.model_dump_json(), now, job.job_id))
+                    self._trim_index(db, job.scope)
+                    continue
+                if row['available'] > now:
+                    continue
+                if db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] >= 2:
                     continue
                 job.attempt += 1; job.status = 'running'
                 db.execute('UPDATE jobs SET record=?,lease=?,updated=? WHERE id=?',
                     (job.model_dump_json(), now + self.lease_seconds, now, job.job_id))
+                db.execute('INSERT INTO execution_slots(job,attempt,lease,owner_pid,owner_start) VALUES(?,?,?,?,?)', (job.job_id, job.attempt, now+self.lease_seconds, os.getpid() if _dispatch else None, self._process_start(os.getpid()) if _dispatch else None))
                 return job
         return None
+
+    def _heartbeat(self, job, stop):
+        while not stop.wait(max(.01, min(1, self.lease_seconds/3))):
+            with self._db() as db:
+                lease = self.clock()+self.lease_seconds
+                db.execute('UPDATE execution_slots SET lease=? WHERE job=? AND attempt=?', (lease, job.job_id, job.attempt))
+                db.execute('UPDATE jobs SET lease=? WHERE id=? AND json_extract(record,\'$.attempt\')=? AND json_extract(record,\'$.status\')=\'running\'', (lease, job.job_id, job.attempt))
 
     def _running(self, db, job_id, attempt):
         row = db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
         if not row:
             raise RuntimeError('stale_attempt')
         job = DurableJob.model_validate_json(row['record'])
-        if job.attempt != attempt or job.status != 'running' or row['lease'] <= self.clock():
+        slot = db.execute('SELECT owner_pid,owner_start FROM execution_slots WHERE job=? AND attempt=?', (job_id, attempt)).fetchone()
+        if job.attempt != attempt or job.status != 'running' or (row['lease'] <= self.clock() and not (slot and self._owner_alive(slot['owner_pid'], slot['owner_start']))):
             raise RuntimeError('stale_attempt')
         return row, job
 
@@ -417,18 +585,29 @@ class JobService:
             status = result.get('status')
             if status not in TERMINAL | {'yielding', 'queued_after_eviction'}:
                 raise ValueError('invalid worker status')
+            if self.clock() >= (job.deadline_epoch or float('inf')) or (status not in TERMINAL and job.attempt >= 3):
+                status = result['status'] = 'partial'
+                result['reason'] = 'attempt_or_deadline_exhausted'
             job.status = status
-            job.findings = [Finding.model_validate(f) for f in result.get('findings', [])]
-            job.unresolved_questions = result.get('unresolved_questions', [])
+            job.answer = result.get('answer', job.answer)
+            job.findings = [Finding.model_validate(f) for f in result.get('findings', [f.model_dump() for f in job.findings])]
+            job.unresolved_questions = result.get('unresolved_questions', job.unresolved_questions)
             job = DurableJob.model_validate(job.model_dump())
             if any(p not in job.evidence_packets for f in job.findings for p in f.evidence_packets):
                 raise ValueError('unobserved finding evidence')
             if status in TERMINAL:
                 job.result_packet, _ = self._packet(db, job, result, job.mode)
             db.execute('UPDATE jobs SET record=?,updated=?,lease=0,available=? WHERE id=?',
-                (job.model_dump_json(), self.clock(), self.clock()+self.retry_seconds, job_id))
+                (job.model_dump_json(), self.clock(), self.clock()+(self.retry_seconds if self.retry_seconds is not None else (5 if job.attempt == 1 else 15)), job_id))
+            self._trim_index(db, job.scope)
         self.reconcile()
         return True
+
+    def _trim_index(self, db, scope):
+        cached = db.execute('SELECT inquiry_index.identity,jobs.record FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE jobs.scope=? ORDER BY jobs.updated DESC,jobs.id DESC', (wire(scope),)).fetchall()
+        terminal = [r['identity'] for r in cached if json.loads(r['record'])['status'] in TERMINAL]
+        for identity in terminal[50:]:
+            db.execute('DELETE FROM inquiry_index WHERE identity=?', (identity,))
 
     def cancel(self, job_id, *, access_scope):
         with self._db() as db:
@@ -441,6 +620,7 @@ class JobService:
                 return False
             job.attempt += 1; job.status = 'cancelled'
             db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?', (job.model_dump_json(), self.clock(), job_id))
+            self._trim_index(db, job.scope)
         self.reconcile()
         return True
 
@@ -465,10 +645,19 @@ class JobService:
                 db.execute('UPDATE outbox SET materialized=1 WHERE id=?', (row['id'],))
         with self._db() as db:
             jobs = [DurableJob.model_validate_json(r[0]) for r in db.execute('SELECT record FROM jobs ORDER BY updated')]
-        terminal = [j for j in jobs if j.status in TERMINAL][-self.packets.recent_terminal_limit:]
+        by_scope = {}
+        for job in jobs:
+            if job.status in TERMINAL:
+                by_scope.setdefault(wire(job.scope), []).append(job)
+        terminal = [job for group in by_scope.values() for job in group[-self.packets.recent_terminal_limit:]]
         retained = [j for j in jobs if j.status not in TERMINAL] + terminal
         for job in retained:
             refs = job.hints + job.evidence_packets + ([job.result_packet] if job.result_packet else [])
+            if job.refresh_context:
+                prior = job.refresh_context.get('prior_job', {})
+                refs += prior.get('hints', []) + prior.get('evidence_packets', [])
+                if prior.get('result_packet'):
+                    refs.append(prior['result_packet'])
             # Historical expiry is a log omission, not a dispatcher outage.
             live = [ref for ref in refs if self.packets.lookup(ref, access_scope=job.scope).status == 'ok']
             self.packets.pin(job.job_id, live)
@@ -480,9 +669,12 @@ class JobService:
 
     def _execute(self, job):
         session = None
+        heartbeat_stop = threading.Event()
+        heartbeat = threading.Thread(target=self._heartbeat, args=(job, heartbeat_stop), daemon=True)
+        heartbeat.start()
         try:
             if self.backend:
-                response = self.backend.open_sessions(1, compute_profile='narrow', parallelism='default')
+                response = self.backend.open_sessions(1, compute_profile='narrow', parallelism='default', deadline_epoch=job.deadline_epoch)
                 sessions = response.get('session_ids', response.get('sessions', []))
                 if response.get('status') != 'available' or not sessions:
                     self.finish(job.job_id, job.attempt, {'status': 'yielding', 'reason': response.get('reason', 'session_unavailable')})
@@ -490,9 +682,15 @@ class JobService:
                 session = sessions[0]
                 if isinstance(session, dict):
                     session = session['session_id']
+            if job.deadline_epoch is not None and self.clock() >= job.deadline_epoch:
+                self.finish(job.job_id, job.attempt, {'status': 'partial', 'reason': 'deadline_exhausted',
+                    'unresolved_questions': ['The analysis deadline expired during startup.']})
+                return
             stored = self.lookup(job.job_id, access_scope=job.scope)
             request = {'job_id': job.job_id, 'attempt': job.attempt, 'mode': job.mode,
-                'question': job.question, 'scope': job.scope,
+                'question': job.execution_question or job.question, 'scope': job.scope,
+                'deadline_epoch': job.deadline_epoch, 'refresh_context': job.refresh_context,
+                'log_guidance': 'Use log for the last 50 answered inquiries; lexical retrieval returns at most five records.',
                 'hints': self.packets.assemble_hints(job.hints, access_scope=job.scope),
                 'observations': stored['observations'][-24:], 'max_steps': 6}
             if session:
@@ -506,14 +704,28 @@ class JobService:
             self.finish(job.job_id, job.attempt, {'status': 'partial', 'reason': type(error).__name__,
                 'unresolved_questions': ['Retry from retained observations']})
         finally:
-            if session:
-                self.backend.close_session(session)
+            cleanup_failed = False
+            try:
+                if session:
+                    closed = self.backend.close_session(session)
+                    if isinstance(closed, dict) and closed.get('status') in {'unavailable', 'busy', 'failed'}:
+                        raise RuntimeError('session_cleanup_unproved')
+            except Exception:
+                cleanup_failed = True
+                self.last_error = 'session_cleanup_unproved'
+                with self._db() as db:
+                    db.execute('UPDATE execution_slots SET cleanup_failed=1 WHERE job=? AND attempt=?', (job.job_id, job.attempt))
+            finally:
+                heartbeat_stop.set(); heartbeat.join()
+                if not cleanup_failed:
+                    with self._db() as db:
+                        db.execute('DELETE FROM execution_slots WHERE job=? AND attempt=?', (job.job_id, job.attempt))
 
     def _drain(self):
         while not self._stop.is_set():
             try:
                 self.reconcile()
-                job = self.claim()
+                job = self.claim(_dispatch=True)
                 if job:
                     self._execute(job)
                     continue

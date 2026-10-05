@@ -147,6 +147,11 @@ class DurableJob(Contract):
     result_packet: str | None = None
     scope: dict[str, Any] | None = None
 
+    deadline_epoch: float | None = None
+    execution_question: str | None = None
+    refresh_context: dict[str, Any] | None = None
+    answer: str | None = None
+
     _timestamp = field_validator("created_at")(InformationPacket.timestamp.__func__)
 
     @field_validator("hints")

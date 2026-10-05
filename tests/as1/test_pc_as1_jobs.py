@@ -179,6 +179,9 @@ def test_real_sqlite_restart_eviction_cancellation_and_fenced_late_writes(tmp_pa
     assert entered.wait(2)
     old = s.lookup(a['job_id'], access_scope=SCOPE)['job']['attempt']
     p = s.observe(a['job_id'], old, {'text': 'checkpoint'})
+    # Simulate a crashed owner. A live noncooperative operation retains its slot.
+    with s._db() as db:
+        db.execute('UPDATE execution_slots SET owner_pid=NULL WHERE job=?', (a['job_id'],))
     now[0] += 3
     second = make(tmp_path, clock=lambda: now[0], lease_seconds=2)
     resumed = second.claim()
@@ -189,7 +192,7 @@ def test_real_sqlite_restart_eviction_cancellation_and_fenced_late_writes(tmp_pa
         s.observe(a['job_id'], old, {'text': 'late'})
     assert second.finish(resumed.job_id, resumed.attempt, {'status': 'queued_after_eviction'})
     assert second.lookup(resumed.job_id, access_scope=SCOPE)['job']['status'] == 'queued_after_eviction'
-    now[0] += 2
+    now[0] += 16
     next_attempt = second.claim()
     assert second.cancel(next_attempt.job_id, access_scope=SCOPE)
     assert not second.finish(next_attempt.job_id, next_attempt.attempt, {'status': 'completed'})
