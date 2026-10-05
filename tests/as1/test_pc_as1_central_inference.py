@@ -59,6 +59,27 @@ def test_frontend_never_constructs_backend_and_close_keeps_owner_warm(central):
     assert turn(wide)['model_id'] == 'warm-model'
 
 
+def test_reasoning_mode_is_forwarded_and_validated_at_frontend(central):
+    _, client, _, _ = central
+    assert turn(SkillsObserverAnalysisProvider(), reasoning_mode='off')['status'] == 'available'
+    request = client.run_observer_turn.call_args.args[0]
+    assert request['reasoning_mode'] == 'off'
+    assert request['max_tokens'] == 2048
+    client.run_observer_turn.reset_mock()
+    assert turn(SkillsObserverAnalysisProvider(), reasoning_mode='hidden') == {
+        'status': 'unavailable', 'reason': 'local_investigator_reasoning_mode_invalid'}
+    client.run_observer_turn.assert_not_called()
+
+
+def test_turn_transport_envelope_allows_extended_context_without_changing_public_answer_cap(central):
+    _, client, _, _ = central
+    result = SkillsObserverAnalysisProvider().investigate_turn({
+        'messages': [{'role': 'user', 'content': 'x' * (300 * 1024)}],
+        'max_tokens': 2048, 'reasoning_mode': 'auto'})
+    assert result['status'] == 'available'
+    assert len(client.run_observer_turn.call_args.args[0]['messages'][0]['content']) == 300 * 1024
+
+
 @pytest.mark.parametrize(('field', 'replacement', 'reason'), [
     ('service_state_root', '/foreign', 'central_supervisor_root_mismatch'),
     ('runtime_root', '/foreign', 'central_supervisor_root_mismatch'),

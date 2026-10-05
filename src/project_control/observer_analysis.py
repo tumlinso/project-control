@@ -206,12 +206,16 @@ class SkillsObserverAnalysisProvider:
             messages = request.get("messages")
             if not isinstance(messages, list) or not messages:
                 raise ValueError("local_investigator_messages_missing")
+            reasoning_mode = request.get("reasoning_mode", "auto")
+            if reasoning_mode not in {"auto", "off"}:
+                raise ValueError("local_investigator_reasoning_mode_invalid")
             write_event({"event": "model_request", "phase": "started", "call_id": call_id_var.get(),
                          "operation": "investigate_turn", "messages": summarize_messages(messages)})
             backend_request = {
                 "format": "PC-LOCAL-INVESTIGATOR-TURN/2",
                 "messages": messages,
                 "max_tokens": int(request.get("max_tokens", 2048)),
+                "reasoning_mode": reasoning_mode,
                 "timeout_seconds": min(60.0, float(request.get("timeout_seconds", 60))),
                 "compute_profile": request.get("compute_profile", "wide"),
                 "parallelism": request.get("parallelism", "default"),
@@ -220,7 +224,7 @@ class SkillsObserverAnalysisProvider:
             }
             backend_request["deadline_epoch"] = min(float(backend_request.get("deadline_epoch", time.time() + backend_request["timeout_seconds"])), time.time() + backend_request["timeout_seconds"])
             encoded = json.dumps(backend_request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-            if len(encoded.encode("utf-8")) > 256 * 1024:
+            if len(encoded.encode("utf-8")) > 1024 * 1024:
                 raise ValueError("local_investigator_turn_too_large")
             result = self._checked_client(backend_request.get("deadline_epoch")).run_observer_turn(json.loads(encoded))
             if not isinstance(result, dict):
