@@ -1,0 +1,172 @@
+{
+  "status": "passed",
+  "scope": "Durable observer runtime fixes and one bounded cold/warm smoke scenario",
+  "paired_source": {
+    "project-control": {
+      "root": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/sources/project-control",
+      "commit": "e594490003b255fe783702d179974b41f1a329da",
+      "tree": "e65f60b078783f59a5416a46a9b0270f809657a0"
+    },
+    "skills": {
+      "root": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/sources/skills",
+      "commit": "925388ddeb211dec33d571fa6769a99adf050b9c",
+      "tree": "839639fffcbecc90ba7aa0e59227f7c13a4cb223"
+    },
+    "candidate": "/home/tumlinson/.local/share/project-control/candidates/as1-runtime-durable-guarded-20261005"
+  },
+  "manifest_sha256": "38295dde3fd94f692ac7e78796a75c3f157ad7523b74f0c644c33b9781b0a30f",
+  "fixes": [
+    "Bounded malformed JSON correction; ambiguous output never dispatches tools",
+    "Async inquiry adapters preserve ASGI responsiveness",
+    "Stable jobs-v2 isolates legacy dispatchers and snapshots quiescent legacy history",
+    "Fresh runtime identity check and preflight job snapshot before claims",
+    "Missing migrated database fails closed"
+  ],
+  "tests": {
+    "skills_observer": 22,
+    "pc_inquiry_and_surface": 51,
+    "pc_cache_final": 27,
+    "pc_compose_and_heartbeat": 2,
+    "reviewer_dispatch_migration": 5
+  },
+  "readyz": {
+    "status": "ready",
+    "central_inference": {
+      "status": "available",
+      "observer_contract": "PC-OBSERVER-SUPERVISOR/1",
+      "supervisor_pid": 600843,
+      "supervisor_process_start": "3148181",
+      "source_sha256": "b37d65fae87b8f41bfaaa47ffa02d274e5422163c02f489d52d6bcd36d38cf43"
+    }
+  },
+  "negative_cache_repair": {
+    "expected": {
+      "job_02043d344d3746b58a748f244b3fe0bb": "attempt_or_deadline_exhausted",
+      "job_2cd1c030fd1d436994af6fa2a0e19502": "attempt_or_deadline_exhausted"
+    },
+    "released": [
+      "job_02043d344d3746b58a748f244b3fe0bb",
+      "job_2cd1c030fd1d436994af6fa2a0e19502"
+    ]
+  },
+  "smoke": {
+    "status": "passed",
+    "cold_stage_seconds": 45.49,
+    "warm_continuation_seconds": 70.685,
+    "gpu_pairs": [
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "gpu_profile": {
+      "0": {
+        "peak_memory_mib": 11228,
+        "peak_utilization_percent": 98,
+        "first_warm_seconds": 4.119
+      },
+      "1": {
+        "peak_memory_mib": 11228,
+        "peak_utilization_percent": 99,
+        "first_warm_seconds": 10.274
+      },
+      "2": {
+        "peak_memory_mib": 10674,
+        "peak_utilization_percent": 98,
+        "first_warm_seconds": 4.119
+      },
+      "3": {
+        "peak_memory_mib": 10674,
+        "peak_utilization_percent": 98,
+        "first_warm_seconds": 10.274
+      }
+    },
+    "server_pids": [
+      602221,
+      602456
+    ],
+    "warm_pid_reuse_from_cold": true,
+    "max_active_leases": 2,
+    "max_health_seconds": 0.376,
+    "cold_gpu_samples": 80,
+    "warm_gpu_samples": 123,
+    "active_generation_jobs": [
+      {
+        "job_id": "job_988ce6fa4792480998f78c8c274179b3",
+        "mode": "skill",
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "job_id": "job_7b8469ab7137482083ec983d28e21e14",
+        "mode": "investigate",
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "job_id": "job_665d767b4d74404aba013e7d7cfd5ee2",
+        "mode": "skill",
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "job_id": "job_c44b4e570fb24e9f9f70b55e391aeb6d",
+        "mode": "investigate",
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "cached_retries": 4,
+    "projection_limits": "Compact skill response required extended continuation. Warm skill synthesis was partial solely because of synthesis_budget, with no unresolved question; its underlying inquiry completed at attempt 1. First-phase model inference was not repeated."
+  },
+  "preservation": {
+    "legacy_database_retained": true,
+    "legacy_stdio_hosts_not_killed": true,
+    "existing_qualification_edits_preserved": true,
+    "isolation_override_unchanged": true
+  },
+  "history": {
+    "first_parser_only_smoke": "/home/tumlinson/.local/state/project-control/as1-bootstrap/json-recovery-20261005/smoke-stress.json",
+    "review_candidate_unactivated": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-20261005/unactivated-review.json",
+    "recovery_helper_wrong_field_rollback": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/deployment-first-rollback.json",
+    "final_guarded_activation": "passed"
+  },
+  "artifacts": [
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/pair.json",
+      "sha256": "9d893e564383bcd0d86077cb6bcc64a3f4fd3b6c79ac8a90f883c9daaf8de2a3"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/verification.json",
+      "sha256": "0583270c382b5f35a30eca7e0423b81acbd2e34a9bfb25ed9c42eef94396b618"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/deployment.json",
+      "sha256": "d7c873bfb0893400a007495d69a4a6085b6555a3b0f19931a0cf8efe07498819"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/smoke-stress.json",
+      "sha256": "6a1460059d363dbb54c5ec818e4f30f34d577345ddd5e5299111a19388031632"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/smoke-stress-cold-compact.json",
+      "sha256": "7dc054a36de302109f529284a39b0dddb31ebec711e95c33afdecc1d92cdf36a"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/gpu-usage.csv",
+      "sha256": "e1e490648ae5985377bf2e418c43b7d4bfd8364ced58842fccab914316d1b273"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/gpu-usage-cold.csv",
+      "sha256": "d61ebd98e2ba956f9b168a5d0fa4b6722141f08d71992fed1385bb94c7d2271a"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/runtime-durable-guarded-20261005/diagnosis.json",
+      "sha256": "39a3b3d923185d65f536793e7f4d217cc9856c612b293a7bda71ec6f8bf00a24"
+    }
+  ]
+}
