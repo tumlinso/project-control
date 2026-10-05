@@ -1,0 +1,168 @@
+{
+  "format": "pc-as1-final-release-summary/1",
+  "status": "complete",
+  "source_identity": {
+    "candidate_root": "/home/tumlinson/.local/share/project-control/candidates/as1-paired-3905649-269646d-20261005",
+    "pc_commit": "3905649ff9b03e3acec4211553a52cf2389489e9",
+    "release_sha256": "0a968d2456e5a576ef0fc74c05b0543f4479c27385caa800e083018f507bbc34",
+    "skills_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828"
+  },
+  "live_receipt": {
+    "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/release/live-receipt.json",
+    "sha256": "6578ec5a5d72ba052414c958056507a02c4e1e4c10e47228779759377fdba72c",
+    "status": "passed"
+  },
+  "native_gates": [
+    {
+      "authority": "project-control",
+      "outcome": "PC-AS1-QUALIFY",
+      "native_evidence_id": "7d540a0e-5bae-4171-acff-4432311596d1",
+      "path": "planning/adaptive-surface-v1/validation/release/project-control-qualify-native.json",
+      "sha256": "945538efb44394140fd21ef91e40bb65e851ebf33024b900bcc21b256a96b82e",
+      "original": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/7d540a0e-5bae-4171-acff-4432311596d1/stdout.txt",
+      "required_cases": [
+        "E2E-01",
+        "E2E-02",
+        "E2E-03",
+        "E2E-04",
+        "E2E-05"
+      ],
+      "passed_cases": [
+        "E2E-01",
+        "E2E-02",
+        "E2E-03",
+        "E2E-04",
+        "E2E-05"
+      ],
+      "actual_tests": 8
+    },
+    {
+      "authority": "skills",
+      "outcome": "SK-AS1-QUALIFY",
+      "native_evidence_id": "47985492-fd1a-471f-bf6d-e178507dcd20",
+      "path": "planning/adaptive-surface-v1/validation/release/skills-qualify-native.json",
+      "sha256": "a1b77aabf62efcb9674d5a1b59e2cecb503b403e2f3d7c6f0e90ba949f34f723",
+      "original": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/evidence/47985492-fd1a-471f-bf6d-e178507dcd20/stdout.txt",
+      "required_cases": [
+        "SQA-01",
+        "SQA-02",
+        "SQA-03"
+      ],
+      "passed_cases": [
+        "SQA-01",
+        "SQA-02",
+        "SQA-03"
+      ],
+      "actual_tests": 4
+    },
+    {
+      "authority": "project-control",
+      "outcome": "PC-AS1-RELEASE",
+      "native_evidence_id": "c539f1bc-8b75-4710-afad-23e88a2ecaff",
+      "path": "planning/adaptive-surface-v1/validation/release/project-control-release-native.json",
+      "sha256": "2920fb4e7c4f8a328a65c39d0f93dff626691f438cbd5ee7e45a6042570c8b3d",
+      "original": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/c539f1bc-8b75-4710-afad-23e88a2ecaff/stdout.txt",
+      "required_cases": [
+        "REL-01",
+        "REL-02",
+        "REL-03"
+      ],
+      "passed_cases": [
+        "REL-01",
+        "REL-02",
+        "REL-03"
+      ],
+      "actual_tests": 3
+    },
+    {
+      "authority": "skills",
+      "outcome": "SK-AS1-RELEASE",
+      "native_evidence_id": "fe9930e7-b3a0-46a2-9292-46ebfab162a3",
+      "path": "planning/adaptive-surface-v1/validation/release/skills-release-native.json",
+      "sha256": "8aeec4733bd2a90d612a5fdadd294ff351fdc983f4b80a7ecb62c760cb5ba3ee",
+      "original": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/evidence/fe9930e7-b3a0-46a2-9292-46ebfab162a3/stdout.txt",
+      "required_cases": [
+        "PIN-01",
+        "PIN-02"
+      ],
+      "passed_cases": [
+        "PIN-01",
+        "PIN-02"
+      ],
+      "actual_tests": 14
+    }
+  ],
+  "live_binding": {
+    "new_unit": {
+      "ActiveState": "active",
+      "Id": "project-control-as1.service",
+      "MainPID": "546053",
+      "SubState": "running"
+    },
+    "protected_unit_before": {
+      "ActiveState": "active",
+      "Id": "project-control.service",
+      "MainPID": "2348",
+      "SubState": "running"
+    },
+    "protected_unit_after": {
+      "ActiveState": "active",
+      "Id": "project-control.service",
+      "MainPID": "2348",
+      "SubState": "running"
+    },
+    "single_codex_registration": [
+      "project-control"
+    ]
+  },
+  "rollback": {
+    "executed": true,
+    "sequence": [
+      "new",
+      "old",
+      "new"
+    ],
+    "mode": "pause_dispatcher_preserve_forward_store",
+    "store_scope": "isolated_native_fixture",
+    "database_restorations": [],
+    "retained_forward_packets": [
+      "pkt_17c487d609c0435fa907f477c14f1cef",
+      "pkt_01ad762dbe644904a373e1026dec8662"
+    ]
+  },
+  "adoption": {
+    "method": "append_context_adoption",
+    "authority": "non_authoritative canonical context metadata",
+    "old_task_count": 6,
+    "old_tasks_completed_or_resumed": false,
+    "unrelated_preserved": true,
+    "nf1a_preserved": true
+  },
+  "closure": {
+    "project_control": {
+      "task": "PC-AS1-0000",
+      "status": "done",
+      "revision": 904,
+      "condition_gates_passed": 10,
+      "run": "PC-AS1-RUN-1",
+      "run_status": "completed"
+    },
+    "skills": {
+      "task": "SK-AS1-0000",
+      "status": "done",
+      "revision": 1008,
+      "condition_gates_passed": 14,
+      "run": "SK-AS1-RUN-1",
+      "run_status": "completed"
+    },
+    "source": "Root-supported native epic closure result; worker did not mutate lifecycle"
+  },
+  "limits": [
+    "HistoricalQ11 model-selected canonical resource/hash/range/excerpt is exact; wrong-line narrative is unverified and synthesis partial. No verified semantic skill recommendation claimed.",
+    "Q14 main answer reuses2retainedpackets without reread; queuedanswers2completed/1honestpartial.",
+    "Rollback acceptedqueuedjob and packet preservation uses an isolated genuine unavailable native-backend fixture; not a new live model rollback experiment.",
+    "Matchedold/newCPU4call exposure44280to21985bytes; no modelpricing/speedup/energy comparison.",
+    "Native counts are PCQUALIFY8,SKQUALIFY4,PCRELEASE3,SKRELEASE14; PIN01/02 are2caseIDs,not2tests.",
+    "Private environments, capability credentials, databases and GPU lease keys are excluded from this publicsummary."
+  ]
+}
