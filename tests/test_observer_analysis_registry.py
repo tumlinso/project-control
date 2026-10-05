@@ -239,3 +239,19 @@ class ObserverDeadlineTests(unittest.TestCase):
             self.assertEqual(len(created), 1)
             self.assertTrue(all(row["status"] == "available" for row in results))
             self.assertEqual([row["deadline_epoch"] for row in calls], [deadline, deadline])
+
+
+    def test_provider_close_propagates_retryable_owned_cleanup_failure(self):
+        provider = SkillsObserverAnalysisProvider()
+        provider._backend = SimpleNamespace(close_observer_session=mock.Mock(side_effect=RuntimeError("cleanup_pending")))
+        with self.assertRaisesRegex(RuntimeError, "cleanup_pending"):
+            provider.close_session("owned-session")
+
+
+    def test_provider_close_requires_verified_release(self):
+        provider = SkillsObserverAnalysisProvider()
+        provider._backend = SimpleNamespace(close_observer_session=mock.Mock(return_value={"released": False}))
+        with self.assertRaisesRegex(RuntimeError, "observer_session_not_quiescent"):
+            provider.close_session("owned-session")
+        provider._backend.close_observer_session.return_value = {"released": True}
+        self.assertEqual(provider.close_session("owned-session"), {"released": True})

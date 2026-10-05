@@ -205,11 +205,13 @@ class SkillsObserverAnalysisProvider:
         except Exception as error:
             return {"status": "unavailable", "reason": str(error)[:500]}
 
-    def close_session(self, session_id: str) -> None:
-        try:
-            self._get_backend().close_observer_session(session_id)
-        except Exception:
-            pass
+    def close_session(self, session_id: str) -> dict[str, Any]:
+        # The broker retains the dispatch slot until owned cleanup succeeds.
+        # A failed cleanup must remain observable and retryable.
+        result = self._get_backend().close_observer_session(session_id)
+        if not isinstance(result, dict) or result.get("released") is not True:
+            raise RuntimeError("observer_session_not_quiescent")
+        return result
 
     def close(self) -> None:
         """Release the one cached model slot during server shutdown."""
@@ -330,12 +332,13 @@ class ObserverAnalysisRegistry:
         return provider.open_sessions(count, compute_profile=compute_profile, parallelism=parallelism,
                 **({"deadline_epoch": deadline_epoch} if deadline_epoch is not None else {}))
 
-    def close_session(self, repo_root: str | Path, session_id: str) -> None:
+    def close_session(self, repo_root: str | Path, session_id: str) -> dict[str, Any] | None:
         key = "local-observer-service"
         with self._lock:
             provider = self._providers.get(key)
         if provider is not None:
-            provider.close_session(session_id)
+            return provider.close_session(session_id)
+        return None
 
     def status(self) -> dict[str, Any]:
         """Return a compact snapshot of an already-created observer backend.
