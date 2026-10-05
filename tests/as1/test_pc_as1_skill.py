@@ -448,7 +448,22 @@ def test_cross_skill_entry_precedes_first_resource_read_in_durable_provenance(tm
     reads = [command(root/'prerequisite/SKILL.md'), command(root/'prerequisite/resource.md')]
     if order != 'ordered':
         reads.reverse()
-    backend = Turns([command(root/'fixture/SKILL.md')] + reads + [final([choice])])
+    # The current worker exposes validation feedback and asks for correction.
+    # Repeat the defective final through the remaining turn budget so rejection
+    # returns its natural partial snapshot rather than exhausting the fake backend.
+    def defective_final(request):
+        answer = final([choice])(request)
+        # Validation feedback is not source evidence. Retrying the same rejected
+        # selection must keep citing the last successful source observation.
+        for message in request['messages']:
+            if message['role'] != 'user':
+                continue
+            payload = json.loads(message['content'])
+            observed = payload.get('retained_observation', payload)
+            if observed.get('status') == 'completed' and observed.get('source_reads'):
+                answer['findings'][0]['evidence_packets'] = [observed['packet_id']]
+        return answer
+    backend = Turns([command(root/'fixture/SKILL.md')] + reads + [defective_final] * 3)
     service, jobs = make(tmp_path, root, backend)
     if order == 'broker_reversed':
         original = jobs.worker_factory
@@ -476,7 +491,12 @@ def test_cross_skill_entry_precedes_first_resource_read_in_durable_provenance(tm
         elif order == 'reversed':
             assert completed['job']['status'] == 'partial'
             assert not result.get('excerpts')
-            assert result['reason'] == 'selected_skill_entry_must_precede_resource'
+            assert result['reason'] == 'step_budget_exhausted'
+            feedback = [observation for observation in completed['observations']
+                        if observation.get('reason') == 'skill_final_validation_failed']
+            assert feedback
+            assert all(observation['validation_error'] == 'selected_skill_entry_must_precede_resource'
+                       for observation in feedback)
         else:
             assert not result['excerpts'] and result['status'] == 'partial'
             assert result['omissions'][0]['reason'] == 'skill_entry_read_after_resource'
