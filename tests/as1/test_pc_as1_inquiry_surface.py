@@ -214,12 +214,12 @@ def test_two_host_global_dispatch_public_cache_and_packet_resolution(tmp_path):
         with b.jobs._db() as db:
             job_id = db.execute('SELECT id FROM jobs').fetchone()[0]
             assert db.execute('SELECT count(*) FROM jobs').fetchone()[0] == 1
-        assert b.jobs.lookup(job_id, access_scope=b.scope(None))['status'] == 'forbidden'
+        assert b.jobs.lookup(job_id, access_scope=b.scope(None))['status'] == 'ok'
     finally:
         b.close(); a.close()
 
 
-def test_shared_worker_cannot_launder_private_packet_or_job_without_hint(servers, monkeypatch):
+def test_shared_worker_can_reuse_cross_role_packet_and_job_without_hint(servers, monkeypatch):
     from project_control.as1_jobs import TrustedObserverFactory
     server = servers(); c = server._project_control_surface
     class Live:
@@ -236,9 +236,9 @@ def test_shared_worker_cannot_launder_private_packet_or_job_without_hint(servers
     monkeypatch.setattr(TrustedObserverFactory, '__call__', lambda self, service, job: self.tools)
     tools = c.jobs.worker_factory.trusted(c.jobs, DurableJob.model_validate(job))
     for kind, target in [('packet', private.packet_id), ('investigation', legacy)]:
-        denied = tools('search', {'query': {'kind': kind, 'target': target}}, scope)
-        assert denied['status'] == 'unavailable'
-        assert 'PRIVATE' not in str(denied)
+        shared = tools('search', {'query': {'kind': kind, 'target': target}}, scope)
+        assert shared['status'] == 'ok'
+        assert 'PRIVATE' in str(shared)
     # The same valid private packet remains an accepted, explicit input.
     c.jobs.inquire('with explicit material', scope, hints=[private.packet_id], foreground_timeout=0)
     with c.jobs._db() as db:
@@ -246,4 +246,72 @@ def test_shared_worker_cannot_launder_private_packet_or_job_without_hint(servers
     tools = c.jobs.worker_factory.trusted(c.jobs, DurableJob.model_validate(job))
     allowed = tools('search', {'query': {'kind': 'packet', 'target': private.packet_id}}, scope)
     assert allowed['data']['result']['text'] == 'PRIVATE CALLER TEXT'
-    assert c.jobs.inquire('with explicit material', {**scope, 'principal': 'bob', 'profile': 'coder'})['reason'] == 'access_unavailable'
+    assert c.jobs.inquire('with explicit material', {**scope, 'principal': 'bob', 'profile': 'coder'})['status'] == 'thinking'
+
+
+def test_shared_packet_access_preserves_source_and_explicit_authority(servers, tmp_path):
+    from project_control.as1_context import ContextHost
+    from project_control.config import ProjectControlConfig, WorkspaceConfig, RepositoryConfig
+    root = tmp_path/'repo'; root.mkdir()
+    config = ProjectControlConfig(workspaces={p: WorkspaceConfig(repositories={'source': RepositoryConfig(root=root)})
+                                              for p in ['allowed', 'outside']})
+    server = servers(config=config, host=ContextHost('observer', 'reader', frozenset({'allowed'})))
+    c = server._project_control_surface
+    scope = c.scope('allowed')
+    cross_role = {**scope, 'principal': 'writer', 'profile': 'coder'}
+    packet = c.store.create(tool='read', access_scope={**scope, 'authority': 'registered'},
+        payload={'text': 'cross-role fact'}, sources=[SourceLocator(project='allowed', repository='source',
+                            path='facts.md', content_sha256='a'*64)])
+    assert c.store.lookup(packet.packet_id, access_scope={**cross_role, 'authority': 'registered'}).status == 'ok'
+    assert c.store.lookup(packet.packet_id, access_scope={**cross_role, 'authority': 'different'}).status == 'forbidden'
+    outside = c.store.create(tool='read', access_scope=scope, payload={'text': 'outside source'},
+        sources=[SourceLocator(project='outside', repository='source', path='facts.md', content_sha256='b'*64)])
+    assert c.store.lookup(outside.packet_id, access_scope=cross_role).status == 'forbidden'
+    with __import__('pytest').raises(PermissionError, match='project_not_permitted'):
+        c.scope('outside')
+
+
+def test_derived_answer_preserves_registered_source_authority(tmp_path):
+    from project_control.as1_context import ContextHost
+    from project_control.as1_jobs import JobService
+    from project_control.as1_surface import SurfaceComposition
+    c = SurfaceComposition(); c.host = ContextHost('observer', 'reader', frozenset({'allowed'}))
+    store = SQLitePacketStore(tmp_path/'packets', authority_access=c.packet_access)
+    jobs = JobService(tmp_path/'jobs', packets=store, inquiry_access=c.inquiry_access)
+    class Live:
+        def is_alive(self): return True
+    jobs._thread = Live()
+    # Scripted fixture presents an observation from an unregistered source.
+    jobs.inquire('derived source', c.scope('allowed'), foreground_timeout=0)
+    job = jobs.claim()
+    source = SourceLocator(project='outside', repository='source', path='facts.md', content_sha256='a'*64)
+    jobs.observe(job.job_id, job.attempt, {'sources': [source.model_dump()], 'text': 'outside source fact'})
+    jobs.finish(job.job_id, job.attempt, {'status': 'completed', 'answer': 'Derived from the observation.'})
+    with jobs._db() as db:
+        record = __import__('json').loads(db.execute('SELECT record FROM jobs WHERE id=?', (job.job_id,)).fetchone()[0])
+    assert store.lookup(record['result_packet'], access_scope=c.scope('allowed')).status == 'forbidden'
+    assert jobs.inquire('derived source', c.scope('allowed'))['reason'] == 'access_unavailable'
+    assert not jobs.log(access_scope=c.scope('allowed'))
+
+
+def test_derived_source_manifest_retains_exact_freshness(servers, tmp_path):
+    from project_control.config import ProjectControlConfig, WorkspaceConfig, RepositoryConfig
+    root = tmp_path/'source'; root.mkdir(); (root/'facts.md').write_text('fact')
+    config = ProjectControlConfig(workspaces={'project': WorkspaceConfig(repositories={'source': RepositoryConfig(root=root)})})
+    c = servers(config=config)._project_control_surface
+    class Live:
+        def is_alive(self): return True
+    c.jobs._thread = Live()
+    scope = c.scope('project')
+    source = SourceLocator(project='project', repository='source', path='facts.md',
+                           content_sha256=hashlib.sha256((root/'facts.md').read_bytes()).hexdigest())
+    original = c.store.create(tool='read', access_scope=scope, sources=[source], payload={'text': 'fact'})
+    c.jobs.inquire('supported manifest', scope, foreground_timeout=0)
+    job = c.jobs.claim()
+    c.jobs.observe(job.job_id, job.attempt, {'packet': original.packet_id, 'sources': [source.model_dump()]}, tool='read')
+    c.jobs.finish(job.job_id, job.attempt, {'status': 'completed', 'answer': 'fact'})
+    with c.jobs._db() as db:
+        record = __import__('json').loads(db.execute('SELECT record FROM jobs WHERE id=?', (job.job_id,)).fetchone()[0])
+    assert c.jobs.freshness_provider(record)['fresh']
+    (root/'facts.md').write_text('changed')
+    assert not c.jobs.freshness_provider(record)['fresh']

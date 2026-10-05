@@ -16,7 +16,7 @@ import threading
 import time
 import uuid
 
-from .as1_contracts import DurableJob, Finding, InformationPacket, canonical_digest
+from .as1_contracts import DurableJob, Finding, InformationPacket, SourceLocator, canonical_digest
 from .as1_packets import SQLITE_CONNECTION_LOCK, mask_payload
 
 TERMINAL = {'completed', 'partial', 'failed', 'cancelled'}
@@ -72,7 +72,7 @@ class TrustedObserverFactory:
                 return method(session) if method else {}
         def tools(name, arguments):
             if name == 'log':
-                payload = {'records': service.log(access_scope=job.scope, inquiry_only=service.is_inquiry(job.job_id), material_hints=job.hints if service.is_inquiry(job.job_id) else None, **arguments)}
+                payload = {'records': service.log(access_scope=job.scope, **arguments)}
             elif name in SHARED_TOOLS:
                 payload = self.tools(name, arguments, job.scope)
             else:
@@ -418,7 +418,7 @@ class JobService:
             row = db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
             if not row:
                 return {'status': 'not_found'}
-            if json.loads(row['scope']) != dict(access_scope):
+            if not self._inquiry_authorized(json.loads(row['record']), access_scope, log=True):
                 return {'status': 'forbidden'}
             observations = self._public_observations(db, row)
         return {'status': 'ok', 'job': DurableJob.model_validate_json(row['record']).model_dump(),
@@ -438,107 +438,39 @@ class JobService:
             permitted = self.inquiry_access(required, dict(scope), log=log)
         else:
             permitted = required == supplied
-        return bool(permitted) and all(self.packets.lookup(ref, access_scope=scope).status == 'ok'
-                                       for ref in job['hints'])
+        # Material may be stale/missing and still need refresh; only an explicit
+        # source-authority denial blocks reuse, never caller/profile provenance.
+        material = job['hints'] + job['evidence_packets'] + ([job['result_packet']] if job.get('result_packet') else [])
+        return bool(permitted) and all(self.packets.lookup(ref, access_scope=scope).status != 'forbidden'
+                                       for ref in material)
 
     def is_inquiry(self, job_id):
         with self._db() as db:
             return bool(db.execute('SELECT 1 FROM jobs WHERE id=? AND inquiry=1', (job_id,)).fetchone())
 
-    def lookup_inquiry(self, job_id, *, access_scope):
-        """Explicit inquiry-only sharing; direct legacy lookup remains private."""
-        with self._db() as db:
-            db.execute('BEGIN')
-            row = db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
-            if not row:
-                return {'status': 'not_found'}
-            job = json.loads(row['record'])
-            indexed = db.execute('SELECT 1 FROM inquiry_index WHERE job=?', (job_id,)).fetchone()
-            if not indexed:
-                allowed = job['scope'] == dict(access_scope)
-            else:
-                allowed = self._inquiry_authorized(job, access_scope)
-            if not allowed:
-                return {'status': 'forbidden'}
-            observations = self._public_observations(db, row)
-        return {'status': 'ok', 'job': job, 'observations': observations}
+    # Inquiry and legacy observer reads share the same project knowledge.
+    lookup_inquiry = lookup
 
-    def publish_inquiry_assembly(self, job_id, packet, *, access_scope):
-        """Register a broker-verified skill assembly under its inquiry output grant."""
-        value = self.lookup_inquiry(job_id, access_scope=access_scope)
-        if value['status'] != 'ok':
-            raise PermissionError('inquiry_assembly_not_permitted')
-        job = value['job']
-        if (job['mode'] != 'skill' or job['status'] not in {'completed', 'partial'}
-                or packet.tool != 'skill' or packet.access_scope != job['scope']
-                or packet.payload.get('job_id', job_id) != job_id or packet.payload.get('attempt', job['attempt']) != job['attempt']
-                or job['result_packet'] not in packet.parents):
-            raise ValueError('unverified_inquiry_assembly')
-        with self._db() as db:
-            db.execute('BEGIN IMMEDIATE')
-            if not db.execute('SELECT 1 FROM inquiry_index WHERE job=?', (job_id,)).fetchone():
-                raise PermissionError('inquiry_assembly_not_retained')
-            if self._storage_bytes(db) + len(packet.model_dump_json().encode()) > self.max_storage_bytes:
-                return False
-            db.execute('INSERT INTO outbox(id,job,packet,materialized) VALUES(?,?,?,1)',
-                       (packet.packet_id, job_id, packet.model_dump_json()))
-        return True
-
-    def inquiry_packet_material(self, reference):
-        with self._db() as db:
-            row = db.execute('SELECT jobs.record FROM outbox JOIN jobs ON jobs.id=outbox.job '
-                             'JOIN inquiry_index ON inquiry_index.job=jobs.id WHERE outbox.id=?',
-                             (reference,)).fetchone()
-        return json.loads(row['record'])['hints'] if row else None
-
-    def inquiry_packet_access(self, reference, access_scope):
-        """Native packet-store grant, restricted to retained broker inquiry output."""
-        with self._db() as db:
-            row = db.execute('SELECT jobs.record FROM outbox JOIN jobs ON jobs.id=outbox.job '
-                             'JOIN inquiry_index ON inquiry_index.job=jobs.id WHERE outbox.id=?',
-                             (reference,)).fetchone()
-        return bool(row) and self._inquiry_authorized(json.loads(row['record']), access_scope, log=True)
-
-    def inquiry_packet(self, job_id, reference, *, access_scope):
-        """Grant only broker-created evidence/result, never arbitrary private refs."""
-        from .as1_packets import PacketLookup
-        value = self.lookup_inquiry(job_id, access_scope=access_scope)
-        if value['status'] != 'ok':
-            return PacketLookup(value['status'])
-        job = value['job']
-        if reference not in job['evidence_packets'] + [job['result_packet']]:
-            return PacketLookup('forbidden')
-        with self._db() as db:
-            created = db.execute('SELECT 1 FROM outbox WHERE job=? AND id=?', (job_id, reference)).fetchone()
-        if not created:
-            return PacketLookup('forbidden')
-        return self.packets.lookup(reference, access_scope=job['scope'])
-
-    def log(self, *, access_scope, query='', limit=5, current_dependencies=None, inquiry_only=False, material_hints=None):
+    def log(self, *, access_scope, query='', limit=5, current_dependencies=None):
         if not 1 <= limit <= 50:
             raise ValueError('log limit must be 1..50')
         with self._db() as db:
             rows = db.execute('SELECT jobs.*, inquiry_index.identity FROM jobs LEFT JOIN inquiry_index ON jobs.id=inquiry_index.job ORDER BY updated DESC,jobs.id DESC').fetchall()
         candidates = []
-        shared_count = 0
-        legacy_count = 0
+        answered_count = 0
         for row in rows:
             job = json.loads(row['record'])
             if not self._cache_eligible(job):
                 continue
-            if row['identity'] is not None:
-                shared_count += 1
-                if (shared_count > 50 or not self._inquiry_authorized(job, access_scope, log=True)
-                        or (material_hints is not None and not set(job['hints']) <= set(material_hints))):
-                    continue
-            else:
-                # Superseded/evicted inquiry generations do not become private log entries.
-                if row['inquiry'] or inquiry_only:
-                    continue
-                if job['scope'] != dict(access_scope) or legacy_count >= 50:
-                    continue
-                legacy_count += 1
-            candidates.append((job, json.loads(row['observations'])))
+            # Superseded/evicted inquiry generations are history, not another
+            # private retrieval window. Legacy answered jobs join the one window.
+            if row['inquiry'] and row['identity'] is None:
+                continue
+            answered_count += 1
+            if answered_count > 50:
+                break
+            if self._inquiry_authorized(job, access_scope, log=True):
+                candidates.append((job, json.loads(row['observations'])))
         tokens = lambda value: re.findall(r'\w+', value.casefold())
         documents = [tokens(wire({'question': j['question'], 'answer': j.get('answer'),
                                   'findings': j['findings'], 'evidence': obs})) for j, obs in candidates]
@@ -652,11 +584,38 @@ class JobService:
         ident = 'pkt_' + uuid.uuid4().hex
         # UUID encoded as words keeps aliases memorable-shaped and collision-safe.
         letters = ''.join(chr(97 + int(c, 16)) for c in ident[4:])
+        sources = {}
+        def collect(value):
+            if isinstance(value, dict):
+                if {'project', 'repository', 'path', 'content_sha256'} <= value.keys():
+                    try:
+                        source = SourceLocator.model_validate(value)
+                        sources[wire(source.model_dump(exclude={'content_sha256'}))] = source
+                    except ValueError:
+                        pass
+                for child in value.values():
+                    collect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+        if job.refresh_context:
+            prior = job.refresh_context.get('prior_job', {})
+            for ref in prior.get('evidence_packets', []) + ([prior['result_packet']] if prior.get('result_packet') else []):
+                saved = db.execute('SELECT packet FROM outbox WHERE id=?', (ref,)).fetchone()
+                if saved:
+                    collect(json.loads(saved['packet']).get('sources', []))
+        # Derived answers preserve material source authority even when their text
+        # contains no source list. Caller/profile never constrain these sources.
+        for row in db.execute('SELECT packet FROM outbox WHERE job=?', (job.job_id,)):
+            collect(json.loads(row['packet']).get('sources', []))
+        collect(cleaned)
         packet = InformationPacket(packet_id=ident, alias='job-' + letters,
             created_at=stamp(self.clock()), tool=tool, payload=cleaned,
-            payload_sha256=canonical_digest(cleaned), sources=[], parents=[],
+            payload_sha256=canonical_digest(cleaned), sources=list(sources.values()), parents=[],
             access_scope=job.scope, omissions=omissions,
-            freshness={'volatile': True, 'max_age_seconds': 0}, pinned_by=[job.job_id])
+            freshness=({'dependencies': {f'file:{s.repository}/{s.path}': s.content_sha256 for s in sources.values()}}
+                       if tool in {'investigate', 'skill'} and sources
+                       else {'volatile': True, 'max_age_seconds': 0}), pinned_by=[job.job_id])
         usage = self._storage_bytes(db)
         if usage + 2 * len(packet.model_dump_json().encode()) > self.max_storage_bytes:
             raise ValueError('durable observation storage cap')
@@ -819,11 +778,8 @@ class JobService:
             jobs = [DurableJob.model_validate_json(r[0]) for r in db.execute('SELECT record FROM jobs ORDER BY updated')]
             inquiry_ids = {r[0] for r in db.execute('SELECT id FROM jobs WHERE inquiry=1')}
             indexed_ids = {r[0] for r in db.execute('SELECT job FROM inquiry_index')}
-        by_scope = {}
-        for job in jobs:
-            if job.status in TERMINAL and job.job_id not in inquiry_ids:
-                by_scope.setdefault(wire(job.scope), []).append(job)
-        terminal = [job for group in by_scope.values() for job in group[-self.packets.recent_terminal_limit:]]
+        terminal = [job for job in jobs if job.status in TERMINAL and job.job_id not in inquiry_ids]
+        terminal = terminal[-self.packets.recent_terminal_limit:]
         retained = [j for j in jobs if j.status not in TERMINAL or j.job_id in indexed_ids] + terminal
         for job in retained:
             refs = job.hints + job.evidence_packets + ([job.result_packet] if job.result_packet else [])

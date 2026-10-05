@@ -132,7 +132,7 @@ def test_catalog_optional_name_hints_unscoped_worker_selection_and_profile(tmp_p
         assert jobs.lookup(admitted['job_id'], access_scope=SCOPE)['job']['hints'] == [catalog['alias']]
         assert service.submit(query='Worker choose a native instruction', hints=[catalog['alias']],
                               request_id='catalog-discovery', access_scope=SCOPE)['job_id'] == admitted['job_id']
-        assert service.poll(admitted['job_id'], access_scope={**SCOPE, 'principal': 'bob'})['status'] == 'forbidden'
+        assert service.poll(admitted['job_id'], access_scope={**SCOPE, 'principal': 'bob'})['excerpts']
         assert service.submit(query='foo', skill='external', access_scope=SCOPE)['reason'] == 'unregistered_skill'
         with pytest.raises(PermissionError):
             service.submit(access_scope={**SCOPE, 'profile': 'coder'})
@@ -556,7 +556,6 @@ def test_shared_skill_inquiry_reuses_verified_selection_and_shares_assembly_pack
                      final([item(root, 'fixture', 'resource.md')])])
     service, jobs = make(tmp_path, root, backend)
     jobs.freshness_provider = lambda job: {'fresh': True}
-    jobs.packets.inquiry_access = jobs.inquiry_packet_access
     jobs.start()
     try:
         first = service.inquire(query='literal skill query', skill='fixture', access_scope=SCOPE)
@@ -573,6 +572,6 @@ def test_shared_skill_inquiry_reuses_verified_selection_and_shares_assembly_pack
         resolved = jobs.packets.lookup(shared['packet_id'], access_scope=caller)
         assert resolved.status == 'ok' and resolved.packet.payload['excerpts'] == shared['excerpts']
         assert not {'job_id', 'attempt'} & resolved.packet.payload.keys()
-        assert service.poll(cross_profile['job']['job_id'], access_scope=caller)['status'] == 'forbidden'
+        assert service.poll(cross_profile['job']['job_id'], access_scope=caller)['excerpts']
     finally:
         jobs.shutdown()

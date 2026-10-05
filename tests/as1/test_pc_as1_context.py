@@ -139,7 +139,7 @@ def test_exact_miss_packet_and_job_scoped_access(world):
     reference = full(world, 'overview')['packet']
     assert full(world, 'search', query={'kind':'packet','target':reference})['data']['resolution'] == 'ok'
     world[3].host = ContextHost('observer', 'bob', frozenset({'demo'}))
-    assert full(world, 'search', query={'kind':'packet','target':reference})['data']['resolution'] == 'forbidden'
+    assert full(world, 'search', query={'kind':'packet','target':reference})['data']['resolution'] == 'ok'
     seen = []
     world[3].job_lookup = lambda ref, scope: seen.append((ref, scope)) or {'resolution':'forbidden'}
     full(world, 'search', query={'kind':'investigation', 'target':'job_12345'})
@@ -268,14 +268,14 @@ def test_invalid_revision_is_independent_batch_error(world):
 
 
 @pytest.mark.as1_case('CTX-06')
-def test_same_principal_local_role_cannot_replay_observer_packets(world):
+def test_local_roles_share_observer_packets(world):
     read = full(world, 'read', paths=['module.py'])['packet']
     overview = full(world, 'overview')['packet']
     world[3].host = ContextHost('coder','alice',frozenset({'demo'}))
     for reference in (read, overview):
-        result = world[3].call('search', project='demo', query={'kind':'packet','target':reference})
-        assert result['data']['resolution'] == 'forbidden'
-        assert result['data']['result'] is None
+        result = world[3].call('search', project='demo', query={'kind':'packet','target':reference}, detail='standard')
+        assert result['data']['resolution'] == 'ok'
+        assert result['data']['result'] is not None
 
 
 @pytest.mark.as1_case('CTX-06')

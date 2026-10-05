@@ -355,26 +355,24 @@ def test_evidence_only_partial_is_retained_without_automatic_refresh(tmp_path):
     finally:s.shutdown()
 
 
-def test_shared_answer_refresh_packets_and_private_hint_boundary(tmp_path):
+def test_shared_answer_refresh_packets_and_cross_role_hints(tmp_path):
     entered, release, requests = threading.Event(), threading.Event(), []
     release.set()
     fresh = [True]
     s = make(tmp_path, worker_factory=blocking(entered, release, requests),
              freshness_provider=lambda job: {'fresh': fresh[0]}).start()
-    s.packets.inquiry_access = s.inquiry_packet_access
     other = {**SCOPE, 'principal': 'bob', 'profile': 'coder'}
     try:
         first = s.inquire('global answer', SCOPE, foreground_timeout=2)
         assert first['status'] == 'completed'
         job_id, ref = first['job']['job_id'], first['job']['result_packet']
-        assert s.lookup(job_id, access_scope=other)['status'] == 'forbidden'
+        assert s.lookup(job_id, access_scope=other)['status'] == 'ok'
         assert s.inquire('global answer', other)['job']['answer'] == 'answer global answer'
         assert len(requests) == 1
         assert s.packets.lookup(ref, access_scope=other).status == 'ok'
         assert s.packets.lookup(ref, access_scope={**other, 'project': 'denied'}).status == 'forbidden'
         private = s.packets.create(tool='read', payload={'text': 'caller private source'}, access_scope=SCOPE)
-        assert s.packets.lookup(private.packet_id, access_scope=other).status == 'forbidden'
-        assert s.inquiry_packet(job_id, private.packet_id, access_scope=other).status == 'forbidden'
+        assert s.packets.lookup(private.packet_id, access_scope=other).status == 'ok'
         fresh[0] = False
         refreshed = s.inquire('global answer', other, foreground_timeout=2)
         assert refreshed['status'] == 'completed' and len(requests) == 2
@@ -382,23 +380,23 @@ def test_shared_answer_refresh_packets_and_private_hint_boundary(tmp_path):
         fresh[0] = True
         assert s.inquire('private-derived', SCOPE, hints=[private.packet_id], foreground_timeout=2)['status'] == 'completed'
         before = len(requests)
-        assert s.inquire('private-derived', other) == {'status': 'unavailable', 'reason': 'access_unavailable'}
-        assert not s.log(access_scope=other, query='private-derived')
+        assert s.inquire('private-derived', other)['status'] == 'completed'
+        assert s.log(access_scope=other, query='private-derived')
         assert s.inquire('private-derived', SCOPE)['status'] == 'completed'
         fresh[0] = False
         assert s.inquire('private-derived', SCOPE, foreground_timeout=2)['status'] == 'completed'
         fresh[0] = True
-        assert s.inquire('private-derived', other)['reason'] == 'access_unavailable'
+        assert s.inquire('private-derived', other)['status'] == 'completed'
         assert len(requests) == before + 1
         with s._db() as db:
             record = json.loads(db.execute("SELECT record FROM jobs WHERE id IN (SELECT job FROM inquiry_index) AND json_extract(record,'$.question')='private-derived'").fetchone()[0])
         assert private.packet_id in record['hints']
-        assert s.packets.lookup(record['result_packet'], access_scope=other).status == 'forbidden'
+        assert s.packets.lookup(record['result_packet'], access_scope=other).status == 'ok'
     finally:
         release.set(); s.shutdown()
 
 
-def test_cross_caller_pending_is_read_only_and_private_hint_pending_is_denied(tmp_path):
+def test_cross_caller_pending_and_hint_pending_are_shared_read_only(tmp_path):
     entered, release, requests = threading.Event(), threading.Event(), []
     s = make(tmp_path, worker_factory=blocking(entered, release, requests)).start()
     other = {**SCOPE, 'principal': 'bob', 'profile': 'coder'}
@@ -412,7 +410,7 @@ def test_cross_caller_pending_is_read_only_and_private_hint_pending_is_denied(tm
             assert [tuple(r) for r in db.execute('SELECT * FROM jobs')] == before
         private = s.packets.create(tool='read', payload={'text': 'private'}, access_scope=SCOPE)
         assert s.inquire('private pending', SCOPE, hints=[private.packet_id], foreground_timeout=0)['status'] == 'thinking'
-        assert s.inquire('private pending', other)['reason'] == 'access_unavailable'
+        assert s.inquire('private pending', other)['status'] == 'thinking'
         with s._db() as db:
             assert db.execute('SELECT count(*) FROM jobs').fetchone()[0] == 2
     finally:
@@ -460,10 +458,10 @@ def test_startup_migration_collision_policy_preserves_jobs_slots_and_legacy(tmp_
     with again._db() as db:
         assert [tuple(r) for r in db.execute('SELECT * FROM jobs')] == after
         assert [tuple(r) for r in db.execute('SELECT * FROM execution_slots')] == slots
-    assert again.lookup(legacy, access_scope={**SCOPE, 'principal': 'bob'})['status'] == 'forbidden'
+    assert again.lookup(legacy, access_scope={**SCOPE, 'principal': 'bob'})['status'] == 'ok'
 
 
-def test_dispatch_skips_incompatible_project_catalog_and_legacy_owner(tmp_path):
+def test_dispatch_skips_incompatible_authority_and_shares_legacy_execution(tmp_path):
     from project_control.as1_context import ContextHost
     from project_control.as1_surface import SurfaceComposition
     a, b = SurfaceComposition(), SurfaceComposition()
@@ -492,8 +490,8 @@ def test_dispatch_skips_incompatible_project_catalog_and_legacy_owner(tmp_path):
         db.execute('DELETE FROM execution_slots')
         for ident in [same_project.job_id, same_catalog.job_id]:
             db.execute("UPDATE jobs SET record=json_set(record,'$.status','completed') WHERE id=?", (ident,))
-    assert incompatible.claim() is None
-    assert s.lookup(private, access_scope=a.scope('p'))['job']['attempt'] == 0
+    assert incompatible.claim().job_id == private
+    assert s.lookup(private, access_scope=a.scope('p'))['job']['attempt'] == 1
 
 
 def test_storage_and_payload_limits_are_unavailable_not_global_busy(tmp_path):
@@ -514,5 +512,29 @@ def test_old_catalog_without_authority_manifest_has_no_cross_caller_grant(tmp_pa
     c = SurfaceComposition(); c.host = ContextHost('coder', 'bob', frozenset())
     legacy_catalog = {'principal': 'alice', 'profile': 'observer', 'project': 'catalog'}
     assert not c.inquiry_access({'project': 'catalog'}, c.scope(None), log=True)
-    assert not c.can_execute_inquiry(type('Job', (), {'scope': legacy_catalog})(), True)
+    assert c.can_execute_inquiry(type('Job', (), {'scope': legacy_catalog})(), True)
     assert c.inquiry_access({'project': 'catalog', 'catalog_projects': []}, c.scope(None), log=True)
+
+
+def test_legacy_answer_log_uses_one_global_window_and_read_does_not_grant_mutation(tmp_path):
+    now = [1000.]
+    s = make(tmp_path, clock=lambda: now[0])
+    class Live:
+        def is_alive(self): return True
+    s._thread = Live()
+    for i in range(53):
+        scope = {**SCOPE, 'principal': f'caller-{i}', 'profile': 'coder' if i % 2 else 'observer'}
+        ident = s.submit(question='rare-old' if i == 0 else f'legacy {i}', access_scope=scope)['job_id']
+        job = s.claim()
+        assert s.finish(ident, job.attempt, {'status': 'completed', 'answer': f'legacy answer {i}'})
+        with s._db() as db:
+            db.execute('DELETE FROM execution_slots WHERE job=?', (ident,))
+        now[0] += 1
+    reader = {**SCOPE, 'principal': 'another', 'profile': 'coder'}
+    assert not s.log(access_scope=reader, query='rare-old')
+    assert s.log(access_scope=reader)[0]['question'] == 'legacy 52'
+    assert len(s.log(access_scope=reader)) == 5
+    pending = s.submit(question='pending mutation', access_scope=SCOPE)['job_id']
+    assert s.lookup(pending, access_scope=reader)['status'] == 'ok'
+    assert not s.cancel(pending, access_scope=reader)
+    assert s.lookup(pending, access_scope={**reader, 'project': 'outside'})['status'] == 'forbidden'

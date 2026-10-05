@@ -232,7 +232,7 @@ def test_worker_command_roots_follow_durable_admission(servers, tmp_path):
     assert worker.command.roots == (trusted.root,)
     assert not worker.command.allows(a / 'source.py')
     assert worker.command.allows(trusted.root / 'local-coding-worker/SKILL.md')
-    job.scope['principal'] = 'forged'
+    job.scope['project'] = 'unregistered'
     with pytest.raises(PermissionError):
         trusted(c.jobs, job)
 
@@ -289,7 +289,7 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
     while not backend.closed and time.monotonic() < deadline:
         time.sleep(.01)
     assert backend.closed == ['scripted-session']
-    assert c.jobs.lookup(ident, access_scope={**c.host.scope(None), 'principal': 'forged'})['status'] == 'forbidden'
+    assert c.jobs.lookup(ident, access_scope={**c.scope(None), 'principal': 'other-reader'})['status'] == 'ok'
 
 
 @pytest.mark.as1_case('API-04')

@@ -53,20 +53,19 @@ fences, SQLite/outbox durability and restart recovery remain implementation
 mechanics. The cache retains the 50 most recently answered inquiries globally.
 Internal log retrieval filters that global window by trusted source access and
 returns at most five lexical matches; it does not create a private window per
-caller or profile. Legacy private job lookup remains scoped to its original caller.
+caller or profile. Legacy answered jobs join the same global retrieval window.
 
-Shared answers, pending states, refresh context and log entries require access to
-every original hint packet. Private hints remain valid inputs for their owner, but
-an unauthorized caller receives `unavailable` without starting competing work or
-seeing derived answer text. Refresh preserves these input access requirements.
-Only broker-created retained inquiry result and evidence packets receive explicit
-project-authorized sharing for exact packet search. Unrelated private packets,
-caller hints and arbitrary nested references keep their original access checks.
+Project Control is a shared oracle: caller principal and profile record provenance,
+not private knowledge compartments. Ordinary read packets, hints, answers, prior
+job observations and log entries can be reused across roles when the trusted host
+allows their projects and sources. Other explicit authority requirements still
+apply. Source allowlists, credential masking, denied paths, workflow capabilities
+and mutation permissions retain their existing controls.
 
 Storage exhaustion and oversized inquiries report `unavailable`; `busy` describes
-global queue capacity. Shared workers skip incompatible project authority before
-claiming a job and require explicit hints for private packet context. Older catalog
-records without a proven project allowlist retain their original private access.
+global queue capacity. Dispatchers skip incompatible project authority before
+claiming work. Catalog applicability records the trusted project allowlist; a host
+executing a catalog inquiry stays within that recorded authority.
 Source writes, similarity routing and a public queue workflow are outside this contract.
 
 Focused CPU tests use actual MCP schemas, real local SQLite and scripted ports;

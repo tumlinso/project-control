@@ -269,8 +269,7 @@ class SkillService:
         # the existing broker outbox before resolving; this never runs a model.
         self.jobs.reconcile()
         ref = value['job']['result_packet']
-        result = (self.jobs.inquiry_packet(job_id, ref, access_scope=access_scope) if _inquiry
-                  else self.packets.lookup(ref, access_scope=access_scope)) if ref else None
+        result = self.packets.lookup(ref, access_scope=access_scope) if ref else None
         if not result or result.status != 'ok':
             return {'status': value['job']['status'], 'job_id': job_id, 'reason': 'selection_unavailable'}
         manifest = result.packet.payload.get('skill_selection')
@@ -294,8 +293,7 @@ class SkillService:
                 stored['job']['status'] not in {'completed', 'partial'} or stored['job']['attempt'] != attempt):
             return {'status': 'stale_attempt', 'job_id': job_id}
         ref = stored['job']['result_packet']
-        result = (self.jobs.inquiry_packet(job_id, ref, access_scope=access_scope) if _inquiry
-                  else self.packets.lookup(ref, access_scope=access_scope))
+        result = self.packets.lookup(ref, access_scope=access_scope)
         if result.status != 'ok' or result.packet.payload.get('skill_selection') != selected.model_dump(exclude_none=True):
             # Allow explicit null optional fields in the producer wire value.
             if result.status != 'ok' or SkillSelection.model_validate(result.packet.payload.get('skill_selection')).model_dump() != selected.model_dump():
@@ -403,6 +401,4 @@ class SkillService:
             packet_payload = public_inquiry(payload)
         packet = self.packets.create(tool='skill', payload=packet_payload, access_scope=stored['job']['scope'] if _inquiry else access_scope, sources=sources,
                                      parents=parents, freshness=payload['freshness'], omissions=omissions)
-        if _inquiry and not self.jobs.publish_inquiry_assembly(job_id, packet, access_scope=access_scope):
-            return {'status': 'unavailable', 'reason': 'storage_limit'}
         return {**packet.payload, 'packet_id': packet.packet_id, 'alias': packet.alias}

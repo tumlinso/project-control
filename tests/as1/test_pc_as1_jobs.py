@@ -157,7 +157,7 @@ def test_scoped_idempotency_exact_lookup_related_questions_and_no_gpu_poll(tmp_p
         assert s.submit(question='changed', access_scope=SCOPE, request_id='r')['reason'] == 'request_id_mismatch'
         other = s.submit(question='inspect Thing', access_scope={**SCOPE, 'principal': 'bob'}, request_id='r')
         assert other['job_id'] != a['job_id']
-        assert s.lookup(a['job_id'], access_scope={**SCOPE, 'principal': 'bob'})['status'] == 'forbidden'
+        assert s.lookup(a['job_id'], access_scope={**SCOPE, 'principal': 'bob'})['status'] == 'ok'
         related = s.submit(question='inspect Thing callers', access_scope=SCOPE)
         assert related['job_id'] != a['job_id']
     finally:
@@ -228,7 +228,7 @@ def test_log_revalidates_retained_evidence_and_outbox_crash_replay(tmp_path, mon
     records = restored.log(access_scope=SCOPE, query='src/module.py')
     assert records[0]['evidence']['packets']
     assert any(o['reason'] == 'stale' for o in records[0]['evidence']['omissions'])
-    assert not restored.log(access_scope={**SCOPE, 'principal': 'bob'}, query='Thing')
+    assert restored.log(access_scope={**SCOPE, 'principal': 'bob'}, query='Thing')
     release.set(); s.shutdown()
 
 
