@@ -187,6 +187,16 @@
       "tests/as1/test_sk_as1_runtime.py": "321bec4a99d4c00902ee729026624d80819b3421547eb04f1d6b1c9526e32601"
     }
   },
+  "pc_native_attempts": [
+    {
+      "cause": "CPU stale-resource supplement used historical header observations final callback; actual native protocol replays public user packets. Real proof and E2E05 passed.",
+      "native_evidence_id": "96503b78-45ba-4af6-8c01-7c927e237460",
+      "original": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/96503b78-45ba-4af6-8c01-7c927e237460/stdout.txt",
+      "path": "pc-native-qualification-first-attempt.json",
+      "sha256": "bf1f12ce33275fe604225a846eacf0ff4ad565ec2f8eb62b6403b0b9ebeb9e8c",
+      "status": "failed"
+    }
+  ],
   "receipt_hashes": {
     "docs/as1-context-receipt.json": "836ea773c3db5f63d759b5c7b3227303e28af651e3d83aa6947b329a8796fffa",
     "docs/as1-contract-receipt.json": "0876bb44fa30f09f9307849aadd5b24661c8d49e0b38636c46ef18ed401c4c5f",
@@ -461,7 +471,7 @@
     "tests/test_observer_analysis_registry.py": "24fa11892bfa473a2733efcd3bde964e66320f7d674fd01df233f3641b565aa7"
   },
   "source_history": {
-    "current_paired_proof_status": "Actual Q14 proof and native SQA4 passed; independent review executed_verified; PC native8 gate ready and unexecuted",
+    "current_paired_proof_status": "Q14 and nativeSQA passed; first PC native8 gate failed only obsolete CPU supplemental callback; targeted correctedfixture passed, requirednativegate rerun pending",
     "current_pc_commit": "3905649ff9b03e3acec4211553a52cf2389489e9",
     "current_skills_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828",
     "previous_index": "conformance-index-pre-realproof.json",
@@ -592,5 +602,16 @@
       "reason": "Persist scoped public observer conversation through native checkpoint and reopen while retaining immutable observation proof",
       "source_commit": "3905649ff9b03e3acec4211553a52cf2389489e9"
     }
-  ]
+  ],
+  "targeted_consumer_repair": {
+    "limits": [
+      "Only failed CPU supplement executed; no full gate rerun or all-E2E acceptance claimed.",
+      "Actual native installed port and sandbox preserve completed source selection before mutation, exact retained source hash, stale_resource result with no excerpt."
+    ],
+    "original": "/tmp/pc-as1-qualification-stale-fixture-cases.json",
+    "path": "qualification-stale-fixture-cases.json",
+    "sha256": "fe669ac1640d6962ba6d148d28a3726794fc7636853280a8d82ca4b1bb8b41fd",
+    "status": "passed",
+    "test": "test_skill_selected_resource_change_fails_direct_authority"
+  }
 }
