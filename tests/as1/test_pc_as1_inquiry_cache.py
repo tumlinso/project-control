@@ -1,16 +1,21 @@
 """CPU-only inquiry identity, capacity, refresh, lease and retrieval contracts."""
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
+from pathlib import Path
 import sqlite3
 import threading
 import time
 
 import pytest
 
-from project_control.as1_jobs import JobService
+from project_control.as1_jobs import (JobService, TrustedObserverFactory,
+    WORKER_JOB_INPUT_MAX_BYTES, WORKER_OBSERVATION_MAX_BYTES)
 from project_control.as1_packets import SQLitePacketStore
+from project_control.as1_surface import public_inquiry
 
 SCOPE = {'principal': 'alice', 'profile': 'observer', 'project': 'pc'}
+SKILLS = Path('/home/tumlinson/.agents/skills')
 
 
 def make(tmp_path, **kwargs):
@@ -34,6 +39,13 @@ def blocking(entered, release, requests):
                 return {'status': 'completed', 'answer': 'answer '+job.question}
         return Worker()
     return factory
+
+
+def trusted_worker(tmp_path, backend, calls):
+    source = SKILLS/'local-coding-worker/local_worker/observer_runtime.py'
+    return TrustedObserverFactory(SKILLS, hashlib.sha256(source.read_bytes()).hexdigest(),
+        backend=backend, roots=[tmp_path], tools=lambda name, arguments, scope: calls.append((name, arguments, scope))
+        or {'text': 'observed answer text', 'nested': {'packet_id': 'nested-packet-id'}})
 
 
 def test_literal_identity_read_only_duplicates_and_refresh(tmp_path):
@@ -332,6 +344,408 @@ def test_empty_terminal_negative_cache_never_restarts_or_checks_freshness(tmp_pa
     finally:s.shutdown()
 
 
+def test_private_failure_diagnostics_are_bounded_safe_and_restart_durable(tmp_path):
+    reasons = {
+        'context target': 'context_budget',
+        'finding target': 'finding_requires_observed_packet',
+        'json target': 'json.loads_extra_data',
+        'legacy json target': 'Extra data: line 1 column 24 (char 23)',
+        'deadline target': 'attempt_or_deadline_exhausted',
+        'unknown target': 'private prompt fragment: user supplied text',
+    }
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                return {'status': 'failed', 'reason': reasons[job.question]}
+        return Worker()
+
+    s = make(tmp_path, worker_factory=factory).start()
+    ids = {}
+    try:
+        for question in reasons:
+            assert s.inquire(question, SCOPE, foreground_timeout=2) == {
+                'status': 'unavailable', 'reason': 'analysis_unavailable'}
+            with s._db() as db:
+                row = db.execute("SELECT id FROM jobs WHERE json_extract(record,'$.question')=?", (question,)).fetchone()
+            ids[question] = row['id']
+        diagnostics = s.inquiry_failure_diagnostics(limit=50)
+        by_id = {row['job_id']: row for row in diagnostics}
+        assert by_id[ids['context target']]['failure_class'] == 'context_budget'
+        assert by_id[ids['finding target']]['failure_class'] == 'finding_requires_observed_packet'
+        assert by_id[ids['json target']]['failure_class'] == 'model_output_invalid_json'
+        assert by_id[ids['legacy json target']]['failure_class'] == 'model_output_invalid_json'
+        assert by_id[ids['deadline target']]['failure_class'] == 'attempt_or_deadline_exhausted'
+        assert by_id[ids['unknown target']]['failure_class'] == 'worker_failure'
+        assert all(set(row) == {'job_id', 'mode', 'status', 'failure_class'} for row in diagnostics)
+        assert all(row['mode'] == 'investigate' and row['status'] == 'failed' for row in diagnostics)
+        assert len(s.inquiry_failure_diagnostics(limit=2)) <= 2
+        with pytest.raises(ValueError):
+            s.inquiry_failure_diagnostics(limit=51)
+        assert 'private prompt fragment' not in json.dumps(diagnostics)
+        assert all(question not in json.dumps(diagnostics) for question in reasons)
+    finally:
+        s.shutdown()
+
+    reopened = make(tmp_path)
+    diagnostics = reopened.inquiry_failure_diagnostics(limit=50)
+    by_id = {row['job_id']: row for row in diagnostics}
+    assert by_id[ids['unknown target']]['failure_class'] == 'worker_failure'
+    assert 'private prompt fragment' not in json.dumps(diagnostics)
+
+
+def test_failure_diagnostics_limit_counts_only_negative_terminal_jobs(tmp_path):
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                if job.question == 'supported partial':
+                    return {'status': 'partial', 'answer': 'supported partial answer'}
+                if job.question == 'completed with evidence only':
+                    service.observe(job.job_id, job.attempt, {'text': 'observed evidence, no answer'})
+                    return {'status': 'completed'}
+                if job.question == 'whitespace answer':
+                    return {'status': 'completed', 'answer': '\n\t\u2003'}
+                return {'status': 'failed', 'reason': 'final_round_requires_answer'}
+        return Worker()
+
+    s = make(tmp_path, worker_factory=factory).start()
+    try:
+        assert s.inquire('negative target', SCOPE, foreground_timeout=2)['status'] == 'unavailable'
+        assert s.inquire('completed with evidence only', SCOPE, foreground_timeout=2)['status'] == 'unavailable'
+        assert s.inquire('whitespace answer', SCOPE, foreground_timeout=2)['status'] == 'unavailable'
+        assert s.inquire('supported partial', SCOPE, foreground_timeout=2)['status'] == 'partial'
+        with s._db() as db:
+            db.execute("UPDATE jobs SET updated=1 WHERE json_extract(record,'$.question')='negative target'")
+            db.execute("UPDATE jobs SET updated=3 WHERE json_extract(record,'$.question')='completed with evidence only'")
+            db.execute("UPDATE jobs SET updated=2 WHERE json_extract(record,'$.question')='whitespace answer'")
+            db.execute("UPDATE jobs SET updated=4 WHERE json_extract(record,'$.question')='supported partial'")
+        rows = s.inquiry_failure_diagnostics(limit=1)
+        assert len(rows) == 1
+        assert rows[0]['failure_class'] == 'worker_failure'
+        with s._db() as db:
+            negative_id = db.execute("SELECT id FROM jobs WHERE json_extract(record,'$.question')='negative target'").fetchone()[0]
+            evidence_only_id = db.execute("SELECT id FROM jobs WHERE json_extract(record,'$.question')='completed with evidence only'").fetchone()[0]
+            whitespace_id = db.execute("SELECT id FROM jobs WHERE json_extract(record,'$.question')='whitespace answer'").fetchone()[0]
+        ids = {row['job_id'] for row in s.inquiry_failure_diagnostics(limit=50)}
+        assert {negative_id, evidence_only_id, whitespace_id} <= ids
+        assert rows[0]['job_id'] == evidence_only_id
+        by_id = {row['job_id']: row for row in s.inquiry_failure_diagnostics(limit=50)}
+        assert by_id[negative_id]['failure_class'] == 'final_answer_missing'
+    finally:
+        s.shutdown()
+
+
+def test_real_worker_port_repairs_json_and_citations_then_assembles_result(tmp_path):
+    dispatches = []
+
+    class Backend:
+        def __init__(self):
+            self.requests = []
+            self.observation_id = None
+
+        def run_observer_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                # The first valid-looking tool call must be rejected with its
+                # trailing object; no tool is dispatched from a JSON prefix.
+                return {'status': 'available', 'text': '{"tool":"search","arguments":{"query":"README"}} {}'}
+            if turn == 2:
+                feedback = [json.loads(message['content']) for message in request['messages']
+                    if message['role'] == 'user' and 'protocol_error' in message['content']]
+                assert feedback and feedback[-1]['protocol_error'] == 'invalid_json_object'
+                assert dispatches == []
+                return {'status': 'available', 'text': json.dumps({'tool': 'search', 'arguments': {'query': 'README'}})}
+            if turn == 3:
+                for index, message in enumerate(request['messages'][:-1]):
+                    if message['role'] == 'assistant' and json.loads(message['content']).get('tool') == 'search':
+                        self.observation_id = json.loads(request['messages'][index + 1]['content'])['packet_id']
+                        break
+                assert self.observation_id
+                # This nested source/tool ID is deliberately not the broker's
+                # outer observation packet ID and must fail citation validation.
+                invalid = {'answer': 'A draft answer.', 'findings': [
+                    {'text': 'Observed fact.', 'evidence_packets': ['nested-packet-id']}],
+                    'unresolved_questions': []}
+                return {'status': 'available', 'text': json.dumps(invalid)}
+            assert turn == 4
+            retained = [json.loads(message['content']) for message in request['messages']
+                if message['role'] == 'user' and 'retained_observation' in message['content']]
+            assert any(item['retained_observation'].get('reason') == 'investigate_final_validation_failed'
+                and item['retained_observation'].get('failure_classification') == 'finding_requires_observed_packet'
+                for item in retained)
+            valid = {'answer': 'The README was observed.', 'findings': [
+                {'text': 'The README supports this answer.', 'evidence_packets': [self.observation_id]}],
+                'unresolved_questions': []}
+            return {'status': 'available', 'text': json.dumps(valid)}
+
+    backend = Backend()
+    worker_factory = trusted_worker(tmp_path, backend, dispatches)
+    s = make(tmp_path, worker_factory=worker_factory).start()
+    try:
+        value = s.inquire('What does the README say?', SCOPE, foreground_timeout=3)
+        assert value['status'] == 'completed'
+        assert len(backend.requests) == 4
+        assert [name for name, _, _ in dispatches] == ['search']
+        job = value['job']
+        assert job['answer'] == 'The README was observed.'
+        assert job['result_packet']
+        result = s.packets.lookup(job['result_packet'], access_scope=SCOPE)
+        assert result.status == 'ok'
+        assert result.packet.payload['answer'] == job['answer']
+        public = public_inquiry({**result.packet.payload, 'status': value['status'],
+            'packet_id': result.packet.packet_id, 'alias': result.packet.alias,
+            'evidence_packets': job['evidence_packets'],
+            'sources': [source.model_dump(exclude_none=True) for source in result.packet.sources]})
+        assert public['status'] == 'completed' and public['answer'] == job['answer']
+        assert public['findings'][0]['evidence_packets'] == [backend.observation_id]
+        assert not {'job', 'job_id', 'observations', 'attempt'} & public.keys()
+    finally:
+        s.shutdown()
+
+
+def test_real_worker_port_unrepairable_json_becomes_negative_cache(tmp_path):
+    entered, release = threading.Event(), threading.Event()
+
+    class Backend:
+        def __init__(self):
+            self.calls = 0
+        def run_observer_turn(self, request):
+            self.calls += 1
+            entered.set()
+            release.wait(5)
+            return {'status': 'available', 'text': '{"answer":"unterminated"'}
+
+    backend = Backend()
+    worker_factory = trusted_worker(tmp_path, backend, [])
+    s = make(tmp_path, worker_factory=worker_factory, retry_seconds=0).start()
+    try:
+        assert s.inquire('unrepairable JSON question', SCOPE, foreground_timeout=0)['status'] == 'thinking'
+        assert entered.wait(2)
+        release.set()
+
+        def terminal_job():
+            with s._db() as db:
+                row = db.execute("SELECT record FROM jobs WHERE json_extract(record,'$.question')=?",
+                    ('unrepairable JSON question',)).fetchone()
+            if not row:
+                return None
+            job = json.loads(row['record'])
+            return job if job['status'] in {'failed', 'partial', 'completed'} and s._settled(job['job_id']) else None
+
+        job = wait(terminal_job)
+        assert job['status'] == 'failed'
+        assert job['failure_reason'] == 'model_output_invalid_json'
+        assert s.inquire('unrepairable JSON question', SCOPE) == {
+            'status': 'unavailable', 'reason': 'analysis_unavailable'}
+        calls = backend.calls
+        time.sleep(.05)
+        assert s.inquire('unrepairable JSON question', SCOPE) == {
+            'status': 'unavailable', 'reason': 'analysis_unavailable'}
+        assert backend.calls == calls and calls == 6
+        diagnostic = s.inquiry_failure_diagnostics(limit=50)
+        assert any(row['job_id'] == job['job_id'] and row['failure_class'] == 'model_output_invalid_json'
+            for row in diagnostic)
+    finally:
+        release.set()
+        s.shutdown()
+
+
+def test_resumed_worker_projects_large_raw_observations_without_losing_evidence(tmp_path):
+    first_entered, first_release = threading.Event(), threading.Event()
+    second_entered, second_release = threading.Event(), threading.Event()
+    dispatches, worker_requests = [], []
+
+    class Backend:
+        def __init__(self):
+            self.opens = 0
+            self.sessions = {}
+            self.model_requests = []
+            self.large_id = None
+
+        def open_sessions(self, count, **policy):
+            self.opens += 1
+            session = f'resume-{self.opens}'
+            self.sessions[session] = self.opens
+            if self.opens == 1:
+                first_entered.set()
+                first_release.wait(5)
+                return {'status': 'available', 'session_ids': [session]}
+            if self.opens == 2:
+                second_entered.set()
+                second_release.wait(5)
+                return {'status': 'available', 'session_ids': [session]}
+            raise AssertionError('unexpected inference retry')
+
+        def close_session(self, session):
+            return {'released': True}
+
+        def preemption_status(self, session):
+            return {'preempt_requested': self.sessions[session] == 1}
+
+        def run_observer_turn(self, request):
+            self.model_requests.append(request)
+            assert len(request['messages']) <= 24
+            assert len(json.dumps(request, ensure_ascii=False).encode()) <= 90000
+            if len(self.model_requests) == 1:
+                observations = []
+                for message in request['messages']:
+                    if message['role'] != 'user':
+                        continue
+                    try:
+                        payload = json.loads(message['content'])
+                    except ValueError:
+                        continue
+                    observation = payload.get('retained_observation', payload)
+                    if isinstance(observation, dict) and observation.get('packet_id'):
+                        observations.append(observation)
+                marker = next(o for o in observations if o.get('packet_id') == self.large_id)
+                assert marker == {'packet_id': self.large_id,
+                    'omissions': ['tool payload exceeded worker context budget']}
+                progress = next(payload['progress'] for message in request['messages'] if message['role'] == 'user'
+                    for payload in [json.loads(message['content'])]
+                    if isinstance(payload, dict) and 'progress' in payload
+                    and 'allowed_observation_packet_ids' in payload['progress'])
+                assert self.large_id not in progress['allowed_observation_packet_ids']
+                assert progress['input_omitted_observation_packet_ids'] == worker_requests[1][
+                    'omitted_observation_packet_ids']
+                return {'status': 'available', 'text': json.dumps({'answer': 'Draft.', 'findings': [
+                    {'text': 'This omitted body supports the claim.', 'evidence_packets': [self.large_id]}],
+                    'unresolved_questions': []})}
+            assert len(self.model_requests) == 2
+            correction = [json.loads(message['content']) for message in request['messages']
+                if message['role'] == 'user' and 'retained_observation' in message['content']]
+            assert any(item['retained_observation'].get('failure_classification') == 'finding_requires_observed_packet'
+                for item in correction)
+            progress = next(payload['progress'] for message in request['messages'] if message['role'] == 'user'
+                for payload in [json.loads(message['content'])]
+                if isinstance(payload, dict) and 'progress' in payload
+                and 'allowed_observation_packet_ids' in payload['progress'])
+            allowed = progress['allowed_observation_packet_ids']
+            assert allowed and self.large_id not in allowed
+            return {'status': 'available', 'text': json.dumps({'answer': 'Retained source evidence supports this answer.',
+                'findings': [{'text': 'A retained observation supports this answer.',
+                    'evidence_packets': [allowed[-1]]}], 'unresolved_questions': []})}
+
+    backend = Backend()
+    base_factory = trusted_worker(tmp_path, backend, dispatches)
+    def capture_factory(service, job):
+        worker = base_factory(service, job)
+        run = worker.run
+        def captured(request):
+            worker_requests.append(request)
+            return run(request)
+        worker.run = captured
+        return worker
+
+    s = make(tmp_path, worker_factory=capture_factory, backend=backend, retry_seconds=0).start()
+    try:
+        assert s.inquire('Resume with accumulated evidence', SCOPE, foreground_timeout=0)['status'] == 'thinking'
+        assert first_entered.wait(2)
+        with s._db() as db:
+            row = db.execute("SELECT id,record FROM jobs WHERE json_extract(record,'$.question')=?",
+                ('Resume with accumulated evidence',)).fetchone()
+        job = json.loads(row['record'])
+        seed = s.observe(row['id'], job['attempt'], {'text': 'small preemption checkpoint'})
+        seed_frame = s.lookup(row['id'], access_scope=SCOPE)['observations'][0]
+        s.checkpoint(row['id'], job['attempt'], [{**seed_frame,
+            'public_tool_call': {'tool': 'search', 'arguments': {'query': 'retained'}}}], access_scope=SCOPE)
+        first_release.set()
+        assert second_entered.wait(5)
+        with s._db() as db:
+            current = json.loads(db.execute('SELECT record FROM jobs WHERE id=?', (row['id'],)).fetchone()[0])
+        assert current['attempt'] == 2
+        small_ids = [s.observe(row['id'], current['attempt'], {'text': 'x'*13000, 'index': n})
+            for n in range(20)]
+        current_observations = s.lookup(row['id'], access_scope=SCOPE)['observations']
+        checkpoint_subset = [current_observations[-2], current_observations[-1]]
+        s.checkpoint(row['id'], current['attempt'], [
+            {**checkpoint_subset[0], 'public_tool_call': {'tool': 'search', 'arguments': {'query': 'recent one'}}},
+            {**checkpoint_subset[1], 'public_tool_call': {'tool': 'search', 'arguments': {'query': 'recent two'}}},
+        ], access_scope=SCOPE)
+        fake_call = {'tool': 'overview', 'arguments': {}}
+        fake_id = s.observe(row['id'], current['attempt'], {'text': 'raw packet payload',
+            'public_tool_call': fake_call})
+        backend.large_id = s.observe(row['id'], current['attempt'], {'text': 'z'*40000, 'source_reads': [
+            {'path': 'README.md', 'content_sha256': 'a'*64}]})
+        second_release.set()
+
+        result = wait(lambda: (v if (v := s.lookup(row['id'], access_scope=SCOPE))['job']['status']
+            in {'completed', 'partial', 'failed'} else None))
+        assert result['job']['status'] == 'completed', ({key: result['job'].get(key) for key in
+            ('status', 'failure_reason', 'terminal_reason', 'answer', 'unresolved_questions')},
+            s.last_error, len(worker_requests), len(backend.model_requests), backend.opens)
+        assert result['job']['attempt'] == 2
+        assert len(worker_requests) == 2
+        projected = worker_requests[1]
+        assert len(json.dumps(projected, ensure_ascii=False).encode()) <= WORKER_JOB_INPUT_MAX_BYTES
+        assert all(len(json.dumps(observation, ensure_ascii=False).encode()) <= WORKER_OBSERVATION_MAX_BYTES
+            for observation in projected['observations'])
+        assert len(projected['observations']) < 22
+        all_ids = [seed, *small_ids, fake_id, backend.large_id]
+        selected_ids = [frame['packet_id'] for frame in projected['observations']]
+        assert projected['omitted_observation_packet_ids'] == all_ids[:len(all_ids)-len(selected_ids)]
+        assert selected_ids == all_ids[len(projected['omitted_observation_packet_ids']):]
+        assert projected['observations'][-1] == {'packet_id': backend.large_id,
+            'omissions': ['tool payload exceeded worker context budget']}
+        projected_by_id = {frame['packet_id']: frame for frame in projected['observations']}
+        assert fake_id in projected_by_id and 'public_tool_call' not in projected_by_id[fake_id]
+        assert projected_by_id[checkpoint_subset[0]['packet_id']]['public_tool_call'] == {
+            'tool': 'search', 'arguments': {'query': 'recent one'}}
+        assert projected_by_id[checkpoint_subset[1]['packet_id']]['public_tool_call'] == {
+            'tool': 'search', 'arguments': {'query': 'recent two'}}
+        assert seed in {frame['packet_id'] for frame in s.lookup(row['id'], access_scope=SCOPE)['observations']}
+        assert len(backend.model_requests) == 2 and not dispatches
+        assert len(small_ids) == 20
+
+        with s._db() as db:
+            raw = json.loads(db.execute('SELECT observations FROM jobs WHERE id=?', (row['id'],)).fetchone()[0])
+        assert len(raw) == 24
+        large_raw = next(observation for observation in raw if observation['packet_id'] == backend.large_id)
+        assert large_raw['text'] == 'z'*40000 and len(json.dumps(large_raw).encode()) > WORKER_OBSERVATION_MAX_BYTES
+        stored_fake = next(observation for observation in raw if observation['packet_id'] == fake_id)
+        assert stored_fake['public_tool_call'] == fake_call
+        packet = s.packets.lookup(backend.large_id, access_scope=SCOPE)
+        assert packet.status == 'ok' and packet.packet.payload['text'] == 'z'*40000
+        assert result['job']['findings'][0]['evidence_packets'][-1] != backend.large_id
+    finally:
+        first_release.set()
+        second_release.set()
+        s.shutdown()
+
+
+def test_oversized_trusted_worker_base_fails_without_model_dispatch(tmp_path):
+    class Backend:
+        def __init__(self):
+            self.turns = 0
+        def open_sessions(self, count, **policy):
+            return {'status': 'available', 'session_ids': ['oversized-base']}
+        def close_session(self, session):
+            return {'released': True}
+        def run_observer_turn(self, request):
+            self.turns += 1
+            raise AssertionError('oversized trusted base reached inference')
+
+    backend = Backend()
+    def unavailable_factory(service, job):
+        raise AssertionError('oversized trusted base constructed a worker')
+    s = make(tmp_path, worker_factory=unavailable_factory, backend=backend,
+        inquiry_context_provider=lambda job: {'inquiry_repositories': [
+            {'project': 'pc', 'repository': 'pc', 'root': 'x'*(WORKER_JOB_INPUT_MAX_BYTES+1)}]}).start()
+    try:
+        assert s.inquire('large trusted context', SCOPE, foreground_timeout=2) == {
+            'status': 'unavailable', 'reason': 'analysis_unavailable'}
+        with s._db() as db:
+            row = db.execute("SELECT id,record FROM jobs WHERE json_extract(record,'$.question')=?",
+                ('large trusted context',)).fetchone()
+        job = json.loads(row['record'])
+        assert job['failure_reason'] == 'job_input_budget_exhausted'
+        assert backend.turns == 0
+        assert s.inquiry_failure_diagnostics(limit=50) == [{'job_id': row['id'], 'mode': 'investigate',
+            'status': 'failed', 'failure_class': 'job_input_budget_exhausted'}]
+    finally:
+        s.shutdown()
+
+
 def test_operator_releases_only_selected_matching_negative_inquiries(tmp_path):
     pending_entered, pending_release = threading.Event(), threading.Event()
     calls = {}
@@ -381,9 +795,11 @@ def test_operator_releases_only_selected_matching_negative_inquiries(tmp_path):
             ids['changed reason target']: 'json.loads_extra_data',
         })
         assert recovered == [old_id]
+        assert old_id not in {row['job_id'] for row in s.inquiry_failure_diagnostics(limit=50)}
         with s._db() as db:
             assert [tuple(row) for row in db.execute('SELECT * FROM jobs ORDER BY id')] == before_jobs
             assert [tuple(row) for row in db.execute('SELECT * FROM outbox ORDER BY id')] == before_packets
+            assert s.lookup(old_id, access_scope=SCOPE)['status'] == 'ok'
             retained = {row[0] for row in db.execute('SELECT job FROM inquiry_index')}
         assert retained == {ids['supported repair target'], ids['pending repair target'], ids['changed reason target']}
         assert s.lookup(old_id, access_scope=SCOPE)['status'] == 'ok'

@@ -23,14 +23,27 @@ tool arguments; payload privacy filtering continues separately. Hidden reasoning
 and unrelated private payload fields cannot be added through a checkpoint: the
 payload must still match its already filtered broker observation. Actual accepted
 call provenance relies on the qualified private worker callback, not merely on a
-valid packet ID or JSON shape.
+valid packet ID or JSON shape. The reserved top-level `public_tool_call` field
+is checkpoint metadata; a same-named field in raw packet content is stripped
+from worker replay and does not create assistant-call history. Removing that
+reserved field never relaxes exact comparison of the remaining observation
+payload.
 
-Limits match the worker conversation: at most 24 frames, 32768 bytes per frame,
-and 60000 bytes per checkpoint. The broker's cumulative storage cap also counts
-checkpoint bytes. Validation, storage checks, saving frames and renewing the
-lease happen in one short transaction, without model or packet-store operations.
-A failed checkpoint leaves the previous frames and lease intact. An expired or
-superseded attempt cannot commit.
+The broker accepts at most 24 checkpoint frames, 32768 bytes per frame, and
+96 KiB total per checkpoint. The worker's service-held job input is separately
+bounded at 256 KiB so it can carry a checkpoint together with hints and trusted
+context. Before inference, the worker projects at most 24 messages into a
+90,000-byte model request; the existing 2048-token/16-KiB model output bounds
+remain unchanged. When retained observations exceed the checkpoint aggregate
+cap, the worker checkpoints an ordered subset and the broker keeps every
+canonical observation separately. If the complete service-held request still
+requires dropping older frames, their exact packet IDs accompany the request as
+omitted context; the model cannot use those IDs as evidence or citations. The
+broker's cumulative storage cap also counts checkpoint bytes. Validation,
+storage checks, saving frames and renewing the lease happen in one short
+transaction, without model or packet-store operations. A failed checkpoint
+leaves the previous frames and lease intact. An expired or superseded attempt
+cannot commit.
 
 Scoped lookup/poll overlays saved frames by packet ID on canonical observations.
 Dispatch resumes from this same view and still supplies only the latest 24
@@ -39,7 +52,7 @@ raw observation; it does not acquire a fabricated call. Databases predating this
 additive table and jobs without checkpoints likewise retain legacy raw behavior.
 The native worker replays annotated frames as assistant calls followed by public
 user results, while legacy/internal observations remain labeled observations.
-Its existing request and turn budgets remain in force.
+Its bounded model request and turn budgets remain in force.
 
 CPU tests exercise the installed qualified observer port, real Bubblewrap and
 SQLite: a command checkpoints, foreground preemption yields, both service and

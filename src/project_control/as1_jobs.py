@@ -24,9 +24,39 @@ TERMINAL = {'completed', 'partial', 'failed', 'cancelled'}
 SHARED_TOOLS = frozenset({'overview', 'delta', 'frontier', 'search', 'evidence', 'impact', 'history', 'machine'})
 CHECKPOINT_MAX_OBSERVATIONS = 24
 CHECKPOINT_MAX_FRAME_BYTES = 32768
-CHECKPOINT_MAX_BYTES = 60000
+CHECKPOINT_MAX_BYTES = 96 * 1024
+WORKER_JOB_INPUT_MAX_BYTES = 256 * 1024
+WORKER_OBSERVATION_MAX_BYTES = 32768
 _DB_LOCK = threading.RLock()
 BUSY = 'Read-only analysis is pending. Continue reasoning or other useful work and poll with job_id; reuse request_id for retries.'
+
+# Operator diagnostics intentionally expose only stable, non-content classes.
+# Raw worker/backend reasons remain in the private durable job record.
+_INQUIRY_FAILURE_CLASSES = {
+    'context_budget': 'context_budget',
+    'finding_requires_observed_packet': 'finding_requires_observed_packet',
+    'final_answer_missing': 'final_answer_missing',
+    'final_round_requires_answer': 'final_answer_missing',
+    'invalid_unresolved_questions': 'invalid_unresolved_questions',
+    'model_output_invalid_json': 'model_output_invalid_json',
+    'model_output_not_object': 'model_output_invalid_json',
+    'invalid_json_object': 'model_output_invalid_json',
+    'final_response_not_object': 'model_output_invalid_json',
+    'malformed_tool_envelope': 'model_output_invalid_json',
+    'json.loads_extra_data': 'model_output_invalid_json',
+    'JSONDecodeError': 'model_output_invalid_json',
+    'tool_denied_for_readonly_mode': 'tool_denied_for_readonly_mode',
+    'step_budget_exhausted': 'step_budget_exhausted',
+    'step_budget': 'step_budget_exhausted',
+    'runtime_identity_mismatch': 'runtime_mismatch',
+    'central_supervisor_runtime_mismatch': 'runtime_mismatch',
+    'central_supervisor_root_mismatch': 'runtime_mismatch',
+    'attempt_or_deadline_exhausted': 'attempt_or_deadline_exhausted',
+    'deadline_exhausted': 'deadline_exhausted',
+    'analysis_deadline_exhausted': 'deadline_exhausted',
+    'worker_deadline_exhausted': 'deadline_exhausted',
+    'job_input_budget_exhausted': 'job_input_budget_exhausted',
+}
 
 
 class InvalidToolArguments(ValueError):
@@ -494,6 +524,54 @@ class JobService:
                 and bool((job.get('answer') or '').strip()
                          or any(f['text'].strip() and f['evidence_packets'] for f in job['findings'])))
 
+    @staticmethod
+    def _inquiry_failure_class(job):
+        for reason in (job.get('failure_reason'), job.get('terminal_reason')):
+            if isinstance(reason, str):
+                if reason in _INQUIRY_FAILURE_CLASSES:
+                    return _INQUIRY_FAILURE_CLASSES[reason]
+                if reason.startswith(('Extra data:', 'JSONDecodeError:', 'json.JSONDecodeError:')):
+                    return 'model_output_invalid_json'
+                if (reason.endswith('_mismatch')
+                        and reason.startswith(('central_supervisor_', 'runtime_identity_'))):
+                    return 'runtime_mismatch'
+        return 'worker_failure'
+
+    def inquiry_failure_diagnostics(self, limit=20):
+        """Return bounded, content-free classifications for indexed negative jobs.
+
+        This is an operator-local service method, not an observer tool. It omits
+        questions, prompts, raw reasons, packets and model output by design.
+        """
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 50:
+            raise ValueError('limit must be an integer from 1 to 50')
+        with self._db() as db:
+            cursor = db.execute('''SELECT jobs.id,jobs.record FROM inquiry_index
+                JOIN jobs ON jobs.id=inquiry_index.job
+                WHERE json_extract(jobs.record,'$.status') IN ('completed','partial','failed','cancelled')
+                ORDER BY jobs.updated DESC,jobs.id DESC''')
+            negative_rows = []
+            while len(negative_rows) < limit:
+                batch = cursor.fetchmany(64)
+                if not batch:
+                    break
+                for row in batch:
+                    try:
+                        job = json.loads(row['record'])
+                        if (job.get('status') in TERMINAL and job.get('mode') in {'investigate', 'skill'}
+                                and not self._cache_eligible(job)):
+                            negative_rows.append((row['id'], job))
+                            if len(negative_rows) == limit:
+                                break
+                    except (TypeError, ValueError, AttributeError, KeyError):
+                        continue
+        diagnostics = []
+        for job_id, job in negative_rows:
+            mode, status = job.get('mode'), job.get('status')
+            diagnostics.append({'job_id': job_id, 'mode': mode, 'status': status,
+                'failure_class': self._inquiry_failure_class(job)})
+        return diagnostics
+
     def release_failed_inquiries(self, expected_terminal_reasons):
         """Remove selected, still-negative inquiries from the identity cache.
 
@@ -821,9 +899,10 @@ class JobService:
                     # Preserve the actual accepted public JSON, never a differently
                     # masked/reconstructed call. Only the packet payload is masked.
                     frame['public_tool_call'] = json.loads(json.dumps(call, ensure_ascii=False, allow_nan=False))
-                full = {**canonical[ident], **({'public_tool_call': frame['public_tool_call']} if 'public_tool_call' in frame else {})}
+                canonical_payload = {k: v for k, v in canonical[ident].items() if k != 'public_tool_call'}
+                full = {**canonical_payload, **({'public_tool_call': frame['public_tool_call']} if 'public_tool_call' in frame else {})}
                 omission = {'packet_id': ident, 'omissions': ['tool payload exceeded worker context budget']}
-                if payload != canonical[ident] and not (
+                if payload != canonical_payload and not (
                         payload == omission and len(json.dumps(full, ensure_ascii=False).encode()) > CHECKPOINT_MAX_FRAME_BYTES):
                     raise ValueError('checkpoint payload differs from broker observation')
                 if len(json.dumps(frame, ensure_ascii=False, allow_nan=False).encode()) > CHECKPOINT_MAX_FRAME_BYTES:
@@ -951,6 +1030,88 @@ class JobService:
             if job.job_id not in retained_ids:
                 self.packets.unpin(job.job_id)
 
+    @staticmethod
+    def _worker_request_bytes(request):
+        return len(json.dumps(request, ensure_ascii=False).encode())
+
+    def _checkpoint_public_calls(self, job_id):
+        with self._db() as db:
+            row = db.execute('SELECT frames FROM job_checkpoints WHERE job=?', (job_id,)).fetchone()
+        if row is None:
+            return {}
+        try:
+            frames = json.loads(row['frames'])
+        except (TypeError, ValueError):
+            return {}
+        allowed_tools = SHARED_TOOLS | {'command', 'log'}
+        result = {}
+        for frame in frames:
+            call = frame.get('public_tool_call') if isinstance(frame, dict) else None
+            packet_id = frame.get('packet_id') if isinstance(frame, dict) else None
+            if (isinstance(packet_id, str) and isinstance(call, dict) and set(call) == {'tool', 'arguments'}
+                    and isinstance(call.get('tool'), str) and call.get('tool') in allowed_tools
+                    and isinstance(call.get('arguments'), dict)):
+                result[packet_id] = call
+        return result
+
+    @classmethod
+    def _project_worker_request(cls, request, checkpoint_calls):
+        """Fit a private worker snapshot without changing durable observations."""
+        projected = dict(request)
+        normalized = []
+        for observation in request.get('observations', []):
+            if not isinstance(observation, dict):
+                normalized.append(observation)
+                continue
+            packet_id = observation.get('packet_id')
+            if not isinstance(packet_id, str) or not packet_id:
+                # Broker observations always have an identity. Keep the input
+                # invalid rather than fabricate one if durable state is corrupt.
+                normalized.append(observation)
+                continue
+            call = checkpoint_calls.get(packet_id)
+            # Raw packet payloads cannot mint assistant-call history. The only
+            # accepted call comes from the broker's validated checkpoint ledger.
+            payload = {key: value for key, value in observation.items() if key != 'public_tool_call'}
+            if call is not None:
+                with_call = {**payload, 'public_tool_call': call}
+                if cls._worker_request_bytes(with_call) <= WORKER_OBSERVATION_MAX_BYTES:
+                    normalized.append(with_call)
+                    continue
+            elif cls._worker_request_bytes(payload) <= WORKER_OBSERVATION_MAX_BYTES:
+                normalized.append(payload)
+                continue
+
+            marker = {'packet_id': packet_id,
+                'omissions': ['tool payload exceeded worker context budget']}
+            if call is not None:
+                with_call = {**marker, 'public_tool_call': call}
+                if cls._worker_request_bytes(with_call) <= WORKER_OBSERVATION_MAX_BYTES:
+                    marker = with_call
+            normalized.append(marker)
+
+        # A trusted base that cannot fit must fail before dispatch. It includes
+        # caller-independent trusted scope, hints, roots and schemas unchanged.
+        projected['observations'] = []
+        projected['omitted_observation_packet_ids'] = []
+        if cls._worker_request_bytes(projected) > WORKER_JOB_INPUT_MAX_BYTES:
+            return None
+
+        # Retain the newest ordered suffix that fits the complete serialized
+        # input. Omitted identities remain explicit model context, but are not
+        # source evidence. Recompute after each drop because that list costs bytes.
+        dropped = 0
+        while True:
+            projected['observations'] = normalized[dropped:]
+            projected['omitted_observation_packet_ids'] = [
+                observation['packet_id'] for observation in normalized[:dropped]
+                if isinstance(observation, dict) and isinstance(observation.get('packet_id'), str)]
+            if cls._worker_request_bytes(projected) <= WORKER_JOB_INPUT_MAX_BYTES:
+                return projected
+            if dropped >= len(normalized):
+                return None
+            dropped += 1
+
     def _execute(self, job):
         session = None
         heartbeat_stop = threading.Event()
@@ -985,6 +1146,12 @@ class JobService:
                 request['session_id'] = session
             if job.mode == 'skill':
                 request['skill'] = self.worker_factory.skills[job.skill]
+            request = self._project_worker_request(request, self._checkpoint_public_calls(job.job_id))
+            if request is None:
+                self.finish(job.job_id, job.attempt, {'status': 'failed',
+                    'reason': 'job_input_budget_exhausted',
+                    'unresolved_questions': ['Trusted inquiry inputs exceed the bounded worker request size.']})
+                return
             worker = self.worker_factory(self, job)
             self.finish(job.job_id, job.attempt, worker.run(request))
         except Exception as error:
