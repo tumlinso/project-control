@@ -1,0 +1,64 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "skills"
+  },
+  "tasks": [
+    {
+      "id": "SK-AS1-INQUIRY-CACHE",
+      "kind": "task",
+      "title": "Implement bounded read-only inquiry cache and incremental refresh",
+      "objective": "Implement exact coalescing, stale incremental refresh, lexical log retrieval, two execution slots plus four waiting,30s foreground and300s lifetime; validate and deploy paired observer runtime.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "local-coding-worker",
+          "planning/adaptive-surface-v1"
+        ],
+        "read_paths": [
+          "local-coding-worker",
+          "integrations"
+        ]
+      },
+      "depends_on": [],
+      "gates": [],
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated"
+        ]
+      },
+      "next_action": "Implement assigned scoped changes with Codex subagents, root integration and acceptance."
+    }
+  ],
+  "runs": [
+    {
+      "id": "SK-AS1-CACHE-RUN-1",
+      "root_task_id": "SK-AS1-INQUIRY-CACHE",
+      "charter": {
+        "objective": "Implement exact coalescing, stale incremental refresh, lexical log retrieval, two execution slots plus four waiting,30s foreground and300s lifetime; validate and deploy paired observer runtime.",
+        "motivation": "Read inquiries reuse prior supported work without exposing a durable job workflow.",
+        "boundaries": [
+          "No project/Todo writes by observer.",
+          "Preserve standalone Skills and unrelated work.",
+          "Service remains stopped until validated."
+        ],
+        "references": [
+          "planning/adaptive-surface-v1"
+        ]
+      },
+      "lanes": [
+        {
+          "id": "SK-AS1-CACHE-INTEGRATE",
+          "role": "integrator",
+          "workspace": {
+            "mode": "exclusive"
+          },
+          "tasks": [
+            "SK-AS1-INQUIRY-CACHE"
+          ]
+        }
+      ]
+    }
+  ]
+}
