@@ -58,21 +58,43 @@ Material temporal trace over existing semantic events and real Git ancestry. Rec
 
 Shared bounded host/system facts: GPU/interconnect/process summaries, capacity, toolchain versions, selected process/service/storage/network state and relevant diagnostics. Reuse fixed machine-inspection providers. No benchmark launching, arbitrary privileged command execution, GPU lease mutation or unrelated secret content. Include observation time because these facts are volatile. Compact defaults for every role. Optional views must not silently become the removed CUDA-specific performance dossier.
 
-### `investigate(question(s)?, project?, hints?, request_id?, job_id?, detail=compact)`
+### `investigate(question, project?, hints?, request_id?, detail=compact)`
 
-Observer and mutator may submit or poll read-only scout questions. Batch entries have independent question text and hint aliases. `job_id` polls an existing durable job without resubmission; explicit caller request IDs support retry-safe admission. Job scope is optional but resolved against trusted registered access. Busy is not failure: persist first, then return accepted/pending plus “Do not wait; continue reasoning or other useful work and ask again later using this ID.” Polling does not need a GPU.
+Observer and mutator read cached, read-only scout inquiries. Return supported
+`completed`/`partial` answers or `thinking`, `busy`, `unavailable`. Public callers
+do not supply job IDs or manage attempts, leases or queue positions. Only thinking
+advises continuing useful work and repeating the identical question later without
+variants. Busy means not accepted and suggests search/read/evidence to
+contextualize or refine a later question.
 
-No recursive `investigate` within investigator/skill modes. Do not expose model name, tensor/layer parallelism, warm-slot selection or GPU numbers as ordinary caller requirements. Those belong to registered runtime policy.
+The literal original question, exact trusted access scope, mode and selected
+skill determine identity. Details, request IDs and advisory hints do not duplicate
+an inquiry. Pending exact repeats preserve existing scheduler state; current
+answers return immediately. Stale supported answers refresh in a new generation
+seeded with old answer/evidence and changed-source information. Empty terminal
+results remain unavailable on exact repeat without automatic refresh. Failure
+causes stay in private diagnostics. The internal scheduler permits two executing
+and four waiting inquiries, a 30 second foreground wait and 300 second lifetime.
 
-### `skill(query?, skill?, hints?, request_id?, job_id?, detail=compact)`
+No recursive `investigate` within investigator/skill modes. Do not expose model
+name, tensor/layer parallelism, warm-slot selection or GPU numbers as ordinary
+caller requirements. Those belong to registered runtime policy.
 
-Observer-only local adapter. Omitted skill searches the installed catalog; an empty query can return catalog names/descriptions cheaply without loading a model. Specific queries use native routing. Return small separated synthesis plus authoritative direct resource text and exact locators. Same packet/job/retry mechanism as investigate, not another queue. See `spec/04`.
+### `skill(query?, skill?, project?, hints?, request_id?, detail=compact)`
+
+Observer-only cached inquiry adapter. Omitted skill uses installed catalog
+navigation; no query and no skill return catalog names/descriptions cheaply
+without loading a model. Specific queries use native routing. Return small
+separated synthesis plus authoritative direct resource text and exact locators,
+with the same inquiry identity, compact states and stale supported-answer refresh
+as investigate. Public calls do not accept polling IDs. Skill's original literal
+query is saved separately from augmented execution instructions. See `spec/04`.
 
 ## Shared internal/native tools
 
 `command(argv, cwd?, limits?)` is internal scout/skill-mode command execution in the existing OS sandbox, not an observer shell. Host code clamps resource limits. Use standard Unix/Git/parser tools by default. It may use disposable scratch; it cannot mutate host/project/Todo state or delegate.
 
-`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers compact recent investigation/skill-job findings with source refs. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known job through investigate/search or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
+`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers compact recent investigation/skill-job findings with source refs. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known private job record through exact search or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
 
 ## Workflow and mutator additions
 

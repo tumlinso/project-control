@@ -32,11 +32,17 @@ Missing, expired, unverifiable, changed or conflicting required material cannot
 be called fresh. Coarse arbitrary command provenance and volatile machine facts
 retain their conservative freshness behavior.
 
-A stale exact repeat schedules a new generation preseeded with the previous
+An exact repeat of a stale supported answer schedules a new generation preseeded with the previous
 answer, visible evidence and changed-source information. The agent checks what
 changed, preserves still-valid work and obtains missing evidence. This is visible
 context reuse, without cached hidden reasoning or opaque model state. Old
 answers remain attributed historical evidence while recomputation proceeds.
+
+An inquiry that terminates without a usable answer is a negative cached result:
+public calls return `unavailable`. An exact repeat preserves that result without
+automatically starting another generation or a refresh loop. Supported stale
+completed/partial answers can refresh as described above; empty terminal failures
+do not. Failure causes and backend diagnostics remain in internal records.
 
 The internal scheduler permits two executing inquiries and four waiting, with a
 30 second foreground wait and 300 second inquiry lifetime. Private job identities,

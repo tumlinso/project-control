@@ -2,7 +2,19 @@
 
 ## One observer adapter, native use elsewhere
 
-The final public skill interface is `skill(query?, skill?, hints?, request_id?, job_id?, detail?)`. No parallel `skill_list`, `skill_read`, or `skill_context` vocabulary on the new model surface. A catalog request returns all accessible installed skill names/descriptions with completeness/continuation; it does not silently omit rejected/unsupported registrations. Core catalog lookup can be deterministic without loading a GPU.
+The final public skill interface is `skill(query?, skill?, project?, hints?, request_id?, detail?)`. No parallel `skill_list`, `skill_read`, or `skill_context` vocabulary on the new model surface. A catalog request returns all accessible installed skill names/descriptions with completeness/continuation; it does not silently omit rejected/unsupported registrations. Core catalog lookup can be deterministic without loading a GPU.
+
+
+Specific skill requests read cached inquiries. Literal original query, trusted
+access scope, mode and selected skill determine identity; navigation augmentation
+is saved separately. Pending exact repeats return thinking without restarting
+work; current supported answers return immediately. Only thinking advises
+repeating the identical question later without variants. Busy means not accepted
+and suggests search/read/evidence to contextualize or refine a later question.
+Public calls have no polling ID or scheduler metadata. Stale supported answers
+refresh from old answer/evidence and changed-source information so valid work is
+preserved. Empty terminal results remain unavailable on exact repeat, without
+automatic refresh; failure causes stay in private diagnostics.
 
 Coder, mutator and local scout read installed skills natively with their command/filesystem capabilities. Remove skill text that sends those roles back through observer-only `skill_context/skill_read`. Change routing/front-door instructions, not technical guidance content unrelated to this redesign. Relevant native skill usage must be publishable through the existing context/coordination path without a separate tracking ritual.
 

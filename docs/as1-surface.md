@@ -59,18 +59,28 @@ unavailable sources, and exact continuations stay visible. Retained packet alias
 are scoped references to evidence, never mutation capabilities.
 
 `investigate(question="What invalidates this packet?", project="demo",
-request_id="packet-question-1")` submits read-only local analysis. Poll with
-`investigate(job_id=<returned ID>)`; keep the original resolved project scope.
-Accepted/pending means the durable broker retained the job. Continue other useful
-work and poll later. Admission errors and missing providers are explicit.
-Retrying the same request ID is scoped and does not create another job; changing
-the request under that ID is refused. Polling does not submit a new question.
+request_id="packet-question-1")` reads a cached inquiry. Public calls return a
+supported `completed`/`partial` answer or `thinking`, `busy`, `unavailable`; they
+do not accept a job ID or expose scheduler metadata. Only thinking advises
+continuing useful work and repeating the identical question later without
+variants. Busy means not accepted: use search, read or evidence to contextualize
+or refine a later question. Missing providers and unavailable results are explicit.
+
+Identity is the literal question, trusted access scope, mode and selected skill;
+detail, request IDs and advisory hints do not duplicate the inquiry. Pending
+exact repeats preserve its scheduler state. Current answers return immediately.
+A stale supported answer starts a new generation seeded with its old answer,
+evidence and changed-source information so the agent preserves still-valid work.
+The private scheduler permits two executing and four waiting inquiries, a
+30 second foreground wait and 300 second lifetime.
 
 Observer `skill()` cheaply lists the installed catalog. Use
 `skill(query="Volta register pressure", skill="cuda", request_id="volta-1")`
-and poll with its returned job ID. Investigation and skill use the same durable
-broker, attempt fencing, retry and retained-packet mechanism. Skill consultation
-is advisory and does not record applied skill use automatically.
+for a cached skill inquiry with the same literal-repeat and freshness behavior.
+Investigation and skill share the private durable broker and retained evidence;
+consultation remains advisory and does not record applied skill use automatically.
+See [as1-inquiry-cache.md](as1-inquiry-cache.md) for empty terminal results and
+material dependency freshness.
 
 Project Control brokers authorized access, persistence, freshness, exact source
 reads and provenance. The local read-only worker performs semantic navigation:
