@@ -5,9 +5,12 @@
 The final public skill interface is `skill(query?, skill?, project?, hints?, request_id?, detail?)`. No parallel `skill_list`, `skill_read`, or `skill_context` vocabulary on the new model surface. A catalog request returns all accessible installed skill names/descriptions with completeness/continuation; it does not silently omit rejected/unsupported registrations. Core catalog lookup can be deterministic without loading a GPU.
 
 
-Specific skill requests read cached inquiries. Literal original query, trusted
-access scope, mode and selected skill determine identity; navigation augmentation
-is saved separately. Pending exact repeats return thinking without restarting
+Specific skill requests use the single global cache/log of the last 50 answered
+inquiries across trusted callers and profiles. Original literal query, mode,
+selected skill and project/authority context determine identity; caller
+principal/profile do not. Navigation augmentation is saved separately. Caller
+project/source allowlists remain enforced for reuse, and private hints continue
+to protect their derived answers rather than forming a private cache partition. Pending exact repeats return thinking without restarting
 work; current supported answers return immediately. Only thinking advises
 repeating the identical question later without variants. Busy means not accepted
 and suggests search/read/evidence to contextualize or refine a later question.

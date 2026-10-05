@@ -67,9 +67,13 @@ advises continuing useful work and repeating the identical question later withou
 variants. Busy means not accepted and suggests search/read/evidence to
 contextualize or refine a later question.
 
-The literal original question, exact trusted access scope, mode and selected
-skill determine identity. Details, request IDs and advisory hints do not duplicate
-an inquiry. Pending exact repeats preserve existing scheduler state; current
+One global cache/log covers the last 50 answered inquiries across trusted
+callers and profiles. Original literal question, mode, selected skill and
+project/authority context determine identity, excluding caller principal/profile.
+Details, request IDs and advisory hints do not duplicate an inquiry. Caller
+project/source allowlists still apply to candidate reuse and evidence delivery.
+Private hints protect their derived answers without creating a separate cache
+identity or log partition. Pending exact repeats preserve existing scheduler state; current
 answers return immediately. Stale supported answers refresh in a new generation
 seeded with old answer/evidence and changed-source information. Empty terminal
 results remain unavailable on exact repeat without automatic refresh. Failure
@@ -94,7 +98,7 @@ query is saved separately from augmented execution instructions. See `spec/04`.
 
 `command(argv, cwd?, limits?)` is internal scout/skill-mode command execution in the existing OS sandbox, not an observer shell. Host code clamps resource limits. Use standard Unix/Git/parser tools by default. It may use disposable scratch; it cannot mutate host/project/Todo state or delegate.
 
-`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers compact recent investigation/skill-job findings with source refs. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known private job record through exact search or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
+`log(query?, job_id?, path_or_entity?, limit?)` gives internal scouts/skill assemblers up to five lexical matches from the single global window of the last 50 answered inquiries, with source refs filtered by caller project/source access and private-hint visibility. Reuse existing records only after freshness checks. Observer/mutator can retrieve a known private job record through exact search or discover logged work through search; do not add redundant public log UI unless necessary for a documented requirement.
 
 ## Workflow and mutator additions
 

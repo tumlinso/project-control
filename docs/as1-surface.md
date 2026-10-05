@@ -66,8 +66,12 @@ continuing useful work and repeating the identical question later without
 variants. Busy means not accepted: use search, read or evidence to contextualize
 or refine a later question. Missing providers and unavailable results are explicit.
 
-Identity is the literal question, trusted access scope, mode and selected skill;
-detail, request IDs and advisory hints do not duplicate the inquiry. Pending
+One global cache/log retains the last 50 answered inquiries across trusted
+callers and profiles. Identity is the original literal question, mode, selected
+skill and project/authority context; caller principal/profile are not cache keys.
+Detail, request IDs and advisory hints do not duplicate the inquiry. Caller
+project/source allowlists still govern reuse. Private hints and their derived
+answers remain protected; a global index does not grant access to private context. Pending
 exact repeats preserve its scheduler state. Current answers return immediately.
 A stale supported answer starts a new generation seeded with its old answer,
 evidence and changed-source information so the agent preserves still-valid work.

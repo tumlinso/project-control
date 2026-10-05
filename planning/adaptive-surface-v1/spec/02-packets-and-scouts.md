@@ -32,8 +32,13 @@ Busy means not accepted and suggests search/read/evidence to contextualize or
 refine a later question. Private scheduler records retain IDs, attempts, leases,
 source manifests, compact visible findings and restart recovery.
 
-Exact cache identity is literal question, trusted access scope, mode and selected
-skill. Store original skill queries separately from augmented execution questions.
+One global cache/log retains the last 50 answered inquiries across trusted
+callers/profiles. Exact cache identity is original literal question, mode, selected
+skill and project/authority context, excluding caller principal/profile. Caller
+project/source allowlists and private-hint-derived answer protection still govern
+reuse and delivery; the global index does not grant private access or create
+separate per-caller partitions. Store original skill queries separately from
+augmented execution questions.
 Details, advisory hints and request IDs do not duplicate inquiries. Pending exact
 repeats do not restart work, consume capacity, change order or extend expiry.
 Current answers return immediately. No similarity classifier merges questions.

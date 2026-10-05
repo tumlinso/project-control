@@ -29,8 +29,11 @@ and the last exception type without sensitive exception contents.
 
 The public observer uses `inquire(question, access_scope, mode, skill, hints,
 request_id, execution_question, foreground_timeout=30)` through the inquiry
-adapter. The literal question, access scope, mode and selected skill identify a
-cached inquiry. Public callers receive answers or `thinking`, `busy` and
+adapter. One global cache/log retains the last 50 answered inquiries across
+trusted callers/profiles. Original literal question, mode, selected skill and
+project/authority context identify the inquiry; principal/profile do not.
+Caller project/source allowlists and private-hint-derived answer protection
+remain enforced for reuse and delivery, without creating private cache partitions. Public callers receive answers or `thinking`, `busy` and
 `unavailable`, never job IDs, leases, attempts or queue positions. The observer
 contract and stale recomputation are described in [as1-inquiry-cache.md](as1-inquiry-cache.md).
 
