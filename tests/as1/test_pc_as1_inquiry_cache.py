@@ -267,7 +267,12 @@ def test_freshness_callback_outside_transaction_and_generation_cas(tmp_path):
     with s._db() as db: assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==1
 
 
-def test_unverifiable_terminal_freshness_does_not_start_identical_refresh(tmp_path):
+@pytest.mark.parametrize('changed_sources', [
+    [{'reference':'pkt_unverified', 'reason':'stale',
+      'dependencies':[{'dependency':'source', 'reason':'unverified'}]}],
+    [{'reason':'dependency_manifest_missing'}],
+], ids=['nested_unverified', 'missing_manifest'])
+def test_unverifiable_terminal_freshness_does_not_start_identical_refresh(tmp_path, changed_sources):
     calls=[]
     def factory(service, job):
         class Worker:
@@ -276,8 +281,7 @@ def test_unverifiable_terminal_freshness_does_not_start_identical_refresh(tmp_pa
                 return {'status':'completed','answer':'retained answer'}
         return Worker()
     s=make(tmp_path,worker_factory=factory,freshness_provider=lambda job:{
-        'fresh':False,'changed_sources':[{'reference':'pkt_unverified', 'reason':'stale',
-            'dependencies':[{'dependency':'source', 'reason':'unverified'}]}]}).start()
+        'fresh':False,'changed_sources':changed_sources}).start()
     try:
         assert s.inquire('same evidence question',SCOPE,foreground_timeout=2)['status']=='completed'
         retry=s.inquire('same evidence question',SCOPE,foreground_timeout=0)

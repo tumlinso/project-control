@@ -559,7 +559,8 @@ class JobService:
             if not isinstance(item, dict):
                 return False
             reason = item.get('reason')
-            if reason in {'unverified', 'selection_proof_missing', 'selection_manifest_missing'}:
+            if reason in {'unverified', 'selection_proof_missing', 'selection_manifest_missing',
+                          'dependency_manifest_missing'}:
                 return True
             if reason == 'volatile_observation_expired':
                 ref = item.get('reference')
