@@ -1,0 +1,100 @@
+{
+  "format": "pc-as1-qualification-completion/1",
+  "status": "passed",
+  "native_evidence_id": "7d540a0e-5bae-4171-acff-4432311596d1",
+  "native_report": "pc-native-qualification-final.json",
+  "native_report_sha256": "945538efb44394140fd21ef91e40bb65e851ebf33024b900bcc21b256a96b82e",
+  "actual_test_summary": "8 passed in22.41s",
+  "required_cases": [
+    "E2E-01",
+    "E2E-02",
+    "E2E-03",
+    "E2E-04",
+    "E2E-05"
+  ],
+  "reports": [
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/compiler-journey.json",
+      "sha256": "d090b9a4651d8c225ec83dbd06cc1f07001721687ea48d91c40568e94e4b6eeb",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/compiler-journey-native-final-d090b9a4651d8c225ec83dbd06cc1f07001721687ea48d91c40568e94e4b6eeb.json",
+      "private_capture_sha256": "d090b9a4651d8c225ec83dbd06cc1f07001721687ea48d91c40568e94e4b6eeb",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    },
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/economics-comparison.json",
+      "sha256": "1b656c5f1e0dc7411309928f7270eebeac8ea3976307acb08a249591567f7e80",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/economics-comparison-native-final-1b656c5f1e0dc7411309928f7270eebeac8ea3976307acb08a249591567f7e80.json",
+      "private_capture_sha256": "1b656c5f1e0dc7411309928f7270eebeac8ea3976307acb08a249591567f7e80",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    },
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/economics-new.json",
+      "sha256": "33fca21fe34c422e45421fa85fecabd5a3a1333ca17ad4333a89afc5994546b0",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/economics-new-native-final-33fca21fe34c422e45421fa85fecabd5a3a1333ca17ad4333a89afc5994546b0.json",
+      "private_capture_sha256": "33fca21fe34c422e45421fa85fecabd5a3a1333ca17ad4333a89afc5994546b0",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    },
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/economics-old.json",
+      "sha256": "131bd31b8954efc3a339937268d9ebfabd1ef1b4045b7200f05aa5f9986b8830",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/economics-old-native-final-131bd31b8954efc3a339937268d9ebfabd1ef1b4045b7200f05aa5f9986b8830.json",
+      "private_capture_sha256": "131bd31b8954efc3a339937268d9ebfabd1ef1b4045b7200f05aa5f9986b8830",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    },
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/native-journey.json",
+      "sha256": "721143843260e0cd2529e72f90766e3ee8aefce1a6f22cdb6a5b64c5af49080a",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/native-journey-native-final-721143843260e0cd2529e72f90766e3ee8aefce1a6f22cdb6a5b64c5af49080a.json",
+      "private_capture_sha256": "721143843260e0cd2529e72f90766e3ee8aefce1a6f22cdb6a5b64c5af49080a",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    },
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/observer-journey.json",
+      "sha256": "b5a53c70962bc5cd826e378f963ec852f3f8157bbf56af78566e34245d60185d",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/observer-journey-native-final-b5a53c70962bc5cd826e378f963ec852f3f8157bbf56af78566e34245d60185d.json",
+      "private_capture_sha256": "b5a53c70962bc5cd826e378f963ec852f3f8157bbf56af78566e34245d60185d",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    },
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/conformance-consumption.json",
+      "sha256": "661c30b3896640e269e0bc05c192f02f255b43f86443821a53a56e10fa04add3",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/conformance-consumption-native-final-661c30b3896640e269e0bc05c192f02f255b43f86443821a53a56e10fa04add3.json",
+      "private_capture_sha256": "661c30b3896640e269e0bc05c192f02f255b43f86443821a53a56e10fa04add3",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    },
+    {
+      "path": "planning/adaptive-surface-v1/validation/qualification/paired-real-consumption.json",
+      "sha256": "db80f01ab60a605009c7008d46323e821b65a15cf133b95b6e1b387e549110a5",
+      "private_capture": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/paired-real-consumption-native-final-db80f01ab60a605009c7008d46323e821b65a15cf133b95b6e1b387e549110a5.json",
+      "private_capture_sha256": "db80f01ab60a605009c7008d46323e821b65a15cf133b95b6e1b387e549110a5",
+      "private_capture_mode": "0600",
+      "redacted_now": false
+    }
+  ],
+  "real_usage": {
+    "completion_tokens": 865,
+    "prompt_tokens": 25140,
+    "actual_turns": 12,
+    "model_ids": [
+      "qwen3-coder-30b-a3b-instruct-q4-k-m"
+    ],
+    "model_pids": [
+      540747,
+      541242
+    ],
+    "comparison_limit": "Actual paired model usage only; no matched historical model journey or pricing equivalence."
+  },
+  "limits": [
+    "Completion evidence only; accepted qualification test inputs/index/product files unchanged.",
+    "Disposable bearer fields remain SHA256-redacted; exact generated report captures preserved outsideGit mode0600.",
+    "Q14 queue has2completed/1honestpartial; Q11 exact skill source provenance is reused with unverified wrong-line narrative and partial synthesis.",
+    "No modelpricing/speedup/semanticanswer-quality claim; releaseactivation/rollback/lifecycle rootowned."
+  ]
+}

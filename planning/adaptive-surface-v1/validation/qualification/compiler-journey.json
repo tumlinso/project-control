@@ -2,16 +2,16 @@
   "command": [
     "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp",
     "--root",
-    "/tmp/pytest-of-tumlinson/pytest-88/test_observer_genuine_compiler0/native",
+    "/tmp/pytest-of-tumlinson/pytest-140/test_observer_genuine_compiler0/native",
     "--json",
     "scan",
     "."
   ],
   "returncode": 0,
-  "stdout": "{\"backend\":\"libclang-runtime\",\"cache_hits\":0,\"edges\":9,\"failures\":0,\"files\":2,\"format\":\"CTXPP-SCAN/1\",\"index\":\"/tmp/pytest-of-tumlinson/pytest-88/test_observer_genuine_compiler0/native/.ctxpp/index.jsonl\",\"symbols\":4}\n",
+  "stdout": "{\"backend\":\"libclang-runtime\",\"cache_hits\":0,\"edges\":9,\"failures\":0,\"files\":2,\"format\":\"CTXPP-SCAN/1\",\"index\":\"/tmp/pytest-of-tumlinson/pytest-140/test_observer_genuine_compiler0/native/.ctxpp/index.jsonl\",\"symbols\":4}\n",
   "stderr": "",
-  "index_sha256": "4c2a8f57ab73e58b3a5917535ebd9478cd1025db176e00da9f254351a105f7b8",
-  "manifest_sha256": "fd5bdbe5187858605b45b97c3272dc4fc4b14d0dee9756b381e6764e2410d56a",
+  "index_sha256": "4f9a3fa60312991af60068fee98d37b1048e29178451a132993f4a137df7892f",
+  "manifest_sha256": "714795f3c1f91d140e6ae4c14c29f9d473871ea035943f301db3cb64d81de7b6",
   "producer_identities": {
     "/home/tumlinson/.agents/skills/cpp-context-compiler/tool/build/ctxpp-core": "0d6f35eda2886f3fe7aed5a43218f775671be442caf16d1c20ad9fa9adfb1a48",
     "/home/tumlinson/.agents/skills/cpp-context-compiler/scripts/ctxpp": "bb58c191079a058b1d8aa0c3bd1a5ff4698f6ab4ff7a01b77d6c3ce785c5f864",
@@ -24,7 +24,7 @@
   "input_observations": [
     {
       "normalized_config_agrees": true,
-      "normalized_command_hash": "bc609a6baed6dd5afcc7395219ba0cfe24771fee268e1ae0fc0ba2ba80f0b18c",
+      "normalized_command_hash": "c0d3fd663c549d26146da5f6a774fbe8d8d9531975313c33d432a933c2040ae7",
       "runtime_library_and_system_headers": "unverified"
     }
   ],
@@ -34,9 +34,9 @@
       {
         "project": "native",
         "project_uuid": "fixture-native-compiler",
-        "repository": "source@45f03b218a777f6ac0d656b1",
+        "repository": "source@74b110bad8cf1379fee8215d",
         "provider": "syntax/1",
-        "generation": "23b3c1610cc966fb4a6a2dd85218d44c7a1354c7dfd5d943370d32b0d35a60ff",
+        "generation": "195ea197122f3d0755b897087b099f2d3664f7364c4848a21be4865008d41872",
         "relations": [
           "imports",
           "mentions",
@@ -53,7 +53,7 @@
           {
             "kind": "directory_membership",
             "key": "source",
-            "digest": "52f2e1f3e72e4d0dca0b68800e631fba7abae1e5efc5cb49aad1c56ea8891e3f"
+            "digest": "35f8f91b22ce4221d4dece17c02a178916a6ccf26c3a5f6fb7bb8dbc0958d6a3"
           },
           {
             "kind": "configuration",
@@ -74,7 +74,7 @@
       {
         "project": "native",
         "project_uuid": "fixture-native-compiler",
-        "repository": "source@45f03b218a777f6ac0d656b1",
+        "repository": "source@74b110bad8cf1379fee8215d",
         "provider": "todo/1",
         "generation": "e52827f0c68707e9deed41b9fe3e1161b42f6b88baab5aef26de3c5a215074a1",
         "relations": [],
@@ -94,7 +94,7 @@
       {
         "project": "native",
         "project_uuid": "fixture-native-compiler",
-        "repository": "source@45f03b218a777f6ac0d656b1",
+        "repository": "source@74b110bad8cf1379fee8215d",
         "provider": "semantic-registration/1",
         "generation": "ceadd35427b02f8e8514130d727f1bee4f40b27ab2e92ad0ca9f644254619287",
         "relations": [],
@@ -117,9 +117,9 @@
       {
         "project": "native",
         "project_uuid": "fixture-native-compiler",
-        "repository": "source@45f03b218a777f6ac0d656b1",
+        "repository": "source@74b110bad8cf1379fee8215d",
         "provider": "ctxpp-export/1",
-        "generation": "11302e2c8ae1beb8d55d451d5d648b448e02aec2c7c7595b1cc3ae3cdddbc9f8",
+        "generation": "5e5e048814566d2d8056329570b86f10d086e66f8510fce5119a36e84253c1a0",
         "relations": [
           "calls",
           "includes"
@@ -135,17 +135,17 @@
           {
             "kind": "file",
             "key": ".ctxpp/index.jsonl",
-            "digest": "4c2a8f57ab73e58b3a5917535ebd9478cd1025db176e00da9f254351a105f7b8"
+            "digest": "4f9a3fa60312991af60068fee98d37b1048e29178451a132993f4a137df7892f"
           },
           {
             "kind": "file",
             "key": ".ctxpp/manifest.json",
-            "digest": "fd5bdbe5187858605b45b97c3272dc4fc4b14d0dee9756b381e6764e2410d56a"
+            "digest": "714795f3c1f91d140e6ae4c14c29f9d473871ea035943f301db3cb64d81de7b6"
           },
           {
             "kind": "directory_membership",
             "key": "source",
-            "digest": "52f2e1f3e72e4d0dca0b68800e631fba7abae1e5efc5cb49aad1c56ea8891e3f"
+            "digest": "35f8f91b22ce4221d4dece17c02a178916a6ccf26c3a5f6fb7bb8dbc0958d6a3"
           },
           {
             "kind": "file",
@@ -165,12 +165,12 @@
           {
             "kind": "configuration",
             "key": "normalized-compile-command",
-            "digest": "bc609a6baed6dd5afcc7395219ba0cfe24771fee268e1ae0fc0ba2ba80f0b18c"
+            "digest": "c0d3fd663c549d26146da5f6a774fbe8d8d9531975313c33d432a933c2040ae7"
           },
           {
             "kind": "environment",
             "key": "fixture-unverified-runtime-dimensions",
-            "digest": "c94e7c7775ae1f2614af03bf24c45a0554583056d788e84301216d267359652e"
+            "digest": "eaf956dd3c706abb598ee144d08791ebe48c7be26e501d05b414e257e762e3a8"
           },
           {
             "kind": "provider",
@@ -224,12 +224,12 @@
       {
         "project": "native",
         "project_uuid": "fixture-native-compiler",
-        "repository": "source@45f03b218a777f6ac0d656b1",
-        "commit": "d98f89707426662648b384bc5b2bf51787e2fbeb",
-        "working_tree_fingerprint": "95ac162cc3819f3333c4749163c8206a198f4ab3283170ceee12c2254dce366f",
+        "repository": "source@74b110bad8cf1379fee8215d",
+        "commit": "804893a10db5d27eede900ec35969ea1cc572742",
+        "working_tree_fingerprint": "3c9332eb4c00381dc22d1839dc858bb09700647f0a3e893ea1fa7e45355e4ef8",
         "observed_at": "2026-10-04T00:00:00Z"
       }
     ]
   },
-  "generation": "93d2ebff73f59348641647a7324c291d9bbed7083154d6d3d4bc5c73ab26e5ed"
+  "generation": "29f0e447fec0c533d89d2cd1d34ebf6f76cd2381303747b51921388c3a149000"
 }
