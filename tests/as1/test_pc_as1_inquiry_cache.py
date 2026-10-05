@@ -399,6 +399,119 @@ def test_operator_releases_only_selected_matching_negative_inquiries(tmp_path):
         s.shutdown()
 
 
+def test_dispatcher_parks_queued_jobs_when_central_identity_fails(tmp_path):
+    class Backend:
+        def __init__(self):
+            self.allowed = False
+            self.checks = 0
+        def central_status(self):
+            self.checks += 1
+            if not self.allowed:
+                raise RuntimeError('runtime_identity_mismatch')
+            return {'observer_contract': 'PC-OBSERVER-SUPERVISOR/1'}
+        def open_sessions(self, count, **kwargs):
+            return {'status': 'available', 'session_ids': ['session']}
+        def close_session(self, session):
+            return {'released': True}
+
+    backend = Backend()
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                return {'status': 'completed', 'answer': 'recovered ' + job.question}
+        return Worker()
+
+    s = make(tmp_path, worker_factory=factory, backend=backend).start()
+    try:
+        assert s.inquire('identity mismatch must park', SCOPE, foreground_timeout=0)['status'] == 'thinking'
+        def queued_id():
+            with s._db() as db:
+                row = db.execute('SELECT job FROM inquiry_index').fetchone()
+                return row[0] if row else None
+        job_id = wait(queued_id)
+        wait(lambda: s.last_error == 'runtime_identity_mismatch')
+        with s._db() as db:
+            job = json.loads(db.execute('SELECT record FROM jobs WHERE id=?', (job_id,)).fetchone()[0])
+            assert db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] == 0
+        assert job['status'] == 'queued' and job['attempt'] == 0
+        assert backend.checks <= 2  # one bounded status probe, not a poll per drain tick
+
+        backend.allowed = True
+        completed = wait(lambda: (value if (value := s.lookup(job_id, access_scope=SCOPE))['job']['status'] == 'completed' else None))
+        assert completed['job']['attempt'] == 1
+        assert s.last_error is None
+    finally:
+        s.shutdown()
+
+
+def test_legacy_snapshot_is_quiescent_one_time_and_isolated(tmp_path):
+    legacy_dir, v2_dir = tmp_path/'as1'/'jobs', tmp_path/'as1'/'jobs-v2'
+    packet_dir = tmp_path/'as1'/'packets'
+    entered, release = threading.Event(), threading.Event()
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                if job.question == 'new namespace only':
+                    entered.set()
+                    release.wait(5)
+                if job.question == 'legacy answer':
+                    service.observe(job.job_id, job.attempt, {'text': 'retained legacy observation'})
+                return {'status': 'completed', 'answer': 'answer ' + job.question}
+        return Worker()
+
+    old = JobService(legacy_dir, packets=SQLitePacketStore(packet_dir), worker_factory=factory,
+        freshness_provider=lambda job: {'fresh': True}).start()
+    try:
+        result = old.inquire('legacy answer', SCOPE, foreground_timeout=2)
+        assert result['status'] == 'completed'
+        old_id = result['job']['job_id']
+        wait(lambda: old._settled(old_id))
+        with old._db() as db:
+            db.execute('INSERT INTO job_checkpoints(job,scope,attempt,frames) VALUES(?,?,?,?)',
+                (old_id, json.dumps(SCOPE, sort_keys=True, separators=(',', ':')), 1, '[]'))
+            before = {table: [tuple(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                      for table in ('jobs', 'outbox', 'job_checkpoints', 'inquiry_index')}
+    finally:
+        old.shutdown()
+
+    new = JobService(v2_dir, packets=SQLitePacketStore(packet_dir), worker_factory=factory,
+        freshness_provider=lambda job: {'fresh': True}, legacy_directory=legacy_dir).start()
+    try:
+        with new._db() as db:
+            copied = {table: [tuple(row) for row in db.execute(f'SELECT * FROM {table} ORDER BY rowid')]
+                      for table in before}
+        assert copied == before
+        assert new.lookup(old_id, access_scope=SCOPE)['status'] == 'ok'
+        assert new.inquire('legacy answer', SCOPE)['job']['job_id'] == old_id
+
+        pending = new.inquire('new namespace only', SCOPE, foreground_timeout=0)
+        assert pending['status'] == 'thinking' and entered.wait(2)
+        with new._db() as db:
+            new_id = db.execute("""SELECT jobs.id FROM jobs JOIN inquiry_index
+                ON inquiry_index.job=jobs.id WHERE json_extract(jobs.record,'$.question')=?""",
+                ('new namespace only',)).fetchone()[0]
+        assert old.lookup(new_id, access_scope=SCOPE)['status'] == 'not_found'
+        with sqlite3.connect(legacy_dir/'jobs.sqlite3') as db:
+            assert db.execute('SELECT count(*) FROM jobs WHERE id=?', (new_id,)).fetchone()[0] == 0
+    finally:
+        release.set()
+        new.shutdown()
+
+
+def test_legacy_snapshot_rejects_active_source_without_modifying_it(tmp_path):
+    legacy_dir, v2_dir = tmp_path/'legacy', tmp_path/'v2'
+    old = JobService(legacy_dir, packets=SQLitePacketStore(tmp_path/'legacy-packets'))
+    class Live:
+        def is_alive(self): return True
+    old._thread = Live()
+    old.submit(question='still queued', access_scope=SCOPE, _identity='legacy-identity')
+    before = old.path.read_bytes()
+    with pytest.raises(RuntimeError, match='legacy_broker_active'):
+        JobService(v2_dir, packets=SQLitePacketStore(tmp_path/'v2-packets'), legacy_directory=legacy_dir)
+    assert old.path.read_bytes() == before
+    assert not (v2_dir/'jobs.sqlite3').exists()
+
+
 def test_evidence_only_partial_is_retained_without_automatic_refresh(tmp_path):
     calls=[]
     freshness=[]

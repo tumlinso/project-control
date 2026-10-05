@@ -122,10 +122,12 @@ class JobService:
     def __init__(self, directory, *, packets, worker_factory=None, backend=None,
                  hard_limit=100, max_storage_bytes=64 * 1024 * 1024,
                  lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None,
-                 inquiry_context_provider=None):
+                 inquiry_context_provider=None, legacy_directory=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'jobs.sqlite3'
+        if legacy_directory is not None:
+            self._snapshot_legacy_broker(Path(legacy_directory))
         self.packets, self.worker_factory, self.backend = packets, worker_factory, backend
         self.hard_limit, self.max_storage_bytes = hard_limit, max_storage_bytes
         self.lease_seconds, self.retry_seconds, self.clock = lease_seconds, retry_seconds, clock
@@ -137,6 +139,10 @@ class JobService:
         self.can_execute = can_execute
         self.inquiry_context_provider = inquiry_context_provider
         self.last_error = None
+        self._central_preflight_lock = threading.Lock()
+        self._central_preflight_checked = 0.0
+        self._central_preflight_allowed = True
+        self._central_preflight_error = None
         # WAL mode persists; set it once, before dispatch, not on every racing connection.
         with _DB_LOCK:
             with SQLITE_CONNECTION_LOCK:
@@ -189,6 +195,81 @@ class JobService:
                 db.execute("INSERT INTO broker_migrations VALUES('global_inquiry_context_v1')")
 
         os.chmod(self.path, 0o600)
+
+    def _snapshot_legacy_broker(self, legacy_directory):
+        """Publish one quiescent legacy broker snapshot into a fresh namespace."""
+        source_path = legacy_directory / 'jobs.sqlite3'
+        marker = self.directory / 'legacy-broker-snapshot-v1.complete'
+        lock_path = self.directory / 'legacy-broker-snapshot.lock'
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            # Once a destination database exists, never replace it, including
+            # an empty database that another process may already have opened.
+            if marker.exists() or self.path.exists():
+                self._write_legacy_snapshot_marker(marker)
+                return
+            if not source_path.is_file():
+                self._write_legacy_snapshot_marker(marker)
+                return
+
+            snapshot = self.directory / f'.legacy-snapshot-{uuid.uuid4().hex}.sqlite3'
+            try:
+                source = sqlite3.connect(source_path.resolve().as_uri() + '?mode=ro', uri=True, timeout=10)
+                target = sqlite3.connect(snapshot, timeout=10)
+                try:
+                    source.backup(target)
+                finally:
+                    target.close()
+                    source.close()
+                if not self._legacy_snapshot_is_quiescent(snapshot):
+                    raise RuntimeError('legacy_broker_active')
+                os.chmod(snapshot, 0o600)
+                # A hard link is an atomic no-replace publish even if another
+                # process created or opened an empty destination meanwhile.
+                if not self.path.exists():
+                    try:
+                        os.link(snapshot, self.path)
+                    except FileExistsError:
+                        pass
+                self._write_legacy_snapshot_marker(marker)
+            except RuntimeError:
+                raise
+            except (OSError, sqlite3.Error, ValueError, TypeError) as error:
+                raise RuntimeError('legacy_broker_active') from error
+            finally:
+                try:
+                    snapshot.unlink()
+                except FileNotFoundError:
+                    pass
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+    @staticmethod
+    def _write_legacy_snapshot_marker(path):
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            return
+        with os.fdopen(fd, 'w') as stream:
+            stream.write('complete\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    @staticmethod
+    def _legacy_snapshot_is_quiescent(path):
+        with sqlite3.connect(path, timeout=10) as db:
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if 'jobs' not in tables:
+                return False
+            if 'execution_slots' in tables and db.execute('SELECT 1 FROM execution_slots LIMIT 1').fetchone():
+                return False
+            for row in db.execute('SELECT record FROM jobs'):
+                job = json.loads(row[0])
+                if job.get('status') not in TERMINAL:
+                    return False
+        return True
 
     @contextmanager
     def _db(self):
@@ -587,6 +668,8 @@ class JobService:
         return pid is not None and start is not None and cls._process_start(pid) == start
 
     def claim(self, *, _dispatch=False):
+        if not self._dispatch_preflight():
+            return None
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             now = self.clock()
@@ -920,6 +1003,9 @@ class JobService:
     def _drain(self):
         while not self._stop.is_set():
             try:
+                if not self._dispatch_preflight():
+                    self._wake.wait(.1); self._wake.clear()
+                    continue
                 self.reconcile()
                 job = self.claim(_dispatch=True)
                 if job:
@@ -928,3 +1014,39 @@ class JobService:
             except Exception as error:
                 self.last_error = type(error).__name__
             self._wake.wait(.1); self._wake.clear()
+
+    def _dispatch_preflight(self):
+        status = getattr(self.backend, 'central_status', None) if self.backend is not None else None
+        if not callable(status):
+            return True
+        now = self.clock()
+        with self._db() as db:
+            pending = db.execute('''SELECT 1 FROM jobs
+                WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled','running')
+                  AND available<=?
+                  AND NOT EXISTS(SELECT 1 FROM execution_slots WHERE execution_slots.job=jobs.id)
+                LIMIT 1''', (now,)).fetchone()
+        if not pending:
+            return True
+        with self._central_preflight_lock:
+            checked = time.monotonic()
+            if checked - self._central_preflight_checked < 1.0:
+                return self._central_preflight_allowed
+            try:
+                value = status()
+                if not isinstance(value, dict):
+                    raise RuntimeError('central_supervisor_status_invalid')
+                if value.get('status') not in (None, 'available'):
+                    raise RuntimeError(str(value.get('reason') or 'central_supervisor_unavailable'))
+            except Exception as error:
+                reason = str(error).strip()[:500] or type(error).__name__
+                self.last_error = reason
+                self._central_preflight_error = reason
+                self._central_preflight_allowed = False
+            else:
+                if self._central_preflight_error and self.last_error == self._central_preflight_error:
+                    self.last_error = None
+                self._central_preflight_error = None
+                self._central_preflight_allowed = True
+            self._central_preflight_checked = checked
+            return self._central_preflight_allowed
