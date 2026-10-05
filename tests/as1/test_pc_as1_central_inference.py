@@ -225,3 +225,19 @@ def test_operator_source_pin_and_module_binding_fail_before_client(central, monk
     module.__file__ = '/untrusted/supervisor.py'
     assert turn(SkillsObserverAnalysisProvider())['reason'] == 'observer_analysis_runtime_binding_invalid'
     module.SupervisorClient.assert_not_called()
+
+
+@pytest.mark.parametrize('remaining', [300, 10, None])
+def test_session_admission_keeps_whole_job_deadline(central, monkeypatch, remaining):
+    _, client, _, _ = central
+    client.open_observer_sessions.return_value = {'status': 'available', 'session_ids': ['owned']}
+    monkeypatch.setattr(time, 'time', lambda: 1000.0)
+    deadline = 1000.0 + remaining if remaining is not None else None
+    provider = SkillsObserverAnalysisProvider()
+    assert provider.open_sessions(1, compute_profile='narrow', parallelism='default',
+                                  deadline_epoch=deadline)['status'] == 'available'
+    # Admission and lease expiry span the full accepted question, not one turn.
+    assert client.open_observer_sessions.call_args.kwargs['deadline_epoch'] == (deadline or 1300.0)
+    assert client.observer_status.call_args.kwargs['deadline_epoch'] == min(deadline or 1300.0, 1002.0)
+    assert turn(provider, deadline_epoch=1300.0)['status'] == 'available'
+    assert client.run_observer_turn.call_args.args[0]['deadline_epoch'] == 1060.0

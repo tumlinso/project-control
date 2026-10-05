@@ -236,7 +236,9 @@ class SkillsObserverAnalysisProvider:
 
     def open_sessions(self, count: int, *, compute_profile: str, parallelism: str, deadline_epoch: float | None = None) -> dict[str, Any]:
         try:
-            deadline_epoch = min(deadline_epoch, time.time() + 60) if deadline_epoch is not None else time.time() + 60
+            # This deadline is also the borrower lease lifetime, spanning turns.
+            # Only individual model turns have the shorter 60-second budget.
+            deadline_epoch = deadline_epoch if deadline_epoch is not None else time.time() + 300
             return self._checked_client(deadline_epoch).open_observer_sessions(
                 count, compute_profile=compute_profile, parallelism=parallelism,
                 **({"deadline_epoch": deadline_epoch} if deadline_epoch is not None else {}))

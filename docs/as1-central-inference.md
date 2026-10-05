@@ -32,9 +32,10 @@ probe or model admission occurs during this status handshake.
 The adapter forwards `analyze_observer_packet`, `run_observer_turn`,
 `open_observer_sessions`, and `close_observer_session`. Existing bounded JSON
 packet and conversational formats, audit call IDs and model request envelopes
-remain intact. Foreground turn and session admission deadlines cover the owner
-handshake, IPC and model inference; the adapter caps their model budget at 60
-seconds and status handshakes at two seconds. Explicit session cleanup has a
+remain intact. Session admission retains the full accepted job deadline for IPC setup and
+borrower lease lifetime across turns, defaulting to 300 seconds if absent.
+Each inference turn caps the remaining model budget at 60 seconds, including
+the owner handshake and IPC; status handshakes are capped at two seconds. Explicit session cleanup has a
 10-second IPC deadline. The durable broker still owns foreground waiting,
 job lifetime, generation fences, packets, read-only authority context and the
 source command sandbox.
