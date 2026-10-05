@@ -1,0 +1,1 @@
+{"cases": {"E2E-03": [{"outcome": "passed", "test": "tests/as1/test_pc_as1_qualify.py::test_skill_selected_resource_change_fails_direct_authority"}]}, "pytest_exitstatus": 0}

@@ -196,8 +196,34 @@ def test_skill_selected_resource_change_fails_direct_authority(tmp_path):
     # mandatory real paired inference test above.
     import project_control.as1_skill as loaded
     assert sha(loaded.__file__)==sha(ROOT/'src/project_control/as1_skill.py')
-    from test_pc_as1_skill import test_assembly_revalidates_stale_escape_and_redaction_without_fake_verbatim
-    test_assembly_revalidates_stale_escape_and_redaction_without_fake_verbatim(tmp_path,'changed')
+    from test_pc_as1_skill import fixture_root, item, Turns, command, make, finish, SCOPE
+    root=fixture_root(tmp_path)
+    choice=item(root,'fixture','resource.md')
+    def selected(request):
+        # Current native protocol replays assistant calls followed by actual
+        # user packets; header observations are deliberately no longer copied.
+        packets=[json.loads(message['content']) for message in request['messages']
+                 if message['role']=='user' and message['content'].startswith('{')]
+        observed=[packet for packet in packets if packet.get('packet_id') and packet.get('source_reads')]
+        assert len(observed)==2
+        assert observed[-1]['source_reads'][0]['content_sha256']==choice['content_sha256']
+        return {'answer':'Selected installed authority',
+                'findings':[{'text':'Selected native source','evidence_packets':[observed[-1]['packet_id']]}],
+                'skill_selection':{'format':'pc-skill-selection/1','selections':[choice],
+                                   'synthesis':'Use selected native instructions.','unresolved':[]}}
+    backend=Turns([command(root/'fixture/SKILL.md'),command(root/'fixture/resource.md'),selected])
+    service,jobs=make(tmp_path,root,backend);jobs.start()
+    try:
+        admitted=service.submit(query='Select fixture source',skill='fixture',access_scope=SCOPE)
+        completed=finish(service,admitted)
+        assert completed['job']['status']=='completed',completed
+        (root/'fixture/resource.md').write_text('Shifted replacement\n')
+        result=service.poll(admitted['job_id'],access_scope=SCOPE,detail='extended')
+        assert result['status']=='partial' and not result['excerpts']
+        assert result['omissions'][0]['reason']=='stale_resource'
+    finally:
+        assert jobs.shutdown()
+
 
 
 @pytest.mark.as1_case('E2E-05')

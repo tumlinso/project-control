@@ -158,3 +158,12 @@ Shared consumer commit `4f368be` defaults to the exact final candidate/Q14 proof
 its source hash and the current independently reviewed executed fixes are bound
 in the index. PC is ready for root's single required native eight-test gate;
 that gate has not been executed by this worker.
+
+The first PC native gate ran eight tests: seven passed; the CPU stale-resource
+supplement failed because its historical helper looked for observations in the
+header after the native protocol moved them to assistant-call/user-packet replay.
+The real Q14 consumer and E2E-05 passed. The owned supplement now selects from
+actual replayed source packets, requires completed selection and exact source
+hash, mutates the selected file, and requires `stale_resource` with no excerpt.
+Only that failed test was rerun: one pass in 0.68 seconds. The failed native
+stdout and targeted report remain retained; root must rerun the required gate.
