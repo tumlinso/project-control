@@ -3,7 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from mcp.types import ToolAnnotations
 from pydantic import ConfigDict, Field, ValidationError, create_model
@@ -17,7 +17,8 @@ from .as1_trace import TraceService
 from .config import configured_observer_skills_root
 from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis_state_root
 from .profiles import MCPProfile
-from .models import DeltaSince, EvidenceInput, HistoryTraceInput
+from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
+                     ArchitectureContextInput, SourceContextInput, CoordinationViewInput)
 from .services.machine_inspection import MachineDiagnostic
 
 # Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
@@ -25,6 +26,12 @@ QUALIFIED_OBSERVER_RUNTIME_SHA256 = '9d4fdb3fb6c60aee65d8d0ce0a9a696d85bb6461808
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
+_NATIVE_INPUT_ERROR_TITLES = frozenset(model.__name__ for model in (
+    DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
+    ArchitectureContextInput, SourceContextInput, CoordinationViewInput))
+_WORKER_EXACT_QUERY = create_model('ObserverExactEntityQuery', __base__=ExactEntityQuery,
+    kind=(Literal[(*get_args(InspectInput.model_fields['kind'].annotation),
+                   'packet', 'investigation', 'registration')], ...))
 
 
 def observer_tool_argument_models(profile):
@@ -41,7 +48,7 @@ def observer_tool_argument_models(profile):
         'overview': {},
         'delta': {'since': (str | DeltaSince, ...)},
         'frontier': {'scope': (dict[str, Any] | None, None)},
-        'search': {'query': (str | ExactEntityQuery, ...), 'scope': (dict[str, Any] | None, None)},
+        'search': {'query': (str | _WORKER_EXACT_QUERY, ...), 'scope': (dict[str, Any] | None, None)},
         'evidence': native_fields(EvidenceInput, ('subject', 'kinds', 'max_items')),
         'history': native_fields(HistoryTraceInput, tuple(name for name in HistoryTraceInput.model_fields if name not in {'project', 'detail'})),
         'impact': {'targets': (list[dict[str, Any]], ...),
@@ -365,7 +372,14 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
             info = InformationService(config, c.store, runtime.snapshot, worker_host,
                 semantic_provider=c.control.project_context, impact_provider=c.trace,
                 todo_adapter=runtime.todo_adapter, job_lookup=lambda ident, access: c.jobs.lookup(ident, access_scope=access))
-            return info.call(name, project=project, **args)
+            try:
+                return info.call(name, project=project, **args)
+            except ValidationError as error:
+                # Native request DTOs may validate deeper semantic parameters.
+                # Output packet/result DTO failures remain real backend errors.
+                if error.title not in _NATIVE_INPUT_ERROR_TITLES:
+                    raise
+                raise InvalidToolArguments(str(error)) from error
         class ScopedTrustedObserverFactory(TrustedObserverFactory):
             def __call__(self, service, job):
                 scope = job.scope

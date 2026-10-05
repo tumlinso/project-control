@@ -69,7 +69,8 @@ def test_dispatch_passes_trusted_target_context_without_hint_override(tmp_path):
 
 
 @pytest.mark.parametrize('cite_feedback', [False, True])
-def test_invalid_internal_arguments_retain_feedback_then_answer_without_retry(servers, cite_feedback):
+@pytest.mark.parametrize('bad_tool', ['log', 'search'])
+def test_invalid_internal_arguments_retain_feedback_then_answer_without_retry(servers, cite_feedback, bad_tool):
     import json
     class Backend:
         def __init__(self): self.turns = 0; self.feedback = []
@@ -80,7 +81,8 @@ def test_invalid_internal_arguments_retain_feedback_then_answer_without_retry(se
             if self.turns == 1:
                 system = request['messages'][0]['content']
                 assert 'Tool argument schemas' in system and '"subject"' in system
-                value = {'tool': 'log', 'arguments': {'offset': 0}}
+                value = ({'tool': 'log', 'arguments': {'offset': 0}} if bad_tool == 'log' else
+                         {'tool': 'search', 'arguments': {'query': {'kind': 'source', 'target': 'README.md'}}})
             elif self.turns == 2:
                 value = {'tool': 'evidence', 'arguments': {}}
             elif self.turns == 3:
@@ -108,6 +110,26 @@ def test_invalid_internal_arguments_retain_feedback_then_answer_without_retry(se
     assert value['job']['attempt'] == 1 and backend.turns == 4
     retained = c.jobs.lookup(value['job']['job_id'], access_scope=c.scope(None))['observations']
     assert len([p for p in retained if p.get('reason') == 'invalid_arguments']) == 2
+
+
+def test_native_request_errors_become_feedback_but_output_contract_errors_escape(servers, monkeypatch):
+    from pydantic import ValidationError
+    from project_control.as1_jobs import InvalidToolArguments
+    from project_control.as1_contracts import InformationPacket
+    from project_control.models import InspectInput
+    c = servers()._project_control_surface
+    tools = c.jobs.worker_factory.trusted.tools
+    def invalid_input(*args, **kwargs):
+        return InspectInput.model_validate({'project': 'p', 'kind': 'source', 'target': 'README.md'})
+    monkeypatch.setattr('project_control.as1_surface.InformationService.call', invalid_input)
+    with pytest.raises(InvalidToolArguments, match='InspectInput'):
+        tools('overview', {}, c.scope(None))
+    def invalid_output(*args, **kwargs):
+        return InformationPacket.model_validate({})
+    monkeypatch.setattr('project_control.as1_surface.InformationService.call', invalid_output)
+    with pytest.raises(ValidationError) as error:
+        tools('overview', {}, c.scope(None))
+    assert error.value.title == 'InformationPacket'
 
 
 def test_argument_validation_preserves_authority_and_backend_failures(servers, monkeypatch):
@@ -159,6 +181,9 @@ def test_internal_argument_schemas_preserve_native_constraints_and_original_prof
     assert schema['overview']['properties']['detail']['enum'] == ['compact', 'standard', 'extended']
     assert observer_tool_argument_schemas('mutator')['overview']['properties']['detail']['enum'] == ['compact', 'standard']
     assert '$defs' in schema['search'] and '$ref' in json.dumps(schema['search'])
+    kinds = schema['search']['$defs']['ObserverExactEntityQuery']['properties']['kind']['enum']
+    assert 'path' in kinds and 'source' not in kinds
+    assert {'packet', 'investigation', 'registration'} <= set(kinds)
     assert len(json.dumps(schema).encode()) < 12000
 
 
