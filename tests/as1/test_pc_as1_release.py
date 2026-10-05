@@ -121,9 +121,14 @@ def test_installed_and_live_standalone_pair_and_exact_role_surfaces(live_release
     assert qualification['source_identity'] == source
     for report, cases in [('pc', {f'E2E-{i:02}' for i in range(1,6)}), ('skills', {'SQA-01', 'SQA-02', 'SQA-03'})]:
         result = qualification[report]
-        assert result['pytest_exitstatus'] == 0
-        for case in cases:
-            assert result['cases'][case] and all(row['outcome']=='passed' for row in result['cases'][case])
+        if result.get('kind') == 'executed_product_acceptance':
+            assert result['status'] == 'passed' and result['pytest_returncode'] == 0
+            assert not result['missing_or_failed_cases']
+            assert cases == set(result['required_cases']) == set(result['passed_cases'])
+        else:
+            assert result['pytest_exitstatus'] == 0
+            for case in cases:
+                assert result['cases'][case] and all(row['outcome']=='passed' for row in result['cases'][case])
 
 
 @pytest.mark.as1_case('REL-02')

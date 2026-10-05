@@ -148,3 +148,13 @@ is exact; the wrong-line narrative is explicitly unverified and its synthesis
 packing remained partial. No fresh skill inference in Q14 or verified semantic
 answer is claimed. Shared consumer defaults, full SQA report and current review
 must agree before root runs the PC native acceptance gate once.
+
+Native Skills qualification passed all four tests in 8.61 seconds, evidence
+`47985492-fd1a-471f-bf6d-e178507dcd20`, with SQA-01 through SQA-03 required and
+passed and no missing/failed cases. The exact native stdout JSON is preserved
+in `conformance-sqa-native.json`; no separate pytest case report was produced
+or fabricated. Consumers accept this native executed-acceptance schema directly.
+Shared consumer commit `4f368be` defaults to the exact final candidate/Q14 proof;
+its source hash and the current independently reviewed executed fixes are bound
+in the index. PC is ready for root's single required native eight-test gate;
+that gate has not been executed by this worker.
