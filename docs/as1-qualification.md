@@ -167,3 +167,15 @@ actual replayed source packets, requires completed selection and exact source
 hash, mutates the selected file, and requires `stale_resource` with no excerpt.
 Only that failed test was rerun: one pass in 0.68 seconds. The failed native
 stdout and targeted report remain retained; root must rerun the required gate.
+
+PC native qualification completed successfully: eight tests passed in 22.41
+seconds, all E2E-01 through E2E-05 required/passed, evidence
+`7d540a0e-5bae-4171-acff-4432311596d1`. Exact generated reports and the native
+stdout are bound in `qualification-completion.json`. Each generated report has
+an exact private capture retained mode 0600 outside Git; public fixture bearer
+fields are SHA256-redacted. Accepted test inputs and conformance index remain
+unchanged. The matched four-call CPU comparison reports 44,280 to 21,985 total
+visible bytes with slightly greater new latency and no inference/pricing claim.
+Q14 records actual model usage separately and retains its partial queue and
+unverified historical skill-synthesis limits. Release activation, rollback and
+final workflow lifecycle remain root-owned and require their own live evidence.

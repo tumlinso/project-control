@@ -1,0 +1,235 @@
+{
+  "proof": "/home/tumlinson/.agents/skills/planning/adaptive-surface-v1/validation/sqa-real/as1-paired-3905649-269646d-20261005-q14/receipt.json",
+  "proof_sha256": "b7418afb156af547fa0419c8dc2f5914f920e599fca99f7c0250691e8747f5b2",
+  "consumer_sha256": "aa97923f8e3a69dae511c685bb68897e9178c7e59f1ef6d7225254e1a51114f8",
+  "source_identity": {
+    "candidate_root": "/home/tumlinson/.local/share/project-control/candidates/as1-paired-3905649-269646d-20261005",
+    "fixture_commit": "4a0a0295472e1e50fc2b45ffd45ab913e7d8d24e",
+    "helper_sha256": "8ef754dea9657d7a44ac8a3d4e18845ac976921588710cd11572fc62b4dcde0f",
+    "native_catalog_sha256": "d1b054bdd6f38a54fb197f15b8abeb4f35ea23fe53aaeabcdd4d0d1fa34aadf7",
+    "native_routing_sha256": "153b4b75da688822e5f961a8f05711d3af6acdc770ce4f975247b425d271b239",
+    "observer_runtime_sha256": "ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf",
+    "pc_commit": "3905649ff9b03e3acec4211553a52cf2389489e9",
+    "release_sha256": "0a968d2456e5a576ef0fc74c05b0543f4479c27385caa800e083018f507bbc34",
+    "skills_commit": "269646d2da7452adfb5750bfe9b7a3068f7ee828"
+  },
+  "installed_product_hashes": {
+    "as1_packets.py": "cfb56e11a798dd0f062845a0cd469c44e9cc0a10b01c458d464f558315503504",
+    "as1_contracts.py": "25f5c9ec43d1ab6e4bd640449e1f1bedd8d64934bc2c46a72222458b43ab94a5",
+    "as1_jobs.py": "592ae8e5576eb94dc5a2d64c5c35ad358a8bbb552bc8c6a57eebc299c69201ad",
+    "as1_context.py": "78ff717b44419eb1993c7e7068b3a68c798f881a7f36485d5c2413a5138fcb05",
+    "as1_trace.py": "cb15e08e71995989142b3e76b7bffd14e78981a73a32258aea1ccb97778b24f1",
+    "as1_surface.py": "f4921fd9fe7bbf784b3e610de0b4f1ba2a3156cccda7ed35b44400ebb84d62c3",
+    "as1_control.py": "0309c62463cd3cecfe8fb8dc4a8ca66a45b4a268486b30461f7b9816e138a755",
+    "as1_skill.py": "0231a72b370318486e990a28de890e48a0ecfc8f48eb55814a3d373a17339a8a",
+    "observer_analysis.py": "1a6399941265043a9e2993d40bef6c3c58ae20f5b7ee964f4b672ede80b27911",
+    "app.py": "64539e7812d69a6a449ae3ec31f9ddf740ce37cab4fefd735efd3c3e19fd9fb3",
+    "profiles.py": "41dfde9faf3d78bd570a92917ced8d9fd604329dfc109292d356ac3860b4c3d0",
+    "runtime_identity.py": "55ab5860373d53ffd7a3407a1132813dd6eb7a0e4fbbaa6ef9c156308f3087ec"
+  },
+  "usage": {
+    "completion_tokens": 865,
+    "prompt_tokens": 25140,
+    "actual_turns": 12,
+    "model_ids": [
+      "qwen3-coder-30b-a3b-instruct-q4-k-m"
+    ],
+    "model_pids": [
+      540747,
+      541242
+    ],
+    "comparison_limit": "Actual paired model usage only; no matched historical model journey or pricing equivalence."
+  },
+  "actual_broker_metrics": {
+    "real_turn_count": 12,
+    "total_active_seconds": 18.759211729004164,
+    "total_visible_output_bytes": 2648,
+    "total_visible_request_bytes": 83676,
+    "usage": [
+      {
+        "completion_tokens": 65,
+        "prompt_tokens": 1623,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 1688
+      },
+      {
+        "completion_tokens": 61,
+        "prompt_tokens": 2023,
+        "prompt_tokens_details": {
+          "cached_tokens": 1576
+        },
+        "total_tokens": 2084
+      },
+      {
+        "completion_tokens": 60,
+        "prompt_tokens": 1607,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 1667
+      },
+      {
+        "completion_tokens": 61,
+        "prompt_tokens": 2217,
+        "prompt_tokens_details": {
+          "cached_tokens": 1560
+        },
+        "total_tokens": 2278
+      },
+      {
+        "completion_tokens": 85,
+        "prompt_tokens": 2660,
+        "prompt_tokens_details": {
+          "cached_tokens": 2086
+        },
+        "total_tokens": 2745
+      },
+      {
+        "completion_tokens": 60,
+        "prompt_tokens": 1607,
+        "prompt_tokens_details": {
+          "cached_tokens": 1560
+        },
+        "total_tokens": 1667
+      },
+      {
+        "completion_tokens": 61,
+        "prompt_tokens": 2216,
+        "prompt_tokens_details": {
+          "cached_tokens": 1560
+        },
+        "total_tokens": 2277
+      },
+      {
+        "completion_tokens": 85,
+        "prompt_tokens": 2657,
+        "prompt_tokens_details": {
+          "cached_tokens": 2085
+        },
+        "total_tokens": 2742
+      },
+      {
+        "completion_tokens": 65,
+        "prompt_tokens": 1607,
+        "prompt_tokens_details": {
+          "cached_tokens": 1560
+        },
+        "total_tokens": 1672
+      },
+      {
+        "completion_tokens": 61,
+        "prompt_tokens": 2004,
+        "prompt_tokens_details": {
+          "cached_tokens": 1560
+        },
+        "total_tokens": 2065
+      },
+      {
+        "completion_tokens": 86,
+        "prompt_tokens": 2449,
+        "prompt_tokens_details": {
+          "cached_tokens": 1873
+        },
+        "total_tokens": 2535
+      },
+      {
+        "completion_tokens": 115,
+        "prompt_tokens": 2470,
+        "prompt_tokens_details": {
+          "cached_tokens": 527
+        },
+        "total_tokens": 2585
+      }
+    ]
+  },
+  "reused_skill_proof": {
+    "actual_prior_model_turns": 8,
+    "format": "as1-reused-native-skill-proof/1",
+    "limitations": [
+      "Q11 narrative claimed fusion text on selected line24; actual quote is line8. Finding is unverified and not entailed by selected excerpt.",
+      "Frontend partial synthesis_budget retained; no useful verified synthesis claim.",
+      "Original Q11 failed helper receipt remains unchanged; final-map-only assertion is not an AS1 requirement."
+    ],
+    "new_skill_model_calls": 0,
+    "original_helper_receipt_status": "failed",
+    "qualified_scope": [
+      "worker-owned native entry/maps traversal",
+      "exact canonical selected resource/hash/range/excerpt",
+      "labelled non-authoritative synthesis"
+    ],
+    "required_read_order": [
+      0,
+      1,
+      2
+    ],
+    "semantic_finding_verified": false,
+    "source_artifacts_sha256": {
+      "approval.json": "17ce8bdcc44abcf6dbb849ce68182e8495802a25428a4e5043f4798f90dbc201",
+      "cleanup.json": "71f5bd7ad17e62a2517c4f2629182cf34c03858197ed5a11c2361f34cabd8d23",
+      "execution_policy.json": "d11da682bffd846ce0e7ff3891bbb72990af77fdeab8b2ee49e1624afb8aaacb",
+      "failure.json": "08d1b1fa12b3ca81e5d753b18474cf6ac9920513e2a5bb44f21e38b93a6f47a4",
+      "phase_order.json": "f3c005be03baa45ed630b656fbd8d097a4c375be88f5253a38aadd3939571f8b",
+      "sessions.json": "6f1aef169a6150320c37db6d9b99389702b8c951f1d2b26d42d545462d6563e1",
+      "skill.json": "cb3f22a12df00faa1f7045cc251c971206132ed64188f24423752cabe167d161",
+      "skill_admission.json": "59a395d9d88dd89402737df1ce7c608eaebcfda06271913388dd71c0a3e65ae7",
+      "skill_job.json": "f77d2519c94e08028b60393c48f0dffade0353a326926339c2f9b4cfd1d23ffc",
+      "source_identity.json": "eb7ac08b0650b46fd84672615f648499c011a040273441de70f2b38fa05f411a",
+      "turns.json": "437cac51257a4404bc50d62cc324ea83e6e51cae4e96f10dfc4fa676064a48b2"
+    },
+    "source_equivalence_artifact": "skill_source_equivalence.json",
+    "source_receipt": "/home/tumlinson/.agents/skills/planning/adaptive-surface-v1/validation/sqa-real/as1-paired-6d1a732-269646d-20261004-q11/receipt.json",
+    "source_receipt_sha256": "202507e5d42822d3434d03097d257b83b1b199903b51744486cf3a7e841f98d1"
+  },
+  "queued_outcomes": {
+    "outcomes": [
+      {
+        "accepted_findings": [
+          {
+            "evidence_packets": [
+              "pkt_42c70b127dc64020961ccebe23411285"
+            ],
+            "text": "The README.md file documents the fixture purpose as 'source-bound observer qualification'."
+          }
+        ],
+        "job_id": "job_978ca1e926c1438db94a910987e503b7",
+        "reason": null,
+        "result_packet": "pkt_7d286e6335ed4cf89c2a41d1c56c17ef",
+        "status": "completed",
+        "unresolved_questions": []
+      },
+      {
+        "accepted_findings": [
+          {
+            "evidence_packets": [
+              "pkt_98bcf7be163e4fb7905aa93feb106933"
+            ],
+            "text": "The README.md file states the purpose of the fixture as 'source-bound observer qualification'."
+          }
+        ],
+        "job_id": "job_3f32cb61714c408e861782570f1ef1b6",
+        "reason": null,
+        "result_packet": "pkt_60b593c9d523485ba9b934f1da54cd91",
+        "status": "completed",
+        "unresolved_questions": []
+      },
+      {
+        "accepted_findings": [],
+        "job_id": "job_18a855b1a6a444f7b778006652f010a3",
+        "reason": "finding_requires_observed_packet",
+        "result_packet": "pkt_18b7d95df96846d087ef73c4d2e9debc",
+        "status": "partial",
+        "unresolved_questions": [
+          "Retry from retained observations"
+        ]
+      }
+    ],
+    "scope": "Durable admission/draining/poll correctness; partial candidate answers are not verified findings.",
+    "status_counts": {
+      "completed": 2,
+      "partial": 1
+    }
+  },
+  "status": "passed"
+}
