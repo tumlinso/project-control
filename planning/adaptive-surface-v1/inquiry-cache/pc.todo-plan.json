@@ -22,7 +22,8 @@
           "tests/as1",
           "tests/test_observer_analysis_registry.py",
           "docs",
-          "planning/adaptive-surface-v1"
+          "planning/adaptive-surface-v1",
+          "src/project_control/as1_packets.py"
         ],
         "read_paths": [
           "src",
