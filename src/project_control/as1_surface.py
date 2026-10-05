@@ -505,8 +505,9 @@ def register_surface(mcp, c):
         return c.information.call('history', project=project, subject=subject, from_revision=from_revision, to_revision=to_revision, detail=detail)
     def machine(query_or_view: str = 'host_memory', detail: str = 'compact') -> dict[str, Any]:
         return c.information.call('machine', query_or_view=query_or_view, detail=detail)
-    def read(project: str, paths: list[str | dict[str, Any]], repository: str | None = None, revision: str | None = None, detail: str = 'compact') -> dict[str, Any]:
-        return c.information.call('read', project=project, paths=paths, repository=repository, revision=revision, detail=detail)
+    async def read(project: str, paths: list[str | dict[str, Any]], repository: str | None = None, revision: str | None = None, detail: str = 'compact') -> dict[str, Any]:
+        return await asyncio.to_thread(c.information.call, 'read', project=project,
+            paths=paths, repository=repository, revision=revision, detail=detail)
     async def investigate(question: str, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
         def invoke():
             scope = c.scope(project)
