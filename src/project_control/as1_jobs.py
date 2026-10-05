@@ -99,7 +99,8 @@ class JobService:
     """
     def __init__(self, directory, *, packets, worker_factory=None, backend=None,
                  hard_limit=100, max_storage_bytes=64 * 1024 * 1024,
-                 lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None):
+                 lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None,
+                 inquiry_context_provider=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'jobs.sqlite3'
@@ -112,6 +113,7 @@ class JobService:
         self.freshness_provider = freshness_provider
         self.inquiry_access = inquiry_access
         self.can_execute = can_execute
+        self.inquiry_context_provider = inquiry_context_provider
         self.last_error = None
         # WAL mode persists; set it once, before dispatch, not on every racing connection.
         with _DB_LOCK:
@@ -823,6 +825,10 @@ class JobService:
                 'log_guidance': 'Use log for the last 50 answered inquiries; lexical retrieval returns at most five records.',
                 'hints': self.packets.assemble_hints(job.hints, access_scope=job.scope),
                 'observations': stored['observations'][-24:], 'max_steps': 6}
+            if self.inquiry_context_provider is not None:
+                # Registered host configuration labels the inquiry target. Hints
+                # and model arguments cannot choose repository authority/roots.
+                request.update(self.inquiry_context_provider(job))
             if session:
                 request['session_id'] = session
             if job.mode == 'skill':

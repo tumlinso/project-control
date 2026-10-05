@@ -18,7 +18,7 @@ from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis
 from .profiles import MCPProfile
 
 # Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'a3fd6eb7b185e7938a00c222b5027ae02bc6003cf9688488ee1489ae214d09c1'
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '5e632aa35ec592a77eef5386ddcc629317befe774e9e54959ab20a90bfd6caea'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
@@ -255,6 +255,23 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     c.backend = backend or SkillsObserverAnalysisProvider()
     roots = [config.workspaces[p].repositories[a].root for p in sorted(c.host.projects)
              for a in config.workspaces[p].repositories]
+    # Freeze labels independently of the global model/service state. Installed
+    # Skills roots are navigation resources, never implicit inquiry targets.
+    inquiry_repositories = tuple((project, alias, str(repository.root))
+        for project in sorted(c.host.projects)
+        for alias, repository in sorted(config.workspaces[project].repositories.items()))
+    installed_skill_roots = (str(root),)
+    def inquiry_context(job):
+        scope = job.scope
+        project = scope.get('project')
+        projects = (set(scope.get('catalog_projects', c.host.projects))
+                    if project in {None, 'catalog'} else {project})
+        if not projects <= c.host.projects:
+            raise PermissionError('job_scope_not_permitted')
+        return {'inquiry_repositories': [
+            {'project': project, 'repository': alias, 'root': repository_root}
+            for project, alias, repository_root in inquiry_repositories if project in projects],
+            'installed_skill_roots': list(installed_skill_roots)}
     c.worker_unavailable = None
     c.command = command_port
     factory = None
@@ -318,7 +335,8 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     except (OSError, ValueError, KeyError) as exc:
         c.worker_unavailable = type(exc).__name__
     c.jobs = JobService((state_directory or observer_analysis_state_root() / 'as1') / 'jobs',
-                        packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry)
+                        packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,
+                        inquiry_context_provider=inquiry_context)
     c.store.authority_access = c.packet_access
     c.information.job_lookup = lambda ident, scope: c.jobs.lookup(ident, access_scope=scope)
     c.skills = SkillService(c.jobs, skills_root=root)

@@ -10,6 +10,60 @@ from project_control.as1_skill import SkillService
 from test_pc_as1_surface import servers, run
 
 
+def test_registered_inquiry_targets_are_labeled_separately_from_installed_skills(servers, tmp_path):
+    from project_control.config import ProjectControlConfig, WorkspaceConfig, RepositoryConfig
+    project_root = tmp_path / 'project'; project_root.mkdir()
+    other_root = tmp_path / 'other'; other_root.mkdir()
+    config = ProjectControlConfig(workspaces={
+        'p': WorkspaceConfig(repositories={'main': RepositoryConfig(root=project_root)}),
+        'other': WorkspaceConfig(repositories={'main': RepositoryConfig(root=other_root)})})
+    c = servers(config=config)._project_control_surface
+    provider = c.jobs.inquiry_context_provider
+    expected = [{'project': 'p', 'repository': 'main', 'root': str(project_root)}]
+    original = provider(SimpleNamespace(scope=c.scope('p')))
+    assert original['inquiry_repositories'] == expected
+    assert original['installed_skill_roots'] == [str(c.skills.root)]
+    assert str(project_root) not in original['installed_skill_roots']
+    # Caller/profile provenance and caller hints do not change trusted targets.
+    changed = {**c.scope('p'), 'principal': 'another-caller', 'profile': 'mutator',
+               'root': '/untrusted', 'inquiry_repositories': [{'root': '/untrusted'}]}
+    assert provider(SimpleNamespace(scope=changed)) == original
+    # Neither mutating returned labels nor later config mutation changes the
+    # immutable admission configuration snapshot.
+    original['inquiry_repositories'][0]['root'] = '/untrusted'
+    config.workspaces['p'].repositories['main'].root = other_root
+    assert provider(SimpleNamespace(scope=c.scope('p')))['inquiry_repositories'] == expected
+
+
+def test_dispatch_passes_trusted_target_context_without_hint_override(tmp_path):
+    from project_control.as1_jobs import JobService
+    from test_pc_as1_jobs import wait
+    store = SQLitePacketStore(tmp_path / 'packets')
+    scope = {'principal': 'alice', 'profile': 'observer', 'project': 'p'}
+    hint = store.create(tool='read', access_scope=scope, payload={
+        'inquiry_repositories': [{'project': 'wrong', 'root': '/wrong'}]})
+    captured = []
+    context = {'inquiry_repositories': [{'project': 'p', 'repository': 'main',
+                                        'root': str(tmp_path / 'project')}],
+               'installed_skill_roots': [str(tmp_path / 'skills')]}
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                captured.append(request)
+                return {'status': 'completed', 'answer': 'registered project'}
+        return Worker()
+    service = JobService(tmp_path / 'jobs', packets=store, worker_factory=factory,
+                         inquiry_context_provider=lambda job: context).start()
+    try:
+        admitted = service.submit(question='Explain this project', access_scope=scope, hints=[hint.alias])
+        wait(lambda: bool(captured))
+        assert captured[0]['inquiry_repositories'] == context['inquiry_repositories']
+        assert captured[0]['installed_skill_roots'] == context['installed_skill_roots']
+        assert captured[0]['hints']
+    finally:
+        service.shutdown()
+
+
 def test_actual_tools_schemas_and_recursive_projection(servers):
     tools = {tool.name: tool for tool in run(servers().list_tools())}
     assert len(tools) == 11
