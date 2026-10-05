@@ -209,6 +209,9 @@ class SkillsObserverAnalysisProvider:
             reasoning_mode = request.get("reasoning_mode", "auto")
             if reasoning_mode not in {"auto", "off"}:
                 raise ValueError("local_investigator_reasoning_mode_invalid")
+            response_format = request.get("response_format")
+            if "response_format" in request and not isinstance(response_format, dict):
+                raise ValueError("local_investigator_response_format_invalid")
             write_event({"event": "model_request", "phase": "started", "call_id": call_id_var.get(),
                          "operation": "investigate_turn", "messages": summarize_messages(messages)})
             backend_request = {
@@ -219,6 +222,7 @@ class SkillsObserverAnalysisProvider:
                 "timeout_seconds": min(60.0, float(request.get("timeout_seconds", 60))),
                 "compute_profile": request.get("compute_profile", "wide"),
                 "parallelism": request.get("parallelism", "default"),
+                **({"response_format": response_format} if "response_format" in request else {}),
                 **({"deadline_epoch": request["deadline_epoch"]} if "deadline_epoch" in request else {}),
                 **({"session_id": request["session_id"]} if request.get("session_id") else {}),
             }
