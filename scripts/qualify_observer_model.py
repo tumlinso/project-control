@@ -411,8 +411,7 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
                                          if r.get('reasoning_tokens_cap') and r.get('ok')), None)
                         if cap > 512 and (not previous or not isinstance(previous.get('reasoning_tokens'), int)
                                           or previous['reasoning_tokens'] <= 0
-                                          or previous.get('usage', {}).get('reasoning_token_budget',
-                                                                            previous['reasoning_tokens']) < previous['reasoning_tokens_cap']):
+                                          or (previous.get('duration_ms') or 1e12) > 40000):
                             break
                         item = trial(base, reasoning_tokens=cap, server_handle=cap_server)
                         if item and item.get('duration_ms', 999999) > 40000 and cap >= 4096:
