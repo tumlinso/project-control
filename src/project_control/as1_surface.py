@@ -548,6 +548,8 @@ def register_surface(mcp, c):
                 return public_inquiry({**result.packet.payload, 'status': value['status'],
                     'packet_id': result.packet.packet_id, 'alias': result.packet.alias,
                     'evidence_packets': value['job'].get('evidence_packets', []),
+                    **({'unresolved_questions': value['job']['unresolved_questions']}
+                       if 'unresolved_questions' in value['job'] else {}),
                     'sources': [source.model_dump(exclude_none=True) for source in result.packet.sources]})
             return public_inquiry(value)
         # Inquiry polling, reconciliation and packet lookup use blocking SQLite

@@ -232,6 +232,24 @@ def test_terminal_answer_projection_keeps_supported_evidence(servers):
     assert c.jobs.inquire.call_args.kwargs['question'] == 'literal  question\n'
 
 
+def test_investigate_projection_preserves_historical_freshness_caveat(servers):
+    server=servers(); c=server._project_control_surface; scope=c.scope(None)
+    packet=c.store.create(tool='investigate',access_scope=scope,payload={
+        'status':'completed','answer':'Historical answer.','unresolved_questions':[]})
+    caveat='Historical command evidence may be stale; freshness is not verified.'
+    c.jobs.inquire=Mock(return_value={'status':'partial','job':{
+        'job_id':'private','result_packet':packet.packet_id,'evidence_packets':[],
+        'unresolved_questions':[caveat]}})
+
+    result=run(server.call_tool('investigate',{'question':'Repeat historical question.'}))[1]
+
+    assert result['status']=='partial'
+    assert result['unresolved_questions']==[caveat]
+    assert result['answer']=='Historical answer.'
+    stored=c.store.lookup(packet.packet_id,access_scope=scope)
+    assert stored.status=='ok' and stored.packet.payload['unresolved_questions']==[]
+
+
 def test_investigate_and_skill_leave_event_loop_responsive(servers):
     server = servers()
     c = server._project_control_surface
