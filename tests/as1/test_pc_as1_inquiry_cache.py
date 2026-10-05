@@ -553,7 +553,7 @@ def test_real_worker_port_unrepairable_json_becomes_negative_cache(tmp_path):
 def test_resumed_worker_projects_large_raw_observations_without_losing_evidence(tmp_path):
     first_entered, first_release = threading.Event(), threading.Event()
     second_entered, second_release = threading.Event(), threading.Event()
-    dispatches, worker_requests = [], []
+    dispatches, worker_requests, small_ids = [], [], []
 
     class Backend:
         def __init__(self):
@@ -585,7 +585,8 @@ def test_resumed_worker_projects_large_raw_observations_without_losing_evidence(
         def run_observer_turn(self, request):
             self.model_requests.append(request)
             assert len(request['messages']) <= 24
-            assert len(json.dumps(request, ensure_ascii=False).encode()) <= 90000
+            turn_bytes = len(json.dumps(request, ensure_ascii=False).encode())
+            assert 90000 < turn_bytes <= 1024 * 1024
             if len(self.model_requests) == 1:
                 observations = []
                 for message in request['messages']:
@@ -601,11 +602,19 @@ def test_resumed_worker_projects_large_raw_observations_without_losing_evidence(
                 marker = next(o for o in observations if o.get('packet_id') == self.large_id)
                 assert marker == {'packet_id': self.large_id,
                     'omissions': ['tool payload exceeded worker context budget']}
+                # The expanded turn envelope retains the complete projected
+                # evidence bodies above the former 90 KB ceiling. Their public
+                # broker IDs remain the citation IDs; the oversized frame stays
+                # explicitly omitted and cannot be cited.
+                retained_small = [o for o in observations if o.get('packet_id') in set(small_ids)]
+                assert retained_small
+                assert all(o.get('text') == 'x'*13000 for o in retained_small)
                 progress = next(payload['progress'] for message in request['messages'] if message['role'] == 'user'
                     for payload in [json.loads(message['content'])]
                     if isinstance(payload, dict) and 'progress' in payload
                     and 'allowed_observation_packet_ids' in payload['progress'])
                 assert self.large_id not in progress['allowed_observation_packet_ids']
+                assert set(o['packet_id'] for o in retained_small) <= set(progress['allowed_observation_packet_ids'])
                 assert progress['input_omitted_observation_packet_ids'] == worker_requests[1][
                     'omitted_observation_packet_ids']
                 return {'status': 'available', 'text': json.dumps({'answer': 'Draft.', 'findings': [
