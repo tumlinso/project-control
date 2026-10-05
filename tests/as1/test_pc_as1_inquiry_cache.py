@@ -5,6 +5,8 @@ import sqlite3
 import threading
 import time
 
+import pytest
+
 from project_control.as1_jobs import JobService
 from project_control.as1_packets import SQLitePacketStore
 
@@ -252,12 +254,17 @@ def test_freshness_callback_outside_transaction_and_generation_cas(tmp_path):
     with s._db() as db: assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==1
 
 
-def test_cleanup_failure_keeps_durable_capacity_after_owner_death(tmp_path):
+@pytest.mark.parametrize("cleanup", ["exception", "unreleased"])
+def test_cleanup_failure_keeps_durable_capacity_after_owner_death(tmp_path, cleanup):
     now=[1000.]
     closes=[]
     class Backend:
         def open_sessions(self,count,**kwargs): return {'status':'available','session_ids':['session']}
-        def close_session(self,session): closes.append(session);raise RuntimeError('model_process_not_quiescent')
+        def close_session(self,session):
+            closes.append(session)
+            if cleanup == 'unreleased':
+                return {'released': False}
+            raise RuntimeError('model_process_not_quiescent')
     def factory(service,job):
         class Worker:
             def run(self,request):return {'status':'completed','answer':'computed'}

@@ -708,7 +708,8 @@ class JobService:
             try:
                 if session:
                     closed = self.backend.close_session(session)
-                    if isinstance(closed, dict) and closed.get('status') in {'unavailable', 'busy', 'failed'}:
+                    if isinstance(closed, dict) and (closed.get('released') is False
+                            or closed.get('status') in {'unavailable', 'busy', 'failed'}):
                         raise RuntimeError('session_cleanup_unproved')
             except Exception:
                 cleanup_failed = True

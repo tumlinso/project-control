@@ -45,7 +45,8 @@ def running(tmp_path):
     admitted = service.submit(question='read fixture', access_scope=SCOPE)
     wait(lambda: service.lookup(admitted['job_id'], access_scope=SCOPE)['job']['status'] == 'queued_after_eviction')
     assert service.shutdown()
-    now[0] += 2
+    # The first recoverable attempt uses the required five-second backoff.
+    now[0] += 5
     job = service.claim()
     assert job
     return service, job, now
@@ -53,7 +54,8 @@ def running(tmp_path):
 
 @pytest.mark.as1_case('JOB-01', 'JOB-04', 'JOB-05', 'JOB-06')
 def test_native_command_checkpoint_reopen_replays_call_packet_without_reread(tmp_path):
-    now = [1000.]
+    # The native producer interprets deadline_epoch as UNIX wall-clock seconds.
+    now = [time.time()]
     source = tmp_path/'module.py'
     content = 'def calculate_total(values):\n    return sum(values)\n'
     source.write_text(content)
@@ -112,7 +114,8 @@ def test_native_command_checkpoint_reopen_replays_call_packet_without_reread(tmp
     assert 'public_tool_call' not in raw[0]
     assert first_backend.closed == ['initial']
     source.unlink()  # A reread could no longer produce this retained source proof.
-    now[0] += 2
+    # The first recoverable attempt uses the required five-second backoff.
+    now[0] += 5
     second_backend = Backend(resume=True)
     restored = make(tmp_path, now, worker_factory=factory(second_backend), backend=second_backend)
     assert restored.poll(admitted['job_id'], access_scope=SCOPE)['observations'] == initial['observations']
@@ -174,7 +177,8 @@ def test_checkpoint_cross_job_copy_legacy_and_crash_gap(running):
     admitted = other.submit(question='other', access_scope=SCOPE)
     wait(lambda: other.lookup(admitted['job_id'], access_scope=SCOPE)['job']['status'] == 'queued_after_eviction')
     assert other.shutdown()
-    now[0] += 2
+    # The first recoverable attempt uses the required five-second backoff.
+    now[0] += 5
     other_job = other.claim()
     foreign = other.observe(other_job.job_id, other_job.attempt, {'stdout': 'other caller/job'})
     foreign_frame = other.lookup(other_job.job_id, access_scope=SCOPE)['observations'][0]
@@ -227,7 +231,8 @@ def test_same_database_cross_caller_and_bound_native_identity(running):
     admitted = service.submit(question='Bob source', access_scope=bob_scope)
     wait(lambda: service.lookup(admitted['job_id'], access_scope=bob_scope)['job']['status'] == 'queued_after_eviction')
     assert service.shutdown()
-    now[0] += 2
+    # The first recoverable attempt uses the required five-second backoff.
+    now[0] += 5
     bob = service.claim()
     assert bob.job_id == admitted['job_id']
     bob_ref = service.observe(bob.job_id, bob.attempt, {'stdout': 'Bob source'})

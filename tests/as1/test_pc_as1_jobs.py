@@ -287,7 +287,10 @@ def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_
         assert value['job']['status'] == 'completed', value
         assert calls == [('search', scope)]
         context = json.loads(backend.requests[0]['messages'][1]['content'])
-        assert set(context) == {'question', 'scope', 'hints', 'skill', 'progress', 'instruction'}
+        assert set(context) == {'question', 'scope', 'hints', 'skill', 'progress', 'instruction',
+                                'refresh_context', 'log_guidance'}
+        assert context['refresh_context'] is None
+        assert 'last 50 answered inquiries' in context['log_guidance']
         assert context['progress'] == {'stage': 'initial', 'observation_count': 0, 'remaining_steps': 6}
         assert not any(message['role'] == 'assistant' for message in backend.requests[0]['messages'])
         assert not calls or 'overview' not in [c[0] for c in calls]
