@@ -43,8 +43,9 @@ def register_mutation_tools(
 
     @server.tool(
         description=(
-            "Apply one fresh inert ProposalEnvelope containing a native Todo plan through "
-            "Todo Orchestrator's transaction authority. Stale proposals fail closed."
+            "Apply one fresh inert ProposalEnvelope for the named project through Todo "
+            "Orchestrator's transaction authority. Include the native Todo plan in proposal; "
+            "stale or oversized proposals are rejected without applying changes."
         ),
         annotations=_MUTATING,
         structured_output=True,

@@ -168,7 +168,11 @@ def register_workflow_tools(
             }
 
     @server.tool(
-        description="Atomically resume or claim a first-class run lane and its current task.",
+        description=(
+            "Resume the current first-class lane or claim its next ready task for repo_root; "
+            "optional run_id and task_id select the intended work. Returns the task sheet, "
+            "scope, workflow handle, and allowed next actions. Claiming changes workflow state."
+        ),
         annotations=_MUTATING,
         structured_output=True,
     )
@@ -185,7 +189,11 @@ def register_workflow_tools(
         return invoke("next_task", **arguments)
 
     @server.tool(
-        description="Read one bounded, scope-aware workflow or source context target.",
+        description=(
+            "Read one bounded context target under workflow_handle. Choose kind and optional "
+            "target for the current task, run, lane, evidence, source, decision, messages, or "
+            "other supported context; budget_bytes limits the returned packet. Read-only."
+        ),
         annotations=_READ_ONLY,
         structured_output=True,
     )
@@ -207,7 +215,11 @@ def register_workflow_tools(
         )
 
     @server.tool(
-        description="Perform one role- and scope-validated typed coordination action.",
+        description=(
+            "Perform one workflow action allowed by workflow_handle, such as sync, answer, "
+            "message, publish context, run gates, or request integration. Put that action's "
+            "typed fields in payload; the server checks role and task scope. May change workflow state."
+        ),
         annotations=_MUTATING,
         structured_output=True,
     )
@@ -224,7 +236,11 @@ def register_workflow_tools(
         )
 
     @server.tool(
-        description="Opportunistically start one bounded subordinate local-worker child.",
+        description=(
+            "Temporarily unavailable: local-worker dispatch requires explicit operator "
+            "reenablement. Use configured Codex subagents for bounded delegation; the parent "
+            "claim remains authoritative."
+        ),
         annotations=_MUTATING,
         structured_output=True,
     )
@@ -243,7 +259,11 @@ def register_workflow_tools(
         )
 
     @server.tool(
-        description="Nonblockingly collect a candidate result from one subordinate child.",
+        description=(
+            "Temporarily unavailable: local-worker dispatch requires explicit operator "
+            "reenablement. Use configured Codex subagents for bounded delegation; child "
+            "result acceptance remains a parent workflow action."
+        ),
         annotations=_MUTATING,
         structured_output=True,
     )
@@ -251,7 +271,11 @@ def register_workflow_tools(
         return invoke("collect_delegation", delegation_handle=delegation_handle)
 
     @server.tool(
-        description="Complete, hand off, block, or release the first-class parent task.",
+        description=(
+            "Set the parent task's disposition using workflow_handle: complete, handoff, "
+            "block, or release. Add disposition, note, or reason to record the outcome; "
+            "this updates workflow state and may release the claim."
+        ),
         annotations=_MUTATING,
         structured_output=True,
     )
@@ -304,7 +328,11 @@ def register_maintenance_tool(
         )
 
     @server.tool(
-        description="Resume one clean stopped execution using a host-issued, principal-bound maintenance mandate.",
+        description=(
+            "Resume one clean stopped execution under a host-issued, principal-bound mandate. "
+            "Provide repo_root and authorization_id; the mandate constrains the execution "
+            "that may be resumed. This changes workflow state."
+        ),
         annotations=_MUTATING,
         structured_output=True,
     )

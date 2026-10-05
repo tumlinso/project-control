@@ -504,13 +504,22 @@ def register_surface(mcp, c):
     def maintain_execution(request: MaintenanceRequest) -> dict[str, Any]:
         return c.control.maintain_execution(request)
     descriptions = {
-        'overview': 'Orient on demand; without project return the registered catalog.',
-        'search': 'Discover context or directly resolve an exact typed {kind,target}; no fuzzy fallback for exact IDs.',
-        'read': 'Read exact relative files or ranges with immutable source identities; observer only.',
-        'investigate': 'Read-only investigation of project context and evidence. Use read or evidence for authoritative selected source. While thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question.',
-        'skill': 'Read-only discovery and use of installed native skills and their authoritative selected source. While thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question.',
-        'command': 'Internal read-only sandbox command; host clamps limits. No delegation or mutation.',
-        'log': 'Internal scoped job findings; prior findings remain attributed evidence.',
+        'overview': 'Read registered projects and repositories, or give orientation for the named project. Omit project to list the catalog; nothing is loaded automatically.',
+        'delta': 'Summarize project changes since a prior commit or a DeltaSince cursor with a supported revision, task, checkpoint, interface, or time anchor. Returns scoped immutable packets with source locators.',
+        'frontier': 'Show current open work and relevant project context; use scope to narrow the view. Returns scoped immutable packets and source locators.',
+        'search': 'Discover context with a text query, or resolve an exact typed {kind,target}. Exact lookups never fall back to fuzzy search; scope can narrow discovery.',
+        'evidence': 'Retrieve supported evidence for a task, source, run, or other subject in a project. Use kinds to filter evidence; results include source locators.',
+        'impact': 'Trace declared dependents of target entities for a change. Choose paths for affected locations or snippets for bounded source excerpts; results are read-only context.',
+        'history': 'Trace supported history for a project subject, optionally bounded by from_revision and to_revision. Returns scoped history with source locators.',
+        'machine': 'Read host facts or diagnostics selected by query_or_view, such as memory or runtime status. This reports machine context, not repository changes.',
+        'read': 'Read exact project repository paths or requested ranges, optionally from a named repository and revision. Returns content with immutable source identities; observer profile only.',
+        'investigate': 'Ask a read-only question about project context using optional evidence packet hints. A cached answer for the same question and context is reused only while its sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Completed findings retain evidence and source references; use read or evidence to inspect authoritative source.',
+        'skill': 'Read-only discovery and use of an installed native skill for a question, using optional project context and evidence hints. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
+        'command': 'Run a bounded read-only command within the configured repository roots using argv, optional cwd, and limits. Host policy clamps execution limits; output is recorded as evidence. No delegation or mutation.',
+        'log': 'Retrieve up to five question-and-answer briefs from the global latest-50 answered-inquiry cache, using query/path_or_entity for lexical matches. Optional project narrows results; job_id remains a compatibility exact-record read.',
+        'plan': 'Validate or compare a native Todo plan, or apply, amend, supersede, or retire project work through the scoped transaction authority. Supply the action and its matching plan or proposal; authorized mutations require valid prepared authority.',
+        'amend_project': 'Submit a typed semantic project amendment, such as a supported registration or evidence update. The request is checked against current project authority before it is previewed or committed.',
+        'maintain_execution': 'Resume one clean stopped execution under a host-issued maintenance mandate. Supply a typed request containing the authorized action and mandate; the mandate limits which execution can change.',
     }
     for fn in (overview, delta, frontier, search, evidence, impact, history, machine, read, investigate, skill, command, log, plan, amend_project, maintain_execution):
-        register(fn, descriptions.get(fn.__name__, 'Canonical scoped ' + fn.__name__ + ' service.'), mutation=fn.__name__ in {'plan', 'amend_project', 'maintain_execution'}, analysis=fn.__name__ in {'investigate', 'skill'})
+        register(fn, descriptions[fn.__name__], mutation=fn.__name__ in {'plan', 'amend_project', 'maintain_execution'}, analysis=fn.__name__ in {'investigate', 'skill'})

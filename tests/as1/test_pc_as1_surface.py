@@ -77,6 +77,16 @@ def test_actual_tools_list_observer_readonly_and_mutator_annotations(servers):
     assert mutator['investigate'].annotations == observer['investigate'].annotations
 
 
+@pytest.mark.as1_case('API-01')
+def test_every_profile_tool_has_a_useful_registered_description(servers):
+    for profile in CONTRACT['profiles']:
+        tools = {tool.name: tool for tool in run(servers(profile).list_tools())}
+        assert set(tools) == set(CONTRACT['profiles'][profile]['tools'])
+        for name, tool in tools.items():
+            assert tool.description and tool.description.strip(), (profile, name)
+            assert 'canonical scoped' not in tool.description.lower(), (profile, name, tool.description)
+
+
 @pytest.mark.as1_case('API-04')
 def test_observer_guidance_and_pending_response_are_read_oriented(servers):
     from unittest.mock import Mock
