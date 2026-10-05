@@ -83,23 +83,32 @@ def load_receipt(expected: list[str]) -> dict:
 
 def plan(args: argparse.Namespace) -> dict:
     splits = [args.split_only] if args.split_only else ['layer', 'tensor']
+    if args.context_only:
+        execution = [{'stage': 'execution', 'context': args.context_only, 'split': split,
+                      'batch': args.batch_size, 'ubatch': args.ubatch_size,
+                      'flash_attention': 'auto', 'kv_cache': 'f16',
+                      'prompt_target_tokens': target_context_tokens(args.context_only),
+                      'reasoning_tokens': 0} for split in splits]
+        contexts = []
+    else:
+        execution = [{'stage': 'execution', 'context': 32768, 'split': split,
+                      'batch': batch, 'ubatch': ubatch, 'flash_attention': 'auto',
+                      'kv_cache': 'f16', 'prompt_target_tokens': 8192, 'reasoning_tokens': 0}
+                     for split in splits for batch, ubatch in ((512, 128), (1024, 256))]
+        contexts = [{'stage': 'context', 'context': n,
+                     'prompt_target_tokens': target_context_tokens(n)}
+                    for n in (65536, 131072, 262144)]
     return {
         'format': 'OBSERVER-MODEL-CALIBRATION-PLAN/1',
         'mode': 'dry_run' if not args.go_real else 'controller_leased',
         'model_path': str(args.model_path), 'gpu_uuids': args.gpu_uuid,
         'lease_gpu_uuids': args.lease_gpu_uuid or args.gpu_uuid,
         'split_only': args.split_only,
+        'context_only': args.context_only,
+        'batch_size': args.batch_size, 'ubatch_size': args.ubatch_size,
         'wall_budget_seconds': args.budget_seconds,
         'visible_answer_tokens': VISIBLE_LIMIT, 'turn_timeout_seconds': TURN_LIMIT,
-        'trial_order': [
-            {'stage': 'execution', 'context': 32768, 'split': split,
-             'batch': batch, 'ubatch': ubatch, 'flash_attention': 'auto',
-             'kv_cache': 'f16', 'prompt_target_tokens': 8192, 'reasoning_tokens': 0}
-            for split in splits
-            for batch, ubatch in ((512, 128), (1024, 256))
-        ] + [{'stage': 'context', 'context': n, 'prompt_target_tokens': target_context_tokens(n)}
-             for n in (65536, 131072, 262144)]
-        + [{'stage': 'thinking', 'reasoning_tokens': n} for n in
+        'trial_order': execution + contexts + [{'stage': 'thinking', 'reasoning_tokens': n} for n in
            (512, 1024, 2048, 4096, 8192, 16384)],
         'stop_rules': ['15-minute trial budget', 'at least 60 seconds before starting a trial',
                        'at least 1 GiB free per GPU', 'retain only grounded valid JSON'],
@@ -363,12 +372,18 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
         return row
 
     try:
-        # Four one-request trials identify the execution mode with low setup overhead.
-        for split in ([args.split_only] if args.split_only else ('layer', 'tensor')):
-            for batch, ubatch in ((512, 128), (1024, 256)):
-                item = trial({'context': 32768, 'split': split, 'batch': batch,
-                              'ubatch': ubatch, 'flash_attention': 'auto', 'kv_cache': 'f16'})
-                if item is None: break
+        if args.context_only:
+            item = trial({'context': args.context_only, 'split': args.split_only,
+                          'batch': args.batch_size, 'ubatch': args.ubatch_size,
+                          'flash_attention': 'auto', 'kv_cache': 'f16'})
+        else:
+            # Two batch pairs at the baseline context; split-only workers compare
+            # layer/tensor concurrently under separate controller leases.
+            for split in ([args.split_only] if args.split_only else ('layer', 'tensor')):
+                for batch, ubatch in ((512, 128), (1024, 256)):
+                    item = trial({'context': 32768, 'split': split, 'batch': batch,
+                                  'ubatch': ubatch, 'flash_attention': 'auto', 'kv_cache': 'f16'})
+                    if item is None: break
         viable = [r for r in results if r.get('ok')]
         viable.sort(key=lambda r: r.get('duration_ms') or 1e12)
         if viable:
@@ -378,13 +393,14 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
                 slowest_baseline_tps = min(baseline_rates)
             base = dict(viable[0]['settings'])
             # Grow context in order, then spend remaining budget on thinking caps.
-            for context in (65536, 131072, 262144):
-                if remaining() < TURN_LIMIT: break
-                stage = 'context'
-                candidate = {**base, 'context': context}
-                item = trial(candidate)
-                if item and item.get('ok'): base = candidate
-                else: break
+            if not args.context_only:
+                for context in (65536, 131072, 262144):
+                    if remaining() < TURN_LIMIT: break
+                    stage = 'context'
+                    candidate = {**base, 'context': context}
+                    item = trial(candidate)
+                    if item and item.get('ok'): base = candidate
+                    else: break
             stage = 'thinking'
             if remaining() >= TURN_LIMIT:
                 cap_server = start_server(base)
@@ -459,6 +475,10 @@ def main() -> int:
     parser.add_argument('--lease-gpu-uuid', action='append', default=[],
                         help='full parent-lease UUID set; permits selecting one exact pair')
     parser.add_argument('--split-only', choices=('layer', 'tensor'))
+    parser.add_argument('--context-only', type=int, choices=(32768, 65536, 131072, 262144),
+                        help='run exactly one direct trial at this context before thinking sweep')
+    parser.add_argument('--batch-size', type=int, default=1024)
+    parser.add_argument('--ubatch-size', type=int, default=256)
     parser.add_argument('--budget-seconds', type=int, default=DEFAULT_BUDGET)
     parser.add_argument('--llama-server', default='llama-server')
     parser.add_argument('--go-real', action='store_true', help='require an active CUDA foreground lease')
@@ -470,6 +490,10 @@ def main() -> int:
         parser.error('provide two or four distinct --lease-gpu-uuid values')
     if not set(args.gpu_uuid).issubset(lease_uuids):
         parser.error('selected pair must be contained in the supplied parent lease UUIDs')
+    if args.context_only and not args.split_only:
+        parser.error('--context-only requires --split-only layer|tensor')
+    if args.batch_size < 1 or args.ubatch_size < 1 or args.batch_size < args.ubatch_size:
+        parser.error('batch sizes must be positive and batch-size >= ubatch-size')
     if not 60 <= args.budget_seconds <= DEFAULT_BUDGET:
         parser.error('--budget-seconds must be 60..900')
     if not args.go_real:
