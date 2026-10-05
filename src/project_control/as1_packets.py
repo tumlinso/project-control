@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -23,6 +24,9 @@ _PRIVATE_KEYS = {'password', 'secret', 'access_token', 'refresh_token',
                  'workflow_handle', 'capability', 'bearer', 'hidden_reasoning',
                  'chain_of_thought', 'private_context'}
 _BEARER = re.compile(r'\bBearer\s+[A-Za-z0-9._~+/=-]+', re.IGNORECASE)
+# Serialize connection lifecycle across store instances, while leaving WAL
+# transactions independent so readers can retain their snapshots during writes.
+SQLITE_CONNECTION_LOCK = threading.RLock()
 
 
 def _json(value: Any) -> str:
@@ -92,6 +96,15 @@ class SQLitePacketStore:
         self.namespace, self.clock = namespace, clock
         self.alias_factory = alias_factory or (lambda size: '-'.join(secrets.choice(WORDS) for _ in range(size)))
         self.recent_terminal_limit, self.max_payload_bytes = recent_terminal_limit, max_payload_bytes
+        # WAL persists on disk; initialize it before concurrent operations rather
+        # than changing journal mode on every connection.
+        with SQLITE_CONNECTION_LOCK:
+            initial = sqlite3.connect(self.path, timeout=30)
+            try:
+                if initial.execute('PRAGMA journal_mode').fetchone()[0] != 'wal':
+                    initial.execute('PRAGMA journal_mode=WAL').fetchone()
+            finally:
+                initial.close()
         with self._db() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS identity(namespace TEXT NOT NULL);
@@ -111,15 +124,20 @@ class SQLitePacketStore:
 
     @contextmanager
     def _db(self):
-        db = sqlite3.connect(self.path, timeout=30)
-        db.execute('PRAGMA journal_mode=WAL')
-        db.execute('PRAGMA synchronous=FULL')
-        db.execute('PRAGMA foreign_keys=ON')
+        with SQLITE_CONNECTION_LOCK:
+            db = sqlite3.connect(self.path, timeout=30)
+            try:
+                db.execute('PRAGMA synchronous=FULL')
+                db.execute('PRAGMA foreign_keys=ON')
+            except BaseException:
+                db.close()
+                raise
         try:
             with db:
                 yield db
         finally:
-            db.close()
+            with SQLITE_CONNECTION_LOCK:
+                db.close()
 
     @staticmethod
     def _authorized(required, supplied):
@@ -267,8 +285,15 @@ class SQLitePacketStore:
 
     def backup(self, destination: str | Path) -> None:
         destination = Path(destination)
-        with self._db() as source, sqlite3.connect(destination) as target:
-            source.backup(target)
+        with self._db() as source:
+            with SQLITE_CONNECTION_LOCK:
+                target = sqlite3.connect(destination)
+            try:
+                with target:
+                    source.backup(target)
+            finally:
+                with SQLITE_CONNECTION_LOCK:
+                    target.close()
         os.chmod(destination, 0o600)
 
     def invocation(self, reference: str, *, access_scope: Mapping[str, Any]) -> dict | None:
