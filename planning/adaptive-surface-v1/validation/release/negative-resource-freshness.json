@@ -1,0 +1,103 @@
+{
+  "status": "reproduced_gap_deferred",
+  "scope": "One temporary registered-skill fixture; direct InquiryFreshness evaluation only. No inference, live service calls, runtime edits, or rebuild.",
+  "source_identity": {
+    "project_control_code_pin": "748b6c868ce9bb74046eb1df61b8950dce4de786",
+    "paired_skills_code_pin": "7390bc7fbc221da175defe30dc1f3df9e9c1abe8",
+    "deployed_observer_runtime_sha256": "9d4fdb3fb6c60aee65d8d0ce0a9a696d85bb6461808b7bd4952bcc9aa9291b79",
+    "working_tree_source_edits": []
+  },
+  "saved_real_inquiry": {
+    "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-remaining-acceptance/real-qualification/skill-traversal-0.json",
+    "sha256": "e41716e2019b51da4775f7f1c64900ede4ee86f29236f78d77198b424612559d",
+    "observed": "Final skill response is partial and unresolved names reference/R06.md; retained_dependencies is empty. Its skill-job snapshot contains only a summary and no raw tool observations.",
+    "raw_failed_tool_observation_available": false
+  },
+  "native_failed_command_probe": {
+    "runtime_source": "/home/tumlinson/.local/share/project-control/candidates/as1-central-cache-answer-dependencies-20261005/runtime-skills/local-coding-worker/local_worker/observer_runtime.py:75-200",
+    "runtime_sha256": "9d4fdb3fb6c60aee65d8d0ce0a9a696d85bb6461808b7bd4952bcc9aa9291b79",
+    "command": "python loaded deployed ReadOnlyCommandRunner and ran argv [\"cat\", <temporary-skill-root>/fixture/reference/R06.md] with cwd <temporary-skill-root>/fixture; no model call.",
+    "result": {
+      "status": "failed",
+      "exit_code": 1,
+      "stderr": "cat: <temporary-skill-root>/fixture/reference/R06.md: No such file or directory\n",
+      "stdout": "",
+      "timed_out": false,
+      "truncated": false,
+      "source_reads": "field omitted by native runner",
+      "argv_cwd": "captured separately in observation.public_tool_call.arguments"
+    },
+    "limits": "This fixture probe verifies the deployed runner result shape, not the missing-file observation from the saved CUDA inquiry."
+  },
+  "reproduction": {
+    "test_file": "tests/as1/test_pc_as1_negative_dependencies.py",
+    "test_sha256": "079d0fc2d93c609d7aa87f74b1bc1e51825bfb2751f63d73f45c75b8fd4b10f7",
+    "case": [
+      "Partial cached skill result cites an unchanged direct-cat selected resource and carries a valid entry/resource selection manifest.",
+      "An exact failed cat observation for reference/R06.md is retained with its public argv and cwd; the target is initially absent.",
+      "InquiryFreshness reports fresh before creation.",
+      "After reference/R06.md is created while all cited files remain unchanged, InquiryFreshness still reports fresh."
+    ],
+    "expected_after_creation": "stale, so the partial answer can be refreshed",
+    "actual_after_creation": "fresh",
+    "regression_status": "strict xfail marks the expected invalidation; --runxfail produces the expected failing assertion (assert True is False)."
+  },
+  "commands_and_results": [
+    {
+      "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_inquiry_surface.py -k 'skill_literal_identity_separate_execution_and_required_entry_proof' --tb=short",
+      "result": "1 passed, 28 deselected"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_negative_dependencies.py --tb=short",
+      "result": "1 xfailed (strict expected invalidation not implemented)"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_negative_dependencies.py --runxfail --tb=short",
+      "result": "1 failed at assert after['fresh'] is False; observed actual after['fresh'] == True"
+    }
+  ],
+  "implementation_assessment": {
+    "safe_pc_only_extraction_supported_by_current_packet": false,
+    "reason": "The failed direct-cat packet has exit_code 1 and stderr, but those do not reliably distinguish genuine absence from permission or other read failures. Parsing stderr would be brittle and was explicitly excluded.",
+    "proposal_if_root_authorizes_followup": "Have the trusted producer emit a structured exact-path probe outcome (for example absent, denied, or readable) for the explicitly attempted path under the registered skill root, using descriptor-safe path resolution. Freshness can then recheck only the attested negative dependency. Keep unrelated/uncited observations out of answer freshness."
+  },
+  "coverage_limits": [
+    "This checks InquiryFreshness directly with mocked job lookup and temporary packets; it does not prove end-to-end JobService cache selection/reuse or refresh execution.",
+    "The saved real inquiry does not retain the raw failed command observation, so the missing-path evidence comes from a bounded run of the deployed runner against a temporary fixture.",
+    "No general prose parsing, wildcard searches, skill-navigation quality diagnosis, or pool/deduplication qualification was performed."
+  ],
+  "root_decision": {
+    "status": "deferred_this_pass",
+    "decision": "Safe implementation requires trusted producer absence attestation and explicit material unresolved/citation linkage. Do not parse stderr or prose and do not weaken path controls.",
+    "implementation_performed": false
+  },
+  "administrative_claim_release": {
+    "authority": "Project Control workspace /home/tumlinson/project-control",
+    "run_id": "PC-PCE2-RUN-1",
+    "lane_id": "PC-PCE2-L-EXEC",
+    "task_id": "PC-PCE2-RUNTIME",
+    "dispatch_id": "bb6c02e3-b073-486a-a2f9-b37582529783",
+    "claimed_status": "claimed",
+    "released_status": "idle",
+    "release_operation_status": "finished",
+    "project_revision_before": 916,
+    "project_revision_after": 917,
+    "task_status_changed": false,
+    "cancellation_performed": false,
+    "note": "A generic next_task(repo_root) lookup returned this unrelated PCE2 task. It was immediately released with finish_task(action=release); no task status change or cancellation was requested or performed."
+  },
+  "test_result_refs": {
+    "existing_skill_freshness_test": {
+      "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_inquiry_surface.py -k 'skill_literal_identity_separate_execution_and_required_entry_proof' --tb=short",
+      "result": "1 passed, 28 deselected"
+    },
+    "strict_xfail_regression": {
+      "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_negative_dependencies.py --tb=short",
+      "result": "1 xfailed"
+    },
+    "xfail_disabled_diagnostic": {
+      "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_negative_dependencies.py --runxfail --tb=short",
+      "result": "1 failed at after['fresh'] is False; observed True"
+    }
+  }
+}

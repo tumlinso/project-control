@@ -1,0 +1,112 @@
+{
+  "scope": "Bounded deployed AS1 followup; no inference or broad qualification",
+  "baseline_code_pin": "748b6c868ce9bb74046eb1df61b8950dce4de786",
+  "skills_pin": "7390bc7fbc221da175defe30dc1f3df9e9c1abe8",
+  "workflow": {
+    "run": "PC-AS1-CACHE-RUN-1",
+    "task": "PC-AS1-INQUIRY-CACHE",
+    "next_task_status": "idle",
+    "warning": "no_actionable_work",
+    "authorization": "Explicit user AS1 followup; no requested Todo administration or PCE status changes",
+    "unrelated_claim_release_receipt": "planning/adaptive-surface-v1/validation/release/negative-resource-freshness.json administrative_claim_release",
+    "pce_statuses_unchanged": true,
+    "authority_revision_touch": "Transient unrelated task claim immediately released; revision 916 to 917; no cancellation"
+  },
+  "skill_navigation": {
+    "decision": "deferred to Skills navigation quality",
+    "saved_evidence": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-remaining-acceptance/real-qualification/skill-traversal-0.json",
+    "live_root": "/home/tumlinson/.local/share/project-control/candidates/as1-tool-descriptions-20261005/runtime-skills/cuda",
+    "finding": "R06 semantic ID was used as a filename. Canonical named resource exists; map-following/native filesystem navigation is required. No PC defect established.",
+    "missing_exact_path": "/home/tumlinson/.local/share/project-control/candidates/as1-tool-descriptions-20261005/runtime-skills/cuda/references/architectures/volta/v100_atlas/reference/R06.md",
+    "exact_path_exists": false,
+    "sources": [
+      {
+        "path": "/home/tumlinson/.local/share/project-control/candidates/as1-tool-descriptions-20261005/runtime-skills/cuda/SKILL.md",
+        "sha256": "0e130b7d8a92441a2dbdfa1256baa3345d66c444bdf74eed500cf62cffde61a4"
+      },
+      {
+        "path": "/home/tumlinson/.local/share/project-control/candidates/as1-tool-descriptions-20261005/runtime-skills/cuda/references/architectures/volta/v100_atlas/START_HERE.md",
+        "sha256": "d8e1c63d4edaae6457d4326e321f9c8ec17272de1bd69000807d9a6cb12cc9e5"
+      },
+      {
+        "path": "/home/tumlinson/.local/share/project-control/candidates/as1-tool-descriptions-20261005/runtime-skills/cuda/references/architectures/volta/v100_atlas/NEED_INDEX.md",
+        "sha256": "215db32fcec7580875ec05a10543c4af43a317fabbde03f6e81b83da23f81942"
+      },
+      {
+        "path": "/home/tumlinson/.local/share/project-control/candidates/as1-tool-descriptions-20261005/runtime-skills/cuda/references/architectures/volta/v100_atlas/reference/R06-participation-visibility-and-progress.md",
+        "sha256": "4b02909469914911d50a73f3128880cec97a2d7f02060a4ae280d98c85718a1c"
+      }
+    ],
+    "coverage_limit": "Saved public artifact omits raw model tool observations; synthesis entailment is unverified. Initial rg --files absence claims were corrected by direct Path checks."
+  },
+  "older_observer_reports": {
+    "impact": {
+      "verified": "Valid single README.md target returned packet exceeds configured payload cap",
+      "call": {
+        "project": "project-control",
+        "targets": [
+          {
+            "path": "README.md"
+          }
+        ],
+        "change": "interface",
+        "view": "paths",
+        "detail": "compact"
+      },
+      "discoverability": "Public targets were list[dict] and change string; target/change contracts need discoverable schema",
+      "additional_user_evidence": "Same cap error on a tiny valid task target, so not specific to one high-degree graph node"
+    },
+    "overview": {
+      "classification": "canonical authored orientation data gap; no demonstrated resolver defect",
+      "packet": "pkt_bc3752fc9f5843c9894eb694e6423250",
+      "observed": "orientation empty; authored_orientation_missing",
+      "source_refs": [
+        "src/project_control/as1_context.py:97",
+        "src/project_control/as1_control.py:78",
+        "planning/adaptive-surface-v1/spec/05-mutation-and-registration.md:31"
+      ]
+    },
+    "machine_gpu_summary": {
+      "status": "ok",
+      "devices": "four V100",
+      "packet": "pkt_48274009aa5d4384a7e4655a5368cb2f",
+      "conclusion": "old unavailable report did not reproduce"
+    },
+    "compact_response": {
+      "verified": "continuation-only output",
+      "root_frontier_packet": "pkt_c83a58b81d7a455bba09bffedbbea2c7",
+      "needed_bytes": 52287,
+      "root_exact_task_packet": "pkt_47938db44e464bb29a97280f03e78bb0",
+      "exact_task_needed_bytes": 13320,
+      "decision": "General response projection deferred; impact will be bounded specifically"
+    },
+    "evidence_confidence": {
+      "status": "not verified",
+      "packet": "pkt_7be5103098824ff581dab8fa03bae0e9",
+      "reason": "AS1 replay returned continuation only; original precise confidence case not recovered"
+    },
+    "history_noise": {
+      "status": "not verified",
+      "reason": "Exact original parameters unavailable; no speculative broad history replay"
+    }
+  },
+  "preserved": [
+    "six unrelated modified qualification JSON files",
+    "systemd filesystem-isolation override",
+    "supervisor identity checks",
+    "eight unfinished PCE2 todos; no cancellation resumed"
+  ],
+  "reused_evidence": "planning/adaptive-surface-v1/validation/release/inquiry-cache-central-cutover.json pool/capacity/dedup/source-refresh records; no relevant supervisor changes planned",
+  "coverage_limits": [
+    "No broad qualification cycle",
+    "No unrelated prior test failures cleared",
+    "No semantic entailment claim"
+  ],
+  "controller_direct_work": "Root integration and acceptance receipt; configured workers handled source investigations, tests and bounded fixes.",
+  "negative_resource_freshness": {
+    "receipt": "planning/adaptive-surface-v1/validation/release/negative-resource-freshness.json",
+    "result": "Appearing missing resource does not invalidate cached partial answer in direct InquiryFreshness fixture",
+    "decision": "Implementation deferred: trusted producer absence attestation and explicit material unresolved/citation linkage required",
+    "regression": "strict expected failure; no stderr or prose parsing"
+  }
+}
