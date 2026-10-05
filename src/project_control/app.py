@@ -249,7 +249,7 @@ def create_mcp(
     if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
         instructions += " " + WORKFLOW_INSTRUCTIONS
     if selected_profile == MCPProfile.OBSERVER:
-        instructions += " Use read for exact files; investigate and skill submit durable jobs. Do not wait on accepted jobs; poll their IDs later."
+        instructions += " Observer tools provide read-only context, investigation and installed skill guidance. Use read or evidence for authoritative selected source. If investigate or skill is pending, continue useful work and poll with job_id; reuse request_id for retries."
     if selected_profile == MCPProfile.MUTATOR:
         instructions += " Use plan, amend_project and maintain_execution for explicit transactional control."
     if maintenance_host is not None:

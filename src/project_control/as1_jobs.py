@@ -23,7 +23,7 @@ CHECKPOINT_MAX_OBSERVATIONS = 24
 CHECKPOINT_MAX_FRAME_BYTES = 32768
 CHECKPOINT_MAX_BYTES = 60000
 _DB_LOCK = threading.RLock()
-BUSY = 'Queue busy. Your question is queued. Do not wait; continue reasoning or other useful work and ask again later using this ID.'
+BUSY = 'Read-only analysis is pending. Continue reasoning or other useful work and poll with job_id; reuse request_id for retries.'
 
 
 def stamp(now):

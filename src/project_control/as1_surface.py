@@ -20,6 +20,7 @@ from .profiles import MCPProfile
 # Qualified SK-AS1-QUALIFY skill-protocol repair receipt; never derived from encountered bytes.
 QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
+ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 
 
@@ -137,10 +138,10 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
 
 def register_surface(mcp, c):
     detail_type = Literal['compact', 'standard', 'extended'] if mcp.profile == MCPProfile.OBSERVER else Literal['compact', 'standard']
-    def register(fn, description, *, mutation=False):
+    def register(fn, description, *, mutation=False, analysis=False):
         if 'detail' in fn.__annotations__:
             fn.__annotations__['detail'] = detail_type
-        mcp.add_tool(fn, description=description, annotations=WRITE if mutation else READ, structured_output=True)
+        mcp.add_tool(fn, description=description, annotations=WRITE if mutation else ANALYSIS_READ if analysis else READ, structured_output=True)
 
     def overview(project: str | None = None, detail: str = 'compact') -> dict[str, Any]:
         return c.information.call('overview', project=project, detail=detail)
@@ -189,10 +190,10 @@ def register_surface(mcp, c):
         'overview': 'Orient on demand; without project return the registered catalog.',
         'search': 'Discover context or directly resolve an exact typed {kind,target}; no fuzzy fallback for exact IDs.',
         'read': 'Read exact relative files or ranges with immutable source identities; observer only.',
-        'investigate': 'Submit or poll durable read-only scout jobs. Do not wait; continue useful work and poll the returned ID later.',
-        'skill': 'Installed native skill routing, direct resource authority and durable jobs; observer only.',
+        'investigate': 'Read-only investigation of project context and evidence. Use read or evidence for authoritative selected source. If pending, continue useful work and poll with job_id; reuse request_id for retries.',
+        'skill': 'Read-only discovery and use of installed native skills and their authoritative selected source. If pending, continue useful work and poll with job_id; reuse request_id for retries.',
         'command': 'Internal read-only sandbox command; host clamps limits. No delegation or mutation.',
         'log': 'Internal scoped job findings; prior findings remain attributed evidence.',
     }
     for fn in (overview, delta, frontier, search, evidence, impact, history, machine, read, investigate, skill, command, log, plan, amend_project, maintain_execution):
-        register(fn, descriptions.get(fn.__name__, 'Canonical scoped ' + fn.__name__ + ' service.'), mutation=fn.__name__ in {'plan', 'amend_project', 'maintain_execution', 'investigate', 'skill'})
+        register(fn, descriptions.get(fn.__name__, 'Canonical scoped ' + fn.__name__ + ' service.'), mutation=fn.__name__ in {'plan', 'amend_project', 'maintain_execution'}, analysis=fn.__name__ in {'investigate', 'skill'})

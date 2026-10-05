@@ -55,6 +55,68 @@ def test_exact_profile_matrix_and_dispatch_guard(servers):
         servers('observer', host=ContextHost('mutator', 'alice', frozenset()))
 
 
+@pytest.mark.as1_case('API-01')
+def test_actual_tools_list_observer_readonly_and_mutator_annotations(servers):
+    observer = {tool.name: tool for tool in run(servers().list_tools())}
+    assert set(observer) == set(CONTRACT['profiles']['observer']['tools'])
+    assert len(observer) == 11
+    for name, tool in observer.items():
+        annotations = tool.annotations
+        assert annotations is not None
+        assert annotations.readOnlyHint is True, name
+        assert annotations.destructiveHint is False, name
+        assert annotations.openWorldHint is False, name
+        assert annotations.idempotentHint is (name not in {'investigate', 'skill'}), name
+    mutator = {tool.name: tool for tool in run(servers('mutator').list_tools())}
+    for name in ('plan', 'amend_project', 'maintain_execution'):
+        annotations = mutator[name].annotations
+        assert annotations.readOnlyHint is False, name
+        assert annotations.destructiveHint is False, name
+        assert annotations.idempotentHint is False, name
+        assert annotations.openWorldHint is False, name
+    assert mutator['investigate'].annotations == observer['investigate'].annotations
+
+
+@pytest.mark.as1_case('API-04')
+def test_observer_guidance_and_pending_response_are_read_oriented(servers):
+    import threading
+    from project_control.as1_jobs import BUSY
+    server = servers()
+    tools = {tool.name: tool for tool in run(server.list_tools())}
+    for text in (server.instructions, tools['investigate'].description, tools['skill'].description, BUSY):
+        assert 'read-only' in text.lower()
+        assert 'job_id' in text and 'request_id' in text
+        assert 'pending' in text.lower()
+        assert 'durable' not in text.lower() and 'queue' not in text.lower()
+    assert 'Use read or evidence for authoritative selected source.' in server.instructions
+    assert 'Use read or evidence for authoritative selected source.' in tools['investigate'].description
+    c = server._project_control_surface
+    entered, release = threading.Event(), threading.Event()
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                entered.set()
+                release.wait(5)
+                return {'status': 'completed', 'answer': 'Scripted context.'}
+        return Worker()
+    c.jobs.worker_factory = factory
+    c.jobs.backend = None  # Scripted CPU worker needs no model session provider.
+    c.start()
+    try:
+        first = run(server.call_tool('investigate', {'question': 'Inspect context.', 'request_id': 'read-guidance'}))[1]
+        assert first['accepted'] and first['poll']['job_id'] == first['job_id']
+        assert entered.wait(2)
+        pending = [run(server.call_tool('investigate', {'question': str(i)}))[1] for i in range(3)]
+        assert pending[-1]['accepted'] and pending[-1]['message'] == BUSY
+        retry = run(server.call_tool('investigate', {'question': 'Inspect context.', 'request_id': 'read-guidance'}))[1]
+        assert retry['job_id'] == first['job_id']
+        polled = run(server.call_tool('investigate', {'job_id': first['job_id']}))[1]
+        assert polled['job']['job_id'] == first['job_id']
+        assert c.jobs.lookup(first['job_id'], access_scope={**c.host.scope(None), 'principal': 'forged'})['status'] == 'forbidden'
+    finally:
+        release.set()
+
+
 @pytest.mark.as1_case('API-02')
 def test_observer_only_detail_schema_and_dispatch(servers):
     for profile in CONTRACT['profiles']:
