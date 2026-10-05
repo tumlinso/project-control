@@ -1,0 +1,143 @@
+{
+  "status": "deployed",
+  "project_control_code_pin": "556a3b6bf0f8ee6bc39dda299286f514197386b6",
+  "skills_code_pin": "7390bc7fbc221da175defe30dc1f3df9e9c1abe8",
+  "candidate": "/home/tumlinson/.local/share/project-control/candidates/as1-central-cache-answer-dependencies-20261005",
+  "manifest_sha256": "b97a5e1e69dbbf59e6c33e6bdf994de01c7506e8dbd9a4beec06dc7dbc97c5b7",
+  "build_count_this_correction": 1,
+  "correction": "Accepted finding citations define answer freshness dependencies; uncited incidental observations and result aggregate provenance do not expire answers. Actual cited volatile/source dependencies, result access, and skill entry/resource hashes remain checked.",
+  "focused_tests": {
+    "passed": 9,
+    "command": ".venv/bin/python -m pytest -q --disable-warnings tests/as1/test_pc_as1_inquiry_surface.py -k \"finding_dependencies or dependency_sources or nested_authoritative or skill_literal_identity\" --tb=short"
+  },
+  "saved_case_replay": {
+    "unchanged_readme_answer_fresh": true,
+    "cited_coarse_grep_still_stale": true,
+    "model_calls": 0
+  },
+  "acceptance": [
+    "direct_source_answer",
+    "completed_cache_reuse",
+    "cross_profile_completed_reuse",
+    "source_change_seeded_refresh",
+    "real_skill_final_traversal",
+    "skill_cache_reuse"
+  ],
+  "reused_behavior_evidence": {
+    "references": {
+      "global-capacity-proof.json": {
+        "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-semantic-feedback/real-qualification/global-capacity-proof.json",
+        "sha256": "60713e1efa4c824b69206c282dd8f89c94353b610968ace31dbcf40bf3396a51"
+      },
+      "cross-caller-pending-proof.json": {
+        "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-semantic-feedback/real-qualification/cross-caller-pending-proof.json",
+        "sha256": "16f6edd7691c408ab4ccb5bb31232ea4646764718c85cfa20ed6cd4b05d1ceaa"
+      },
+      "central-warm-baseline.json": {
+        "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-semantic-feedback/real-qualification/central-warm-baseline.json",
+        "sha256": "c20851b1c3b6408e49b3f8f988096117ff8e08057c060f119815e1d615d84988"
+      },
+      "central-after-client-close.json": {
+        "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-semantic-feedback/real-qualification/central-after-client-close.json",
+        "sha256": "c20851b1c3b6408e49b3f8f988096117ff8e08057c060f119815e1d615d84988"
+      }
+    },
+    "historical_pair": {
+      "project-control": {
+        "root": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-semantic-feedback/sources/project-control",
+        "commit": "069456e8e1f24b92c29e6d633feb2ad136630082",
+        "tree": "df9eb53069a3984003ca89d2aac9e532198e42e7"
+      },
+      "skills": {
+        "root": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-semantic-feedback/sources/skills",
+        "commit": "7390bc7fbc221da175defe30dc1f3df9e9c1abe8",
+        "tree": "59372f4e35404f48872885c96acb8fc84b058926"
+      },
+      "candidate": "/home/tumlinson/.local/share/project-control/candidates/as1-central-cache-semantic-feedback-20261005"
+    },
+    "scheduler_sha256": "e6d5d944533f2736e46b63016ca8a6ca3a6e8a1f206e63411028a556a005db63",
+    "supervisor_sha256": "b37d65fae87b8f41bfaaa47ffa02d274e5422163c02f489d52d6bcd36d38cf43",
+    "scope": "Historical pool/global2+4/cross-profile pending dedup behavior reused; current owner PID is independently attested after required restart."
+  },
+  "cache_reuse": {
+    "completed_answer": true,
+    "cross_profile": true,
+    "changed_source_seeded_refresh": true,
+    "skill_partial_answer": true,
+    "cache_hit_model_calls": 0,
+    "fresh_skill_projection_envelope": "A new response packet/alias/freshness timestamp may be created; cached content, excerpts, hashes and unresolved work remain identical."
+  },
+  "skill_result": {
+    "status": "partial",
+    "verified_resources": [
+      "cuda/SKILL.md",
+      "cuda/references/architectures/volta/v100_atlas/START_HERE.md"
+    ],
+    "remaining_incomplete": "The local model attempted an unavailable reference/R06.md route. Detailed deeper-reference guidance remains unresolved. No completed deep CUDA answer or synthesis entailment is claimed.",
+    "contract_reference": "local-coding-worker/references/observer-port.md:137-139,153-155"
+  },
+  "live": {
+    "http_main_pid": 373376,
+    "central_supervisor_pid": 353806,
+    "tool_count": 11,
+    "all_tools_read_only": true,
+    "tunnel_upstream": {
+      "MCP_SERVER_URL": "http://127.0.0.1:8768/mcp"
+    },
+    "no_live_probe_inference": true
+  },
+  "pool": {
+    "central_service_persistent": true,
+    "capacity_proof_reused": "2 executing + 4 waiting",
+    "idle_model_retirement_seconds": 900,
+    "current_resident_count": 0,
+    "verified_idle_retirements": [
+      {
+        "pid": 354033,
+        "released_utc": "2026-10-05T10:37:14.747Z"
+      },
+      {
+        "pid": 354184,
+        "released_utc": "2026-10-05T10:42:40.376Z"
+      }
+    ],
+    "native_release_verified": true,
+    "preempt_requested": false,
+    "evidence": "/tmp/codex-todo-orchestrator-1000/physical-resources.sqlite3 host_owners; corresponding llama-server slot logs",
+    "attribution_limit": "Native ledger has no explicit TTL reason; graceful release timing matches 900 seconds plus housekeeping."
+  },
+  "deployment_configuration": {
+    "reason": "Filesystem isolation in the user unit created a distinct user namespace and blocked existing peer process identity checks on /proc/<supervisor>/exe.",
+    "NoNewPrivileges": true,
+    "ProtectSystem": false,
+    "ProtectHome": false,
+    "PrivateTmp": false,
+    "ReadWritePaths": "reset",
+    "preserved": [
+      "supervisor peer UID/PID/start/source attestation",
+      "profile permissions",
+      "registered project/source authorization",
+      "credential exclusions",
+      "native read-only command sandbox"
+    ]
+  },
+  "coverage_limits": [
+    "No full legacy test-suite rerun. Earlier unrelated qualification/test issues are not cleared by these focused checks.",
+    "Native cached-source verification and excerpt validation establish provenance, not semantic entailment or comprehensive skill navigation quality."
+  ],
+  "controller_direct_work": "Root handled final acceptance, service configuration and deployment, and private validation-envelope comparison; these are integration/lifecycle decisions. Scoped source coding/tests and diagnostics used configured delegated roles.",
+  "receipts": [
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-remaining-acceptance/saved-case-replay.json",
+      "sha256": "7e21b22f08a783eec70156582a6a10ba4d812ac627cc0b9ec8a65baaffecf8e1"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-remaining-acceptance/real-qualification/qualification-receipt.json",
+      "sha256": "a40c80d84111fc08d0a584a94b2b7a1487963ecec55d3bb45718afab59c2c4f5"
+    },
+    {
+      "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/inquiry-cache/release-central-remaining-acceptance/live-cache-receipt.json",
+      "sha256": "81e52ed1a0d5043d76b088027ef8c782f223063633188249703eec8733829463"
+    }
+  ]
+}
