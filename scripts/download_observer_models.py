@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -59,20 +60,35 @@ def reject_symlink(path: Path) -> None:
         raise RuntimeError(f"refusing symlink in model destination: {path}")
 
 
-def publish(part: Path, target: Path, spec: dict) -> None:
-    if not valid_model(part, spec):
-        raise RuntimeError(f"download failed pinned size/hash/GGUF checks; partial preserved: {part}")
-    reject_symlink(target)
-    if target.exists():
-        raise RuntimeError(f"destination appeared during download; refusing overwrite: {target}")
-    with part.open("rb") as stream:
+def reject_hf_local_cache(directory: Path) -> None:
+    for path in (directory / ".cache", directory / ".cache" / "huggingface",
+                 directory / ".cache" / "huggingface" / "download"):
+        reject_symlink(path)
+
+
+def fsync_file_and_parent(path: Path) -> None:
+    with path.open("rb") as stream:
         os.fsync(stream.fileno())
-    os.replace(part, target)
-    directory_fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+    directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(directory_fd)
     finally:
         os.close(directory_fd)
+
+
+def cli_command(binary: str, spec: dict, directory: Path) -> list[str]:
+    return [binary, "download", spec["repo"], spec["filename"],
+            "--revision", spec["revision"], "--local-dir", str(directory)]
+
+
+def cache_environment(root: Path) -> dict[str, str]:
+    cache = root / ".huggingface-cache"
+    reject_symlink(cache)
+    hub = cache / "hub"
+    xet = cache / "xet"
+    reject_symlink(hub)
+    reject_symlink(xet)
+    return {"HF_HUB_CACHE": str(hub), "HF_XET_CACHE": str(xet)}
 
 
 def provenance(path: Path, spec: dict) -> None:
@@ -97,6 +113,11 @@ def provenance(path: Path, spec: dict) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temp_name, target)
+        directory_fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     finally:
         if os.path.exists(temp_name):
             os.unlink(temp_name)
@@ -106,7 +127,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT,
                         help=f"destination beneath mounted {BLOCK} (default: {DEFAULT_ROOT})")
-    parser.add_argument("--dry-run", action="store_true", help="show pinned downloads and storage requirement")
+    parser.add_argument("--dry-run", action="store_true", help="show pinned hf commands without downloading")
     args = parser.parse_args()
     root = args.root.expanduser().resolve()
     block = BLOCK.resolve()
@@ -116,17 +137,21 @@ def main() -> int:
         parser.error(f"destination must be beneath {block}")
 
     print(f"Destination: {root}")
+    print(f"HF_HUB_CACHE: {root / '.huggingface-cache' / 'hub'}")
+    print(f"HF_XET_CACHE: {root / '.huggingface-cache' / 'xet'}")
+    hf = shutil.which("hf") or "hf"
     for spec in MODELS:
         directory = root / spec["model_id"]
         target = directory / spec["filename"]
-        url = (f"https://huggingface.co/{spec['repo']}/resolve/"
-               f"{spec['revision']}/{spec['filename']}")
-        print(f"{spec['model_id']}: {url}")
+        print(f"{spec['model_id']}: {shlex.join(cli_command(hf, spec, directory))}")
         print(f"  file: {target} ({spec['size']} bytes, SHA-256 {spec['sha256']})")
     if args.dry_run:
         print(f"Total pinned size: {sum(m['size'] for m in MODELS)} bytes")
         return 0
 
+    hf = shutil.which("hf")
+    if hf is None:
+        raise RuntimeError("Hugging Face CLI `hf` is not installed or not on PATH")
     root.mkdir(parents=True, exist_ok=True)
     lock_path = root / ".download-observer-models.lock"
     reject_symlink(lock_path)
@@ -136,21 +161,15 @@ def main() -> int:
         for spec in MODELS:
             directory = root / spec["model_id"]
             target = directory / spec["filename"]
-            part = target.with_name(target.name + ".part")
             reject_symlink(directory)
             reject_symlink(target)
-            reject_symlink(part)
+            reject_hf_local_cache(directory)
             if target.exists():
                 if valid_model(target, spec):
                     continue
                 raise RuntimeError(f"existing file fails pinned size/hash/GGUF checks; refusing overwrite: {target}")
-            if part.exists() and part.stat().st_size > spec["size"]:
-                raise RuntimeError(f"partial file exceeds expected size; inspect manually: {part}")
-            if part.exists() and part.stat().st_size == spec["size"]:
-                if not valid_model(part, spec):
-                    raise RuntimeError(f"full-size partial fails pinned checks; inspect manually: {part}")
-            else:
-                needed += spec["size"] - (part.stat().st_size if part.exists() else 0)
+            needed += spec["size"]
+        cache_env = cache_environment(root)
         free = shutil.disk_usage(root).free
         if free < needed:
             raise RuntimeError(f"insufficient free space: need {needed} bytes, available {free}")
@@ -158,24 +177,27 @@ def main() -> int:
         for spec in MODELS:
             directory = root / spec["model_id"]
             target = directory / spec["filename"]
-            part = target.with_name(target.name + ".part")
             reject_symlink(directory)
             directory.mkdir(parents=True, exist_ok=True)
             reject_symlink(target)
-            reject_symlink(part)
+            reject_hf_local_cache(directory)
             if target.exists():
                 print(f"Verified existing file: {target}")
+                fsync_file_and_parent(target)
                 provenance(target, spec)
                 continue
-            if not part.exists() or part.stat().st_size != spec["size"]:
-                url = (f"https://huggingface.co/{spec['repo']}/resolve/"
-                       f"{spec['revision']}/{spec['filename']}?download=true")
-                subprocess.run([
-                    "curl", "--fail", "--location", "--show-error",
-                    "--retry", "5", "--retry-all-errors", "--connect-timeout", "30",
-                    "--continue-at", "-", "--output", str(part), url,
-                ], check=True)
-            publish(part, target, spec)
+            for directory_path in (root / ".huggingface-cache",
+                                   root / ".huggingface-cache" / "hub",
+                                   root / ".huggingface-cache" / "xet"):
+                reject_symlink(directory_path)
+                directory_path.mkdir(parents=True, exist_ok=True)
+            subprocess.run(cli_command(hf, spec, directory), check=True,
+                           env={**os.environ, **cache_env})
+            reject_symlink(target)
+            reject_hf_local_cache(directory)
+            if not valid_model(target, spec):
+                raise RuntimeError(f"hf download returned without a valid pinned model at {target}")
+            fsync_file_and_parent(target)
             provenance(target, spec)
             print(f"Verified and installed: {target}")
     return 0
