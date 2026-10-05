@@ -113,7 +113,9 @@ def test_invalid_internal_arguments_retain_feedback_then_answer_without_retry(se
     value = c.jobs.inquire('Read the catalog', c.scope(None))
     if cite_feedback:
         assert value['status'] == 'unavailable', value
-        assert backend.turns == 4
+        # The worker uses the remaining semantic rounds to repair a finding
+        # that cites non-evidence feedback, then exhausts the bounded budget.
+        assert backend.turns == 6
         return
     assert value['status'] == 'completed', value
     assert value['job']['attempt'] == 1 and backend.turns == 4
@@ -157,6 +159,8 @@ def test_argument_validation_preserves_authority_and_backend_failures(servers, m
 @pytest.mark.parametrize('project', [{'id': 'outside'}, ['outside']])
 def test_malformed_project_argument_is_noncitable_feedback_without_dispatch(servers, monkeypatch, project):
     c = servers()._project_control_surface
+    # Claiming this fixture must not depend on a live local supervisor.
+    c.jobs.backend.central_status = lambda: {'status': 'available'}
     scope = c.scope(None)
     class Live:
         def is_alive(self): return True
@@ -418,8 +422,9 @@ def test_public_skill_terminal_projection_and_unavailable(servers):
         'excerpts': [{'content': 'exact source', 'verbatim': True}],
         'continuation': {'job_id': 'private', 'detail': 'extended'},
         'result': {'lease': 1, 'queue_position': 2}, 'unresolved': ['Missing dependency']})
-    result = run(server.call_tool('skill', {'query': 'Use instructions', 'detail': 'extended'}))[1]
+    result = run(server.call_tool('skill', {'query': 'Use instructions'}))[1]
     assert result['status'] == 'partial' and result['excerpts'][0]['verbatim']
+    assert c.skills.inquire.call_args.kwargs['detail'] == 'extended'
     assert result['continuation'] == {'detail': 'extended'}
     assert result['result'] == {} and 'job_id' not in result and 'attempt' not in result
     c.skills.inquire.return_value = {'status': 'stale_attempt', 'job_id': 'private'}
@@ -589,6 +594,9 @@ def test_derived_source_manifest_retains_exact_freshness(servers, tmp_path):
     root = tmp_path/'source'; root.mkdir(); (root/'facts.md').write_text('fact')
     config = ProjectControlConfig(workspaces={'project': WorkspaceConfig(repositories={'source': RepositoryConfig(root=root)})})
     c = servers(config=config)._project_control_surface
+    # Keep the claim path deterministic and independent of a live supervisor;
+    # composition supplies the real, configured analysis runtime identity.
+    c.jobs.backend.central_status = lambda: {'status': 'available'}
     class Live:
         def is_alive(self): return True
     c.jobs._thread = Live()

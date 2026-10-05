@@ -115,6 +115,8 @@ def test_observer_only_detail_schema_and_dispatch(servers):
     for profile in CONTRACT['profiles']:
         server = servers(profile)
         schemas = run(enumerate_tool_schemas(server))
+        if profile == 'observer':
+            assert 'detail' not in schemas['skill']['properties']
         for name, schema in schemas.items():
             detail = schema.get('properties', {}).get('detail')
             if detail:

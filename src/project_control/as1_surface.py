@@ -9,7 +9,7 @@ from typing import Any, Literal, get_args
 from mcp.types import ToolAnnotations
 from pydantic import ConfigDict, Field, ValidationError, create_model
 from .as1_context import ContextHost, InformationService
-from .as1_contracts import ExactEntityQuery, ImpactTarget, canonical_digest
+from .as1_contracts import ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAIL, canonical_digest
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
 from .as1_jobs import JobService, TrustedObserverFactory, InvalidToolArguments, ObserverLogArguments
 from .as1_packets import SQLitePacketStore
@@ -23,7 +23,7 @@ from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
 from .services.machine_inspection import MachineDiagnostic
 
 # Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'f0788680b0b7fa59b829e7d5e965d36abb4bcda01d218715973024d91d306f99'
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '3a018df02ad04c03eb3057a9eabb58be1cb03f85ed4a6737b2a656cd0c59067e'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
@@ -527,10 +527,10 @@ def register_surface(mcp, c):
         # and sleeps. Keep them off the ASGI loop so concurrent HTTP routes run.
         return await asyncio.to_thread(invoke)
 
-    async def skill(query: str | None = None, skill: str | None = None, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
+    async def skill(query: str | None = None, skill: str | None = None, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None) -> dict[str, Any]:
         def invoke():
             value = c.skills.inquire(access_scope=c.scope(project), query=query, skill=skill,
-                hints=hints or (), request_id=request_id, detail=detail)
+                hints=hints or (), request_id=request_id, detail=SKILL_ASSEMBLY_DETAIL)
             if value.get('status') not in {'ok', 'thinking', 'busy', 'unavailable', 'completed', 'partial'}:
                 return {'status': 'unavailable', 'reason': 'answer_unavailable'}
             return public_inquiry(value)
@@ -561,7 +561,7 @@ def register_surface(mcp, c):
         'machine': 'Read host facts or diagnostics selected by query_or_view, such as memory or runtime status. This reports machine context, not repository changes.',
         'read': 'Read exact project repository paths or requested ranges, optionally from a named repository and revision. Returns content with immutable source identities; observer profile only.',
         'investigate': 'Ask a read-only question about project context using optional evidence packet hints. A cached answer for the same question and context is reused only while its sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Completed findings retain evidence and source references; use read or evidence to inspect authoritative source.',
-        'skill': 'Read-only discovery and use of an installed native skill for a question, using optional project context and evidence hints. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
+        'skill': 'Read-only discovery and use of an installed native skill for a question, using optional project context and evidence hints. Always returns extended authoritative excerpts (up to 49,152 excerpt bytes across selected resources); this is a ceiling, not a target. The agent synthesis should stay concise and include useful context without repeating the excerpts. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
         'command': 'Run a bounded read-only command within the configured repository roots using argv, optional cwd, and limits. Host policy clamps execution limits; output is recorded as evidence. No delegation or mutation.',
         'log': 'Retrieve up to five question-and-answer briefs from the global latest-50 answered-inquiry cache, using query/path_or_entity for lexical matches. Optional project narrows results; job_id remains a compatibility exact-record read.',
         'plan': 'Validate or compare a native Todo plan, or apply, amend, supersede, or retire project work through the scoped transaction authority. Supply the action and its matching plan or proposal; authorized mutations require valid prepared authority.',

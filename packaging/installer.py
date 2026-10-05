@@ -265,6 +265,7 @@ def build_candidate(
         launcher.write_text("#!/bin/sh\n" +
             "unset CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT\n" +
             "export PROJECT_CONTROL_SKILLS_ROOT=" + shlex.quote(str(destination / "runtime-skills")) + "\n" +
+            "export PROJECT_CONTROL_OBSERVER_SKILLS_ROOT=" + shlex.quote(str(destination / "runtime-skills")) + "\n" +
             "export PROJECT_CONTROL_RELEASE_MANIFEST=" + shlex.quote(str(destination / "release-manifest.json")) + "\n" +
             "export PROJECT_CONTROL_RELEASE_DIGEST=" + shlex.quote(release_digest) + "\n" +
             "exec " + shlex.quote(str(destination / "bin" / "project-control")) + ' "$@"\n')

@@ -23,6 +23,7 @@ SHARED_INFORMATION_TOOLS = ("overview", "delta", "frontier", "search", "evidence
 WORKFLOW_TOOLS = ("next_task", "inspect_task", "coordinate_task", "finish_task")
 TEMPORARILY_INACTIVE = ("delegate_task", "collect_delegation")
 RESPONSE_BUDGETS_BYTES = {"compact": 2048, "standard": 8192, "extended": 65536}
+SKILL_ASSEMBLY_DETAIL = "extended"
 
 
 def relative_path(value: str) -> str:

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -277,12 +278,22 @@ class InstallerTests(unittest.TestCase):
                     check=False,
                 )
 
-            build_candidate(
-                project_control_root=project,
-                skills_root=skills,
-                destination=destination,
-                runner=runner,
-            )
+            with mock.patch.dict(os.environ, {
+                "PROJECT_CONTROL_SKILLS_ROOT": "/unsealed/custom-skills",
+                "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT": "/unsealed/custom-observer-skills",
+            }):
+                build_candidate(
+                    project_control_root=project,
+                    skills_root=skills,
+                    destination=destination,
+                    runner=runner,
+                )
+                launcher = (destination / "bin" / "project-control-release").read_text(encoding="utf-8")
+                frozen_root = str(destination / "runtime-skills")
+                self.assertIn(f"export PROJECT_CONTROL_SKILLS_ROOT='{frozen_root}'", launcher)
+                self.assertIn(f"export PROJECT_CONTROL_OBSERVER_SKILLS_ROOT='{frozen_root}'", launcher)
+                self.assertEqual(os.environ["PROJECT_CONTROL_SKILLS_ROOT"], "/unsealed/custom-skills")
+                self.assertEqual(os.environ["PROJECT_CONTROL_OBSERVER_SKILLS_ROOT"], "/unsealed/custom-observer-skills")
 
             self.assertEqual(
                 executed,
