@@ -214,12 +214,23 @@ def test_checkpoint_bounds_exact_call_privacy_and_oversized_payload_omission(run
     assert service.packets.lookup(large, access_scope=SCOPE).packet.payload['stdout'] == 'x'*33000
     small_refs = [service.observe(job.job_id, job.attempt, {'stdout': 'x'*21000}) for _ in range(3)]
     frames = [o for o in service.lookup(job.job_id, access_scope=SCOPE)['observations'] if o['packet_id'] in small_refs]
+    encoded = json.dumps(frames, ensure_ascii=False, allow_nan=False).encode()
+    assert 60000 < len(encoded) <= 96 * 1024
+    service.checkpoint(job.job_id, job.attempt, frames, access_scope=SCOPE)
+    saved_checkpoint = [o for o in service.lookup(job.job_id, access_scope=SCOPE)['observations']
+                       if o['packet_id'] in small_refs]
+    over_refs = [service.observe(job.job_id, job.attempt, {'stdout': 'y'*25000}) for _ in range(4)]
+    over_frames = [o for o in service.lookup(job.job_id, access_scope=SCOPE)['observations']
+                   if o['packet_id'] in over_refs]
+    assert len(json.dumps(over_frames, ensure_ascii=False, allow_nan=False).encode()) > 96 * 1024
     with pytest.raises(ValueError, match='checkpoint byte cap'):
-        service.checkpoint(job.job_id, job.attempt, frames, access_scope=SCOPE)
+        service.checkpoint(job.job_id, job.attempt, over_frames, access_scope=SCOPE)
     service.max_storage_bytes = 1
     with pytest.raises(ValueError, match='storage cap'):
         service.checkpoint(job.job_id, job.attempt, [frame], access_scope=SCOPE)
-    assert service.lookup(job.job_id, access_scope=SCOPE)['observations'][-4] == omitted
+    current = [o for o in service.lookup(job.job_id, access_scope=SCOPE)['observations']
+               if o['packet_id'] in small_refs]
+    assert current == saved_checkpoint
 
 
 @pytest.mark.as1_case('JOB-04', 'JOB-05')

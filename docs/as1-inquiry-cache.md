@@ -47,6 +47,16 @@ automatically starting another generation or a refresh loop. Supported stale
 completed/partial answers can refresh as described above; empty terminal failures
 do not. Failure causes and backend diagnostics remain in internal records.
 
+For local operator diagnosis, `JobService.inquiry_failure_diagnostics(limit=20)`
+returns at most 50 currently indexed negative terminal jobs, with only their
+private job ID, mode, terminal status and an allowlisted `failure_class`. It never
+returns questions, prompts, raw reasons, packets or model output, and is not an
+observer/MCP tool. The durable record retains the bounded underlying reason for
+authorized service-side inspection. A diagnosed negative entry can be released
+with `release_failed_inquiries({job_id: observed_terminal_reason})`; this removes
+only the matching cache index entry and preserves the job, packets and observations
+as history. Repeating the question after release schedules a new generation.
+
 The internal scheduler permits two executing inquiries and four waiting, with a
 30 second foreground wait and 300 second inquiry lifetime. Private job identities,
 fences, SQLite/outbox durability and restart recovery remain implementation
