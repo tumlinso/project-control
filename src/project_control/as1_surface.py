@@ -11,17 +11,158 @@ from .as1_contracts import ExactEntityQuery
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
 from .as1_jobs import JobService, TrustedObserverFactory
 from .as1_packets import SQLitePacketStore
-from .as1_skill import SkillService, SkillObserverFactory
+from .as1_skill import SkillService, SkillObserverFactory, _verified_reads, _entry_precedes_resource
 from .as1_trace import TraceService
 from .config import configured_observer_skills_root
 from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis_state_root
 from .profiles import MCPProfile
 
-# Qualified SK-AS1-QUALIFY skill-protocol repair receipt; never derived from encountered bytes.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'ac6b0eca766863617bdeed4257e690fb89ce583cdb4199328e8234f42cff09bf'
+# Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'a3fd6eb7b185e7938a00c222b5027ae02bc6003cf9688488ee1489ae214d09c1'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
+
+
+# Broker mechanics remain private even when a producer nests a result/continuation.
+_PRIVATE_INQUIRY_FIELDS = {'job', 'observations', 'job_id', 'prior_job', 'attempt',
+    'lease', 'lease_until', 'lease_owner', 'queue_position', 'queue', 'poll',
+    'accepted', 'retry', 'immediate', 'request_id', 'execution_question',
+    'refresh_context', 'deadline_epoch', 'attempt_generation', 'lease_epoch', 'poll_after_seconds',
+    'attempts', 'leases', 'lease_expires_at', 'lease_expires_epoch', 'lease_seconds',
+    'attempt_count', 'scheduler_generation', 'queue_depth'}
+
+
+def public_inquiry(value):
+    if isinstance(value, dict):
+        if value.get('status') == 'thinking':
+            return {'status': 'thinking', 'message': 'Read-only analysis is in progress. Continue useful work and repeat the identical question later; avoid submitting variants.'}
+        if value.get('status') == 'busy':
+            return {'status': 'busy', 'message': 'Read-only analysis is busy. This question was not accepted. Use search, read or evidence to contextualize or refine a later question.'}
+        return {key: public_inquiry(item) for key, item in value.items()
+                if key not in _PRIVATE_INQUIRY_FIELDS}
+    if isinstance(value, list):
+        return [public_inquiry(item) for item in value]
+    return value
+
+
+class InquiryFreshness:
+    """Validate the retained material dependency manifest, never repository HEAD."""
+    def __init__(self, composition):
+        self.c = composition
+
+    def __call__(self, job):
+        c, scope = self.c, job['scope']
+        changed, checked, seen = [], [], set()
+        roots = [c.skills.root]
+        project = scope.get('project')
+        permitted_projects = c.host.projects if project == 'catalog' else ({project} & c.host.projects)
+        for permitted in permitted_projects:
+            roots += [r.root for r in c.control.registry.workspace(permitted).repositories.values()]
+
+        def file_hash(path):
+            path = Path(path)
+            for root in roots:
+                root = Path(root).absolute()
+                if path.is_absolute() and path.is_relative_to(root):
+                    try:
+                        return hashlib.sha256(InformationService._working_bytes(root, path.relative_to(root).as_posix())).hexdigest()
+                    except (OSError, ValueError):
+                        return None
+            return None
+
+        def dependency(key):
+            if key.startswith('file:'):
+                target = key[5:]
+                if target.startswith('/'):
+                    return file_hash(target)
+                alias, _, path = target.partition('/')
+                if project in c.host.projects:
+                    try:
+                        return file_hash(c.control.registry.repository(project, alias).root / path)
+                    except (KeyError, ValueError):
+                        return None
+            for prefix, provider in (('semantic_revision:', lambda p: c.information.snapshot_provider(p).todo_revision),
+                                     ('semantic_context_revision:', lambda p: c.control.project_context(p).get('project_revision'))):
+                if key.startswith(prefix):
+                    target = key[len(prefix):]
+                    if target not in permitted_projects:
+                        return None
+                    try:
+                        value = provider(target)
+                        return hashlib.sha256(str(value).encode()).hexdigest() if value is not None else None
+                    except (OSError, ValueError, KeyError):
+                        return None
+            return None
+
+        def visit(ref, result=False):
+            if ref in seen:
+                return
+            seen.add(ref)
+            lookup = c.store.lookup(ref, access_scope=scope)
+            if lookup.status != 'ok':
+                changed.append({'reference': ref, 'reason': lookup.status}); return
+            packet = lookup.packet
+            for parent in packet.parents:
+                visit(parent)
+            nested = packet.payload.get('packet')
+            if isinstance(nested, str):
+                visit(nested)
+                return
+            reads = packet.payload.get('source_reads', []) if packet.tool == 'command' else []
+            if reads:
+                for read in reads:
+                    valid = (packet.payload.get('status') == 'completed' and packet.payload.get('exit_code') == 0
+                             and not packet.payload.get('truncated') and not packet.payload.get('timed_out'))
+                    actual = file_hash(read.get('path', '')) if valid and read.get('method') == 'direct_cat' else None
+                    checked.append({'path': read.get('path'), 'content_sha256': read.get('content_sha256')})
+                    if not actual or actual != read.get('content_sha256'):
+                        changed.append({'path': read.get('path'), 'reason': 'unverified' if actual is None else 'changed'})
+            elif not result or packet.sources or (packet.freshness or {}).get('dependencies'):
+                def packet_dependency(key):
+                    matches = [source for source in packet.sources
+                               if key == f'file:{source.repository}/{source.path}']
+                    if matches and not matches[0].repository.startswith('/'):
+                        values = set()
+                        for source in matches:
+                            if source.project not in permitted_projects:
+                                return None
+                            try:
+                                values.add(file_hash(c.control.registry.repository(source.project, source.repository).root / source.path))
+                            except (OSError, KeyError, ValueError):
+                                return None
+                        return next(iter(values)) if len(values) == 1 else None
+                    return dependency(key)
+                assembled = c.store.assemble_hints([ref], access_scope=scope, current_dependencies=packet_dependency,
+                                                   budget_bytes=8*1024*1024)
+                checked.extend(s.model_dump() for s in packet.sources)
+                checked.extend({'dependency': k} for k in (packet.freshness or {}).get('dependencies', {}))
+                changed.extend(o for o in assembled['omissions'] if o['reason'] != 'duplicate_content')
+        refs = list(dict.fromkeys(job.get('hints', []) + job.get('evidence_packets', [])))
+        for ref in refs:
+            visit(ref)
+        if job.get('result_packet'):
+            visit(job['result_packet'], result=True)
+        else:
+            changed.append({'reason': 'result_missing'})
+        if job.get('mode') == 'skill' and job.get('result_packet'):
+            result = c.store.lookup(job['result_packet'], access_scope=scope)
+            stored = c.jobs.lookup(job['job_id'], access_scope=scope)
+            reads = _verified_reads(c.store, job, stored.get('observations', []), scope)
+            selections = (result.packet.payload.get('skill_selection') or {}).get('selections', []) if result.status == 'ok' else []
+            if not selections:
+                changed.append({'reason': 'selection_manifest_missing'})
+            for item in selections:
+                reader = c.skills.readers.get(item.get('skill'))
+                entry = reads.get(str(reader.root / 'SKILL.md')) if reader else None
+                resource = reads.get(str(reader.root / item.get('resource', ''))) if reader else None
+                if (not entry or not resource or not _entry_precedes_resource(entry, resource)
+                        or resource.get('content_sha256') != item.get('content_sha256')):
+                    changed.append({'skill': item.get('skill'), 'resource': item.get('resource'),
+                                    'reason': 'selection_proof_missing'})
+        if not checked:
+            changed.append({'reason': 'dependency_manifest_missing'})
+        return {'fresh': not changed, 'changed_sources': changed, 'dependencies': checked}
 
 
 class SurfaceComposition:
@@ -133,6 +274,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                         packets=c.store, worker_factory=factory, backend=c.backend)
     c.information.job_lookup = lambda ident, scope: c.jobs.lookup(ident, access_scope=scope)
     c.skills = SkillService(c.jobs, skills_root=root)
+    c.jobs.freshness_provider = InquiryFreshness(c)
     return c
 
 
@@ -162,15 +304,26 @@ def register_surface(mcp, c):
         return c.information.call('machine', query_or_view=query_or_view, detail=detail)
     def read(project: str, paths: list[str | dict[str, Any]], repository: str | None = None, revision: str | None = None, detail: str = 'compact') -> dict[str, Any]:
         return c.information.call('read', project=project, paths=paths, repository=repository, revision=revision, detail=detail)
-    def investigate(question: str | None = None, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, job_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
+    def investigate(question: str, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
         scope = c.scope(project)
-        if job_id:
-            return c.jobs.lookup(job_id, access_scope=scope)
-        if not question:
-            raise ValueError('question_required')
-        return c.jobs.submit(question=question, access_scope=scope, hints=hints or (), request_id=request_id)
-    def skill(query: str | None = None, skill: str | None = None, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, job_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
-        return c.skills.submit(access_scope=c.scope(project), query=query, skill=skill, hints=hints or (), request_id=request_id, job_id=job_id, detail=detail)
+        value = c.jobs.inquire(question=question, access_scope=scope, hints=hints or (), request_id=request_id)
+        if value.get('job') and value['status'] in {'completed', 'partial'}:
+            c.jobs.reconcile()
+            ref = value['job'].get('result_packet')
+            result = c.store.lookup(ref, access_scope=scope) if ref else None
+            if not result or result.status != 'ok':
+                return {'status': 'unavailable', 'reason': 'answer_unavailable'}
+            return public_inquiry({**result.packet.payload, 'status': value['status'],
+                'packet_id': result.packet.packet_id, 'alias': result.packet.alias,
+                'evidence_packets': value['job'].get('evidence_packets', []),
+                'sources': [source.model_dump(exclude_none=True) for source in result.packet.sources]})
+        return public_inquiry(value)
+    def skill(query: str | None = None, skill: str | None = None, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
+        value = c.skills.inquire(access_scope=c.scope(project), query=query, skill=skill,
+            hints=hints or (), request_id=request_id, detail=detail)
+        if value.get('status') not in {'ok', 'thinking', 'busy', 'unavailable', 'completed', 'partial'}:
+            return {'status': 'unavailable', 'reason': 'answer_unavailable'}
+        return public_inquiry(value)
     def command(argv: list[str], cwd: str | None = None, limits: dict[str, Any] | None = None) -> dict[str, Any]:
         if c.command is None:
             return {'status': 'unavailable', 'reason': 'qualified_command_port_unavailable'}
@@ -190,8 +343,8 @@ def register_surface(mcp, c):
         'overview': 'Orient on demand; without project return the registered catalog.',
         'search': 'Discover context or directly resolve an exact typed {kind,target}; no fuzzy fallback for exact IDs.',
         'read': 'Read exact relative files or ranges with immutable source identities; observer only.',
-        'investigate': 'Read-only investigation of project context and evidence. Use read or evidence for authoritative selected source. If pending, continue useful work and poll with job_id; reuse request_id for retries.',
-        'skill': 'Read-only discovery and use of installed native skills and their authoritative selected source. If pending, continue useful work and poll with job_id; reuse request_id for retries.',
+        'investigate': 'Read-only investigation of project context and evidence. Use read or evidence for authoritative selected source. While thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question.',
+        'skill': 'Read-only discovery and use of installed native skills and their authoritative selected source. While thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question.',
         'command': 'Internal read-only sandbox command; host clamps limits. No delegation or mutation.',
         'log': 'Internal scoped job findings; prior findings remain attributed evidence.',
     }

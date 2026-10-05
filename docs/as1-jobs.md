@@ -20,24 +20,26 @@ fails honestly when the dispatcher is stopped, a hard cap is reached, or SQLite
 fails. An accepted response follows a FULL synchronous SQLite commit. Hint scope is validated and inputs are pinned before the admission reply.
 Unregistered skill names are rejected before admission. Request
 IDs are scoped to the exact principal/profile/project dictionary; a changed
-request under the same ID is refused. Similar questions are separate jobs.
-Three already outstanding questions trigger accepted-ID do-not-wait guidance.
+request under the same ID is refused. Similar questions are separate inquiries. Two executing and four waiting inquiries
+are permitted. A hard-cap response is busy and means not accepted.
 `shutdown(timeout=95)` stops new claims and waits for bounded inflight work;
 its boolean reports whether the dispatcher actually stopped. Client disconnect
 has no effect on this independent dispatcher. `health()` exposes thread state
 and the last exception type without sensitive exception contents.
 
-The frontend can use `submit(question=..., access_scope=..., request_id=...,
-mode='investigate'|'skill', hints=[...], skill=registered_name)`,
-`poll(job_id, access_scope=...)`, `lookup` with the same signature, and
-`cancel(job_id, access_scope=...)`. Lookup returns `status: ok`, a typed
-`pc-job/1` wire record, and retained visible observations; outside scope it
-returns `forbidden`. Bind this exact lookup callback for search kinds `job` and
-`investigation`; it needs no model, source snapshot, or fuzzy retrieval.
-`log(access_scope=..., query='', limit=50, current_dependencies=...)` searches
-job/question/answer/packet/source-path/entity text and assembles evidence with
-explicit stale/unverified results. Previous answers are attributed evidence,
-never current verification. Poll/log do not initialize or acquire GPUs.
+The public observer uses `inquire(question, access_scope, mode, skill, hints,
+request_id, execution_question, foreground_timeout=30)` through the inquiry
+adapter. The literal question, access scope, mode and selected skill identify a
+cached inquiry. Public callers receive answers or `thinking`, `busy` and
+`unavailable`, never job IDs, leases, attempts or queue positions. The observer
+contract and stale recomputation are described in [as1-inquiry-cache.md](as1-inquiry-cache.md).
+
+`submit`, `lookup`, `poll` and `cancel` remain service-private compatibility seams.
+Terminal inquiry lookup supplies the private job and observations to the answer
+adapter. `freshness_provider(jobdict)` validates material dependencies and returns
+`fresh` and `changed_sources`; missing verification is stale. Internal `log`
+retrieves at most five lexical matches from the last 50 answered inquiries.
+Neither exact current-answer retrieval nor log starts inference or acquires GPUs.
 
 Each claim increments the attempt in a short transaction. An expired lease may
 be reclaimed by another service process. Every observation/checkpoint/final
@@ -65,10 +67,10 @@ to avoid concurrent native SQLite open/close races. A crash between
 packet write and outbox acknowledgment replays the same immutable identity.
 This is eventual reconciliation between two SQLite stores, not a distributed
 transaction. Active jobs and recent terminal answers pin evidence; alias
-reservations survive body expiry. Broker history is currently retained beyond
-50 records for text search (the configured storage cap bounds admissions and
-new observations); packet retention keeps the last 50 terminal jobs and active
-jobs. Administrative pruning/backup policy is left to the host.
+reservations survive body expiry. Storage may retain historical broker records beyond 50 (the configured
+storage cap bounds admissions and observations), while lexical log retrieval
+considers only the last 50 answered inquiries. Packet retention keeps the last
+50 terminal jobs and active jobs. Administrative pruning/backup policy is left to the host.
 
 Only intentionally supplied questions and authorized visible observations are
 stored; hidden reasoning, credentials and private capability fields are masked.

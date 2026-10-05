@@ -79,42 +79,25 @@ def test_actual_tools_list_observer_readonly_and_mutator_annotations(servers):
 
 @pytest.mark.as1_case('API-04')
 def test_observer_guidance_and_pending_response_are_read_oriented(servers):
-    import threading
-    from project_control.as1_jobs import BUSY
+    from unittest.mock import Mock
     server = servers()
     tools = {tool.name: tool for tool in run(server.list_tools())}
-    for text in (server.instructions, tools['investigate'].description, tools['skill'].description, BUSY):
+    for text in (server.instructions, tools['investigate'].description, tools['skill'].description):
         assert 'read-only' in text.lower()
-        assert 'job_id' in text and 'request_id' in text
-        assert 'pending' in text.lower()
-        assert 'durable' not in text.lower() and 'queue' not in text.lower()
-    assert 'Use read or evidence for authoritative selected source.' in server.instructions
-    assert 'Use read or evidence for authoritative selected source.' in tools['investigate'].description
+        assert 'job_id' not in text and 'poll' not in text
+        assert 'identical question' in text and 'avoid submitting variants' in text
+        assert 'busy' in text and 'search, read or evidence' in text
     c = server._project_control_surface
-    entered, release = threading.Event(), threading.Event()
-    def factory(service, job):
-        class Worker:
-            def run(self, request):
-                entered.set()
-                release.wait(5)
-                return {'status': 'completed', 'answer': 'Scripted context.'}
-        return Worker()
-    c.jobs.worker_factory = factory
-    c.jobs.backend = None  # Scripted CPU worker needs no model session provider.
-    c.start()
-    try:
-        first = run(server.call_tool('investigate', {'question': 'Inspect context.', 'request_id': 'read-guidance'}))[1]
-        assert first['accepted'] and first['poll']['job_id'] == first['job_id']
-        assert entered.wait(2)
-        pending = [run(server.call_tool('investigate', {'question': str(i)}))[1] for i in range(3)]
-        assert pending[-1]['accepted'] and pending[-1]['message'] == BUSY
-        retry = run(server.call_tool('investigate', {'question': 'Inspect context.', 'request_id': 'read-guidance'}))[1]
-        assert retry['job_id'] == first['job_id']
-        polled = run(server.call_tool('investigate', {'job_id': first['job_id']}))[1]
-        assert polled['job']['job_id'] == first['job_id']
-        assert c.jobs.lookup(first['job_id'], access_scope={**c.host.scope(None), 'principal': 'forged'})['status'] == 'forbidden'
-    finally:
-        release.set()
+    c.jobs.inquire = Mock(return_value={'status': 'thinking', 'job_id': 'private'})
+    first = run(server.call_tool('investigate', {'question': 'Inspect context.', 'request_id': 'read-guidance'}))[1]
+    assert first['status'] == 'thinking' and 'job_id' not in first
+    assert 'identical question' in first['message']
+    assert c.jobs.inquire.call_args.kwargs['question'] == 'Inspect context.'
+    c.jobs.inquire.return_value = {'status': 'busy', 'accepted': False, 'queue_position': 6}
+    busy = run(server.call_tool('investigate', {'question': 'Inspect later.'}))[1]
+    assert busy['status'] == 'busy' and 'not accepted' in busy['message']
+    assert 'identical' not in busy['message'] and 'variants' not in busy['message']
+    assert not {'accepted', 'queue_position'} & busy.keys()
 
 
 @pytest.mark.as1_case('API-02')
@@ -291,25 +274,22 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
     c = server._project_control_surface
     c.start()
     value = run(server.call_tool('investigate', {'question': 'Inspect registered catalog.', 'request_id': 'surface-scripted-job'}))
-    admitted = value[1] if isinstance(value, tuple) else value
-    assert admitted['accepted'] and admitted['job_id']
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        value = run(server.call_tool('investigate', {'job_id': admitted['job_id']}))
-        polled = value[1] if isinstance(value, tuple) else value
-        if polled['job']['status'] in {'completed', 'partial', 'failed'}:
-            break
-        time.sleep(.01)
-    assert polled['job']['status'] == 'completed', polled
-    assert polled['observations'][0]['data']['projects'] == []
-    assert polled['observations'][0]['packet_id'] == backend.replayed_packet['packet_id']
-    assert polled['job']['findings'][0]['evidence_packets'] == [backend.replayed_packet['packet_id']]
+    answered = value[1] if isinstance(value, tuple) else value
+    assert answered['status'] == 'completed', answered
+    assert answered['answer'] == 'Registered catalog observed.'
+    assert answered['findings'][0]['evidence_packets'] == [backend.replayed_packet['packet_id']]
+    assert not {'job', 'job_id', 'observations', 'attempt'} & answered.keys()
+    with c.jobs._db() as db:
+        ident = db.execute('SELECT id FROM jobs').fetchone()[0]
+    internal = c.jobs.lookup(ident, access_scope=c.host.scope(None))
+    assert internal['observations'][0]['data']['projects'] == []
+    assert internal['observations'][0]['packet_id'] == backend.replayed_packet['packet_id']
     assert backend.turns == 2
     deadline = time.monotonic() + 2
     while not backend.closed and time.monotonic() < deadline:
         time.sleep(.01)
     assert backend.closed == ['scripted-session']
-    assert c.jobs.lookup(admitted['job_id'], access_scope={**c.host.scope(None), 'principal': 'forged'})['status'] == 'forbidden'
+    assert c.jobs.lookup(ident, access_scope={**c.host.scope(None), 'principal': 'forged'})['status'] == 'forbidden'
 
 
 @pytest.mark.as1_case('API-04')

@@ -6,8 +6,7 @@ and prerequisites. Project Control does not match questions to architectures,
 skill names, routes, or lexical hits. Indexes and graphs may accelerate worker
 navigation; they are not a second routing policy.
 
-The one public adapter is `skill(query?, skill?, hints?, request_id?, job_id?,
-detail?)`. The host supplies trusted principal/profile scope. Calls are allowed
+The one public adapter is `skill(query?, skill?, project?, hints?, request_id?, detail?)`. The host supplies trusted principal/profile scope. Calls are allowed
 only for the observer profile. Native coder, mutator, and scout continue reading
 installed skills directly. This module adds no public list/read/context tools.
 
@@ -29,9 +28,8 @@ jobs = JobService(state_directory, packets=packet_store,
                   worker_factory=factory, backend=local_backend)
 adapter = SkillService(jobs, skills_root=skills_root)
 # Host lifespan: jobs.start(); ...; jobs.shutdown()
-reply = adapter.submit(access_scope=trusted_scope, query=query, skill=skill,
-                       hints=hints, request_id=request_id, job_id=job_id,
-                       detail=detail)
+reply = adapter.inquire(access_scope=trusted_scope, query=query, skill=skill,
+                        hints=hints, request_id=request_id, detail=detail)
 ```
 
 `registered_skills` maps exact names to `{"name": name, "root": absolute_root}`.
@@ -63,11 +61,12 @@ skill while permitting explicitly identified registered cross-skill dependencies
 `discovery_skill` is a host option; an unavailable registration is reported, not
 guessed. A name without a query requests relevant entry guidance.
 
-`submit` delegates to the shared queue with `mode="skill"`. Request IDs, hint
-pinning, scoped polling, cancellation, retry after eviction, durable observations,
-outbox replay, and attempt fencing come from `JobService`. `poll` can replay a
-terminal outbox and assemble a retained selection after restart without loading
-a model. It never owns a second queue, model residency, or GPU reservation.
+Public `inquire` uses the shared cached inquiry engine with `mode="skill"`.
+The raw literal query is stored separately from augmented navigation instructions.
+Exact identity includes access scope and selected skill. The public tool returns
+an answer or a compact inquiry state; it does not accept polling IDs. Internal
+`submit`/`poll` compatibility seams retain durable selection assembly and outbox
+replay. See [as1-inquiry-cache.md](as1-inquiry-cache.md).
 
 ## Authority and freshness
 
@@ -99,7 +98,7 @@ IDs; these links identify supporting context, not mechanically proven entailment
 Its budget is at most 12% of the requested response budget, 15% of the returned
 excerpt bytes, and 768 bytes. Excerpts consume up to 75% of the detail budget;
 envelope/metadata packing remains the host surface's responsibility. Necessary
-context exceeding this limit is omitted with a poll/extended continuation instead
+context exceeding this limit is omitted with an extended-detail continuation instead
 of fabricated or silently truncated original text.
 
 Prerequisites may identify selected resources or explicitly retained hint aliases.
@@ -110,12 +109,13 @@ and deduplicates unresolved manifest entries with the durable job's top-level
 unresolved questions; a valid excerpt cannot hide a partial worker result's
 missing dependencies.
 
-Freshness has `max_age_seconds: 0`: hashes were checked during this assembly only.
-An alias stores the historical packet; it is not a promise that files remain
-unchanged. Polling the same job rereads and revalidates source authority, returning
-a new packet alias. A historical selection whose source changes returns partial
-authority and requires worker refresh/reselection for updated ranges. The broker
-checks attempt identity again before publishing assembly.
+Assembly packets record hashes checked during that assembly. Inquiry freshness
+validates material evidence and entry/resource direct-read proofs on exact repeat;
+a result packet's bookkeeping TTL alone does not force recomputation. Current
+answers reuse their retained selection. Changed or missing authority schedules a
+new generation with old answer/evidence and changed-source information, allowing
+the agent to preserve valid work and refresh only missing work. Historical aliases
+remain attributed evidence. Assembly still checks attempt identity before publishing.
 
 ## Executed proof and limits
 

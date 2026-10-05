@@ -39,7 +39,7 @@ class SkillObserverFactory:
         validate = worker._validate_selection
         registrations = self.skills
 
-        def validate_registered(selection, initial_skill, observe, guard, reads):
+        def validate_registered(selection, initial_skill, observe, guard, reads, *, deadline_epoch=None):
             manifest = SkillSelection.model_validate(selection)
             if len(manifest.selections) > 12:
                 raise ValueError('invalid_skill_selection')
@@ -66,7 +66,7 @@ class SkillObserverFactory:
                     if proof.get('content_sha256') != digest:
                         raise ValueError('selected_skill_entry_hash_mismatch')
                     validate({'format': manifest.format, 'selections': [item.model_dump(exclude_none=True)],
-                              'synthesis': manifest.synthesis}, entry, observe, guard, reads)
+                              'synthesis': manifest.synthesis}, entry, observe, guard, reads, deadline_epoch=deadline_epoch)
                     valid += 1
                 except (ValueError, OSError) as error:
                     if not guard():
@@ -179,6 +179,7 @@ class SkillService:
             catalog = json.loads(raw)
         except (SkillError, ValueError, UnicodeError):
             return {'status': 'unavailable', 'complete': False, 'reason': 'installed_catalog_unavailable'}
+        sources = [SourceLocator(project='skills', repository=str(self.root), path=self.catalog_path, content_sha256=digest)]
         rows = []
         for entry in catalog.get('entries', []):
             name = entry.get('name', '')
@@ -193,6 +194,7 @@ class SkillService:
                 metadata = yaml.safe_load(text.split('---', 2)[1])
                 row['description'] = metadata.get('description', '')
                 row['content_sha256'] = current
+                sources.append(SourceLocator(project='skills', repository=str(self.root), path=entry['entry'], content_sha256=current))
                 row['status'] = 'accessible' if current == entry.get('sha256') else 'stale'
                 if name not in self.skills:
                     row['status'] = 'unregistered'
@@ -206,8 +208,31 @@ class SkillService:
                    'catalog_sha256': digest, 'authority': 'installed catalog metadata',
                    'freshness': {'checked_at': stamp(self.clock()), 'max_age_seconds': 0}}
         packet = self.packets.create(tool='skill', payload=payload, access_scope=access_scope,
-                                     freshness=payload['freshness'])
+                                     freshness=payload['freshness'], sources=sources)
         return {**packet.payload, 'packet_id': packet.packet_id, 'alias': packet.alias}
+
+    def inquire(self, *, access_scope, query=None, skill=None, hints=(), request_id=None, detail='compact'):
+        """Public cached inquiry; submit/poll below are private compatibility seams."""
+        self._authorize(access_scope)
+        if detail not in RESPONSE_BUDGETS_BYTES:
+            raise ValueError('invalid detail')
+        if not query and not skill:
+            return self.catalog(access_scope=access_scope)
+        selected = skill or self.discovery_skill
+        if selected not in self.skills:
+            return {'status': 'unavailable', 'reason': 'unregistered_skill', 'skill': selected}
+        question = query if query is not None else 'Read the installed entry and select the instructions relevant to using this skill.'
+        execution = question
+        if not skill:
+            execution += ('\nNo skill name was supplied. Read the installed native routing guide and catalog at '
+                + str(self.root / self.catalog_path)
+                + '; choose relevant registered skills using their own SKILL.md and references. '
+                'Report missing, external or unregistered dependencies explicitly.')
+        value = self.jobs.inquire(question=question, execution_question=execution, access_scope=access_scope,
+            mode='skill', skill=selected, hints=hints, request_id=request_id)
+        if value.get('job') and value['status'] in {'completed', 'partial'}:
+            return self.poll(value['job']['job_id'], access_scope=access_scope, detail=detail)
+        return value
 
     def submit(self, *, access_scope, query=None, skill=None, hints=(), request_id=None, job_id=None, detail='compact'):
         self._authorize(access_scope)

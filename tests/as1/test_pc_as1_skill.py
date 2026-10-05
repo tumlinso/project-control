@@ -61,7 +61,13 @@ def item(root, name, resource, start=1, end=1, prerequisites=None):
 
 def final(items, synthesis='Use selected native instructions.', unresolved=None):
     def answer(request):
-        observations = json.loads(request['messages'][1]['content'])['observations']
+        observations = []
+        for message in request['messages'][2:]:
+            if message['role'] == 'user':
+                payload = json.loads(message['content'])
+                observation = payload.get('retained_observation', payload)
+                if observation.get('packet_id'):
+                    observations.append(observation)
         return {'answer': 'Selected installed authority', 'findings': [{'text': 'Selected native source',
                 'evidence_packets': [observations[-1]['packet_id']]}],
                 'skill_selection': {'format': 'pc-skill-selection/1', 'selections': items,

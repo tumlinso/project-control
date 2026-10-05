@@ -24,23 +24,34 @@ Negative findings need special care: “no consumers” depends on the searched 
 
 `investigate` and `skill` use one service-private durable job engine with separate job modes/prompts. Reuse the existing local-worker supervisor and model service. Do not implement a second GPU scheduler, a separate skill daemon, or a tool-call-only pseudo-queue.
 
-A job record contains stable job ID, caller idempotency key, question, scope, hint refs, request hash, mode, created/updated times, status, attempt/fencing generation, source manifest, compact observed findings, unresolved questions, new evidence refs, and final result packet. The optional project is scope, not a prerequisite for every host-level investigation. Trusted roots and access policy govern a project-less command job.
+The public observer inquiry contract is cached question reading, not a queue
+workflow. Public investigate/skill schemas have no job ID. Answers are completed
+or partial with supporting evidence; other states are thinking, busy, unavailable.
+Only thinking advises repeating the identical question later without variants.
+Busy means not accepted and suggests search/read/evidence to contextualize or
+refine a later question. Private scheduler records retain IDs, attempts, leases,
+source manifests, compact visible findings and restart recovery.
 
-Suggested durable states: `queued`, `running`, `yielding`, `queued_after_eviction`, `completed`, `partial`, `failed`, `cancelled`. GPU/service waiting is a state/reason, not loss of the question. A worker process/daemon dispatches committed jobs independently of the initiating MCP connection. The request handler must not be the only thing capable of draining the queue. Expose dispatcher health and honest failure if durable processing is unavailable.
+Exact cache identity is literal question, trusted access scope, mode and selected
+skill. Store original skill queries separately from augmented execution questions.
+Details, advisory hints and request IDs do not duplicate inquiries. Pending exact
+repeats do not restart work, consume capacity, change order or extend expiry.
+Current answers return immediately. No similarity classifier merges questions.
 
-Persist admission before acknowledging acceptance. Claim a queued job with a short transaction/lease and fenced attempt number; never hold a database transaction while waiting for inference or doing shell reads. Commit observations/compact working findings after useful read/model steps. After a worker crash, reclaim an expired attempt; a late result from its old generation cannot overwrite the new attempt. Exactly-once admission via an idempotency key is feasible; arbitrary command execution is at-least-once after crashes, so the sandbox and read-only semantics must make retries safe. Do not falsely promise universal exactly-once computation.
+Dependency freshness validates authoritative source hashes and identities from
+hint/evidence/result packets plus selected skill entry/resource direct-read proofs.
+Repository HEAD changes alone do not invalidate source answers, nor does a
+terminal result packet's volatile bookkeeping TTL. Missing required material
+cannot be declared fresh. Stale inquiry generations receive the old answer,
+evidence and changed-source information so the agent checks changes and preserves
+valid work. Visible context is persisted; hidden reasoning is not cached.
 
-## Saturation, polling, and deduplication
-
-Three outstanding questions is the initial **soft** busy threshold. A newly accepted question still gets durably queued. The response includes `accepted:true`, job ID, current state, poll instruction and concise text:
-
-> Queue busy. Your question is queued. Do not wait; continue reasoning or other useful work and ask again later using this ID.
-
-A hard backlog/storage cap is separate, configurable and reported as `accepted:false, reason=admission_limit`; do not claim work was queued when storage failed. Optional retry-after metadata is advice, never a requirement to sleep or busy-poll. Pending/finished job lookup must not load a model or reacquire GPUs. A disconnected client must not cancel accepted work.
-
-Caller-supplied request ID gives exact retries their existing job. Server exact deduplication uses normalized question, scope, mode and hint/source identity; changed hints or a materially changed question are not silently discarded. Similarity search only proposes prior jobs; it does not merge different questions automatically. On repeated questions the worker checks `log` for exact and semantically relevant previous answers, revalidates dependencies, and performs only missing work.
-
-Log retains the most recent approximately 50 terminal question/answer records, plus active/pinned records regardless of that number. Search by text, source path, skill, entity, job and result packet. Return compact findings and evidence refs; fetch selected evidence when needed. A cached answer's old timestamp is not current verification. Volatile machine facts may require live re-query even when source hashes are unchanged.
+The internal scheduler permits two executing and four waiting inquiries, a
+30 second foreground wait and 300 second lifetime. Internal log retrieval searches
+the last 50 answered questions and returns at most five lexical matches. Retained
+answers remain attributed evidence, not proof of current verification. Volatile
+machine facts may need live re-query. See docs/as1-inquiry-cache.md for the adapter
+and freshness contract.
 
 ## The scout's interaction model
 

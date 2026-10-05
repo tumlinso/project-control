@@ -2,7 +2,15 @@
 
 Understand and plan, without mutating project/Todo/source. Choose the cheapest suitable operation: overview for first look, frontier for active work, delta for change, read for known relative files, search for both known semantic entities and discovery, evidence for validation records, impact for deterministic dependency traces, history for temporal evidence, machine for host facts.
 
-Use investigate for command-capable local scouting and skill for routed authoritative skill excerpts. Pass retained packet hints instead of resending context. If a job is accepted but queued, **do not wait or busy-poll**: continue reasoning, read/search/trace other useful material, and later poll by its job ID. Never resubmit a queued question as a new job merely to check status.
+Use investigate for read-only scouting and skill for routed authoritative skill
+excerpts. Pass retained packet hints instead of resending context. These are
+cached question-reading operations. If thinking, continue useful work and repeat
+the identical question later; avoid submitting variants. If busy, the question
+was not accepted: use search, read or evidence to contextualize or refine a later
+question. Completed/partial answers carry evidence; unavailable is explicit.
+Do not manage public job IDs, attempts, leases or queue positions. Freshness
+checks material source dependencies; stale inquiries reuse old answer/evidence
+as context while the agent checks changes and preserves still-valid work.
 
 Extended context is available deliberately, not mandatory. Every important result should give usable source/entity locators and freshness. Skill synthesis and project notes are secondary to direct source authority. Plan mutation/administration belongs to a trusted mutator.
 
