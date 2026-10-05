@@ -108,7 +108,8 @@ def plan(args: argparse.Namespace) -> dict:
         'batch_size': args.batch_size, 'ubatch_size': args.ubatch_size,
         'wall_budget_seconds': args.budget_seconds,
         'visible_answer_tokens': VISIBLE_LIMIT, 'turn_timeout_seconds': TURN_LIMIT,
-        'trial_order': execution + contexts + [{'stage': 'thinking', 'reasoning_tokens': n} for n in
+        'trial_order': execution + contexts + [{'stage': 'thinking', 'reasoning_tokens': n,
+                                                'prompt_target_tokens': 8192} for n in
            (512, 1024, 2048, 4096, 8192, 16384)],
         'stop_rules': ['15-minute trial budget', 'at least 60 seconds before starting a trial',
                        'at least 1 GiB free per GPU', 'retain only grounded valid JSON'],
@@ -284,10 +285,12 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
             adapter.set_observer_generation(handle, generation)
             reasoning_key = state_key or trial_id
             context_target = target_context_tokens(settings['context'])
-            messages = context_fixture(context_target)
+            prompt_target = min(context_target, 8192) if reasoning_tokens else context_target
+            messages = context_fixture(prompt_target)
             if state_key and state_key in continuation_answers:
                 messages.insert(1, {'role': 'assistant', 'content': continuation_answers[state_key]})
             row.update({'requested_context_tokens': context_target,
+                        'prompt_fixture_target_tokens': prompt_target,
                         'input_bytes': len(json.dumps(messages, ensure_ascii=False).encode('utf-8')),
                         'effective_context_tokens': server.get('effective_context_size', settings['context'])})
             request = {'messages': messages, 'max_tokens': VISIBLE_LIMIT, 'temperature': 0.1,
@@ -330,7 +333,7 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
             row['answer_output_time_ms'] = usage.get('visible_ms')
             row['answer_time_reserve_ok'] = usage.get('visible_ms', 0) <= 45000
             if (usage.get('context_tokens') is not None
-                    and usage['context_tokens'] < int(context_target * 0.70)):
+                    and usage['context_tokens'] < int(prompt_target * 0.70)):
                 row.update({'ok': False, 'rejection': 'effective_prompt_short_of_context_target'})
             if not row['within_turn_time_limit'] or not row['answer_time_reserve_ok']:
                 row.update({'ok': False, 'rejection': 'turn_or_answer_time_reserve_exceeded'})
