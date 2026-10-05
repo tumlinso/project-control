@@ -406,6 +406,43 @@ class JobService:
                 and bool((job.get('answer') or '').strip()
                          or any(f['text'].strip() and f['evidence_packets'] for f in job['findings'])))
 
+    def release_failed_inquiries(self, expected_terminal_reasons):
+        """Remove selected, still-negative inquiries from the identity cache.
+
+        This service-owned repair hook deliberately leaves job history, packets,
+        observations and scheduler state untouched. Callers must name each job
+        and the terminal reason they observed; changed, active or answer-bearing
+        jobs are skipped.
+        """
+        if not isinstance(expected_terminal_reasons, dict):
+            raise TypeError('expected_terminal_reasons must be a job-id to reason mapping')
+        for job_id, reason in expected_terminal_reasons.items():
+            if not isinstance(job_id, str) or not job_id or not isinstance(reason, str) or not reason:
+                raise ValueError('job IDs and expected terminal reasons must be non-empty strings')
+
+        recovered = []
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            for job_id, expected_reason in expected_terminal_reasons.items():
+                rows = db.execute('''SELECT inquiry_index.identity,jobs.record
+                    FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job
+                    WHERE jobs.id=?''', (job_id,)).fetchall()
+                if not rows:
+                    continue
+                try:
+                    job = json.loads(rows[0]['record'])
+                    if (job.get('status') not in TERMINAL
+                            or job.get('terminal_reason') != expected_reason
+                            or self._cache_eligible(job)
+                            or db.execute('SELECT 1 FROM execution_slots WHERE job=?', (job_id,)).fetchone()
+                            or db.execute("SELECT 1 FROM outbox WHERE job=? AND materialized=0", (job_id,)).fetchone()):
+                        continue
+                except (AttributeError, TypeError, ValueError, KeyError):
+                    continue
+                db.execute('DELETE FROM inquiry_index WHERE job=?', (job_id,))
+                recovered.append(job_id)
+        return recovered
+
     def _settled(self, job_id):
         with self._db() as db:
             return (not db.execute('SELECT 1 FROM execution_slots WHERE job=?', (job_id,)).fetchone()

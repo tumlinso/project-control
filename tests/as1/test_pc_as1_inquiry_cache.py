@@ -332,6 +332,73 @@ def test_empty_terminal_negative_cache_never_restarts_or_checks_freshness(tmp_pa
     finally:s.shutdown()
 
 
+def test_operator_releases_only_selected_matching_negative_inquiries(tmp_path):
+    pending_entered, pending_release = threading.Event(), threading.Event()
+    calls = {}
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                count = calls.get(job.question, 0) + 1
+                calls[job.question] = count
+                if job.question == 'pending repair target':
+                    pending_entered.set()
+                    pending_release.wait(5)
+                    return {'status': 'completed', 'answer': 'pending answer'}
+                if job.question == 'parse repair target' and count == 1:
+                    return {'status': 'failed', 'reason': 'json.loads_extra_data'}
+                if job.question == 'changed reason target':
+                    return {'status': 'failed', 'reason': 'other_failure'}
+                return {'status': 'completed', 'answer': 'answer ' + job.question}
+        return Worker()
+
+    s = make(tmp_path, worker_factory=factory).start()
+    try:
+        assert s.inquire('parse repair target', SCOPE, foreground_timeout=2)['reason'] == 'analysis_unavailable'
+        assert s.inquire('supported repair target', SCOPE, foreground_timeout=2)['status'] == 'completed'
+        assert s.inquire('pending repair target', SCOPE, foreground_timeout=0)['status'] == 'thinking'
+        assert pending_entered.wait(2)
+        assert s.inquire('changed reason target', SCOPE, foreground_timeout=2)['reason'] == 'analysis_unavailable'
+
+        def indexed_jobs():
+            with s._db() as db:
+                return {json.loads(row['record'])['question']: row['id']
+                        for row in db.execute('''SELECT jobs.id,jobs.record FROM jobs
+                            JOIN inquiry_index ON inquiry_index.job=jobs.id''')}
+        ids = wait(lambda: (found if len(found := indexed_jobs()) == 4 else None))
+        old_id = ids['parse repair target']
+        def outbox_settled():
+            with s._db() as db:
+                return not db.execute('SELECT 1 FROM outbox WHERE materialized=0').fetchone()
+        wait(outbox_settled)
+        with s._db() as db:
+            before_jobs = [tuple(row) for row in db.execute('SELECT * FROM jobs ORDER BY id')]
+            before_packets = [tuple(row) for row in db.execute('SELECT * FROM outbox ORDER BY id')]
+
+        recovered = s.release_failed_inquiries({
+            old_id: 'json.loads_extra_data',
+            ids['supported repair target']: 'json.loads_extra_data',
+            ids['pending repair target']: 'json.loads_extra_data',
+            ids['changed reason target']: 'json.loads_extra_data',
+        })
+        assert recovered == [old_id]
+        with s._db() as db:
+            assert [tuple(row) for row in db.execute('SELECT * FROM jobs ORDER BY id')] == before_jobs
+            assert [tuple(row) for row in db.execute('SELECT * FROM outbox ORDER BY id')] == before_packets
+            retained = {row[0] for row in db.execute('SELECT job FROM inquiry_index')}
+        assert retained == {ids['supported repair target'], ids['pending repair target'], ids['changed reason target']}
+        assert s.lookup(old_id, access_scope=SCOPE)['status'] == 'ok'
+
+        pending_release.set()
+        wait(lambda: s._settled(ids['pending repair target']))
+        retried = s.inquire('parse repair target', SCOPE, foreground_timeout=2)
+        assert retried['status'] == 'completed'
+        assert retried['job']['job_id'] != old_id
+        assert s.lookup(old_id, access_scope=SCOPE)['status'] == 'ok'
+    finally:
+        pending_release.set()
+        s.shutdown()
+
+
 def test_evidence_only_partial_is_retained_without_automatic_refresh(tmp_path):
     calls=[]
     freshness=[]
