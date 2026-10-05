@@ -55,6 +55,20 @@ Internal log retrieval filters that global window by trusted source access and
 returns at most five lexical matches; it does not create a private window per
 caller or profile. Legacy answered jobs join the same global retrieval window.
 
+Inquiry adapters run their foreground wait outside the HTTP event loop, so
+other inquiries and health checks remain responsive. Malformed model JSON is
+rejected as a whole and corrected within the existing turn/deadline budget;
+ambiguous concatenated objects never dispatch a tool.
+
+The stable `jobs-v2` broker isolates current dispatchers from legacy processes
+that still use `jobs`. Its first startup snapshots legacy history only when all
+legacy jobs are terminal and no execution slots remain; the legacy database is
+preserved. Later startups reuse the existing broker. A dispatcher checks its
+central supervisor runtime identity before claiming work. An incompatible host
+parks without consuming a queued inquiry's attempts. Exact diagnosed negative
+results can be released by the private operator repair hook, which preserves
+job history and checks the recorded terminal reason.
+
 Project Control is a shared oracle: caller principal and profile record provenance,
 not private knowledge compartments. Ordinary read packets, hints, answers, prior
 job observations and log entries can be reused across roles when the trusted host

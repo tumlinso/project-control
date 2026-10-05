@@ -1,5 +1,8 @@
 """Public inquiry delivery and material dependency validation, without inference."""
+import asyncio
 import hashlib
+import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 import pytest
@@ -37,6 +40,12 @@ def test_registered_inquiry_targets_are_labeled_separately_from_installed_skills
     original['inquiry_repositories'][0]['root'] = '/untrusted'
     config.workspaces['p'].repositories['main'].root = other_root
     assert provider(SimpleNamespace(scope=c.scope('p')))['inquiry_repositories'] == expected
+
+
+def test_composed_broker_moves_to_v2_without_moving_packet_store(servers):
+    c = servers()._project_control_surface
+    assert c.jobs.path == c.store.directory / 'jobs-v2' / 'jobs.sqlite3'
+    assert c.store.path == c.store.directory / 'packets.sqlite3'
 
 
 def test_dispatch_passes_trusted_target_context_without_hint_override(tmp_path):
@@ -217,6 +226,43 @@ def test_terminal_answer_projection_keeps_supported_evidence(servers):
     assert result['evidence_packets'] == ['pkt_evidence'] and result['packet_id'] == packet.packet_id
     assert not {'job', 'job_id', 'observations', 'attempt'} & result.keys()
     assert c.jobs.inquire.call_args.kwargs['question'] == 'literal  question\n'
+
+
+def test_investigate_and_skill_leave_event_loop_responsive(servers):
+    server = servers()
+    c = server._project_control_surface
+    active = []
+    completed = []
+    lock = threading.Lock()
+
+    def blocked_inquiry(**kwargs):
+        with lock:
+            active.append(kwargs)
+        time.sleep(.25)
+        with lock:
+            completed.append(kwargs)
+        return {'status': 'thinking'}
+
+    c.jobs.inquire = blocked_inquiry
+    c.skills.inquire = blocked_inquiry
+
+    async def exercise():
+        started = time.monotonic()
+        pending = asyncio.gather(
+            server.call_tool('investigate', {'question': 'read only question'}),
+            server.call_tool('skill', {'query': 'read only skill question'}),
+        )
+        await asyncio.sleep(.03)
+        heartbeat = (time.monotonic() - started, len(active), len(completed))
+        results = await pending
+        return heartbeat, results
+
+    heartbeat, results = asyncio.run(exercise())
+    assert heartbeat[0] < .15
+    assert heartbeat[1] >= 1 and heartbeat[2] == 0
+    assert len(active) == len(completed) == 2
+    assert all((result[1] if isinstance(result, tuple) else result)['status'] == 'thinking'
+               for result in results)
 
 
 def fixture_cache(tmp_path):

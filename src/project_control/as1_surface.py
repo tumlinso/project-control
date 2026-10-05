@@ -1,4 +1,5 @@
 """Startup composition and MCP adapters for the qualified AS1 producer ports."""
+import asyncio
 import hashlib
 import importlib.util
 import json
@@ -318,7 +319,8 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     c.host = host or ContextHost(canonical, 'project-control-' + canonical, frozenset(config.workspaces))
     if c.host.profile != canonical or not c.host.projects <= config.workspaces.keys():
         raise ValueError('startup_host_profile_or_scope_mismatch')
-    c.store = SQLitePacketStore(state_directory or observer_analysis_state_root() / 'as1')
+    state_root = state_directory or observer_analysis_state_root() / 'as1'
+    c.store = SQLitePacketStore(state_root)
     c.control = ControlService(config, c.host, coder_claim_provider=coder_claim_provider)
     c.trace = TraceService(config, lambda project: runtime.snapshot(project), c.host, semantic_provider=c.control.project_context)
     c.information = InformationService(config, c.store, lambda project: runtime.snapshot(project), c.host,
@@ -432,7 +434,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
             c.command = command
     except (OSError, ValueError, KeyError) as exc:
         c.worker_unavailable = type(exc).__name__
-    c.jobs = JobService((state_directory or observer_analysis_state_root() / 'as1') / 'jobs',
+    c.jobs = JobService(state_root / 'jobs-v2', legacy_directory=state_root / 'jobs',
                         packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,
                         inquiry_context_provider=inquiry_context)
     c.store.authority_access = c.packet_access
@@ -470,26 +472,33 @@ def register_surface(mcp, c):
         return c.information.call('machine', query_or_view=query_or_view, detail=detail)
     def read(project: str, paths: list[str | dict[str, Any]], repository: str | None = None, revision: str | None = None, detail: str = 'compact') -> dict[str, Any]:
         return c.information.call('read', project=project, paths=paths, repository=repository, revision=revision, detail=detail)
-    def investigate(question: str, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
-        scope = c.scope(project)
-        value = c.jobs.inquire(question=question, access_scope=scope, hints=hints or (), request_id=request_id)
-        if value.get('job') and value['status'] in {'completed', 'partial'}:
-            c.jobs.reconcile()
-            ref = value['job'].get('result_packet')
-            result = c.store.lookup(ref, access_scope=scope) if ref else None
-            if not result or result.status != 'ok':
+    async def investigate(question: str, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
+        def invoke():
+            scope = c.scope(project)
+            value = c.jobs.inquire(question=question, access_scope=scope, hints=hints or (), request_id=request_id)
+            if value.get('job') and value['status'] in {'completed', 'partial'}:
+                c.jobs.reconcile()
+                ref = value['job'].get('result_packet')
+                result = c.store.lookup(ref, access_scope=scope) if ref else None
+                if not result or result.status != 'ok':
+                    return {'status': 'unavailable', 'reason': 'answer_unavailable'}
+                return public_inquiry({**result.packet.payload, 'status': value['status'],
+                    'packet_id': result.packet.packet_id, 'alias': result.packet.alias,
+                    'evidence_packets': value['job'].get('evidence_packets', []),
+                    'sources': [source.model_dump(exclude_none=True) for source in result.packet.sources]})
+            return public_inquiry(value)
+        # Inquiry polling, reconciliation and packet lookup use blocking SQLite
+        # and sleeps. Keep them off the ASGI loop so concurrent HTTP routes run.
+        return await asyncio.to_thread(invoke)
+
+    async def skill(query: str | None = None, skill: str | None = None, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
+        def invoke():
+            value = c.skills.inquire(access_scope=c.scope(project), query=query, skill=skill,
+                hints=hints or (), request_id=request_id, detail=detail)
+            if value.get('status') not in {'ok', 'thinking', 'busy', 'unavailable', 'completed', 'partial'}:
                 return {'status': 'unavailable', 'reason': 'answer_unavailable'}
-            return public_inquiry({**result.packet.payload, 'status': value['status'],
-                'packet_id': result.packet.packet_id, 'alias': result.packet.alias,
-                'evidence_packets': value['job'].get('evidence_packets', []),
-                'sources': [source.model_dump(exclude_none=True) for source in result.packet.sources]})
-        return public_inquiry(value)
-    def skill(query: str | None = None, skill: str | None = None, project: str | None = None, hints: list[str] | None = None, request_id: str | None = None, detail: str = 'compact') -> dict[str, Any]:
-        value = c.skills.inquire(access_scope=c.scope(project), query=query, skill=skill,
-            hints=hints or (), request_id=request_id, detail=detail)
-        if value.get('status') not in {'ok', 'thinking', 'busy', 'unavailable', 'completed', 'partial'}:
-            return {'status': 'unavailable', 'reason': 'answer_unavailable'}
-        return public_inquiry(value)
+            return public_inquiry(value)
+        return await asyncio.to_thread(invoke)
     def command(argv: list[str], cwd: str | None = None, limits: dict[str, Any] | None = None) -> dict[str, Any]:
         if c.command is None:
             return {'status': 'unavailable', 'reason': 'qualified_command_port_unavailable'}
