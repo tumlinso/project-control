@@ -502,6 +502,21 @@ class JobService:
                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
                     observations = self._public_observations(db, current)
                 return {'status': previous.status, 'job': previous.model_dump(), 'observations': observations}
+            if self._historical_zero_ttl_delivery(freshness, previous, scope):
+                with self._db() as db:
+                    current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
+                    if not current or current['id'] != row['id'] or current['record'] != row['record']:
+                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                    current_job = json.loads(current['record'])
+                    if not self._inquiry_authorized(current_job, scope):
+                        return {'status': 'unavailable', 'reason': 'access_unavailable'}
+                    observations = self._public_observations(db, current)
+                historical = dict(previous.model_dump())
+                historical['status'] = 'partial'
+                note = (f"Historical command evidence from {previous.created_at} may be stale; freshness is not verified. "
+                        "Ask a new question or add context for fresh observations.")[:250]
+                historical['unresolved_questions'] = list(previous.unresolved_questions) + [note]
+                return {'status': 'partial', 'job': historical, 'observations': observations}
             if self._freshness_unverifiable(freshness, scope):
                 # Do not start a new generation when its retained evidence is
                 # inherently unverifiable; an identical retry cannot repair it.
@@ -577,6 +592,40 @@ class JobService:
             return False
 
         return any(contains_unverifiable(item) for item in changes)
+
+    def _historical_zero_ttl_delivery(self, freshness, job, access_scope):
+        """Allow explicit partial delivery of only historical coarse command evidence."""
+        changes = freshness.get('changed_sources') if isinstance(freshness, dict) else None
+        if job.mode != 'investigate' or not isinstance(changes, list) or not changes:
+            return False
+        confirmed = 0
+        for item in changes:
+            if not isinstance(item, dict):
+                return False
+            if item.get('reason') == 'dependency_manifest_missing':
+                continue
+            if item.get('reason') != 'stale' or not isinstance(item.get('reference'), str):
+                return False
+            dependencies = item.get('dependencies')
+            if not isinstance(dependencies, list) or not dependencies or any(
+                    not isinstance(dep, dict) or dep.get('reason') != 'volatile_observation_expired'
+                    for dep in dependencies):
+                return False
+            lookup = self.packets.lookup(item['reference'], access_scope=access_scope)
+            packet = lookup.packet if lookup.status == 'ok' else None
+            if packet is None or packet.tool != 'command' or packet.sources:
+                return False
+            payload = packet.payload
+            if (not isinstance(payload, dict) or payload.get('status') != 'completed'
+                    or payload.get('exit_code') != 0 or payload.get('truncated')
+                    or payload.get('timed_out') or payload.get('source_reads')):
+                return False
+            metadata = packet.freshness
+            if (not isinstance(metadata, dict) or metadata.get('volatile') is not True
+                    or metadata.get('max_age_seconds') != 0):
+                return False
+            confirmed += 1
+        return confirmed > 0
 
     @staticmethod
     def _inquiry_failure_class(job):

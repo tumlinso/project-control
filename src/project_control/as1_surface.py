@@ -80,27 +80,42 @@ def observer_tool_argument_schemas(profile):
 
 
 def _analysis_runtime_identity(skills_root, observer_runtime_sha256, *, qualification_state='verified'):
-    """Bind inquiry cache entries to the frozen model and inference runtime."""
+    """Bind inquiry cache entries to the frozen model, sources, and broker logic."""
     root = Path(skills_root).resolve(strict=True)
     runtime_files = (
         'local-coding-worker/config/production-profile.toml',
         'local-coding-worker/local_worker/servers/llama_cpp.py',
         'local-coding-worker/local_worker/supervisor.py',
     )
-    digests = {}
+    max_file_bytes = 1024 * 1024
+
+    def file_digest(path):
+        if path.stat().st_size > max_file_bytes:
+            raise ValueError('analysis_runtime_identity_file_too_large')
+        data = path.read_bytes()
+        if len(data) > max_file_bytes:
+            raise ValueError('analysis_runtime_identity_file_too_large')
+        return hashlib.sha256(data).hexdigest()
+
+    runtime_digests = {}
     for relative in runtime_files:
         path = (root / relative).resolve(strict=True)
         path.relative_to(root)
-        if path.stat().st_size > 1024 * 1024:
-            raise ValueError('analysis_runtime_identity_file_too_large')
-        data = path.read_bytes()
-        if len(data) > 1024 * 1024:
-            raise ValueError('analysis_runtime_identity_file_too_large')
-        digests[relative] = hashlib.sha256(data).hexdigest()
+        runtime_digests[relative] = file_digest(path)
+
+    producer_root = Path(__file__).resolve(strict=True).parent
+    producer_files = ('as1_jobs.py', 'as1_surface.py', 'as1_skill.py')
+    producer_digests = {}
+    for relative in producer_files:
+        path = (producer_root / relative).resolve(strict=True)
+        path.relative_to(producer_root)
+        producer_digests[relative] = file_digest(path)
     return canonical_digest({
         'qualified_observer_runtime_sha256': observer_runtime_sha256,
         'qualification_state': qualification_state,
-        'frozen_skills_files_sha256': digests,
+        'frozen_skills_root': str(root),
+        'frozen_skills_files_sha256': runtime_digests,
+        'analysis_producer_files_sha256': producer_digests,
     })
 
 

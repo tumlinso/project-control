@@ -6,6 +6,7 @@ from pathlib import Path
 import sqlite3
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -289,6 +290,70 @@ def test_unverifiable_terminal_freshness_does_not_start_identical_refresh(tmp_pa
         with s._db() as db:
             assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==1
         assert len(calls)==1
+    finally:s.shutdown()
+
+
+def test_zero_ttl_command_history_is_delivered_as_partial_without_mutating_cache(tmp_path):
+    calls=[]
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                calls.append(request)
+                service.observe(job.job_id, job.attempt, {'status':'completed','exit_code':0,
+                    'stdout':'historical command output','truncated':False,'timed_out':False})
+                return {'status':'completed','answer':'answer supported by the command output'}
+        return Worker()
+    def freshness(job):
+        return {'fresh':False,'changed_sources':[
+            {'reference':job['evidence_packets'][0], 'reason':'stale',
+             'dependencies':[{'reason':'volatile_observation_expired'}]},
+            {'reason':'dependency_manifest_missing'}]}
+    s=make(tmp_path,worker_factory=factory,freshness_provider=freshness).start()
+    try:
+        first=s.inquire('historical command question',SCOPE,foreground_timeout=2)
+        assert first['status']=='completed'
+        with s._db() as db:
+            before=db.execute('SELECT record,observations FROM jobs').fetchone()
+            original_record,original_observations=before['record'],before['observations']
+        retry=s.inquire('historical command question',SCOPE,foreground_timeout=0)
+        assert retry['status']=='partial'
+        assert retry['job']['answer']=='answer supported by the command output'
+        assert retry['job']['status']=='partial'
+        assert any('freshness is not verified' in note and 'new question or add context' in note
+                   for note in retry['job']['unresolved_questions'])
+        assert retry['observations'][0]['stdout']=='historical command output'
+        with s._db() as db:
+            after=db.execute('SELECT record,observations FROM jobs').fetchone()
+            assert (after['record'],after['observations'])==(original_record,original_observations)
+            assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==1
+        second=s.inquire('historical command question',SCOPE,foreground_timeout=0)
+        assert second['status']=='partial' and second['job']['job_id']==retry['job']['job_id']
+        assert len(calls)==1
+    finally:s.shutdown()
+
+
+@pytest.mark.parametrize('guard', [
+    {'reason':'changed','path':'/repo/source.py'},
+    {'reason':'selection_proof_missing','skill':'example','resource':'SKILL.md'},
+    {'reason':'unverified','path':'/repo/source.py'},
+], ids=['changed_hash','selection_proof_missing','unverified_source_read'])
+def test_historical_zero_ttl_delivery_rejects_source_and_selection_failures(tmp_path, guard):
+    s=make(tmp_path)
+    packet=s.packets.create(tool='command',access_scope=SCOPE,payload={
+        'status':'completed','exit_code':0,'stdout':'historical','truncated':False,'timed_out':False},
+        freshness={'volatile':True,'max_age_seconds':0})
+    freshness={'fresh':False,'changed_sources':[
+        {'reference':packet.packet_id,'reason':'stale',
+         'dependencies':[{'reason':'volatile_observation_expired'}]},guard]}
+    try:
+        assert not s._historical_zero_ttl_delivery(freshness,SimpleNamespace(mode='investigate'),SCOPE)
+        unverified_packet=s.packets.create(tool='command',access_scope=SCOPE,payload={
+            'status':'completed','exit_code':0,'source_reads':[{'method':'unknown'}]},
+            freshness={'volatile':True,'max_age_seconds':0})
+        source_read_only={'fresh':False,'changed_sources':[
+            {'reference':unverified_packet.packet_id,'reason':'stale',
+             'dependencies':[{'reason':'volatile_observation_expired'}]}]}
+        assert not s._historical_zero_ttl_delivery(source_read_only,SimpleNamespace(mode='investigate'),SCOPE)
     finally:s.shutdown()
 
 

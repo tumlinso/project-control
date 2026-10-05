@@ -74,5 +74,57 @@ def test_runtime_identity_hashes_frozen_profile_and_nested_adapter(tmp_path):
     assert first == _analysis_runtime_identity(root, 'qualified-observer-runtime')
     assert first != _analysis_runtime_identity(root, 'qualified-observer-runtime',
         qualification_state='unavailable')
+    same_bytes_other_root = tmp_path / 'other-frozen-runtime-skills'
+    for relative, contents in files.items():
+        path = same_bytes_other_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(contents)
+    assert _analysis_runtime_identity(same_bytes_other_root, 'qualified-observer-runtime') != first
     (root / 'local-coding-worker/local_worker/servers/llama_cpp.py').write_bytes(b'adapter-v2')
     assert _analysis_runtime_identity(root, 'qualified-observer-runtime') != first
+
+
+def test_runtime_identity_hashes_bounded_current_producer_modules(tmp_path, monkeypatch):
+    import project_control.as1_surface as surface
+    root = tmp_path / 'runtime-skills'
+    for relative, contents in {
+        'local-coding-worker/config/production-profile.toml': b'model = "qwen"\n',
+        'local-coding-worker/local_worker/servers/llama_cpp.py': b'adapter-v1',
+        'local-coding-worker/local_worker/supervisor.py': b'supervisor-v1',
+    }.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(contents)
+    producer_root = tmp_path / 'project-control'
+    producer_root.mkdir()
+    for name in ('as1_jobs.py', 'as1_surface.py', 'as1_skill.py'):
+        (producer_root / name).write_bytes((name + '-v1').encode())
+    monkeypatch.setattr(surface, '__file__', str(producer_root / 'as1_surface.py'))
+
+    first = _analysis_runtime_identity(root, 'qualified-observer-runtime')
+    assert _analysis_runtime_identity(root, 'qualified-observer-runtime') == first
+    (producer_root / 'as1_jobs.py').write_bytes(b'as1_jobs.py-v2')
+    assert _analysis_runtime_identity(root, 'qualified-observer-runtime') != first
+
+
+def test_runtime_identity_rejects_oversized_producer_module(tmp_path, monkeypatch):
+    import pytest
+    import project_control.as1_surface as surface
+    root = tmp_path / 'runtime-skills'
+    for relative, contents in {
+        'local-coding-worker/config/production-profile.toml': b'model = "qwen"\n',
+        'local-coding-worker/local_worker/servers/llama_cpp.py': b'adapter-v1',
+        'local-coding-worker/local_worker/supervisor.py': b'supervisor-v1',
+    }.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(contents)
+    producer_root = tmp_path / 'project-control'
+    producer_root.mkdir()
+    for name in ('as1_jobs.py', 'as1_surface.py', 'as1_skill.py'):
+        (producer_root / name).write_bytes(b'x')
+    (producer_root / 'as1_jobs.py').write_bytes(b'x' * (1024 * 1024 + 1))
+    monkeypatch.setattr(surface, '__file__', str(producer_root / 'as1_surface.py'))
+
+    with pytest.raises(ValueError, match='analysis_runtime_identity_file_too_large'):
+        _analysis_runtime_identity(root, 'qualified-observer-runtime')
