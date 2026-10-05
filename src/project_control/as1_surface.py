@@ -22,7 +22,7 @@ from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
 from .services.machine_inspection import MachineDiagnostic
 
 # Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
-QUALIFIED_OBSERVER_RUNTIME_SHA256 = '9d4fdb3fb6c60aee65d8d0ce0a9a696d85bb6461808b7bd4952bcc9aa9291b79'
+QUALIFIED_OBSERVER_RUNTIME_SHA256 = '6f170e8373a37f0e0c1977ae591319d27cc785e60e63453f0963ea4f5d8a2768'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
