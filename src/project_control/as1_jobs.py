@@ -220,6 +220,8 @@ class JobService:
                         previous = DurableJob.model_validate_json(old['record'])
                         if previous.status not in TERMINAL or db.execute('SELECT 1 FROM execution_slots WHERE job=?', (previous.job_id,)).fetchone():
                             return self._accepted(previous, False, retry=True)
+                        if not self._cache_eligible(previous.model_dump()):
+                            return self._accepted(previous, False, retry=True)
                         if (_freshness_snapshot is None or _freshness_snapshot['job_id'] != old['id']
                                 or _freshness_snapshot['record'] != old['record']):
                             return {'accepted': False, 'reason': 'inquiry_changed'}
@@ -291,7 +293,11 @@ class JobService:
         freshness_snapshot = None
         if row:
             previous = DurableJob.model_validate_json(row['record'])
-            if previous.status not in TERMINAL or not self._settled(previous.job_id):
+            if previous.status not in TERMINAL:
+                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+            if not self._cache_eligible(previous.model_dump()):
+                return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
+            if not self._settled(previous.job_id):
                 return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
             freshness = self.freshness_provider(previous.model_dump()) if self.freshness_provider else {'fresh': False}
             freshness_snapshot = {'job_id': row['id'], 'record': row['record'], 'freshness': freshness}
@@ -311,6 +317,8 @@ class JobService:
             return {'status': 'busy' if admitted['reason'] == 'admission_limit' else 'unavailable',
                     'reason': admitted['reason']}
         value = self.lookup(admitted['job_id'], access_scope=scope)
+        if value['job']['status'] in TERMINAL and not self._cache_eligible(value['job']):
+            return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
         if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
             return {**value, 'status': value['job']['status']}
         if not admitted.get('immediate') or admitted.get('retry'):
@@ -318,12 +326,20 @@ class JobService:
         end = time.monotonic() + max(0, min(30, foreground_timeout))
         while time.monotonic() < end:
             value = self.lookup(admitted['job_id'], access_scope=scope)
+            if value['job']['status'] in TERMINAL and not self._cache_eligible(value['job']):
+                return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
             if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
                 return {**value, 'status': value['job']['status']}
             if value['job']['status'] in {'failed', 'cancelled'}:
                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
             time.sleep(min(.02, max(0, end-time.monotonic())))
         return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+
+    @staticmethod
+    def _cache_eligible(job):
+        return (job['status'] in {'completed', 'partial'}
+                and bool((job.get('answer') or '').strip()
+                         or any(f['text'].strip() and f['evidence_packets'] for f in job['findings'])))
 
     def _settled(self, job_id):
         with self._db() as db:
@@ -377,9 +393,7 @@ class JobService:
         candidates = []
         for row in rows:
             job = json.loads(row['record'])
-            if job['status'] not in {'completed', 'partial'}:
-                continue
-            if job['status'] == 'partial' and not (job.get('answer') or job['findings']):
+            if not self._cache_eligible(job):
                 continue
             candidates.append((job, json.loads(row['observations'])))
             if len(candidates) == 50:
@@ -458,6 +472,7 @@ class JobService:
                 if (job.deadline_epoch is not None and now >= job.deadline_epoch) or job.attempt >= 3:
                     job.status = 'partial' if job.findings else 'failed'
                     job.unresolved_questions = ['Analysis deadline or attempt budget exhausted.']
+                    job.terminal_reason = 'attempt_or_deadline_exhausted'
                     db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?', (job.model_dump_json(), now, job.job_id))
                     self._trim_index(db, job.scope)
                     continue
@@ -593,13 +608,19 @@ class JobService:
             status = result.get('status')
             if status not in TERMINAL | {'yielding', 'queued_after_eviction'}:
                 raise ValueError('invalid worker status')
+            job.failure_reason = result.get('reason', job.failure_reason)
             if self.clock() >= (job.deadline_epoch or float('inf')) or (status not in TERMINAL and job.attempt >= 3):
                 status = result['status'] = 'partial'
                 result['reason'] = 'attempt_or_deadline_exhausted'
+                result['failure_reason'] = job.failure_reason
             job.status = status
             job.answer = result.get('answer', job.answer)
             job.findings = [Finding.model_validate(f) for f in result.get('findings', [f.model_dump() for f in job.findings])]
             job.unresolved_questions = result.get('unresolved_questions', job.unresolved_questions)
+            if status in {'completed', 'partial'} and not ((job.answer or '').strip() or job.findings or job.evidence_packets):
+                status = job.status = result['status'] = 'failed'
+            if status in TERMINAL:
+                job.terminal_reason = result.get('reason')
             job = DurableJob.model_validate(job.model_dump())
             if any(p not in job.evidence_packets for f in job.findings for p in f.evidence_packets):
                 raise ValueError('unobserved finding evidence')

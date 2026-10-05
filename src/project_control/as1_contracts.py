@@ -151,6 +151,8 @@ class DurableJob(Contract):
     execution_question: str | None = None
     refresh_context: dict[str, Any] | None = None
     answer: str | None = None
+    failure_reason: str | None = None
+    terminal_reason: str | None = None
 
     _timestamp = field_validator("created_at")(InformationPacket.timestamp.__func__)
 

@@ -129,7 +129,7 @@ def test_retry_backoff_deadline_and_max_three_attempts(tmp_path):
         if attempt<3:
             assert s.claim() is None
             now[0]+=delay
-    assert s.lookup(j,access_scope=SCOPE)['job']['status']=='partial'
+    assert s.lookup(j,access_scope=SCOPE)['job']['status']=='failed'
     assert s.claim() is None
     deadline=s.submit(question='wait expires',access_scope=SCOPE)['job_id']
     now[0]+=301
@@ -187,7 +187,7 @@ def test_startup_deadline_forwarding_and_noncooperative_slot(tmp_path):
         with s._db() as db:
             assert db.execute('SELECT count(*) FROM execution_slots').fetchone()[0]==0
             job=json.loads(db.execute('SELECT record FROM jobs').fetchone()[0])
-            assert job['status']=='partial'
+            assert job['status']=='failed'
         assert not factory_calls and not s.log(access_scope=SCOPE)
     finally: release.set();s.shutdown()
 
@@ -283,4 +283,72 @@ def test_cleanup_failure_keeps_durable_capacity_after_owner_death(tmp_path, clea
         time.sleep(.15)
         assert len(closes)==2
         with s._db() as db:assert db.execute('SELECT count(*) FROM execution_slots').fetchone()[0]==2
+    finally:s.shutdown()
+
+
+@pytest.mark.parametrize('stored_status', ['failed', 'partial'])
+def test_empty_terminal_negative_cache_never_restarts_or_checks_freshness(tmp_path, stored_status):
+    opened=[]
+    freshness=[]
+    class Backend:
+        def open_sessions(self,count,**kwargs):
+            opened.append(kwargs)
+            return {'status':'unavailable','reason':'gpu_role_unavailable'}
+    def factory(service,job):
+        raise AssertionError('unavailable sessions must not start an observer')
+    def check(job):
+        freshness.append(job)
+        return {'fresh':False,'reason':'manifest_missing'}
+    s=make(tmp_path,worker_factory=factory,backend=Backend(),freshness_provider=check,retry_seconds=0).start()
+    try:
+        result=s.inquire('literal backend failure',SCOPE,request_id='same',foreground_timeout=2)
+        assert result=={'status':'unavailable','reason':'analysis_unavailable'}
+        with s._db() as db:
+            row=db.execute('SELECT * FROM jobs').fetchone()
+            job=json.loads(row['record'])
+        wait(lambda:s._settled(job['job_id']))
+        assert len(opened)==3 and job['attempt']==3
+        assert job['status']=='failed' and not job['answer'] and not job['findings'] and not job['evidence_packets']
+        assert job['failure_reason']=='gpu_role_unavailable'
+        assert job['terminal_reason']=='attempt_or_deadline_exhausted'
+        packet=s.packets.lookup(job['result_packet'],access_scope=SCOPE).packet
+        assert packet.payload['reason']=='attempt_or_deadline_exhausted'
+        assert packet.payload['failure_reason']=='gpu_role_unavailable'
+        # Historical empty partials produced before this fix also stay negative.
+        with s._db() as db:
+            job['status']=stored_status
+            db.execute('UPDATE jobs SET record=? WHERE id=?',(json.dumps(job),job['job_id']))
+            before=[tuple(r) for r in db.execute('SELECT * FROM jobs')]
+            index=[tuple(r) for r in db.execute('SELECT * FROM inquiry_index')]
+        for n in range(8):
+            assert s.inquire('literal backend failure',SCOPE,hints=['missing'],request_id=str(n),
+                foreground_timeout=30)=={'status':'unavailable','reason':'analysis_unavailable'}
+        with s._db() as db:
+            assert [tuple(r) for r in db.execute('SELECT * FROM jobs')]==before
+            assert [tuple(r) for r in db.execute('SELECT * FROM inquiry_index')]==index
+        assert len(opened)==3 and not freshness
+        assert not s.log(access_scope=SCOPE)
+    finally:s.shutdown()
+
+
+def test_evidence_only_partial_is_retained_without_automatic_refresh(tmp_path):
+    calls=[]
+    freshness=[]
+    def factory(service,job):
+        class Worker:
+            def run(self,request):
+                calls.append(job.job_id)
+                service.observe(job.job_id,job.attempt,{'text':'retained source without an answer'})
+                return {'status':'partial','reason':'step_budget_exhausted'}
+        return Worker()
+    s=make(tmp_path,worker_factory=factory,freshness_provider=lambda job:freshness.append(job)).start()
+    try:
+        expected={'status':'unavailable','reason':'analysis_unavailable'}
+        assert s.inquire('source-only',SCOPE,foreground_timeout=2)==expected
+        with s._db() as db:
+            job=json.loads(db.execute('SELECT record FROM jobs').fetchone()[0])
+        wait(lambda:s._settled(job['job_id']))
+        assert job['status']=='partial' and job['evidence_packets'] and not job['answer'] and not job['findings']
+        assert s.inquire('source-only',SCOPE)==expected
+        assert len(calls)==1 and not freshness
     finally:s.shutdown()
