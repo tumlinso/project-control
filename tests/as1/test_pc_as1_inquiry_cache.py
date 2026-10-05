@@ -402,11 +402,12 @@ def test_operator_releases_only_selected_matching_negative_inquiries(tmp_path):
 def test_dispatcher_parks_queued_jobs_when_central_identity_fails(tmp_path):
     class Backend:
         def __init__(self):
-            self.allowed = False
+            self.allowed = True
+            self.mismatch_after_first_check = True
             self.checks = 0
         def central_status(self):
             self.checks += 1
-            if not self.allowed:
+            if not self.allowed or (self.mismatch_after_first_check and self.checks >= 2):
                 raise RuntimeError('runtime_identity_mismatch')
             return {'observer_contract': 'PC-OBSERVER-SUPERVISOR/1'}
         def open_sessions(self, count, **kwargs):
@@ -434,12 +435,44 @@ def test_dispatcher_parks_queued_jobs_when_central_identity_fails(tmp_path):
             job = json.loads(db.execute('SELECT record FROM jobs WHERE id=?', (job_id,)).fetchone()[0])
             assert db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] == 0
         assert job['status'] == 'queued' and job['attempt'] == 0
-        assert backend.checks <= 2  # one bounded status probe, not a poll per drain tick
+        assert backend.checks >= 2  # a fresh claim guard rejects the formerly valid status
 
         backend.allowed = True
+        backend.mismatch_after_first_check = False
         completed = wait(lambda: (value if (value := s.lookup(job_id, access_scope=SCOPE))['job']['status'] == 'completed' else None))
         assert completed['job']['attempt'] == 1
         assert s.last_error is None
+    finally:
+        s.shutdown()
+
+
+def test_preflight_covers_expired_incompatible_jobs_and_pending_outbox(tmp_path):
+    class Backend:
+        def central_status(self):
+            raise RuntimeError('runtime_identity_mismatch')
+    def factory(service, job):
+        raise AssertionError('mismatched identity must prevent worker startup')
+    s = make(tmp_path, backend=Backend(), worker_factory=factory,
+        can_execute=lambda job, shared: False)
+    class Live:
+        def is_alive(self): return True
+    s._thread = Live()
+    ident = s.submit(question='expired and incompatible', access_scope=SCOPE, _identity='identity')['job_id']
+    with s._db() as db:
+        record = json.loads(db.execute('SELECT record FROM jobs WHERE id=?', (ident,)).fetchone()[0])
+        record['deadline_epoch'] = time.time() - 10
+        db.execute('UPDATE jobs SET record=? WHERE id=?', (json.dumps(record), ident))
+        db.execute('INSERT INTO outbox(id,job,packet,materialized) VALUES(?,?,?,0)', ('pending-packet', ident, '{}'))
+
+    s._thread = None
+    s.start()
+    try:
+        wait(lambda: s.last_error == 'runtime_identity_mismatch')
+        with s._db() as db:
+            current = json.loads(db.execute('SELECT record FROM jobs WHERE id=?', (ident,)).fetchone()[0])
+            assert db.execute('SELECT materialized FROM outbox WHERE id=?', ('pending-packet',)).fetchone()[0] == 0
+            assert db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] == 0
+        assert current['status'] == 'queued' and current['attempt'] == 0
     finally:
         s.shutdown()
 
@@ -510,6 +543,24 @@ def test_legacy_snapshot_rejects_active_source_without_modifying_it(tmp_path):
         JobService(v2_dir, packets=SQLitePacketStore(tmp_path/'v2-packets'), legacy_directory=legacy_dir)
     assert old.path.read_bytes() == before
     assert not (v2_dir/'jobs.sqlite3').exists()
+
+
+def test_legacy_snapshot_marker_supports_empty_first_boot_and_fails_closed_if_lost(tmp_path):
+    legacy_dir, v2_dir = tmp_path/'legacy', tmp_path/'v2'
+    first = JobService(v2_dir, packets=SQLitePacketStore(tmp_path/'packets'), legacy_directory=legacy_dir)
+    assert first.path.is_file()
+    marker = v2_dir/'legacy-broker-snapshot-v1.complete'
+    assert marker.is_file()
+    first.shutdown()
+
+    second = JobService(v2_dir, packets=SQLitePacketStore(tmp_path/'packets'), legacy_directory=legacy_dir)
+    assert second.path.is_file()
+    second.shutdown()
+
+    second.path.unlink()
+    with pytest.raises(RuntimeError, match='legacy_broker_snapshot_missing'):
+        JobService(v2_dir, packets=SQLitePacketStore(tmp_path/'packets'), legacy_directory=legacy_dir)
+    assert not second.path.exists()
 
 
 def test_evidence_only_partial_is_retained_without_automatic_refresh(tmp_path):

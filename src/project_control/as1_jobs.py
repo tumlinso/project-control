@@ -126,6 +126,7 @@ class JobService:
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'jobs.sqlite3'
+        self._legacy_snapshot_marker_to_write = None
         if legacy_directory is not None:
             self._snapshot_legacy_broker(Path(legacy_directory))
         self.packets, self.worker_factory, self.backend = packets, worker_factory, backend
@@ -195,6 +196,8 @@ class JobService:
                 db.execute("INSERT INTO broker_migrations VALUES('global_inquiry_context_v1')")
 
         os.chmod(self.path, 0o600)
+        if self._legacy_snapshot_marker_to_write is not None:
+            self._write_legacy_snapshot_marker(self._legacy_snapshot_marker_to_write)
 
     def _snapshot_legacy_broker(self, legacy_directory):
         """Publish one quiescent legacy broker snapshot into a fresh namespace."""
@@ -206,11 +209,15 @@ class JobService:
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
             # Once a destination database exists, never replace it, including
             # an empty database that another process may already have opened.
-            if marker.exists() or self.path.exists():
-                self._write_legacy_snapshot_marker(marker)
+            if marker.exists():
+                if not self.path.exists():
+                    raise RuntimeError('legacy_broker_snapshot_missing')
+                return
+            if self.path.exists():
+                self._legacy_snapshot_marker_to_write = marker
                 return
             if not source_path.is_file():
-                self._write_legacy_snapshot_marker(marker)
+                self._legacy_snapshot_marker_to_write = marker
                 return
 
             snapshot = self.directory / f'.legacy-snapshot-{uuid.uuid4().hex}.sqlite3'
@@ -232,7 +239,7 @@ class JobService:
                         os.link(snapshot, self.path)
                     except FileExistsError:
                         pass
-                self._write_legacy_snapshot_marker(marker)
+                self._legacy_snapshot_marker_to_write = marker
             except RuntimeError:
                 raise
             except (OSError, sqlite3.Error, ValueError, TypeError) as error:
@@ -668,7 +675,8 @@ class JobService:
         return pid is not None and start is not None and cls._process_start(pid) == start
 
     def claim(self, *, _dispatch=False):
-        if not self._dispatch_preflight():
+        preflight = self._dispatch_preflight(force=True)
+        if preflight is False:
             return None
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -682,6 +690,8 @@ class JobService:
             for row in rows:
                 job = DurableJob.model_validate_json(row['record'])
                 if job.status in TERMINAL:
+                    continue
+                if preflight is not None and job.job_id not in preflight:
                     continue
                 if self.can_execute is not None and not self.can_execute(job, bool(row['inquiry'])):
                     continue
@@ -1003,8 +1013,9 @@ class JobService:
     def _drain(self):
         while not self._stop.is_set():
             try:
-                if not self._dispatch_preflight():
-                    self._wake.wait(.1); self._wake.clear()
+                preflight = self._dispatch_preflight()
+                if preflight is False or preflight is None:
+                    self._wake.wait(1); self._wake.clear()
                     continue
                 self.reconcile()
                 job = self.claim(_dispatch=True)
@@ -1013,25 +1024,27 @@ class JobService:
                     continue
             except Exception as error:
                 self.last_error = type(error).__name__
-            self._wake.wait(.1); self._wake.clear()
+            self._wake.wait(1); self._wake.clear()
 
-    def _dispatch_preflight(self):
+    def _dispatch_preflight(self, *, force=False):
         status = getattr(self.backend, 'central_status', None) if self.backend is not None else None
-        if not callable(status):
-            return True
-        now = self.clock()
         with self._db() as db:
-            pending = db.execute('''SELECT 1 FROM jobs
-                WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled','running')
-                  AND available<=?
-                  AND NOT EXISTS(SELECT 1 FROM execution_slots WHERE execution_slots.job=jobs.id)
-                LIMIT 1''', (now,)).fetchone()
-        if not pending:
-            return True
+            rows = db.execute('''SELECT id FROM jobs
+                WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled')''').fetchall()
+            has_slots = db.execute('SELECT 1 FROM execution_slots LIMIT 1').fetchone()
+            has_pending_outbox = db.execute('SELECT 1 FROM outbox WHERE materialized=0 LIMIT 1').fetchone()
+        candidates = frozenset(row['id'] for row in rows)
+        has_work = bool(candidates or has_slots or has_pending_outbox)
+        if not callable(status):
+            return True if has_work and not force else None
+        if not force and not has_work:
+            return None
+
         with self._central_preflight_lock:
             checked = time.monotonic()
-            if checked - self._central_preflight_checked < 1.0:
-                return self._central_preflight_allowed
+            if (not self._central_preflight_allowed
+                    and checked - self._central_preflight_checked < 1.0):
+                return False
             try:
                 value = status()
                 if not isinstance(value, dict):
@@ -1049,4 +1062,4 @@ class JobService:
                 self._central_preflight_error = None
                 self._central_preflight_allowed = True
             self._central_preflight_checked = checked
-            return self._central_preflight_allowed
+            return candidates if force and self._central_preflight_allowed else self._central_preflight_allowed
