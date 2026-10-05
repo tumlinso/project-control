@@ -345,7 +345,9 @@ def test_wrong_registered_root_and_mid_read_replacement_are_explicit(tmp_path, m
     jobs.start()
     try:
         admitted = service.submit(query='Select source', skill='fixture', access_scope=SCOPE)
-        assert finish(service, admitted)['job']['status'] == 'partial'
+        rejected = finish(service, admitted)['job']
+        assert rejected['status'] == 'failed'
+        assert rejected['failure_reason'] == 'skill_root_outside_trusted_mounts'
         assert not service.poll(admitted['job_id'], access_scope=SCOPE).get('excerpts')
     finally:
         jobs.shutdown()
@@ -544,5 +546,33 @@ def test_durable_top_level_unresolved_questions_survive_terminal_assembly(tmp_pa
         result = service.poll(admitted['job_id'], access_scope=SCOPE, detail='extended')
         assert result['status'] == 'partial' and result['excerpts']
         assert result['unresolved'] == ([manifest_message, message] if overlapping_manifest else [message])
+    finally:
+        jobs.shutdown()
+
+
+def test_shared_skill_inquiry_reuses_verified_selection_and_shares_assembly_packet(tmp_path):
+    root = fixture_root(tmp_path)
+    backend = Turns([command(root/'fixture/SKILL.md'), command(root/'fixture/resource.md'),
+                     final([item(root, 'fixture', 'resource.md')])])
+    service, jobs = make(tmp_path, root, backend)
+    jobs.freshness_provider = lambda job: {'fresh': True}
+    jobs.packets.inquiry_access = jobs.inquiry_packet_access
+    jobs.start()
+    try:
+        first = service.inquire(query='literal skill query', skill='fixture', access_scope=SCOPE)
+        assert first['status'] in {'completed', 'partial'} and first['excerpts']
+        assert all(o['reason'] == 'synthesis_budget' for o in first['omissions'])
+        turns = len(backend.requests)
+        cross_profile = jobs.inquire('literal skill query', {**SCOPE, 'principal': 'bob', 'profile': 'coder'},
+                                     mode='skill', skill='fixture')
+        assert cross_profile['status'] == 'completed' and len(backend.requests) == turns
+        caller = {**SCOPE, 'principal': 'bob'}
+        shared = service.inquire(query='literal skill query', skill='fixture', access_scope=caller)
+        assert shared['status'] == first['status'] and shared['excerpts'] == first['excerpts']
+        assert len(backend.requests) == turns
+        resolved = jobs.packets.lookup(shared['packet_id'], access_scope=caller)
+        assert resolved.status == 'ok' and resolved.packet.payload['excerpts'] == shared['excerpts']
+        assert not {'job_id', 'attempt'} & resolved.packet.payload.keys()
+        assert service.poll(cross_profile['job']['job_id'], access_scope=caller)['status'] == 'forbidden'
     finally:
         jobs.shutdown()

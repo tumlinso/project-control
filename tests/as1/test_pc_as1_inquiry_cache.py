@@ -96,7 +96,7 @@ def test_transactional_capacity_two_dispatchers_and_cancelled_operation_slot(tmp
         release.set(); a.shutdown(); b.shutdown()
 
 
-def test_scoped_identity_and_coalesced_race(tmp_path):
+def test_global_identity_and_coalesced_race(tmp_path):
     entered, release, requests = threading.Event(), threading.Event(), []
     s=make(tmp_path, worker_factory=blocking(entered, release, requests)).start()
     try:
@@ -108,7 +108,7 @@ def test_scoped_identity_and_coalesced_race(tmp_path):
         for key in ['principal','profile','project']:
             s.inquire('exact', {**SCOPE,key:'other'}, foreground_timeout=0)
         with s._db() as db:
-            assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==4
+            assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==2
     finally:
         release.set(); s.shutdown()
 
@@ -145,8 +145,9 @@ def test_cache_window_history_and_last_fifty_bm25_before_ranking(tmp_path):
     s=make(tmp_path,worker_factory=factory,freshness_provider=lambda job:{'fresh':True}).start()
     try:
         for i in range(53):
+            caller = {**SCOPE, 'principal': f'caller-{i}', 'profile': 'coder' if i % 2 else 'observer'}
             question='rare-old' if i==0 else f'question {i}'
-            s.inquire(question,SCOPE,foreground_timeout=0)
+            s.inquire(question,caller,foreground_timeout=0)
             result=wait(lambda: (v if (v:=s.inquire(question,SCOPE,foreground_timeout=0))['status']=='completed' else None))
             assert result['status']=='completed'
         with s._db() as db:
@@ -157,7 +158,7 @@ def test_cache_window_history_and_last_fifty_bm25_before_ranking(tmp_path):
         assert len(recent)==5 and recent[0]['question']=='question 52'
         assert 'job' not in recent[0] and 'observations' not in recent[0]
         assert s.log(access_scope=SCOPE,query='question 48')[0]['question']=='question 48'
-        assert not s.log(access_scope={**SCOPE,'principal':'bob'},query='question')
+        assert s.log(access_scope={**SCOPE,'principal':'bob','profile':'coder'},query='question')
         s.inquire('rare-old',SCOPE,foreground_timeout=2)
         with s._db() as db: assert db.execute('SELECT count(*) FROM jobs').fetchone()[0]==54
     finally: s.shutdown()
@@ -352,3 +353,166 @@ def test_evidence_only_partial_is_retained_without_automatic_refresh(tmp_path):
         assert s.inquire('source-only',SCOPE)==expected
         assert len(calls)==1 and not freshness
     finally:s.shutdown()
+
+
+def test_shared_answer_refresh_packets_and_private_hint_boundary(tmp_path):
+    entered, release, requests = threading.Event(), threading.Event(), []
+    release.set()
+    fresh = [True]
+    s = make(tmp_path, worker_factory=blocking(entered, release, requests),
+             freshness_provider=lambda job: {'fresh': fresh[0]}).start()
+    s.packets.inquiry_access = s.inquiry_packet_access
+    other = {**SCOPE, 'principal': 'bob', 'profile': 'coder'}
+    try:
+        first = s.inquire('global answer', SCOPE, foreground_timeout=2)
+        assert first['status'] == 'completed'
+        job_id, ref = first['job']['job_id'], first['job']['result_packet']
+        assert s.lookup(job_id, access_scope=other)['status'] == 'forbidden'
+        assert s.inquire('global answer', other)['job']['answer'] == 'answer global answer'
+        assert len(requests) == 1
+        assert s.packets.lookup(ref, access_scope=other).status == 'ok'
+        assert s.packets.lookup(ref, access_scope={**other, 'project': 'denied'}).status == 'forbidden'
+        private = s.packets.create(tool='read', payload={'text': 'caller private source'}, access_scope=SCOPE)
+        assert s.packets.lookup(private.packet_id, access_scope=other).status == 'forbidden'
+        assert s.inquiry_packet(job_id, private.packet_id, access_scope=other).status == 'forbidden'
+        fresh[0] = False
+        refreshed = s.inquire('global answer', other, foreground_timeout=2)
+        assert refreshed['status'] == 'completed' and len(requests) == 2
+        assert requests[-1]['refresh_context']['prior_job']['answer'] == 'answer global answer'
+        fresh[0] = True
+        assert s.inquire('private-derived', SCOPE, hints=[private.packet_id], foreground_timeout=2)['status'] == 'completed'
+        before = len(requests)
+        assert s.inquire('private-derived', other) == {'status': 'unavailable', 'reason': 'access_unavailable'}
+        assert not s.log(access_scope=other, query='private-derived')
+        assert s.inquire('private-derived', SCOPE)['status'] == 'completed'
+        fresh[0] = False
+        assert s.inquire('private-derived', SCOPE, foreground_timeout=2)['status'] == 'completed'
+        fresh[0] = True
+        assert s.inquire('private-derived', other)['reason'] == 'access_unavailable'
+        assert len(requests) == before + 1
+        with s._db() as db:
+            record = json.loads(db.execute("SELECT record FROM jobs WHERE id IN (SELECT job FROM inquiry_index) AND json_extract(record,'$.question')='private-derived'").fetchone()[0])
+        assert private.packet_id in record['hints']
+        assert s.packets.lookup(record['result_packet'], access_scope=other).status == 'forbidden'
+    finally:
+        release.set(); s.shutdown()
+
+
+def test_cross_caller_pending_is_read_only_and_private_hint_pending_is_denied(tmp_path):
+    entered, release, requests = threading.Event(), threading.Event(), []
+    s = make(tmp_path, worker_factory=blocking(entered, release, requests)).start()
+    other = {**SCOPE, 'principal': 'bob', 'profile': 'coder'}
+    try:
+        assert s.inquire('pending', SCOPE, foreground_timeout=0)['status'] == 'thinking'
+        assert entered.wait(2)
+        with s._db() as db:
+            before = [tuple(r) for r in db.execute('SELECT * FROM jobs')]
+        assert s.inquire('pending', other, hints=['missing'])['status'] == 'thinking'
+        with s._db() as db:
+            assert [tuple(r) for r in db.execute('SELECT * FROM jobs')] == before
+        private = s.packets.create(tool='read', payload={'text': 'private'}, access_scope=SCOPE)
+        assert s.inquire('private pending', SCOPE, hints=[private.packet_id], foreground_timeout=0)['status'] == 'thinking'
+        assert s.inquire('private pending', other)['reason'] == 'access_unavailable'
+        with s._db() as db:
+            assert db.execute('SELECT count(*) FROM jobs').fetchone()[0] == 2
+    finally:
+        release.set(); s.shutdown()
+
+
+def test_startup_migration_collision_policy_preserves_jobs_slots_and_legacy(tmp_path):
+    from project_control.as1_contracts import canonical_digest
+    now = [1000.]
+    s = make(tmp_path, clock=lambda: now[0])
+    class Live:
+        def is_alive(self): return True
+    s._thread = Live()
+    early = s.submit(question='collision', access_scope=SCOPE)['job_id']
+    now[0] += 1
+    later = s.submit(question='collision', access_scope={**SCOPE, 'principal': 'bob'})['job_id']
+    now[0] += 1
+    terminal = s.submit(question='collision', access_scope={**SCOPE, 'principal': 'carol'})['job_id']
+    older_answer = s.submit(question='answered', access_scope=SCOPE)['job_id']
+    newer_answer = s.submit(question='answered', access_scope={**SCOPE, 'profile': 'coder'})['job_id']
+    legacy = s.submit(question='private legacy', access_scope=SCOPE)['job_id']
+    with s._db() as db:
+        for ident in [early, later, terminal, older_answer, newer_answer]:
+            row = db.execute('SELECT record FROM jobs WHERE id=?', (ident,)).fetchone()
+            job = json.loads(row['record'])
+            if ident in [terminal, older_answer, newer_answer]:
+                job['status'], job['answer'] = 'completed', ident
+                db.execute('UPDATE jobs SET record=?,updated=? WHERE id=?',
+                           (json.dumps(job), 1005 if ident == newer_answer else 1004, ident))
+            old_key = canonical_digest({'question': job['question'], 'scope': job['scope'],
+                                        'mode': job['mode'], 'skill': job['skill']})
+            db.execute('INSERT INTO inquiry_index VALUES(?,?)', (old_key, ident))
+        db.execute("DELETE FROM broker_migrations WHERE name='global_inquiry_context_v1'")
+        db.execute('INSERT INTO execution_slots(job,attempt,lease) VALUES(?,?,?)', (later, 1, 2000))
+        before = [tuple(r) for r in db.execute('SELECT * FROM jobs')]
+        slots = [tuple(r) for r in db.execute('SELECT * FROM execution_slots')]
+    restored = make(tmp_path, clock=lambda: now[0])
+    with restored._db() as db:
+        assert {r[0] for r in db.execute('SELECT job FROM inquiry_index')} == {early, newer_answer}
+        assert [tuple(r) for r in db.execute('SELECT * FROM execution_slots')] == slots
+        assert db.execute('SELECT inquiry FROM jobs WHERE id=?', (legacy,)).fetchone()[0] == 0
+        after = [tuple(r) for r in db.execute('SELECT * FROM jobs')]
+        assert [r[:-1] for r in after] == [r[:-1] for r in before]
+    again = make(tmp_path, clock=lambda: now[0])
+    with again._db() as db:
+        assert [tuple(r) for r in db.execute('SELECT * FROM jobs')] == after
+        assert [tuple(r) for r in db.execute('SELECT * FROM execution_slots')] == slots
+    assert again.lookup(legacy, access_scope={**SCOPE, 'principal': 'bob'})['status'] == 'forbidden'
+
+
+def test_dispatch_skips_incompatible_project_catalog_and_legacy_owner(tmp_path):
+    from project_control.as1_context import ContextHost
+    from project_control.as1_surface import SurfaceComposition
+    a, b = SurfaceComposition(), SurfaceComposition()
+    a.host = ContextHost('observer', 'alice', frozenset({'p'}))
+    b.host = ContextHost('coder', 'bob', frozenset({'q'}))
+    s = make(tmp_path)
+    class Live:
+        def is_alive(self): return True
+    s._thread = Live()
+    assert s.inquire('p inquiry', a.scope('p'), foreground_timeout=0)['status'] == 'thinking'
+    assert s.inquire('p catalog', a.scope(None), foreground_timeout=0)['status'] == 'thinking'
+    private = s.submit(question='private legacy', access_scope=a.scope('p'))['job_id']
+    incompatible = make(tmp_path, can_execute=b.can_execute_inquiry)
+    with s._db() as db:
+        before = [tuple(r) for r in db.execute('SELECT * FROM jobs')]
+    assert incompatible.claim() is None
+    with s._db() as db:
+        assert [tuple(r) for r in db.execute('SELECT * FROM jobs')] == before
+        assert db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] == 0
+    b.host = ContextHost('coder', 'bob', frozenset({'p'}))
+    same_project = incompatible.claim()
+    assert same_project.question == 'p inquiry' and same_project.scope['principal'] == 'alice'
+    same_catalog = incompatible.claim()
+    assert same_catalog.question == 'p catalog'
+    with s._db() as db:
+        db.execute('DELETE FROM execution_slots')
+        for ident in [same_project.job_id, same_catalog.job_id]:
+            db.execute("UPDATE jobs SET record=json_set(record,'$.status','completed') WHERE id=?", (ident,))
+    assert incompatible.claim() is None
+    assert s.lookup(private, access_scope=a.scope('p'))['job']['attempt'] == 0
+
+
+def test_storage_and_payload_limits_are_unavailable_not_global_busy(tmp_path):
+    s = make(tmp_path)
+    class Live:
+        def is_alive(self): return True
+    s._thread = Live()
+    assert s.inquire('x'*40000, SCOPE, foreground_timeout=0) == {'status': 'unavailable', 'reason': 'inquiry_too_large'}
+    s.max_storage_bytes = 1
+    assert s.inquire('storage', SCOPE, foreground_timeout=0) == {'status': 'unavailable', 'reason': 'storage_limit'}
+    with s._db() as db:
+        assert db.execute('SELECT count(*) FROM jobs').fetchone()[0] == 0
+
+
+def test_old_catalog_without_authority_manifest_has_no_cross_caller_grant(tmp_path):
+    from project_control.as1_context import ContextHost
+    from project_control.as1_surface import SurfaceComposition
+    c = SurfaceComposition(); c.host = ContextHost('coder', 'bob', frozenset())
+    legacy_catalog = {'principal': 'alice', 'profile': 'observer', 'project': 'catalog'}
+    assert not c.inquiry_access({'project': 'catalog'}, c.scope(None), log=True)
+    assert not c.can_execute_inquiry(type('Job', (), {'scope': legacy_catalog})(), True)
+    assert c.inquiry_access({'project': 'catalog', 'catalog_projects': []}, c.scope(None), log=True)

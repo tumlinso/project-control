@@ -89,11 +89,12 @@ class SQLitePacketStore:
     """
     def __init__(self, directory: str | Path, *, namespace: str = 'default',
                  clock: Callable[[], float] = time.time, alias_factory: Callable[[int], str] | None = None,
-                 recent_terminal_limit: int = 50, max_payload_bytes: int = 4 * 1024 * 1024):
+                 recent_terminal_limit: int = 50, max_payload_bytes: int = 4 * 1024 * 1024, inquiry_access=None):
         self.directory = Path(directory)
         self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.path = self.directory / 'packets.sqlite3'
         self.namespace, self.clock = namespace, clock
+        self.inquiry_access = inquiry_access
         self.alias_factory = alias_factory or (lambda size: '-'.join(secrets.choice(WORDS) for _ in range(size)))
         self.recent_terminal_limit, self.max_payload_bytes = recent_terminal_limit, max_payload_bytes
         # WAL persists on disk; initialize it before concurrent operations rather
@@ -234,7 +235,9 @@ class SQLitePacketStore:
                 return PacketLookup('not_found')
             metadata = json.loads(row[1]); metadata.pop('_invocation', None)
             if not self._authorized(metadata['access_scope'], access_scope):
-                return PacketLookup('forbidden')
+                # Host-installed opt-in grants only verified broker inquiry output.
+                if self.inquiry_access is None or not self.inquiry_access(row[0], dict(access_scope)):
+                    return PacketLookup('forbidden')
             if row[3] or row[0] not in self._live_ids(db):
                 return PacketLookup('expired')
             body = db.execute('SELECT payload FROM bodies WHERE hash=?', (row[2],)).fetchone()

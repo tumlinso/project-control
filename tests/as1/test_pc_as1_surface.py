@@ -281,7 +281,7 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
     assert not {'job', 'job_id', 'observations', 'attempt'} & answered.keys()
     with c.jobs._db() as db:
         ident = db.execute('SELECT id FROM jobs').fetchone()[0]
-    internal = c.jobs.lookup(ident, access_scope=c.host.scope(None))
+    internal = c.jobs.lookup(ident, access_scope=c.scope(None))
     assert internal['observations'][0]['data']['projects'] == []
     assert internal['observations'][0]['packet_id'] == backend.replayed_packet['packet_id']
     assert backend.turns == 2

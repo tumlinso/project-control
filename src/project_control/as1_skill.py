@@ -231,7 +231,7 @@ class SkillService:
         value = self.jobs.inquire(question=question, execution_question=execution, access_scope=access_scope,
             mode='skill', skill=selected, hints=hints, request_id=request_id)
         if value.get('job') and value['status'] in {'completed', 'partial'}:
-            return self.poll(value['job']['job_id'], access_scope=access_scope, detail=detail)
+            return self.poll(value['job']['job_id'], access_scope=access_scope, detail=detail, _inquiry=True)
         return value
 
     def submit(self, *, access_scope, query=None, skill=None, hints=(), request_id=None, job_id=None, detail='compact'):
@@ -256,9 +256,9 @@ class SkillService:
         return self.jobs.submit(question=question, access_scope=access_scope, request_id=request_id,
                                 mode='skill', skill=selected, hints=hints)
 
-    def poll(self, job_id, *, access_scope, detail='compact'):
+    def poll(self, job_id, *, access_scope, detail='compact', _inquiry=False):
         self._authorize(access_scope)
-        value = self.jobs.lookup(job_id, access_scope=access_scope)
+        value = (self.jobs.lookup_inquiry if _inquiry else self.jobs.lookup)(job_id, access_scope=access_scope)
         if value['status'] != 'ok':
             return value
         if value['job']['mode'] != 'skill':
@@ -269,7 +269,8 @@ class SkillService:
         # the existing broker outbox before resolving; this never runs a model.
         self.jobs.reconcile()
         ref = value['job']['result_packet']
-        result = self.packets.lookup(ref, access_scope=access_scope) if ref else None
+        result = (self.jobs.inquiry_packet(job_id, ref, access_scope=access_scope) if _inquiry
+                  else self.packets.lookup(ref, access_scope=access_scope)) if ref else None
         if not result or result.status != 'ok':
             return {'status': value['job']['status'], 'job_id': job_id, 'reason': 'selection_unavailable'}
         manifest = result.packet.payload.get('skill_selection')
@@ -277,9 +278,9 @@ class SkillService:
             return {'status': 'partial', 'job_id': job_id, 'reason': result.packet.payload.get('reason', 'selection_unavailable'),
                     'unresolved': value['job']['unresolved_questions']}
         return self.assemble(manifest, access_scope=access_scope, observations=value['observations'],
-                             parents=[ref], detail=detail, job_id=job_id, attempt=value['job']['attempt'])
+                             parents=[ref], detail=detail, job_id=job_id, attempt=value['job']['attempt'], _inquiry=_inquiry)
 
-    def assemble(self, selection, *, access_scope, observations=(), parents=(), detail='compact', job_id=None, attempt=None):
+    def assemble(self, selection, *, access_scope, observations=(), parents=(), detail='compact', job_id=None, attempt=None, _inquiry=False):
         self._authorize(access_scope)
         if detail not in RESPONSE_BUDGETS_BYTES:
             raise ValueError('invalid detail')
@@ -288,12 +289,13 @@ class SkillService:
         # not a caller-created list. Public assembly requires a terminal skill job.
         if job_id is None:
             raise ValueError('assembly requires durable job identity')
-        stored = self.jobs.lookup(job_id, access_scope=access_scope)
+        stored = (self.jobs.lookup_inquiry if _inquiry else self.jobs.lookup)(job_id, access_scope=access_scope)
         if (stored['status'] != 'ok' or stored['job']['mode'] != 'skill' or
                 stored['job']['status'] not in {'completed', 'partial'} or stored['job']['attempt'] != attempt):
             return {'status': 'stale_attempt', 'job_id': job_id}
         ref = stored['job']['result_packet']
-        result = self.packets.lookup(ref, access_scope=access_scope)
+        result = (self.jobs.inquiry_packet(job_id, ref, access_scope=access_scope) if _inquiry
+                  else self.packets.lookup(ref, access_scope=access_scope))
         if result.status != 'ok' or result.packet.payload.get('skill_selection') != selected.model_dump(exclude_none=True):
             # Allow explicit null optional fields in the producer wire value.
             if result.status != 'ok' or SkillSelection.model_validate(result.packet.payload.get('skill_selection')).model_dump() != selected.model_dump():
@@ -304,7 +306,7 @@ class SkillService:
             if resolved.status == 'ok' and resolved.packet.packet_id not in parents:
                 parents.append(resolved.packet.packet_id)
         observations = stored['observations']
-        reads = _verified_reads(self.packets, stored['job'], observations, access_scope)
+        reads = _verified_reads(self.packets, stored['job'], observations, stored['job']['scope'] if _inquiry else access_scope)
         excerpts, omissions, sources = [], [], []
         budget = RESPONSE_BUDGETS_BYTES[detail]
         used = 0
@@ -392,9 +394,15 @@ class SkillService:
                    'continuation': {'job_id': job_id, 'detail': 'extended'} if omissions else None}
         # Check again after reads: cancelled/superseded jobs cannot publish stale
         # authority. Terminal records are immutable in the shared job service.
-        current = self.jobs.lookup(job_id, access_scope=access_scope)
+        current = (self.jobs.lookup_inquiry if _inquiry else self.jobs.lookup)(job_id, access_scope=access_scope)
         if current['status'] != 'ok' or current['job'] != stored['job']:
             return {'status': 'stale_attempt', 'job_id': job_id}
-        packet = self.packets.create(tool='skill', payload=payload, access_scope=access_scope, sources=sources,
+        packet_payload = payload
+        if _inquiry:
+            from .as1_surface import public_inquiry
+            packet_payload = public_inquiry(payload)
+        packet = self.packets.create(tool='skill', payload=packet_payload, access_scope=stored['job']['scope'] if _inquiry else access_scope, sources=sources,
                                      parents=parents, freshness=payload['freshness'], omissions=omissions)
+        if _inquiry and not self.jobs.publish_inquiry_assembly(job_id, packet, access_scope=access_scope):
+            return {'status': 'unavailable', 'reason': 'storage_limit'}
         return {**packet.payload, 'packet_id': packet.packet_id, 'alias': packet.alias}

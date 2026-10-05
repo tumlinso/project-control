@@ -72,7 +72,7 @@ class TrustedObserverFactory:
                 return method(session) if method else {}
         def tools(name, arguments):
             if name == 'log':
-                payload = {'records': service.log(access_scope=job.scope, **arguments)}
+                payload = {'records': service.log(access_scope=job.scope, inquiry_only=service.is_inquiry(job.job_id), material_hints=job.hints if service.is_inquiry(job.job_id) else None, **arguments)}
             elif name in SHARED_TOOLS:
                 payload = self.tools(name, arguments, job.scope)
             else:
@@ -99,7 +99,7 @@ class JobService:
     """
     def __init__(self, directory, *, packets, worker_factory=None, backend=None,
                  hard_limit=100, max_storage_bytes=64 * 1024 * 1024,
-                 lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None):
+                 lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'jobs.sqlite3'
@@ -110,6 +110,8 @@ class JobService:
         self._thread = None
         self._threads = []
         self.freshness_provider = freshness_provider
+        self.inquiry_access = inquiry_access
+        self.can_execute = can_execute
         self.last_error = None
         # WAL mode persists; set it once, before dispatch, not on every racing connection.
         with _DB_LOCK:
@@ -132,12 +134,36 @@ class JobService:
                 frames TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS inquiry_index(identity TEXT PRIMARY KEY, job TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0);''')
+            db.execute('BEGIN IMMEDIATE')
+            if 'inquiry' not in {r['name'] for r in db.execute('PRAGMA table_info(jobs)')}:
+                db.execute('ALTER TABLE jobs ADD COLUMN inquiry INTEGER NOT NULL DEFAULT 0')
+                db.execute('UPDATE jobs SET inquiry=1 WHERE id IN (SELECT job FROM inquiry_index)')
             if 'owner_pid' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
                 db.execute('ALTER TABLE execution_slots ADD COLUMN owner_pid INTEGER')
             if 'owner_start' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
                 db.execute('ALTER TABLE execution_slots ADD COLUMN owner_start TEXT')
             if 'cleanup_failed' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
                 db.execute('ALTER TABLE execution_slots ADD COLUMN cleanup_failed INTEGER NOT NULL DEFAULT 0')
+            db.execute('CREATE TABLE IF NOT EXISTS broker_migrations(name TEXT PRIMARY KEY)')
+            if not db.execute("SELECT 1 FROM broker_migrations WHERE name='global_inquiry_context_v1'").fetchone():
+                rows = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job').fetchall()
+                # Preserve every job/slot, choosing one canonical cache generation only.
+                def preference(row):
+                    job = json.loads(row['record'])
+                    active = job['status'] not in TERMINAL
+                    return (not active, job['created_at'] if active else -row['updated'], row['id'])
+                retained = {}
+                for row in sorted(rows, key=preference):
+                    job = json.loads(row['record'])
+                    identity = canonical_digest({'question': job['question'], 'context': self.inquiry_context(job['scope']),
+                                                 'mode': job['mode'], 'skill': job.get('skill')})
+                    retained.setdefault(identity, row['id'])
+                    db.execute('UPDATE jobs SET inquiry=1 WHERE id=?', (row['id'],))
+                db.execute('DELETE FROM inquiry_index')
+                db.executemany('INSERT INTO inquiry_index(identity,job) VALUES(?,?)', retained.items())
+                self._trim_index(db, None)
+                db.execute("INSERT INTO broker_migrations VALUES('global_inquiry_context_v1')")
+
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -199,7 +225,7 @@ class JobService:
         request_hash = canonical_digest({'question': question, 'scope': scope, 'mode': mode,
                                          'hints': hints, 'skill': skill})
         if len(wire(job.model_dump()).encode()) > 32768:
-            return {'accepted': False, 'reason': 'admission_limit'}
+            return {'accepted': False, 'reason': 'inquiry_too_large'}
         committed = False
         pinned = False
         try:
@@ -218,6 +244,8 @@ class JobService:
                     old = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (_identity,)).fetchone()
                     if old:
                         previous = DurableJob.model_validate_json(old['record'])
+                        if not self._inquiry_authorized(previous.model_dump(), scope):
+                            return {'accepted': False, 'reason': 'access_unavailable'}
                         if previous.status not in TERMINAL or db.execute('SELECT 1 FROM execution_slots WHERE job=?', (previous.job_id,)).fetchone():
                             return self._accepted(previous, False, retry=True)
                         if not self._cache_eligible(previous.model_dump()):
@@ -228,6 +256,9 @@ class JobService:
                         freshness = _freshness_snapshot['freshness']
                         if previous.status in {'completed', 'partial'} and freshness.get('fresh'):
                             return self._accepted(previous, False, retry=True)
+                        # Preserve original material access requirements across every refresh.
+                        job.hints = list(dict.fromkeys(previous.hints + job.hints))
+                        hints = job.hints
                         job.refresh_context = {'prior_job': previous.model_dump(exclude={'refresh_context', 'execution_question'}),
                             'observations': self._public_observations(db, old), 'change_info': freshness}
                     old = None
@@ -254,10 +285,12 @@ class JobService:
                 occupied_terminal = db.execute("SELECT count(*) FROM execution_slots JOIN jobs ON jobs.id=execution_slots.job WHERE json_extract(jobs.record,'$.status') IN ('completed','partial','failed','cancelled')").fetchone()[0]
                 count = sum(r['status'] not in TERMINAL for r in records) + occupied_terminal
                 usage = self._storage_bytes(db)
-                if count >= min(6, self.hard_limit) or usage + len(wire(job.model_dump()).encode()) > self.max_storage_bytes:
+                if count >= min(6, self.hard_limit):
                     return {'accepted': False, 'reason': 'admission_limit'}
-                db.execute('INSERT INTO jobs(id,scope,request_id,request_hash,record,updated) VALUES(?,?,?,?,?,?)',
-                    (job.job_id, wire(scope), job.request_id, request_hash, job.model_dump_json(), self.clock()))
+                if usage + len(wire(job.model_dump()).encode()) > self.max_storage_bytes:
+                    return {'accepted': False, 'reason': 'storage_limit'}
+                db.execute('INSERT INTO jobs(id,scope,request_id,request_hash,record,updated,inquiry) VALUES(?,?,?,?,?,?,?)',
+                    (job.job_id, wire(scope), job.request_id, request_hash, job.model_dump_json(), self.clock(), int(_identity is not None)))
                 if _identity is not None:
                     db.execute('INSERT INTO inquiry_index(identity,job) VALUES(?,?) ON CONFLICT(identity) DO UPDATE SET job=excluded.job', (_identity, job.job_id))
             committed = True
@@ -285,7 +318,7 @@ class JobService:
         scope = dict(access_scope)
         if not scope.get('principal') or not scope.get('profile'):
             raise ValueError('trusted principal/profile scope required')
-        identity = canonical_digest({'question': question, 'scope': scope, 'mode': mode, 'skill': skill})
+        identity = canonical_digest({'question': question, 'context': self.inquiry_context(scope), 'mode': mode, 'skill': skill})
         # Read-only fast path: a duplicate does not validate new hints, touch order,
         # mutate TTL, or require a live dispatcher.
         with self._db() as db:
@@ -293,6 +326,8 @@ class JobService:
         freshness_snapshot = None
         if row:
             previous = DurableJob.model_validate_json(row['record'])
+            if not self._inquiry_authorized(previous.model_dump(), scope):
+                return {'status': 'unavailable', 'reason': 'access_unavailable'}
             if previous.status not in TERMINAL:
                 return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
             if not self._cache_eligible(previous.model_dump()):
@@ -306,6 +341,8 @@ class JobService:
                     current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
                     if not current or current['id'] != row['id'] or current['record'] != row['record']:
                         return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                    if not self._inquiry_authorized(json.loads(current['record']), scope):
+                        return {'status': 'unavailable', 'reason': 'access_unavailable'}
                     observations = self._public_observations(db, current)
                 return {'status': previous.status, 'job': previous.model_dump(), 'observations': observations}
         admitted = self.submit(question=question, access_scope=scope, mode=mode, skill=skill,
@@ -316,7 +353,9 @@ class JobService:
                 return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
             return {'status': 'busy' if admitted['reason'] == 'admission_limit' else 'unavailable',
                     'reason': admitted['reason']}
-        value = self.lookup(admitted['job_id'], access_scope=scope)
+        value = self.lookup_inquiry(admitted['job_id'], access_scope=scope)
+        if value['status'] != 'ok':
+            return {'status': 'unavailable', 'reason': 'access_unavailable'}
         if value['job']['status'] in TERMINAL and not self._cache_eligible(value['job']):
             return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
         if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
@@ -325,7 +364,9 @@ class JobService:
             return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
         end = time.monotonic() + max(0, min(30, foreground_timeout))
         while time.monotonic() < end:
-            value = self.lookup(admitted['job_id'], access_scope=scope)
+            value = self.lookup_inquiry(admitted['job_id'], access_scope=scope)
+            if value['status'] != 'ok':
+                return {'status': 'unavailable', 'reason': 'access_unavailable'}
             if value['job']['status'] in TERMINAL and not self._cache_eligible(value['job']):
                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
             if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
@@ -385,19 +426,119 @@ class JobService:
 
     poll = lookup
 
-    def log(self, *, access_scope, query='', limit=5, current_dependencies=None):
+    @staticmethod
+    def inquiry_context(scope):
+        """Only caller identity is excluded; authority context remains exact."""
+        return {k: v for k, v in scope.items() if k not in {'principal', 'profile'}}
+
+    def _inquiry_authorized(self, job, scope, *, log=False):
+        required = self.inquiry_context(job['scope'])
+        supplied = self.inquiry_context(scope)
+        if self.inquiry_access is not None:
+            permitted = self.inquiry_access(required, dict(scope), log=log)
+        else:
+            permitted = required == supplied
+        return bool(permitted) and all(self.packets.lookup(ref, access_scope=scope).status == 'ok'
+                                       for ref in job['hints'])
+
+    def is_inquiry(self, job_id):
+        with self._db() as db:
+            return bool(db.execute('SELECT 1 FROM jobs WHERE id=? AND inquiry=1', (job_id,)).fetchone())
+
+    def lookup_inquiry(self, job_id, *, access_scope):
+        """Explicit inquiry-only sharing; direct legacy lookup remains private."""
+        with self._db() as db:
+            db.execute('BEGIN')
+            row = db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
+            if not row:
+                return {'status': 'not_found'}
+            job = json.loads(row['record'])
+            indexed = db.execute('SELECT 1 FROM inquiry_index WHERE job=?', (job_id,)).fetchone()
+            if not indexed:
+                allowed = job['scope'] == dict(access_scope)
+            else:
+                allowed = self._inquiry_authorized(job, access_scope)
+            if not allowed:
+                return {'status': 'forbidden'}
+            observations = self._public_observations(db, row)
+        return {'status': 'ok', 'job': job, 'observations': observations}
+
+    def publish_inquiry_assembly(self, job_id, packet, *, access_scope):
+        """Register a broker-verified skill assembly under its inquiry output grant."""
+        value = self.lookup_inquiry(job_id, access_scope=access_scope)
+        if value['status'] != 'ok':
+            raise PermissionError('inquiry_assembly_not_permitted')
+        job = value['job']
+        if (job['mode'] != 'skill' or job['status'] not in {'completed', 'partial'}
+                or packet.tool != 'skill' or packet.access_scope != job['scope']
+                or packet.payload.get('job_id', job_id) != job_id or packet.payload.get('attempt', job['attempt']) != job['attempt']
+                or job['result_packet'] not in packet.parents):
+            raise ValueError('unverified_inquiry_assembly')
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if not db.execute('SELECT 1 FROM inquiry_index WHERE job=?', (job_id,)).fetchone():
+                raise PermissionError('inquiry_assembly_not_retained')
+            if self._storage_bytes(db) + len(packet.model_dump_json().encode()) > self.max_storage_bytes:
+                return False
+            db.execute('INSERT INTO outbox(id,job,packet,materialized) VALUES(?,?,?,1)',
+                       (packet.packet_id, job_id, packet.model_dump_json()))
+        return True
+
+    def inquiry_packet_material(self, reference):
+        with self._db() as db:
+            row = db.execute('SELECT jobs.record FROM outbox JOIN jobs ON jobs.id=outbox.job '
+                             'JOIN inquiry_index ON inquiry_index.job=jobs.id WHERE outbox.id=?',
+                             (reference,)).fetchone()
+        return json.loads(row['record'])['hints'] if row else None
+
+    def inquiry_packet_access(self, reference, access_scope):
+        """Native packet-store grant, restricted to retained broker inquiry output."""
+        with self._db() as db:
+            row = db.execute('SELECT jobs.record FROM outbox JOIN jobs ON jobs.id=outbox.job '
+                             'JOIN inquiry_index ON inquiry_index.job=jobs.id WHERE outbox.id=?',
+                             (reference,)).fetchone()
+        return bool(row) and self._inquiry_authorized(json.loads(row['record']), access_scope, log=True)
+
+    def inquiry_packet(self, job_id, reference, *, access_scope):
+        """Grant only broker-created evidence/result, never arbitrary private refs."""
+        from .as1_packets import PacketLookup
+        value = self.lookup_inquiry(job_id, access_scope=access_scope)
+        if value['status'] != 'ok':
+            return PacketLookup(value['status'])
+        job = value['job']
+        if reference not in job['evidence_packets'] + [job['result_packet']]:
+            return PacketLookup('forbidden')
+        with self._db() as db:
+            created = db.execute('SELECT 1 FROM outbox WHERE job=? AND id=?', (job_id, reference)).fetchone()
+        if not created:
+            return PacketLookup('forbidden')
+        return self.packets.lookup(reference, access_scope=job['scope'])
+
+    def log(self, *, access_scope, query='', limit=5, current_dependencies=None, inquiry_only=False, material_hints=None):
         if not 1 <= limit <= 50:
             raise ValueError('log limit must be 1..50')
         with self._db() as db:
-            rows = db.execute('SELECT * FROM jobs WHERE scope=? ORDER BY updated DESC,id DESC', (wire(dict(access_scope)),)).fetchall()
+            rows = db.execute('SELECT jobs.*, inquiry_index.identity FROM jobs LEFT JOIN inquiry_index ON jobs.id=inquiry_index.job ORDER BY updated DESC,jobs.id DESC').fetchall()
         candidates = []
+        shared_count = 0
+        legacy_count = 0
         for row in rows:
             job = json.loads(row['record'])
             if not self._cache_eligible(job):
                 continue
+            if row['identity'] is not None:
+                shared_count += 1
+                if (shared_count > 50 or not self._inquiry_authorized(job, access_scope, log=True)
+                        or (material_hints is not None and not set(job['hints']) <= set(material_hints))):
+                    continue
+            else:
+                # Superseded/evicted inquiry generations do not become private log entries.
+                if row['inquiry'] or inquiry_only:
+                    continue
+                if job['scope'] != dict(access_scope) or legacy_count >= 50:
+                    continue
+                legacy_count += 1
             candidates.append((job, json.loads(row['observations'])))
-            if len(candidates) == 50:
-                break
         tokens = lambda value: re.findall(r'\w+', value.casefold())
         documents = [tokens(wire({'question': j['question'], 'answer': j.get('answer'),
                                   'findings': j['findings'], 'evidence': obs})) for j, obs in candidates]
@@ -420,7 +561,7 @@ class JobService:
         for _, index in ranks[:min(5, limit)]:
             job, _ = candidates[index]
             refs = list(dict.fromkeys(job['hints'] + job['evidence_packets'] + ([job['result_packet']] if job['result_packet'] else [])))
-            evidence = self.packets.assemble_hints(refs, access_scope=access_scope, current_dependencies=current_dependencies)
+            evidence = self.packets.assemble_hints(refs, access_scope=job['scope'], current_dependencies=current_dependencies)
             # Retain compact source/evidence summaries, never nested log packets or
             # complete historical jobs in the next worker's tool response.
             evidence = {**evidence, 'packets': [
@@ -465,6 +606,8 @@ class JobService:
             for row in rows:
                 job = DurableJob.model_validate_json(row['record'])
                 if job.status in TERMINAL:
+                    continue
+                if self.can_execute is not None and not self.can_execute(job, bool(row['inquiry'])):
                     continue
                 occupied = db.execute('SELECT 1 FROM execution_slots WHERE job=?', (job.job_id,)).fetchone()
                 if occupied:
@@ -633,9 +776,9 @@ class JobService:
         return True
 
     def _trim_index(self, db, scope):
-        cached = db.execute('SELECT inquiry_index.identity,jobs.record FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE jobs.scope=? ORDER BY jobs.updated DESC,jobs.id DESC', (wire(scope),)).fetchall()
-        terminal = [r['identity'] for r in cached if json.loads(r['record'])['status'] in TERMINAL]
-        for identity in terminal[50:]:
+        cached = db.execute('SELECT inquiry_index.identity,jobs.record FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job ORDER BY jobs.updated DESC,jobs.id DESC').fetchall()
+        answered = [r['identity'] for r in cached if self._cache_eligible(json.loads(r['record']))]
+        for identity in answered[50:]:
             db.execute('DELETE FROM inquiry_index WHERE identity=?', (identity,))
 
     def cancel(self, job_id, *, access_scope):
@@ -674,12 +817,14 @@ class JobService:
                 db.execute('UPDATE outbox SET materialized=1 WHERE id=?', (row['id'],))
         with self._db() as db:
             jobs = [DurableJob.model_validate_json(r[0]) for r in db.execute('SELECT record FROM jobs ORDER BY updated')]
+            inquiry_ids = {r[0] for r in db.execute('SELECT id FROM jobs WHERE inquiry=1')}
+            indexed_ids = {r[0] for r in db.execute('SELECT job FROM inquiry_index')}
         by_scope = {}
         for job in jobs:
-            if job.status in TERMINAL:
+            if job.status in TERMINAL and job.job_id not in inquiry_ids:
                 by_scope.setdefault(wire(job.scope), []).append(job)
         terminal = [job for group in by_scope.values() for job in group[-self.packets.recent_terminal_limit:]]
-        retained = [j for j in jobs if j.status not in TERMINAL] + terminal
+        retained = [j for j in jobs if j.status not in TERMINAL or j.job_id in indexed_ids] + terminal
         for job in retained:
             refs = job.hints + job.evidence_packets + ([job.result_packet] if job.result_packet else [])
             if job.refresh_context:

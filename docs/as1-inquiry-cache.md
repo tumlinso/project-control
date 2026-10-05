@@ -13,8 +13,11 @@ Use search, read or evidence to contextualize or refine a later question.
 Answers retain supporting findings, evidence packet references and source identity.
 Nested results and continuations do not expose attempts, leases or queue metadata.
 
-Cache identity is the literal original question, exact trusted access scope, mode
-and selected skill. Whitespace is significant. Skill navigation instructions are
+Cache identity is the literal original question, trusted project and authority
+context, mode and selected skill. The cache is global across trusted callers and
+profiles; caller principal and profile do not partition it. Different projects
+remain distinct inquiry contexts, and catalog context includes its trusted project
+allowlist. Whitespace is significant. Skill navigation instructions are
 saved separately as the execution question. Details, request IDs and advisory
 hints do not duplicate an inquiry. Similarity classification does not merge
 questions. A pending exact repeat returns its existing state without restarting
@@ -47,9 +50,24 @@ do not. Failure causes and backend diagnostics remain in internal records.
 The internal scheduler permits two executing inquiries and four waiting, with a
 30 second foreground wait and 300 second inquiry lifetime. Private job identities,
 fences, SQLite/outbox durability and restart recovery remain implementation
-mechanics. Internal log retrieval considers the last 50 answered inquiries and
-returns at most five lexical matches. Source writes, similarity routing and a
-public queue workflow are outside this contract.
+mechanics. The cache retains the 50 most recently answered inquiries globally.
+Internal log retrieval filters that global window by trusted source access and
+returns at most five lexical matches; it does not create a private window per
+caller or profile. Legacy private job lookup remains scoped to its original caller.
+
+Shared answers, pending states, refresh context and log entries require access to
+every original hint packet. Private hints remain valid inputs for their owner, but
+an unauthorized caller receives `unavailable` without starting competing work or
+seeing derived answer text. Refresh preserves these input access requirements.
+Only broker-created retained inquiry result and evidence packets receive explicit
+project-authorized sharing for exact packet search. Unrelated private packets,
+caller hints and arbitrary nested references keep their original access checks.
+
+Storage exhaustion and oversized inquiries report `unavailable`; `busy` describes
+global queue capacity. Shared workers skip incompatible project authority before
+claiming a job and require explicit hints for private packet context. Older catalog
+records without a proven project allowlist retain their original private access.
+Source writes, similarity routing and a public queue workflow are outside this contract.
 
 Focused CPU tests use actual MCP schemas, real local SQLite and scripted ports;
 they do not establish live model quality, GPU performance or biological validity.

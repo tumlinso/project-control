@@ -195,7 +195,38 @@ class SurfaceComposition:
     def scope(self, project):
         if project is not None and project not in self.host.projects:
             raise PermissionError('project_not_permitted')
-        return self.host.scope(project)
+        scope = self.host.scope(project)
+        if project is None:
+            scope['catalog_projects'] = sorted(self.host.projects)
+        return scope
+
+    def can_execute_inquiry(self, job, shared):
+        scope = job.scope
+        if not shared:
+            expected = self.host.scope(None)
+            if any(scope.get(k) != expected[k] for k in ('principal', 'profile')):
+                return False
+        project = scope.get('project')
+        if project == 'catalog':
+            if shared and 'catalog_projects' not in scope:
+                expected = self.host.scope(None)
+                return all(scope.get(k) == expected[k] for k in ('principal', 'profile'))
+            return not shared or scope['catalog_projects'] == sorted(self.host.projects)
+        return project in self.host.projects
+
+    def inquiry_access(self, required, supplied, *, log=False):
+        expected = self.host.scope(None)
+        if any(supplied.get(k) != expected[k] for k in ('principal', 'profile')):
+            return False
+        context = JobService.inquiry_context(supplied)
+        if not log and required != context:
+            return False
+        project = required.get('project')
+        if project == 'catalog':
+            return 'catalog_projects' in required and required['catalog_projects'] == sorted(self.host.projects)
+        return (project in self.host.projects
+                and {k: v for k, v in required.items() if k != 'project'}
+                    == {k: v for k, v in context.items() if k not in {'project', 'catalog_projects'}})
 
 
 def compose_surface(runtime, profile, *, host=None, state_directory=None, backend=None,
@@ -223,17 +254,38 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
         catalog = json.loads((root / 'integrations/native-skill-catalog.json').read_text())
         skills = {entry['name']: {'name': entry['name'], 'root': str(root / entry['name'])}
                   for entry in catalog['entries'] if entry.get('status') == 'accessible'}
+        def execution_permitted(scope, shared):
+            from types import SimpleNamespace
+            return c.can_execute_inquiry(SimpleNamespace(scope=scope), shared)
+
         def information_tool(name, arguments, scope):
             # Jobs carry a trusted admission scope; requests cannot override it.
-            if scope.get('principal') != c.host.principal or scope.get('project') not in {*c.host.projects, 'catalog'}:
+            if not execution_permitted(scope, scope.get('_shared_inquiry', False)):
                 raise PermissionError('job_scope_not_permitted')
             args = dict(arguments)
+            query = args.get('query')
+            if scope.get('_shared_inquiry') and name == 'search' and isinstance(query, dict):
+                kind, reference = query.get('kind'), query.get('target')
+                if kind == 'investigation':
+                    return {'status': 'unavailable', 'reason': 'private_job_requires_explicit_hint'}
+                if kind == 'packet':
+                    hints = scope.get('_inquiry_hints', [])
+                    packet_scope = {k: v for k, v in scope.items() if not k.startswith('_')}
+                    hint_ids = {p.packet.packet_id for ref in hints
+                                if (p := c.store.lookup(ref, access_scope=packet_scope)).status == 'ok'}
+                    packet = c.store.lookup(reference, access_scope=packet_scope)
+                    dependencies = c.jobs.inquiry_packet_material(packet.packet.packet_id) if packet.status == 'ok' else None
+                    if (packet.status != 'ok' or (packet.packet.packet_id not in hint_ids
+                            and (dependencies is None or not set(dependencies) <= set(hints)))):
+                        return {'status': 'unavailable', 'reason': 'private_packet_requires_explicit_hint'}
             project = args.pop('project', None)
             if scope['project'] != 'catalog' and project not in {None, scope['project']}:
                 raise PermissionError('job_project_not_permitted')
             project = project or (None if scope['project'] == 'catalog' else scope['project'])
-            worker_host = ContextHost('skill_assembler' if scope.get('profile') == 'skill_assembler' else 'investigator',
-                                      c.host.principal, c.host.projects)
+            class AdmissionHost(ContextHost):
+                def scope(self, project):
+                    return {k: v for k, v in scope.items() if not k.startswith('_')}
+            worker_host = AdmissionHost(scope['profile'], scope['principal'], c.host.projects)
             info = InformationService(config, c.store, runtime.snapshot, worker_host,
                 semantic_provider=c.control.project_context, impact_provider=c.trace,
                 todo_adapter=runtime.todo_adapter, job_lookup=lambda ident, access: c.jobs.lookup(ident, access_scope=access))
@@ -241,7 +293,8 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
         class ScopedTrustedObserverFactory(TrustedObserverFactory):
             def __call__(self, service, job):
                 scope = job.scope
-                if scope.get('principal') != c.host.principal or scope.get('project') not in {*c.host.projects, 'catalog'}:
+                shared = service.is_inquiry(job.job_id)
+                if not execution_permitted(scope, shared):
                     raise PermissionError('job_scope_not_permitted')
                 # Command roots follow the durable admission domain. Catalog and
                 # skill jobs never acquire implicit project filesystem access.
@@ -249,7 +302,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                 if job.mode != 'skill' and scope['project'] != 'catalog':
                     permitted = [r.root for r in config.workspaces[scope['project']].repositories.values()] + [root]
                 bound = TrustedObserverFactory(root, self.digest, backend=self.backend,
-                    roots=permitted, tools=self.tools, skills=self.skills)
+                    roots=permitted, tools=lambda name, args, original: self.tools(name, args, {**original, '_shared_inquiry': shared, '_inquiry_hints': job.hints}), skills=self.skills)
                 return bound(service, job)
         trusted = ScopedTrustedObserverFactory(root, observer_runtime_sha256 or QUALIFIED_OBSERVER_RUNTIME_SHA256,
             backend=c.backend, roots=[root], tools=information_tool, skills=skills)
@@ -271,7 +324,8 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     except (OSError, ValueError, KeyError) as exc:
         c.worker_unavailable = type(exc).__name__
     c.jobs = JobService((state_directory or observer_analysis_state_root() / 'as1') / 'jobs',
-                        packets=c.store, worker_factory=factory, backend=c.backend)
+                        packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry)
+    c.store.inquiry_access = c.jobs.inquiry_packet_access
     c.information.job_lookup = lambda ident, scope: c.jobs.lookup(ident, access_scope=scope)
     c.skills = SkillService(c.jobs, skills_root=root)
     c.jobs.freshness_provider = InquiryFreshness(c)
@@ -311,6 +365,8 @@ def register_surface(mcp, c):
             c.jobs.reconcile()
             ref = value['job'].get('result_packet')
             result = c.store.lookup(ref, access_scope=scope) if ref else None
+            if result and result.status == 'forbidden':
+                result = c.jobs.inquiry_packet(value['job']['job_id'], ref, access_scope=scope)
             if not result or result.status != 'ok':
                 return {'status': 'unavailable', 'reason': 'answer_unavailable'}
             return public_inquiry({**result.packet.payload, 'status': value['status'],
