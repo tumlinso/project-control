@@ -267,6 +267,66 @@ def test_nested_authoritative_packet_and_missing_material(tmp_path):
     assert not fresh(job)['fresh']
 
 
+@pytest.mark.parametrize('dependency', ['unchanged_cat', 'changed_cat', 'cited_volatile'])
+def test_finding_dependencies_exclude_incidental_and_aggregate_observations(tmp_path, dependency):
+    root, store, jobs, fresh = fixture_cache(tmp_path)
+    now = [1000.0]; store.clock = lambda: now[0]
+    source = root/'fixture/resource.md'; source.write_text('exact')
+    scope = {'principal': 'alice', 'profile': 'observer'}
+    cited = store.create(tool='command', access_scope=scope, payload={
+        'status': 'completed', 'exit_code': 0, 'source_reads': [{'method': 'direct_cat',
+            'path': str(source), 'content_sha256': hashlib.sha256(source.read_bytes()).hexdigest()}]})
+    expired = store.create(tool='command', access_scope=scope, payload={'stdout': '/cwd'}, ttl_seconds=1)
+    denied = store.create(tool='search', access_scope=scope, payload={'status': 'denied'})
+    unavailable = store.create(tool='evidence', access_scope=scope, payload={'status': 'unavailable'})
+    volatile = store.create(tool='command', access_scope=scope, payload={'stdout': 'coarse grep'},
+                            freshness={'volatile': True, 'max_age_seconds': 0})
+    if dependency == 'changed_cat':
+        source.write_text('changed')
+    if dependency == 'cited_volatile':
+        cited = volatile
+    findings = [{'text': 'Supported fact', 'evidence_packets': [cited.packet_id]}]
+    # Derived answers aggregate all observations, including unrelated source
+    # manifests and parents. Only their retained existence/access is material.
+    answer = store.create(tool='investigate', access_scope=scope, payload={'answer': 'fact', 'findings': findings},
+        parents=[expired.packet_id, denied.packet_id, unavailable.packet_id],
+        sources=[SourceLocator(project='skills', repository=str(root), path='missing.md', content_sha256='a'*64)],
+        freshness={'dependencies': {'semantic_revision:missing': 'b'*64}})
+    now[0] += 2
+    job = {'scope': scope, 'mode': 'investigate', 'findings': findings, 'hints': [expired.packet_id],
+           'evidence_packets': [cited.packet_id, expired.packet_id, denied.packet_id, unavailable.packet_id,
+                                volatile.packet_id], 'result_packet': answer.packet_id}
+    result = fresh(job)
+    assert result['fresh'] is (dependency == 'unchanged_cat')
+    if dependency == 'changed_cat':
+        assert {'path': str(source), 'reason': 'changed'} in result['changed_sources']
+    if dependency == 'cited_volatile':
+        assert any(item.get('reference') == volatile.packet_id for item in result['changed_sources'])
+    # No explicit finding citations retain conservative legacy dependencies.
+    job['findings'] = []
+    assert not fresh(job)['fresh']
+
+
+@pytest.mark.parametrize('result_status', ['missing', 'forbidden', 'expired'])
+def test_finding_dependencies_still_require_accessible_result(tmp_path, result_status):
+    root, store, jobs, fresh = fixture_cache(tmp_path)
+    source = root/'fixture/resource.md'; source.write_text('exact')
+    scope = {'principal': 'alice', 'profile': 'observer'}
+    cited = store.create(tool='command', access_scope=scope, payload={
+        'status': 'completed', 'exit_code': 0, 'source_reads': [{'method': 'direct_cat',
+            'path': str(source), 'content_sha256': hashlib.sha256(source.read_bytes()).hexdigest()}]})
+    answer = store.create(tool='investigate', payload={'answer': 'fact'},
+        access_scope={**scope, 'project': 'other'} if result_status == 'forbidden' else scope,
+        ttl_seconds=0 if result_status == 'expired' else None)
+    job = {'scope': scope, 'mode': 'investigate', 'hints': [], 'evidence_packets': [cited.packet_id],
+           'findings': [{'text': 'fact', 'evidence_packets': [cited.packet_id]}],
+           'result_packet': 'pkt_missing' if result_status == 'missing' else answer.packet_id}
+    result = fresh(job)
+    assert not result['fresh']
+    assert any(item.get('reason') == ('not_found' if result_status == 'missing' else result_status)
+               for item in result['changed_sources'])
+
+
 def test_skill_literal_identity_separate_execution_and_required_entry_proof(tmp_path):
     root, store, jobs, fresh = fixture_cache(tmp_path)
     jobs.inquire = Mock(return_value={'status': 'thinking'})
@@ -295,7 +355,14 @@ def test_skill_literal_identity_separate_execution_and_required_entry_proof(tmp_
     job['evidence_packets'].insert(0, entrypacket.packet_id)
     jobs.lookup.return_value['observations'].insert(0, {'packet_id': entrypacket.packet_id})
     assert fresh(job)['fresh']
+    job['findings'] = [{'text': 'Selected resource', 'evidence_packets': [packet.packet_id]}]
+    assert fresh(job)['fresh']
     entry.write_text('changed entry')
+    assert not fresh(job)['fresh']
+    entry.write_text('entry')
+    job['findings'][0]['evidence_packets'] = [entrypacket.packet_id]
+    assert fresh(job)['fresh']
+    path.write_text('changed resource')
     assert not fresh(job)['fresh']
 
 

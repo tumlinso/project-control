@@ -192,11 +192,21 @@ class InquiryFreshness:
                 checked.extend(s.model_dump() for s in packet.sources)
                 checked.extend({'dependency': k} for k in (packet.freshness or {}).get('dependencies', {}))
                 changed.extend(o for o in assembled['omissions'] if o['reason'] != 'duplicate_content')
-        refs = list(dict.fromkeys(job.get('hints', []) + job.get('evidence_packets', [])))
+        # Accepted finding citations define answer dependencies. Observations and
+        # the derived result's aggregate provenance also contain incidental reads.
+        citations = [ref for finding in job.get('findings', [])
+                     for ref in finding.get('evidence_packets', [])]
+        refs = list(dict.fromkeys(citations if citations else
+                                 job.get('hints', []) + job.get('evidence_packets', [])))
         for ref in refs:
             visit(ref)
         if job.get('result_packet'):
-            visit(job['result_packet'], result=True)
+            if citations:
+                result = c.store.lookup(job['result_packet'], access_scope=scope)
+                if result.status != 'ok':
+                    changed.append({'reference': job['result_packet'], 'reason': result.status})
+            else:
+                visit(job['result_packet'], result=True)
         else:
             changed.append({'reason': 'result_missing'})
         if job.get('mode') == 'skill' and job.get('result_packet'):
@@ -214,6 +224,15 @@ class InquiryFreshness:
                         or resource.get('content_sha256') != item.get('content_sha256')):
                     changed.append({'skill': item.get('skill'), 'resource': item.get('resource'),
                                     'reason': 'selection_proof_missing'})
+                # Selection authority remains material even when findings cite
+                # only the selected resource and omit its prerequisite entry.
+                for read in (entry, resource):
+                    if read:
+                        actual = file_hash(read.get('path', ''))
+                        checked.append({'path': read.get('path'), 'content_sha256': read.get('content_sha256')})
+                        if not actual or actual != read.get('content_sha256'):
+                            changed.append({'path': read.get('path'),
+                                            'reason': 'unverified' if actual is None else 'changed'})
         if not checked:
             changed.append({'reason': 'dependency_manifest_missing'})
         return {'fresh': not changed, 'changed_sources': changed, 'dependencies': checked}
