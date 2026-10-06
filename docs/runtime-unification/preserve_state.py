@@ -347,7 +347,16 @@ def _targeted_records(roots: list[dict], exclusions: list[dict]) -> list[dict]:
             "mode": f"{mode:04o}", "sqlite": is_db, "historical_archive": False,
         })
 
-    def add_dir_files(root: dict, directory: Path, *, recurse_payload: bool = False) -> None:
+    def add_dir_files(root: dict, directory: Path, *, recurse_payload: bool = False,
+                      recurse_all: bool = False, depth: int = 0) -> None:
+        try:
+            root_info = directory.lstat()
+        except OSError:
+            exclusions.append({"root": root["id"], "path": str(directory), "reason": "target_directory_unavailable"})
+            return
+        if stat.S_ISLNK(root_info.st_mode) or not stat.S_ISDIR(root_info.st_mode):
+            exclusions.append({"root": root["id"], "path": str(directory), "reason": "symlink_or_non_directory_not_followed"})
+            return
         try:
             entries = sorted(os.scandir(directory), key=lambda entry: entry.name)
         except OSError:
@@ -360,14 +369,21 @@ def _targeted_records(roots: list[dict], exclusions: list[dict]) -> list[dict]:
             except OSError:
                 continue
             if stat.S_ISREG(mode):
-                if entry.name.lower() in VOLATILE_NAMES or entry.name.lower().endswith(VOLATILE_SUFFIXES) or path.suffix.lower() in MODEL_SUFFIXES:
+                if entry.name.lower().endswith(("-wal", "-shm")):
+                    exclusions.append({"root": root["id"], "path": str(path), "reason": "sqlite_sidecar_covered_by_online_backup"})
+                elif entry.name.lower() in VOLATILE_NAMES or entry.name.lower().endswith(VOLATILE_SUFFIXES) or path.suffix.lower() in MODEL_SUFFIXES:
                     exclusions.append({"root": root["id"], "path": str(path), "reason": "volatile_or_model_file_excluded"})
                 elif (path.suffix.lower() in {".db", ".sqlite", ".sqlite3"}
                       or path.name in {"project.json", "state.snapshot.json", "readmodel.json"}
-                      or path.suffix.lower() in {".json", ".jsonl", ".md"}):
+                      or path.suffix.lower() in {".json", ".jsonl", ".md", ".complete"}):
                     add_file(root, path)
-            elif recurse_payload and stat.S_ISDIR(mode) and entry.name.lower() in {"jobs", "packets"}:
-                add_dir_files(root, path, recurse_payload=False)
+            elif stat.S_ISDIR(mode) and not stat.S_ISLNK(mode):
+                if recurse_all and depth < 5:
+                    add_dir_files(root, path, recurse_all=True, depth=depth + 1)
+                elif recurse_payload and entry.name.lower() in {"jobs", "jobs-v2", "packets"}:
+                    add_dir_files(root, path, recurse_payload=False)
+            elif stat.S_ISLNK(mode):
+                exclusions.append({"root": root["id"], "path": str(path), "reason": "symlink_not_followed"})
 
     for root in roots:
         path: Path = root["path"]
@@ -401,7 +417,11 @@ def _targeted_records(roots: list[dict], exclusions: list[dict]) -> list[dict]:
                 pass
             continue
         if "as1-observer-analysis" in rid:
-            add_dir_files(root, path, recurse_payload=True)
+            as1 = path / "as1"
+            add_dir_files(root, as1, recurse_payload=True)
+            add_dir_files(root, path / ".todo-orchestrator" / "runtime")
+            add_dir_files(root, path / "model-leases", recurse_all=True)
+            add_dir_files(root, path / "state", recurse_all=True)
 
     return sorted(records, key=lambda row: (row["root"], row["relative_path"]))
 
@@ -479,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--service-quiesced", action="store_true", help="required acknowledgement before backup copies")
     parser.add_argument("--targeted-active", action="store_true", help="inspect active Todo UUID files and durable AS1 packet/job state only")
     parser.add_argument("--prior-inventory", type=Path, help="private earlier inventory to identify in a compact follow-up receipt")
+    parser.add_argument("--live-cache-only", action="store_true", help="limit --targeted-active to the configured AS1 cache roots")
     args = parser.parse_args(argv)
     if args.service_quiesced and not args.backup_dir:
         parser.error("--service-quiesced requires --backup-dir")
@@ -490,6 +511,8 @@ def main(argv: list[str] | None = None) -> int:
     files: list[dict] = []
     exclusions: list[dict] = []
     if args.targeted_active:
+        if args.live_cache_only:
+            roots = [root for root in roots if "as1-observer-analysis" in root["id"]]
         files = _targeted_records(roots, exclusions)
         for root in roots:
             root["status"] = "registered_root_targeted_or_retained_in_place"

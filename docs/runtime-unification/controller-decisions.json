@@ -21,6 +21,9 @@
     "decision": "Default entrypoint digest derives from verified receiver identity; explicit pins remain enforced. Qualification remains separate.",
     "historical_digest": "d3a65e54aaf4a6f0c6d38621d521ee0402aba749da4bf2a543c0df75550e580f",
     "receiver_digest": "1de425ca098aec1e44775be944654573d550860571e87564add4da5e09d5804b",
-    "checks": "Direct focused source composition accepted verified receiver and rejected explicit zero pin; no inference. pytest unavailable in selected runtime."
-  }
+    "checks": "Direct focused source composition accepted verified receiver and rejected explicit zero pin; no inference. pytest unavailable in selected runtime.",
+    "default_pin_source": "Expected digest from exact validated receiver manifest bytes, with manifest SHA recheck; no observer re-read used to choose expected pin."
+  },
+  "stale_workspace_resolution": "Operator confirmed CellerRank/CellerVelo removed previously; configuration-only supported deregistration; all authority/history retained.",
+  "offline_workspace_startup": "Optional attention skips only exact registered-root unavailable/not-directory errors. Other registry errors still propagate; direct source test with available and missing repo passed."
 }

@@ -1,0 +1,29 @@
+{
+  "configured_paths": [
+    {
+      "workspace": "cellerrank",
+      "repository": "cellerrank",
+      "configured_root": "/home/tumlinson/CellerRank",
+      "exists": false,
+      "is_directory": false,
+      "is_symlink": false,
+      "parent_exists": true
+    },
+    {
+      "workspace": "cellervelo",
+      "repository": "cellervelo",
+      "configured_root": "/home/tumlinson/CellerVelo",
+      "exists": false,
+      "is_directory": false,
+      "is_symlink": false,
+      "parent_exists": true
+    }
+  ],
+  "related_home_names": [],
+  "policy": "Retain registrations and authority state unchanged; offline roots do not authorize reset or removal.",
+  "operator_resolution": "Operator confirmed both roots had been removed manually. Stale registrations removed through supported workspace remove; saved authority/history retained.",
+  "deregistered": [
+    "cellerrank",
+    "cellervelo"
+  ]
+}

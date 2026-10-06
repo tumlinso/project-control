@@ -27,6 +27,7 @@ from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
                      ArchitectureContextInput, SourceContextInput, CoordinationViewInput)
 from .services.machine_inspection import MachineDiagnostic
 from .security import is_denied
+from .registry import RegistryError
 
 # Historical observer-source digest retained for import compatibility. Runtime
 # integrity is bound to the verified receiver source during composition.
@@ -807,8 +808,14 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
             if alias is None and len(workspace.repositories) == 1:
                 alias = next(iter(workspace.repositories))
             if alias in workspace.repositories:
-                attention_repositories[project] = (alias,
-                    c.information.registry.repository(project, alias).root)
+                try:
+                    registered = c.information.registry.repository(project, alias)
+                except RegistryError as exc:
+                    if str(exc) in {'registered repository is unavailable',
+                                    'registered repository root is not a directory'}:
+                        continue
+                    raise
+                attention_repositories[project] = (alias, registered.root)
     if attention_repositories and c.jobs.worker_factory is not None:
         c.attention_interval_seconds = 1.0
         c.attention_join_timeout = 10.0

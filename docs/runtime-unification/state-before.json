@@ -161,7 +161,63 @@
       "root": "workspace-codex-codex-todo-authority"
     }
   ],
+  "file_count": 71,
   "files": [
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/.todo-orchestrator/runtime/background.sqlite3",
+      "relative_path": ".todo-orchestrator/runtime/background.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "ed124789288783d8d8951eacfa12e326e044a9d68d7d6a73840ae9ec282e5e13",
+      "sha256_status": "sha256_from_pre_migration_full_inventory",
+      "size_bytes": 114688,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/jobs.sqlite3",
+      "relative_path": "as1/jobs-v2/jobs.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "72a593c3940285c65ea22836ae4b917e205d038887bb8398bde66de1a6e77eeb",
+      "sha256_status": "sha256_from_pre_migration_full_inventory",
+      "size_bytes": 4288512,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/legacy-broker-snapshot-v1.complete",
+      "relative_path": "as1/jobs-v2/legacy-broker-snapshot-v1.complete",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "37a40f08d8548dba289b9b0bb35bcf63b359f6d37ee86044ebc6b6da080b9ec1",
+      "sha256_status": "sha256_from_pre_migration_full_inventory",
+      "size_bytes": 9,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs/jobs.sqlite3",
+      "relative_path": "as1/jobs/jobs.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "39254b51e5e256b2cdcf3beacec4598a0e4e99586e56a391580a0513426e9af2",
+      "sha256_status": "sha256_from_pre_migration_full_inventory",
+      "size_bytes": 196608,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/packets.sqlite3",
+      "relative_path": "as1/packets.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "0b9f7d26966cc296054ffdf6fa9ded037968d32bf445e3bb7f1a8409846e6e5d",
+      "sha256_status": "sha256_from_pre_migration_full_inventory",
+      "size_bytes": 19636224,
+      "sqlite": true
+    },
     {
       "historical_archive": false,
       "mode": "0644",
@@ -891,6 +947,54 @@
   ],
   "inventory_only": true,
   "inventory_scope": "active_uuid_databases_configs_and_as1_jobs_packets",
+  "live_as1_cache_baseline": {
+    "note": "Hashes come from the full pre-migration inventory. Runtime log files, lease JSON, and task-state JSON remain in place; selected DBs and the durable completion marker are listed here.",
+    "selected_durable_files": [
+      {
+        "kind": "sqlite",
+        "mode": "0644",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/.todo-orchestrator/runtime/background.sqlite3",
+        "root": "as1-observer-analysis-default-cache",
+        "sha256": "ed124789288783d8d8951eacfa12e326e044a9d68d7d6a73840ae9ec282e5e13",
+        "size_bytes": 114688
+      },
+      {
+        "kind": "sqlite",
+        "mode": "0600",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/jobs.sqlite3",
+        "root": "as1-observer-analysis-default-cache",
+        "sha256": "72a593c3940285c65ea22836ae4b917e205d038887bb8398bde66de1a6e77eeb",
+        "size_bytes": 4288512
+      },
+      {
+        "kind": "sqlite",
+        "mode": "0600",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs/jobs.sqlite3",
+        "root": "as1-observer-analysis-default-cache",
+        "sha256": "39254b51e5e256b2cdcf3beacec4598a0e4e99586e56a391580a0513426e9af2",
+        "size_bytes": 196608
+      },
+      {
+        "kind": "sqlite",
+        "mode": "0600",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/packets.sqlite3",
+        "root": "as1-observer-analysis-default-cache",
+        "sha256": "0b9f7d26966cc296054ffdf6fa9ded037968d32bf445e3bb7f1a8409846e6e5d",
+        "size_bytes": 19636224
+      },
+      {
+        "kind": "durable_marker",
+        "mode": "0600",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/legacy-broker-snapshot-v1.complete",
+        "root": "as1-observer-analysis-default-cache",
+        "sha256": "37a40f08d8548dba289b9b0bb35bcf63b359f6d37ee86044ebc6b6da080b9ec1",
+        "size_bytes": 9
+      }
+    ],
+    "source_inventory": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005/state/state-before-full.json",
+    "source_inventory_cache_file_count": 54,
+    "source_inventory_sha256": "e67479f73ca43a89f6724b7d2ecd2f6a17c1710e235d33b26cb8a0fea3cf8dd6"
+  },
   "roots": [
     {
       "file_count": 1,
@@ -1160,7 +1264,8 @@
       "workspace": null
     },
     {
-      "file_count": 0,
+      "baseline_source": "earlier_full_inventory",
+      "file_count": 5,
       "id": "as1-observer-analysis-default-cache",
       "kind": "directory",
       "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis",

@@ -1,0 +1,249 @@
+{
+  "backup": {
+    "files_copied": 8,
+    "path": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005/state/active-cache"
+  },
+  "created_at": "2026-10-06T20:36:09+00:00",
+  "exclusions": [
+    {
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/.legacy-snapshot-560c5698e7c44c7585e02e995a918189.sqlite3-shm",
+      "reason": "sqlite_sidecar_covered_by_online_backup",
+      "root": "as1-observer-analysis-default-cache"
+    },
+    {
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/.legacy-snapshot-560c5698e7c44c7585e02e995a918189.sqlite3-wal",
+      "reason": "sqlite_sidecar_covered_by_online_backup",
+      "root": "as1-observer-analysis-default-cache"
+    },
+    {
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/legacy-broker-snapshot.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "as1-observer-analysis-default-cache"
+    },
+    {
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/reconcile.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "as1-observer-analysis-default-cache"
+    },
+    {
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs/reconcile.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "as1-observer-analysis-default-cache"
+    }
+  ],
+  "files": [
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/.todo-orchestrator/runtime/background.sqlite3",
+      "relative_path": ".todo-orchestrator/runtime/background.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "ed124789288783d8d8951eacfa12e326e044a9d68d7d6a73840ae9ec282e5e13",
+      "sha256_status": "sha256",
+      "size_bytes": 114688,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/jobs.sqlite3",
+      "relative_path": "as1/jobs-v2/jobs.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "c21efaa0af927a77b00618e9c08c93c8991895b3d7e3401f1e0edfc843b38f79",
+      "sha256_status": "sha256",
+      "size_bytes": 4472832,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs/jobs.sqlite3",
+      "relative_path": "as1/jobs/jobs.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "39254b51e5e256b2cdcf3beacec4598a0e4e99586e56a391580a0513426e9af2",
+      "sha256_status": "sha256",
+      "size_bytes": 196608,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/packets.sqlite3",
+      "relative_path": "as1/packets.sqlite3",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "14044a10ccbe91a2077f0dea6c0d80f53ff74d281d4e9b10cb1c84c44b0aa585",
+      "sha256_status": "sha256",
+      "size_bytes": 19746816,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/model-leases/qwen3.6-35b-a3b-q4-k-m/671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7/service:7250069278ff327a:core4-local-admission-b1778990-2f28-46d1-9390-327b9b4da08a:8756e177-4c39-43f3-96ce-dcba9ded34d1.json",
+      "relative_path": "model-leases/qwen3.6-35b-a3b-q4-k-m/671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7/service:7250069278ff327a:core4-local-admission-b1778990-2f28-46d1-9390-327b9b4da08a:8756e177-4c39-43f3-96ce-dcba9ded34d1.json",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "07a104206c43a23d3c11c7df10e7161544ed70dba65448f29d395ee0b1dc5c2b",
+      "sha256_status": "sha256",
+      "size_bytes": 229,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/state/residencies/recovered-orphans/slot-958d89634e43.json",
+      "relative_path": "state/residencies/recovered-orphans/slot-958d89634e43.json",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "b05da48787fafabab78d28cf6865eea5a70877e8ff94cfc155cbdf39cbc8d37e",
+      "sha256_status": "sha256",
+      "size_bytes": 2367,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/state/residencies/slot-2500c15494e2.json",
+      "relative_path": "state/residencies/slot-2500c15494e2.json",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "bbe3c268d05fb4e6258aaf346e3e6e9f61f451d4e423d850ab1076d7cd3fc257",
+      "sha256_status": "sha256",
+      "size_bytes": 1281,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/legacy-broker-snapshot-v1.complete",
+      "relative_path": "as1/jobs-v2/legacy-broker-snapshot-v1.complete",
+      "root": "as1-observer-analysis-default-cache",
+      "sha256": "37a40f08d8548dba289b9b0bb35bcf63b359f6d37ee86044ebc6b6da080b9ec1",
+      "sha256_status": "sha256",
+      "size_bytes": 9,
+      "sqlite": false
+    }
+  ],
+  "inventory_only": false,
+  "inventory_scope": "active_uuid_databases_configs_and_as1_jobs_packets",
+  "roots": [
+    {
+      "file_count": 7,
+      "id": "as1-observer-analysis-default-cache",
+      "kind": "directory",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": null
+    }
+  ],
+  "schema_version": 1,
+  "workspaces": [
+    {
+      "git_common_dir": "/home/tumlinson/accelerated-ports/CellRank/.git",
+      "id": "accelerated-ports",
+      "repository": "cellrank",
+      "root": "/home/tumlinson/accelerated-ports/CellRank",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/accelerated-ports/scVelo/.git",
+      "id": "accelerated-ports",
+      "repository": "scvelo",
+      "root": "/home/tumlinson/accelerated-ports/scVelo",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/Baseplane/.git",
+      "id": "baseplane",
+      "repository": "baseplane",
+      "root": "/home/tumlinson/Baseplane",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/BioPrep/.git",
+      "id": "bioprep",
+      "repository": "bioprep",
+      "root": "/home/tumlinson/BioPrep",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/Cellerator/.git",
+      "id": "cellerator",
+      "repository": "cellerator",
+      "root": "/home/tumlinson/Cellerator",
+      "status": "registered_root_available"
+    },
+    {
+      "id": "cellerrank",
+      "repository": "cellerrank",
+      "root": "/home/tumlinson/CellerRank",
+      "status": "registered_root_missing_or_symlink"
+    },
+    {
+      "id": "cellervelo",
+      "repository": "cellervelo",
+      "root": "/home/tumlinson/CellerVelo",
+      "status": "registered_root_missing_or_symlink"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/Cellerator/.git/modules/components/CellShard",
+      "id": "cellshard",
+      "repository": "cellshard",
+      "root": "/home/tumlinson/Cellerator/components/CellShard",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/gpu_circuit_bending_atlas/.git",
+      "id": "circuit-bending-atlas",
+      "repository": "circuit-bending-atlas",
+      "root": "/home/tumlinson/gpu_circuit_bending_atlas",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/codex-workspace/.git",
+      "id": "codex",
+      "repository": "codex",
+      "root": "/home/tumlinson/codex-workspace",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/CV/.git",
+      "id": "cv",
+      "repository": "cv",
+      "root": "/home/tumlinson/CV",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/GlassHelix/.git",
+      "id": "glasshelix",
+      "repository": "glasshelix",
+      "root": "/home/tumlinson/GlassHelix",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/numaBraid/.git",
+      "id": "numabraid",
+      "repository": "numabraid",
+      "root": "/home/tumlinson/numaBraid",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/project-control/.git",
+      "id": "project-control",
+      "repository": "project-control",
+      "root": "/home/tumlinson/project-control",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/.agents/skills/.git",
+      "id": "skills",
+      "repository": "skills",
+      "root": "/home/tumlinson/.agents/skills",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/txtDesk/.git",
+      "id": "txtdesk",
+      "repository": "txtdesk",
+      "root": "/home/tumlinson/txtDesk",
+      "status": "registered_root_available"
+    }
+  ]
+}

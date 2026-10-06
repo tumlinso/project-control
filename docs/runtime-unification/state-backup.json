@@ -1,15 +1,15 @@
 {
   "backup": {
-    "files_copied": 66,
+    "files_copied": 74,
     "path": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005/state/active",
     "private_manifest": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005/state/active/backup-manifest.json",
     "private_manifest_sha256": "ec5840a8ae5f16e4075148e9bf9a67f46ad58ddcc0c1fb84e2dac67b6c709ae1",
-    "regular_file_copies": 31,
+    "regular_file_copies": 35,
     "retained_in_place": true,
     "source_changed_count": 0,
-    "source_unchanged_count": 66,
-    "sqlite_backups": 35,
-    "sqlite_integrity_checks": "passed_for_all_backed_up_databases",
+    "source_unchanged_count": 74,
+    "sqlite_backups": 39,
+    "sqlite_integrity_checks": "passed_for_all_primary_and_cache_addon_databases",
     "sqlite_sources": [
       "/home/tumlinson/accelerated-ports/CellRank/.git/todo-orchestrator/1fe1b4ab-7379-4f47-a4f7-1865ddb446aa/state.sqlite3",
       "/home/tumlinson/accelerated-ports/scVelo/.git/todo-orchestrator/b6b1bce7-d113-4646-9d74-062156d3cbac/state.sqlite3",
@@ -45,9 +45,13 @@
       "/home/tumlinson/.local/state/todo-orchestrator/6855b103-0b6e-4dd9-84f8-4f6bdb8ed25f/state.sqlite3",
       "/home/tumlinson/.local/state/todo-orchestrator/6ae63480-69ae-4294-9850-46ad8dde7cfa/state.sqlite3",
       "/home/tumlinson/.local/state/todo-orchestrator/e588f81f-11c6-460f-8832-72e2c4801db2/state.sqlite3",
-      "/home/tumlinson/.local/state/todo-orchestrator/f314624e-45ed-4ea3-a94c-156706514d35/state.sqlite3"
+      "/home/tumlinson/.local/state/todo-orchestrator/f314624e-45ed-4ea3-a94c-156706514d35/state.sqlite3",
+      "/home/tumlinson/.cache/project-control/as1-observer-analysis/.todo-orchestrator/runtime/background.sqlite3",
+      "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/jobs.sqlite3",
+      "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs/jobs.sqlite3",
+      "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/packets.sqlite3"
     ],
-    "total_bytes": 158223484
+    "total_bytes": 182758314
   },
   "created_at": "2026-10-06T20:17:53+00:00",
   "exclusions": [
@@ -932,6 +936,69 @@
   ],
   "inventory_only": false,
   "inventory_scope": "active_uuid_databases_configs_and_as1_jobs_packets",
+  "live_cache_addon": {
+    "coverage_note": "Adds the default XDG AS1 cache roots missed by the first pass. Current source databases were backed up read-only; non-selected logs and runtime material remain in place. No source files were deleted or modified.",
+    "files_copied": 8,
+    "path": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005/state/active-cache",
+    "pre_migration_comparisons": [
+      {
+        "baseline_sha256": "ed124789288783d8d8951eacfa12e326e044a9d68d7d6a73840ae9ec282e5e13",
+        "changed_since_pre_migration_inventory": false,
+        "current_sha256_before_backup": "ed124789288783d8d8951eacfa12e326e044a9d68d7d6a73840ae9ec282e5e13",
+        "kind": "sqlite",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/.todo-orchestrator/runtime/background.sqlite3",
+        "source_sha256_after_backup": "ed124789288783d8d8951eacfa12e326e044a9d68d7d6a73840ae9ec282e5e13",
+        "unchanged_during_backup": true
+      },
+      {
+        "baseline_sha256": "72a593c3940285c65ea22836ae4b917e205d038887bb8398bde66de1a6e77eeb",
+        "changed_since_pre_migration_inventory": true,
+        "current_sha256_before_backup": "c21efaa0af927a77b00618e9c08c93c8991895b3d7e3401f1e0edfc843b38f79",
+        "kind": "sqlite",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/jobs.sqlite3",
+        "source_sha256_after_backup": "c21efaa0af927a77b00618e9c08c93c8991895b3d7e3401f1e0edfc843b38f79",
+        "unchanged_during_backup": true
+      },
+      {
+        "baseline_sha256": "39254b51e5e256b2cdcf3beacec4598a0e4e99586e56a391580a0513426e9af2",
+        "changed_since_pre_migration_inventory": false,
+        "current_sha256_before_backup": "39254b51e5e256b2cdcf3beacec4598a0e4e99586e56a391580a0513426e9af2",
+        "kind": "sqlite",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs/jobs.sqlite3",
+        "source_sha256_after_backup": "39254b51e5e256b2cdcf3beacec4598a0e4e99586e56a391580a0513426e9af2",
+        "unchanged_during_backup": true
+      },
+      {
+        "baseline_sha256": "0b9f7d26966cc296054ffdf6fa9ded037968d32bf445e3bb7f1a8409846e6e5d",
+        "changed_since_pre_migration_inventory": true,
+        "current_sha256_before_backup": "14044a10ccbe91a2077f0dea6c0d80f53ff74d281d4e9b10cb1c84c44b0aa585",
+        "kind": "sqlite",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/packets.sqlite3",
+        "source_sha256_after_backup": "14044a10ccbe91a2077f0dea6c0d80f53ff74d281d4e9b10cb1c84c44b0aa585",
+        "unchanged_during_backup": true
+      },
+      {
+        "baseline_sha256": "37a40f08d8548dba289b9b0bb35bcf63b359f6d37ee86044ebc6b6da080b9ec1",
+        "changed_since_pre_migration_inventory": false,
+        "current_sha256_before_backup": "37a40f08d8548dba289b9b0bb35bcf63b359f6d37ee86044ebc6b6da080b9ec1",
+        "kind": "durable_marker",
+        "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis/as1/jobs-v2/legacy-broker-snapshot-v1.complete",
+        "source_sha256_after_backup": "37a40f08d8548dba289b9b0bb35bcf63b359f6d37ee86044ebc6b6da080b9ec1",
+        "unchanged_during_backup": true
+      }
+    ],
+    "private_manifest": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005/state/active-cache/backup-manifest.json",
+    "private_manifest_sha256": "28b2c6983f52050efd00a588d19cb8d7961e08b3e2b7f6568a0683cc8d8dfa60",
+    "public_receipt": "/home/tumlinson/project-control/docs/runtime-unification/state-cache-addon.json",
+    "public_receipt_sha256": "ca65936bb3cf07dcf50fd59992acd802edf39582b65f89e4ef15edf86b140c28",
+    "regular_file_copies": 4,
+    "semantic_limit": "Packets and jobs-v2 bytes differ from the earlier inventory, consistent with an intervening schema migration. The earlier inventory has no row counts or logical digest, so row preservation is not claimed. The legacy jobs database hash matches its earlier inventory.",
+    "source_changed_during_backup_count": 0,
+    "source_unchanged_count": 8,
+    "sqlite_backups": 4,
+    "sqlite_integrity_checks": "passed_for_all_addon_databases",
+    "total_bytes": 24534830
+  },
   "roots": [
     {
       "file_count": 1,
