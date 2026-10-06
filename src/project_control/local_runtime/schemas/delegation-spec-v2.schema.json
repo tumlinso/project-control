@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "LCW-REQUEST/2", "type": "object",
+  "required": ["format", "schema_version", "backend", "role", "readonly", "repo_root", "child_token", "objective", "scopes", "target", "intent", "budget_tokens", "max_items", "execution"],
+  "properties": {
+    "format": {"const": "LCW-REQUEST/2"}, "schema_version": {"const": 2}, "backend": {"enum": ["fake", "real"]},
+    "role": {"enum": ["explain", "debug", "review", "test_plan"]}, "readonly": {"const": true},
+    "repo_root": {"type": "string", "minLength": 1}, "child_token": {"type": "string", "pattern": "^toch_"},
+    "objective": {"type": "string", "minLength": 1, "maxLength": 500}, "scopes": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "string"}},
+    "target": {"type": "string"}, "intent": {"enum": ["understand", "debug", "test", "api", "performance"]},
+    "budget_tokens": {"type": "integer", "minimum": 256, "maximum": 12000}, "max_items": {"type": "integer", "minimum": 1, "maximum": 32},
+    "execution": {"type": "object", "required": ["backend"], "properties": {"backend": {"enum": ["fake", "real"]}, "harness": {"enum": ["qwen", "codex"]}, "gpu_count": {"type": "integer", "minimum": 1, "maximum": 16}, "service_profile": {"type": "object"}, "harness_config": {"type": "object"}, "admission_id": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+    "context_packet": {"type": "object", "required": ["format", "schema_version", "readonly", "packet_hash"], "properties": {"format": {"const": "CTXPP-CONTEXT-PACKET/2"}, "schema_version": {"const": 2}, "readonly": {"const": true}, "packet_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": true}
+  }, "additionalProperties": false
+}

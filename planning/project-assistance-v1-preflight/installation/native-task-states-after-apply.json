@@ -1,0 +1,107 @@
+{
+  "format": "pa1-native-task-state-verification/1",
+  "observed_at_utc": "2026-10-06T15:32:19.961834+00:00",
+  "method": "Supported read-only todo.py semantic state for each registered repository; filtered PA1 task rows only.",
+  "authorities": {
+    "project-control": {
+      "revision": 924,
+      "project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+      "tasks": [
+        {
+          "id": "PC-PA1-0000",
+          "raw_status": "planned",
+          "effective_state": "planned",
+          "execution": "inactive",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "PC-PA1-ASSIST",
+          "raw_status": "planned",
+          "effective_state": "blocked",
+          "execution": "blocked_dependency",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "PC-PA1-FAST",
+          "raw_status": "planned",
+          "effective_state": "ready",
+          "execution": "ready",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "PC-PA1-FRAMES",
+          "raw_status": "planned",
+          "effective_state": "blocked",
+          "execution": "blocked_dependency",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "PC-PA1-KNOWLEDGE",
+          "raw_status": "planned",
+          "effective_state": "blocked",
+          "execution": "blocked_dependency",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "PC-PA1-LAB",
+          "raw_status": "planned",
+          "effective_state": "blocked",
+          "execution": "blocked_dependency",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "PC-PA1-QUALIFY",
+          "raw_status": "planned",
+          "effective_state": "blocked",
+          "execution": "blocked_dependency",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "PC-PA1-RUNTIME",
+          "raw_status": "planned",
+          "effective_state": "blocked",
+          "execution": "blocked_dependency",
+          "active_claim": null,
+          "raw_result": null
+        }
+      ]
+    },
+    "skills": {
+      "revision": 1018,
+      "project_uuid": "460468fe-ee72-4a64-a565-87cfec640d0c",
+      "tasks": [
+        {
+          "id": "SK-PA1-0000",
+          "raw_status": "planned",
+          "effective_state": "planned",
+          "execution": "inactive",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "SK-PA1-HANDOFF",
+          "raw_status": "planned",
+          "effective_state": "ready",
+          "execution": "ready",
+          "active_claim": null,
+          "raw_result": null
+        },
+        {
+          "id": "SK-PA1-RETIRE",
+          "raw_status": "planned",
+          "effective_state": "blocked",
+          "execution": "blocked_dependency",
+          "active_claim": null,
+          "raw_result": null
+        }
+      ]
+    }
+  }
+}

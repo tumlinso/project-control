@@ -6,7 +6,7 @@ and prerequisites. Project Control does not match questions to architectures,
 skill names, routes, or lexical hits. Indexes and graphs may accelerate worker
 navigation; they are not a second routing policy.
 
-The one public adapter is `skill(query?, skill?, project?, hints?, request_id?, detail?)`. The host supplies trusted principal/profile scope. Calls are allowed
+The one public adapter is `skill(query?, skill?, project?, hints?, request_id?)`. It always assembles extended authoritative excerpts, up to 49,152 aggregate excerpt bytes; callers do not choose a smaller detail. The ceiling is not a target. The worker should select a small coherent set of complete, useful modular sections and keep the synthesis concise. The host supplies trusted principal/profile scope. Calls are allowed
 only for the observer profile. Native coder, mutator, and scout continue reading
 installed skills directly. This module adds no public list/read/context tools.
 

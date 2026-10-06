@@ -1,0 +1,40 @@
+{
+  "format": "pa1-evaluation-policy/1",
+  "qualification": "Proposed conservative development defaults, not user approvals or measured optimum.",
+  "initial_live_comparison": {
+    "max_configurations_including_baseline": 3,
+    "max_new_inference_inquiries": 12,
+    "wall_budget_seconds": 900,
+    "max_parallel_model_executions": 2,
+    "initial_cases": [
+      "E01",
+      "E02",
+      "E03",
+      "E04"
+    ],
+    "production_deployments": 0,
+    "compatible_request_change_weight_restarts": 0
+  },
+  "stop_rules": [
+    "Stop on hard authority/provenance regression.",
+    "Stop a branch after two consecutive non-improving iterations.",
+    "Stop at declared case/count/wall cap; retain partial measurements honestly.",
+    "Any extension requires a new predeclared hypothesis and budget; do not reset counters by relabeling the same branch."
+  ],
+  "comparison_objective_order": [
+    "Authority and source/evidence correctness",
+    "Useful complete or supported partial answer",
+    "Representative decision value and coverage",
+    "Latency including prefill, tools, waiting and preparation",
+    "Compute/storage/interference cost"
+  ],
+  "not_objectives": [
+    "More thinking tokens",
+    "Larger occupied context",
+    "More source reads regardless of relevance",
+    "Longer answers",
+    "More suggestions"
+  ],
+  "after_selection": "Run limited held-out, continuation and context-pressure cases under a separately declared budget. Startup-parameter calibration and final lifecycle qualification are distinct test layers, not routine prompt trials.",
+  "cache_policy": "Use isolated service/cache state and fixed inputs. Give a public retry journey one unique question label on first submission, then preserve exact arguments. Do not contaminate production recent-answer/negative caches."
+}

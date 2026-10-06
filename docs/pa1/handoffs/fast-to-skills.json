@@ -1,0 +1,15 @@
+{
+  "format": "pa1-handoff/1",
+  "producer": "PC-PA1-FAST",
+  "consumer": "SK-PA1-HANDOFF",
+  "observed_at_utc": "2026-10-06T16:23:22.896133+00:00",
+  "accepted_contract": "Adoption baseline, selected receiver seam, active-work coordination and decisions.",
+  "scope": "Supplier inventory and handoff evidence only; no supplier retirement or live runtime repointing. PC-PA1-FAST remains active while finite quality checks finish. Receiver migration waits for both FAST completion and accepted supplier handoff.",
+  "source_identity": {
+    "docs/pa1/baseline-tests.json": "6b30965673ca1e25e5c959ea84cec684d3d2e581f46fce3d48df0bfccb67d8bb",
+    "docs/pa1/runtime-ownership.md": "98d8fa66634e2e688c8c1dcc39748b8c1ec09acc67da34df8923589e17547b99",
+    "docs/pa1/execution-start.json": "ab05c39ab46bd9b33df5553db24b10b8b3bafe5ea8164fe2ddc44ed930199cf6"
+  },
+  "consumer_agreement": "Preserve supplier source, dirty catalog, Todo/CUDA/ctxpp authority; canonical receiver keeps local_worker identity under PC local_runtime; root owns later transition and binds.",
+  "operator_hold": "Released; source-mode work and future foreground-interlocked live qualification authorized."
+}

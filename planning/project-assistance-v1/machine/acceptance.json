@@ -1,0 +1,788 @@
+{
+  "format": "pa1-acceptance/1",
+  "qualification": "All cases are planned. Package checks are not executions of these product cases. Live GPU/model cases require current explicit resource/authority grants.",
+  "cases": [
+    {
+      "id": "A01",
+      "owner": "PC-PA1-FAST",
+      "title": "Candidate source, not ambient deployment",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Run the source-mode harness with an installed sibling present.",
+      "expected": "Imported module paths and content hashes identify the candidate; broker/cache/artifacts are isolated; no production change.",
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A02",
+      "owner": "PC-PA1-FAST",
+      "title": "Replay is real orchestration, not fake product logic",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Replay fixed visible calls/observations through production controller code.",
+      "expected": "Correct context, legal citations and refusal paths are checked without model inference; no claim of model quality.",
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A03",
+      "owner": "PC-PA1-FAST",
+      "title": "Request-only variants keep weights warm",
+      "tier": "live_model",
+      "mandatory": true,
+      "setup": "Use an exclusively leased compatible real evaluation server for baseline and request-policy variants.",
+      "expected": "Record unchanged server identity and no full release rebuild; isolated trial state and actual effective budgets.",
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A04",
+      "owner": "PC-PA1-FAST",
+      "title": "Layer-specific failure diagnosis and stop rule",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Inject protocol, source-proof, timeout and non-improving quality cases.",
+      "expected": "Each failure is classified correctly; finite branch/case budget and two non-improving-iteration stop are enforced in the evaluation workflow.",
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A05",
+      "owner": "SK-PA1-HANDOFF",
+      "title": "Supplier dependency and consumer inventory",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Enumerate runtime imports, policies, test/qualification entry points and active edits.",
+      "expected": "Hashed bounded handoff identifies preserved independent kernel/interlock/domain ownership and proposed compatibility seam.",
+      "sources": [
+        "S08",
+        "S09",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A06",
+      "owner": "PC-PA1-RUNTIME",
+      "title": "One implementation, baseline protocol parity",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Exercise old compatibility imports and new receiver imports against the same fake/real protocol fixtures.",
+      "expected": "One canonical implementation and one owner; no duplicate pool, import cycle or permission widening.",
+      "sources": [
+        "S01",
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S23"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A07",
+      "owner": "PC-PA1-RUNTIME",
+      "title": "Release identity and incompatible source binding",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Present absent, stale or ambient runtime packages/manifests.",
+      "expected": "Fail closed or park before dispatch; no relaxation of production identity for source-mode convenience.",
+      "sources": [
+        "S01",
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S23"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A08",
+      "owner": "SK-PA1-RETIRE",
+      "title": "Preserved consumers and explicit inactive delegation",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Exercise updated CUDA qualification/native-maintenance adapters and public tool guards.",
+      "expected": "Consumers resolve agreed runtime; dormant delegate tools remain absent and denied unless separately approved.",
+      "sources": [
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S19",
+        "S23"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A09",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Two parents, two children, two slots",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Run two parents that each request bounded dependent work.",
+      "expected": "Both parent leases are released; children run within two slots; each parent resumes from its own results without deadlock.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A10",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Lost wake-up and duplicate delivery",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Complete child around parent wait registration; deliver terminal event twice.",
+      "expected": "Reconciliation wakes the exact parent generation once; result cannot be lost or committed twice.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A11",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Cycle and descendant bounds",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Submit self/cyclic waits and attempts to exceed internal credits/depth.",
+      "expected": "Refuse boundedly without consuming all admission capacity or losing accepted foreground roots.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A12",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Public expiry independent of blocked execution",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Block model/transport/tool or cleanup beyond the inquiry deadline using fake time.",
+      "expected": "Public inquiry terminalizes within watchdog grace from retained evidence; cleanup remains accounted until verified; retries do not extend expiry.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A13",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Restart and late generation fence",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Crash before/after checkpoint or outbox materialization, then supersede/cancel parent.",
+      "expected": "Resume only accepted visible state; late attempts cannot update current results or authority.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A14",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Busy admission, internal children and starvation",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Fill public capacity with roots including suspended work, then add eligible internal dependencies and foreground demand.",
+      "expected": "Existing public busy meaning retained; bounded child credits allow progress; automatic work cannot consume reserved demand admission.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A15",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Frame-local budgets and isolation",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Alternate two frames with different permitted policies and disjoint source sets.",
+      "expected": "Actual policy/visible context is frame-specific; no shared-global setter race, hidden-state dependence or source leakage.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A16",
+      "owner": "PC-PA1-FRAMES",
+      "title": "Cooperative and full eviction are distinct",
+      "tier": "live_gpu",
+      "mandatory": true,
+      "setup": "Request foreground work and GPU release while a model turn is active.",
+      "expected": "Measured bounded cooperative delay is reported; no false instant release; owned-process quiescence precedes GPU handoff.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A17",
+      "owner": "PC-PA1-KNOWLEDGE",
+      "title": "Material freshness versus unrelated changes",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Create a note, then change a relevant source/config and an unrelated file separately.",
+      "expected": "Relevant determinants invalidate; unrelated HEAD change alone does not; deleted/renamed inputs and partial coverage remain explicit.",
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A18",
+      "owner": "PC-PA1-KNOWLEDGE",
+      "title": "Retention outlives recent-answer window",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Retain a useful note, then answer more than 50 unrelated inquiries and run retention.",
+      "expected": "Note-owned supporting artifacts remain pinned or are explicitly unavailable; no orphaned authoritative-looking assertion.",
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A19",
+      "owner": "PC-PA1-KNOWLEDGE",
+      "title": "Exact public cache and historical warning",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Repeat identical and whitespace-varied questions; refresh a stale supported answer and an empty failure.",
+      "expected": "Exact identity and negative-cache semantics preserved; historical evidence carries freshness warning in unresolved_questions.",
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A20",
+      "owner": "PC-PA1-KNOWLEDGE",
+      "title": "Foundational evidence survives compaction",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Force bounded context pressure after reading skill entry and decisive resources.",
+      "expected": "Retain required proof or re-fetch valid references; omitted/unread/truncated evidence cannot support selected excerpts.",
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A21",
+      "owner": "PC-PA1-KNOWLEDGE",
+      "title": "No self-corroboration or canonical impersonation",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Feed model-produced notes and request automatic canonical publication.",
+      "expected": "Original provenance remains visible; model repetition is not new proof; publication is denied without current canonical capability.",
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A22",
+      "owner": "PC-PA1-KNOWLEDGE",
+      "title": "Trusted cross-project access",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Retrieve evidence from multiple registered projects and one unauthorized or unresolved project.",
+      "expected": "Per-project identity/freshness preserved; unavailable segment explicit; no global atomic-snapshot or inferred-access claim.",
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A23",
+      "owner": "PC-PA1-ASSIST",
+      "title": "Change shadowing gives useful prepared context",
+      "tier": "live_model",
+      "mandatory": true,
+      "setup": "Enable a bounded focus, mutate disposable source through a scripted external-agent sequence, then ask a relevant question.",
+      "expected": "One coalesced relevant preparation is reused or refreshed; answer gives source-backed decision help rather than generic summary.",
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A24",
+      "owner": "PC-PA1-ASSIST",
+      "title": "Stable code and self-trigger suppression",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Replay no-change polls plus generated notes/logs and an edit burst.",
+      "expected": "No model calls for unchanged inputs; no note-triggered investigation loop; edit burst coalesces within caps.",
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A25",
+      "owner": "PC-PA1-ASSIST",
+      "title": "Persistent quiet and focus expiry",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Enable a window, quiet until a time, restart and advance time past both expiries in different orders.",
+      "expected": "Automatic roots and descendants remain blocked as required; expired focus never resurrects; explicit demand and status behavior remains clear.",
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A26",
+      "owner": "PC-PA1-ASSIST",
+      "title": "GPU-release veto prevents rewarming",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Release inference, then poll status, deliver change events, restart controller and submit demand.",
+      "expected": "No automatic reload; demand reports required resume/permission; release veto persists until its declared end.",
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A27",
+      "owner": "PC-PA1-ASSIST",
+      "title": "Nonresident conversational UI and grants",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Pause at user input and request a scratch action using chat; include instruction-like source data.",
+      "expected": "No idle model lease; typed trusted controller validates action/grant; source text cannot create authority.",
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A28",
+      "owner": "PC-PA1-ASSIST",
+      "title": "Goal relevance and dismissal",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Supply a user goal plus conflicting inferred suggestion and repetitive findings.",
+      "expected": "User goal retains provenance/priority; relevant tradeoff can be surfaced; dismissals and changed focus suppress repeated nagging.",
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A29",
+      "owner": "PC-PA1-LAB",
+      "title": "Dirty snapshot and canonical sentinel integrity",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Materialize tracked dirty and untracked files while an external edit races capture.",
+      "expected": "Use a consistent captured identity or defer; no reset/clean; canonical files, Git administrative state and Todo unchanged.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A30",
+      "owner": "PC-PA1-LAB",
+      "title": "Sandbox descendants and secrets",
+      "tier": "sandbox",
+      "mandatory": true,
+      "setup": "Run a disposable test attempting writes outside scratch, forbidden network, sockets, credentials and uncontrolled descendants.",
+      "expected": "All denied or bounded; missing containment fails closed; no host credential/device leakage.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A31",
+      "owner": "PC-PA1-LAB",
+      "title": "Generate a discriminating unit test",
+      "tier": "live_model",
+      "mandatory": true,
+      "setup": "Give the fixture pairing implementation and passing incomplete baseline suite to an experiment.",
+      "expected": "New scratch odd-tail test exposes the defect with source/test evidence; no automatic canonical repair or claim baseline proves correctness.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A32",
+      "owner": "PC-PA1-LAB",
+      "title": "Negative or inconclusive results are useful",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Run a synthetic mechanism comparison that loses or has noisy/failed measurement.",
+      "expected": "Report applicable negative/inconclusive result and missing evidence; no invented speedup or task promotion.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A33",
+      "owner": "PC-PA1-LAB",
+      "title": "GPU experiment does not wait behind itself",
+      "tier": "live_gpu",
+      "mandatory": true,
+      "setup": "Create an experiment requiring both inference GPU pairs.",
+      "expected": "Parent suspends and frees inference; controller-leased non-model runner executes; results resume only after experiment release and current power permission.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A34",
+      "owner": "PC-PA1-LAB",
+      "title": "Interrupted effect reconciliation",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Crash while a permitted scratch process is active or after artifact write but before result commit.",
+      "expected": "Reconcile exact process/effect receipt; no blind duplicate execution or partial artifact claimed as completed test.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A35",
+      "owner": "PC-PA1-LAB",
+      "title": "Patch and canonical acceptance remain separate",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Produce a valid scratch patch then change canonical source before requesting promotion.",
+      "expected": "Candidate remains unpromoted; existing explicit parent acceptance detects stale source; no commits, pushes or task completion from scratch.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A36",
+      "owner": "PC-PA1-QUALIFY",
+      "title": "Exact public interface and denied authority",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Compare current schema/discovery fixtures and invoke hidden/forbidden operations across profiles.",
+      "expected": "Observer11, coder12, mutator16 and current semantics preserved unless recorded approved narrow amendment; no public scheduler concepts.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A37",
+      "owner": "PC-PA1-QUALIFY",
+      "title": "Finite grounded model-quality comparison",
+      "tier": "live_model",
+      "mandatory": true,
+      "setup": "Run selected direct/multi-hop/conflict/synthesis cases and held-out variants through candidate.",
+      "expected": "Measured useful complete/partial results, valid evidence, separate reasoning/prefill/tool timings; no winner chosen just for token volume.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A38",
+      "owner": "PC-PA1-QUALIFY",
+      "title": "Assistance economics and foreground interference",
+      "tier": "live_model",
+      "mandatory": true,
+      "setup": "Compare equivalent foreground tasks with/without opted-in preparation and background work.",
+      "expected": "Include preparation/refresh costs, context bytes/tokens, latency spread and sample size; meet predeclared practical envelope or leave feature off.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A39",
+      "owner": "PC-PA1-QUALIFY",
+      "title": "Versioned state and reversible candidate",
+      "tier": "cpu",
+      "mandatory": true,
+      "setup": "Exercise quiescent source/runtime transition, old-client isolation and rollback.",
+      "expected": "No mixed incompatible dispatcher claims or restored old Todo DB; retained evidence/history and explicit disabled automatic work at cutover.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    },
+    {
+      "id": "A40",
+      "owner": "PC-PA1-QUALIFY",
+      "title": "Final resource, permission and provenance report",
+      "tier": "live_gpu",
+      "mandatory": true,
+      "setup": "Run applicable acceptance suites and one authorized real lifecycle demonstration.",
+      "expected": "Tests have nonzero counts, exact source/binary/model identities, actual permitted resource proof, omissions and activation choices; no fixture result relabeled production.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed"
+    }
+  ],
+  "proposed_objectives": [
+    "Zero model calls for no-change quiet reconciliation.",
+    "Zero inference leases held by explicit dependency waits.",
+    "No weight-process restart for compatible request-only changes.",
+    "No unauthorized durable source/Todo changes.",
+    "No unbounded pending state, artifacts or automatic retry growth.",
+    "At least one representative assisted workflow materially helps, with cost and sample limitations reported."
+  ],
+  "quantitative_threshold_policy": "Root and user establish meaningful latency/power/storage envelope before the real comparison. No performance gain is claimed or a threshold retrofitted by this package."
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "CORE4-MODEL-OUTCOME/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["outcome", "summary", "claims", "changed_paths", "risk", "blocker"],
+  "properties": {
+    "outcome": {"enum": ["completed", "needs_codex", "failed"]},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 500},
+    "claims": {
+      "type": "array", "maxItems": 16,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["statement", "evidence"],
+        "properties": {
+          "statement": {"type": "string", "minLength": 1, "maxLength": 500},
+          "evidence": {
+            "type": "array", "maxItems": 16,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["path", "line", "end_line"],
+              "properties": {
+                "path": {"type": "string", "minLength": 1},
+                "line": {"type": "integer", "minimum": 1},
+                "end_line": {"type": "integer", "minimum": 1}
+              }
+            }
+          }
+        }
+      }
+    },
+    "changed_paths": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 64},
+    "risk": {"enum": ["low", "medium", "high"]},
+    "blocker": {"type": ["string", "null"], "maxLength": 500}
+  }
+}

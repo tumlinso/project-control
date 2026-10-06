@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "status": "initial_operating_points_not_qualification",
+  "selection_boundary": "trusted_controller_only",
+  "capability_grants": false,
+  "physical_model_or_context_changes": false,
+  "global_adapter_mutation": false,
+  "budgets": {
+    "gather-v1": {
+      "version": 1,
+      "behavior": "gather",
+      "instruction": "Gather relevant facts from the supplied evidence. Keep observations separate from inferences, state material gaps and uncertainties, and avoid drawing a final synthesis or proposing an experiment unless asked.",
+      "logical_context_tokens": 8192,
+      "reasoning_tokens": 512,
+      "visible_tokens": 1024,
+      "reasoning_mode": "auto"
+    },
+    "synthesis-v1": {
+      "version": 1,
+      "behavior": "synthesis",
+      "instruction": "Synthesize the supplied evidence into a direct answer. Connect relevant findings, distinguish established facts from inference, and state the remaining uncertainty and its effect on the conclusion.",
+      "logical_context_tokens": 16384,
+      "reasoning_tokens": 2048,
+      "visible_tokens": 2048,
+      "reasoning_mode": "auto"
+    },
+    "experiment-plan-v1": {
+      "version": 1,
+      "behavior": "experiment_plan",
+      "instruction": "Turn the supplied question and evidence into a feasible, testable experiment plan. State the hypothesis, controls, measurements, decision criteria, and key risks; do not claim the experiment has been run.",
+      "logical_context_tokens": 16384,
+      "reasoning_tokens": 2048,
+      "visible_tokens": 2048,
+      "reasoning_mode": "auto"
+    },
+    "legacy-v1": {
+      "version": 1,
+      "behavior": "legacy",
+      "instruction": "",
+      "logical_context_tokens": null,
+      "reasoning_tokens": 4096,
+      "visible_tokens": 2048,
+      "reasoning_mode": "auto",
+      "note": "Explicit internal selector only. Existing callers without a policy ID retain their profile settings."
+    }
+  },
+  "enforcement": {
+    "supervisor": "Accepts a known policy ID and derives every numerical limit from the registry. A policy-selected request carrying max_tokens or reasoning_mode is rejected.",
+    "adapter": "Revalidates the ID and exact registry-derived generation settings. Effective logical context is clamped to the installed service physical context. Existing deadline, token-rate, visible-answer, reasoning, and physical-context clamps remain active.",
+    "telemetry": "Reports policy ID and requested, effective, and used logical-context, reasoning-token, and visible-token budgets separately. Hidden reasoning content is not added to telemetry.",
+    "legacy": "Requests without a policy ID retain the existing profile-driven request-local adapter behavior. The qualification-only global adapter setter remains outside concurrent turn routing."
+  },
+  "limits": [
+    "Role labels select behavior budgets only and confer no tools, roots, permissions, or workspace access.",
+    "A public inquiry cannot select or supply a policy ID; the trusted controller maps its internal work type to the private ID.",
+    "The logical context budget does not change model weights, server context configuration, device placement, or the central owner and lease identity.",
+    "These CPU-source tests do not qualify live model behavior, installed engine budget adherence, GPU performance, or optimality."
+  ],
+  "source_validation": {
+    "observed_at_utc": "2026-10-06T17:44:07Z",
+    "receiver_manifest_sha256": "4c40332c9a31eb405422ae667b18617bede222e676e75899fa9bf4212a59a4d9",
+    "receiver_fingerprint": "2fbed2a9e44a4c72d837361dc8d34e24c7ab49a658291166b68f1bb4acf8e503",
+    "test_file": "tests/assistance/test_turn_policies.py",
+    "test_file_sha256": "c5c621570daaa377c8420fead985feabcb7229a431dc25be076b8325cd66977e",
+    "native_command": "env -u PROJECT_CONTROL_RELEASE_MANIFEST -u PROJECT_CONTROL_RELEASE_DIGEST PYTHONPATH=src .venv/bin/python -m unittest tests.assistance.test_turn_policies -v",
+    "native_tests_run": 7,
+    "native_tests_passed": 7,
+    "pytest_command": "env -u PROJECT_CONTROL_RELEASE_MANIFEST -u PROJECT_CONTROL_RELEASE_DIGEST PYTHONPATH=src .venv/bin/pytest -q -p no:cacheprovider tests/assistance/test_turn_policies.py",
+    "pytest_passed": 7,
+    "pytest_subtests_passed": 2,
+    "checks": [
+      "Distinct immutable gather, synthesis, and experiment-plan instructions are derived by private policy ID.",
+      "Concurrent gather and synthesis supervisor turns retain separate instructions and budgets.",
+      "A fake llama.cpp transport observes the trusted policy system message and proves the original input messages are unchanged.",
+      "Fake adapter telemetry records requested, effective and used context, reasoning, and visible budgets; synthetic hidden reasoning is absent from returned usage and metadata.",
+      "The supervisor rejects caller-supplied policy instructions and raw numeric budget or reasoning-mode overrides; the adapter rejects instruction/policy mismatches.",
+      "All tests run in source mode with inherited installed-release pins cleared; no model, device, or child process is started."
+    ],
+    "broader_receiver_regression": {
+      "command": "env -u PROJECT_CONTROL_RELEASE_MANIFEST -u PROJECT_CONTROL_RELEASE_DIGEST PYTHONPATH=src .venv/bin/pytest -q -p no:cacheprovider tests/local_runtime/test_supervisor.py tests/assistance/test_worker_slices.py",
+      "status": "failed_by_sandbox_limits",
+      "summary": "The broader fixture suite hit sandbox-local restrictions in legacy tests: Python socket creation raised PermissionError and supervisor launch fixtures rejected the attempted environment path. This run was not counted as passing evidence for the policy change."
+    },
+    "runtime_source_sha256": {
+      "assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+      "local_worker/supervisor.py": "a2749887abf70827ba9610b8472df0ba88ba86e4b9e10bcc07594b161ef3dc62",
+      "local_worker/servers/llama_cpp.py": "d223df81b80fa73a4f6fdc3bf00a0216e78b53cc8425db94b6f7a6352421afed"
+    },
+    "limitations": [
+      "The fake adapter validates source-level request shaping and telemetry only; actual model behavior and generation quality remain unqualified.",
+      "The receiver manifest and runtime source hashes are worktree-local qualification inputs and will change as additional receiver slices land."
+    ]
+  },
+  "current_source_observation": {
+    "observed_at_utc": "2026-10-06T18:40:47Z",
+    "repository": "/home/tumlinson/project-control",
+    "git_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "worktree_state": "dirty; PA1 source and evidence are worktree-local",
+    "receiver_root": "src/project_control/local_runtime",
+    "receiver_file_count": 42,
+    "receiver_source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+    "receiver_fingerprint": "1860a5d64662da3379d8f9b4823813321ed6cf1f7a78fbb7c5b66cbcd3d684cb",
+    "receiver_manifest_sha256": "576aaf8b80d58df9040e2c3d6058e95a7252227890068b4b9d49c0c0f88add4a",
+    "relevant_sha256": {
+      "src/project_control/as1_jobs.py": "62357eb5f976a6b13e72f5d9970ddb7d792e89c45079d55648bd504ab2ef3ed6",
+      "src/project_control/as1_surface.py": "5f9d1c0d0aedcd3c4b950e15452e68db854f3b1c09f30a407eedcd69c00943b0",
+      "src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+      "src/project_control/assistance/frames.py": "d33f4831c8bf746b0b7cf4ec93213c27fcbd045321b8ce1d25f2b083f9c46987",
+      "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8",
+      "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+      "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8",
+      "src/project_control/runtime_binding.py": "83beea936f05b80bacadecb8a56669ff7bfab0753d46ceec2c0190de09a987d1",
+      "src/project_control/local_runtime/scripts/local_worker.py": "0e445333676ec7d65b9854f92c2c721474a55919edcf25efc3d9da3782dd2123",
+      "src/project_control/local_runtime/local_worker/observer_runtime.py": "998a6a46abb924a9e927abc35e6d95d97d2794cc8c42c537a884cb5e621f08a7"
+    },
+    "native_acceptance": {
+      "status": "accepted",
+      "proof_file": "docs/pa1/frames-native-acceptance.json",
+      "task_id": "PC-PA1-FRAMES",
+      "semantic_revision": 1003,
+      "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+      "required_gates": 9,
+      "passed_gates": 9,
+      "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+    }
+  },
+  "latest_local_cpu_validation": {
+    "scope": "source-mode policy/request-shaping tests with fake adapter; no model/device computation",
+    "command": ".venv/bin/python -m pytest tests/assistance/test_turn_policies.py -q",
+    "reported_result": {
+      "status": "passed",
+      "tests": 7,
+      "subtests": 2
+    },
+    "test_sha256": "4d50a5df5336103af255680e61df7e29b3900abf586e227af24ee1cc1079db95",
+    "policy_source_sha256": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+    "note": "This is a local CPU result. The earlier native validation stays bound to its historical receiver identity and is not replaced by this observation.",
+    "tested_receiver_identity": {
+      "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+      "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+      "receiver_file_count": 42,
+      "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+      "recorded_at_utc": "2026-10-06T18:30:31Z",
+      "test_execution_time": "not supplied in worker summary"
+    },
+    "notes": [
+      "The result is a worker-reported local CPU/source check recorded at 2026-10-06T18:30:31Z; it remains bound to the 456fcd47 receiver manifest and 99003ba fingerprint. Test execution time was not supplied."
+    ]
+  },
+  "native_acceptance": {
+    "status": "accepted",
+    "proof_file": "docs/pa1/frames-native-acceptance.json",
+    "task_id": "PC-PA1-FRAMES",
+    "semantic_revision": 1003,
+    "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+    "required_gates": 9,
+    "passed_gates": 9,
+    "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "invented_fixture_data",
+  "units": "milliseconds",
+  "preparation_cost": 12.0,
+  "baseline_per_use": 2.0,
+  "prepared_per_use": 1.5,
+  "measurement_status": "synthetic_not_measured",
+  "applicability": "Arithmetic example only; no real GPU, workload, compiler or correctness qualification."
+}

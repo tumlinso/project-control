@@ -9,8 +9,8 @@
     "retries": 0,
     "repeated_full_reads": 0,
     "authority_revalidation_calls": 0,
-    "startup_seconds": 0.14073714700498385,
-    "latency_seconds": 0.06850953800312709,
+    "startup_seconds": 0.14312002199949347,
+    "latency_seconds": 0.06792381300147099,
     "model_tokens": null,
     "model_usage_status": "unmetered_no_inference",
     "queue_wait_seconds": 0,
@@ -19,22 +19,22 @@
     "total_client_visible_bytes": 44280
   },
   "new": {
-    "schema_bytes": 9374,
-    "prompt_bytes": 464,
+    "schema_bytes": 9562,
+    "prompt_bytes": 697,
     "tool_request_bytes": 357,
     "tool_response_bytes": 11790,
     "calls": 4,
     "retries": 0,
     "repeated_full_reads": 0,
     "authority_revalidation_calls": 0,
-    "startup_seconds": 0.09884962099749828,
-    "latency_seconds": 0.11249747499095974,
+    "startup_seconds": 0.09899242000028607,
+    "latency_seconds": 0.1377212139977928,
     "model_tokens": null,
     "model_usage_status": "unmetered_no_inference",
     "queue_wait_seconds": 0,
     "model_starts": 0,
     "human_prompts": 0,
-    "total_client_visible_bytes": 21985
+    "total_client_visible_bytes": 22406
   },
   "correctness_and_provenance_regression": false,
   "source_sha256": {
@@ -47,5 +47,5 @@
     "No historical baseline for newly added cross-project trace."
   ],
   "tradeoff": "New response packets include durable evidence/source identity; total exposure is compared including all discovered schemas and wire content.",
-  "total_bytes_delta": -22295
+  "total_bytes_delta": -21874
 }

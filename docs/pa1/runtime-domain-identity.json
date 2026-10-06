@@ -1,0 +1,21 @@
+{
+  "format": "pa1-runtime-domain-identity/1",
+  "qualification": "read_only_source_identity_and_client_construction_only",
+  "interpreter": "/home/tumlinson/project-control/.venv/bin/python",
+  "environment": {
+    "PROJECT_CONTROL_SKILLS_ROOT": "/home/tumlinson/.agents/skills",
+    "CODING_WORKFLOW_SKILLS_ROOT": "unset",
+    "PYTHONPATH": "/home/tumlinson/.agents/skills/todo-orchestrator:/home/tumlinson/project-control/src"
+  },
+  "package_root": "/home/tumlinson/.agents/skills/todo-orchestrator/todo_orchestrator",
+  "runtime_schema_version": 2,
+  "runtime_fingerprint": "a56170f1080e6c695c8ed68e166dbe697eca68be1ba57b4963f44fed3a8e2814",
+  "project_root": "/home/tumlinson/project-control",
+  "observed": "Canonical bind and SupervisorClient construction succeeded; no connection/service/model/device start. Supervisor socket absent in inspected environment.",
+  "counterevidence": "Ambient PC venv todo-orchestrator 0.3.0 is materialized site-packages copy and is correctly rejected without release binding; distribution provenance is insufficient for exact source identity.",
+  "limits": [
+    "No live authority mutation test",
+    "No RPC or hardware qualification",
+    "Protocol suites using synthetic identity seams remain fixture qualification"
+  ]
+}

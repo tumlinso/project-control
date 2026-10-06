@@ -16,7 +16,15 @@ from project_control.as1_packets import SQLitePacketStore
 from project_control.as1_surface import public_inquiry
 
 SCOPE = {'principal': 'alice', 'profile': 'observer', 'project': 'pc'}
-SKILLS = Path('/home/tumlinson/.agents/skills')
+ROOT = Path(__file__).resolve().parents[2]
+RECEIVER = ROOT / 'src/project_control/local_runtime'
+
+
+@pytest.fixture(autouse=True)
+def source_runtime_without_installed_release_pins(monkeypatch):
+    """Exercise this checkout's verified receiver, independently of installed release pins."""
+    monkeypatch.delenv('PROJECT_CONTROL_RELEASE_MANIFEST', raising=False)
+    monkeypatch.delenv('PROJECT_CONTROL_RELEASE_DIGEST', raising=False)
 
 
 def make(tmp_path, **kwargs):
@@ -43,8 +51,8 @@ def blocking(entered, release, requests):
 
 
 def trusted_worker(tmp_path, backend, calls):
-    source = SKILLS/'local-coding-worker/local_worker/observer_runtime.py'
-    return TrustedObserverFactory(SKILLS, hashlib.sha256(source.read_bytes()).hexdigest(),
+    source = RECEIVER/'local_worker/observer_runtime.py'
+    return TrustedObserverFactory(RECEIVER, hashlib.sha256(source.read_bytes()).hexdigest(),
         backend=backend, roots=[tmp_path], tools=lambda name, arguments, scope: calls.append((name, arguments, scope))
         or {'text': 'observed answer text', 'nested': {'packet_id': 'nested-packet-id'}})
 
@@ -664,7 +672,9 @@ def test_resumed_worker_projects_large_raw_observations_without_losing_evidence(
                 second_entered.set()
                 second_release.wait(5)
                 return {'status': 'available', 'session_ids': [session]}
-            raise AssertionError('unexpected inference retry')
+            # A single cooperative model turn is one broker attempt. The
+            # final citation repair therefore resumes in a third exact session.
+            return {'status': 'available', 'session_ids': [session]}
 
         def close_session(self, session):
             return {'released': True}
@@ -729,11 +739,11 @@ def test_resumed_worker_projects_large_raw_observations_without_losing_evidence(
     base_factory = trusted_worker(tmp_path, backend, dispatches)
     def capture_factory(service, job):
         worker = base_factory(service, job)
-        run = worker.run
-        def captured(request):
+        run_slice = worker.run_slice
+        def captured(request, *args, **kwargs):
             worker_requests.append(request)
-            return run(request)
-        worker.run = captured
+            return run_slice(request, *args, **kwargs)
+        worker.run_slice = captured
         return worker
 
     s = make(tmp_path, worker_factory=capture_factory, backend=backend, retry_seconds=0).start()
@@ -773,8 +783,8 @@ def test_resumed_worker_projects_large_raw_observations_without_losing_evidence(
         assert result['job']['status'] == 'completed', ({key: result['job'].get(key) for key in
             ('status', 'failure_reason', 'terminal_reason', 'answer', 'unresolved_questions')},
             s.last_error, len(worker_requests), len(backend.model_requests), backend.opens)
-        assert result['job']['attempt'] == 2
-        assert len(worker_requests) == 2
+        assert result['job']['attempt'] == 3
+        assert len(worker_requests) == 3
         projected = worker_requests[1]
         assert len(json.dumps(projected, ensure_ascii=False).encode()) <= WORKER_JOB_INPUT_MAX_BYTES
         assert all(len(json.dumps(observation, ensure_ascii=False).encode()) <= WORKER_OBSERVATION_MAX_BYTES

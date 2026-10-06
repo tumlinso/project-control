@@ -4,7 +4,7 @@
       "arguments": {
         "project": "demo"
       },
-      "latency_seconds": 0.02900715199939441,
+      "latency_seconds": 0.023808904999896185,
       "request_bytes": 50,
       "response_bytes": 2171,
       "result": {
@@ -52,7 +52,7 @@
             }
           }
         },
-        "packet": "pkt_f9273c9aa7b441dd987b1d5520d9dded",
+        "packet": "pkt_e943dac7d67e45efbadbaed9851e5604",
         "sources": [],
         "status": "partial"
       },
@@ -66,9 +66,9 @@
         ],
         "project": "demo",
         "repository": "source",
-        "revision": "974a02f40f25d22da7adbe598665fca2899bd749"
+        "revision": "2b3aeff44467af6bcfe40032951ae460133263d8"
       },
-      "latency_seconds": 0.033707964001223445,
+      "latency_seconds": 0.04025423100029002,
       "request_bytes": 156,
       "response_bytes": 3314,
       "result": {
@@ -89,7 +89,7 @@
               "line_end": 1,
               "line_start": 1,
               "path": "README.md",
-              "revision": "974a02f40f25d22da7adbe598665fca2899bd749",
+              "revision": "2b3aeff44467af6bcfe40032951ae460133263d8",
               "status": "ok"
             },
             {
@@ -99,14 +99,14 @@
               "line_end": 2,
               "line_start": 1,
               "path": "module.py",
-              "revision": "974a02f40f25d22da7adbe598665fca2899bd749",
+              "revision": "2b3aeff44467af6bcfe40032951ae460133263d8",
               "status": "ok"
             }
           ],
           "repository": "source",
-          "revision": "974a02f40f25d22da7adbe598665fca2899bd749"
+          "revision": "2b3aeff44467af6bcfe40032951ae460133263d8"
         },
-        "packet": "pkt_3b0cdc9fa29a471c87d15b8fbd0ad5d5",
+        "packet": "pkt_5588ba31e2cf41b5ba15e9b0d9ec8dde",
         "sources": [
           {
             "content_sha256": "b9cc3bb450a61eb8eca66261b68e8c941a43ab912b2b49b26ff9a2d60b162098",
@@ -115,7 +115,7 @@
             "path": "README.md",
             "project": "demo",
             "repository": "source",
-            "revision": "974a02f40f25d22da7adbe598665fca2899bd749"
+            "revision": "2b3aeff44467af6bcfe40032951ae460133263d8"
           },
           {
             "content_sha256": "185786c0cf30b2c243293185ea01490213e12452b3eb402f0ffa3e3a39b23331",
@@ -124,7 +124,7 @@
             "path": "module.py",
             "project": "demo",
             "repository": "source",
-            "revision": "974a02f40f25d22da7adbe598665fca2899bd749"
+            "revision": "2b3aeff44467af6bcfe40032951ae460133263d8"
           }
         ],
         "status": "ok"
@@ -139,7 +139,7 @@
           "target": "T1"
         }
       },
-      "latency_seconds": 0.020043769996846095,
+      "latency_seconds": 0.030076822999035357,
       "request_bytes": 86,
       "response_bytes": 4174,
       "result": {
@@ -226,7 +226,7 @@
           "source": "reconciled_project_graph",
           "target": "T1"
         },
-        "packet": "pkt_ec135ce388db4d198035fe8cb03caf01",
+        "packet": "pkt_134d4c33cc0c4bacb32faecbddc62457",
         "sources": [],
         "status": "ok"
       },
@@ -237,7 +237,7 @@
         "project": "demo",
         "subject": "T1"
       },
-      "latency_seconds": 0.029738588993495796,
+      "latency_seconds": 0.04358125499857124,
       "request_bytes": 65,
       "response_bytes": 2131,
       "result": {
@@ -284,7 +284,7 @@
             "T1"
           ]
         },
-        "packet": "pkt_553dd0dcfe7c4e489ec4152c17518302",
+        "packet": "pkt_41b51610c84f4704b1c540f8449872b4",
         "sources": [],
         "status": "ok"
       },
@@ -298,8 +298,8 @@
     "Git commit provenance"
   ],
   "identity": {
-    "module": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/workflow-workspaces/pc-as1-l-integrate/src/project_control/app.py",
-    "module_sha256": "64539e7812d69a6a449ae3ec31f9ddf740ce37cab4fefd735efd3c3e19fd9fb3",
+    "module": "/home/tumlinson/project-control/src/project_control/app.py",
+    "module_sha256": "301bb8f8084b6751247248eabbb26865afc6885d273d127abbf27c8eba199011",
     "release_digest": null,
     "release_manifest": null
   },
@@ -312,19 +312,19 @@
     "authority_revalidation_calls": 0,
     "calls": 4,
     "human_prompts": 0,
-    "latency_seconds": 0.11249747499095974,
+    "latency_seconds": 0.1377212139977928,
     "model_starts": 0,
     "model_tokens": null,
     "model_usage_status": "unmetered_no_inference",
-    "prompt_bytes": 464,
+    "prompt_bytes": 697,
     "queue_wait_seconds": 0,
     "repeated_full_reads": 0,
     "retries": 0,
-    "schema_bytes": 9374,
-    "startup_seconds": 0.09884962099749828,
+    "schema_bytes": 9562,
+    "startup_seconds": 0.09899242000028607,
     "tool_request_bytes": 357,
     "tool_response_bytes": 11790,
-    "total_client_visible_bytes": 21985
+    "total_client_visible_bytes": 22406
   },
   "mode": "new",
   "snapshot": {
@@ -338,7 +338,7 @@
     "provider_warnings": {},
     "repositories": {
       "source": {
-        "commit": "974a02f40f25d22da7adbe598665fca2899bd749",
+        "commit": "2b3aeff44467af6bcfe40032951ae460133263d8",
         "current_worktree_id": null,
         "dirty": false,
         "git_common_id": null,

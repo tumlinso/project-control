@@ -18,12 +18,18 @@ def main() -> int:
     parser.add_argument("--project-control-root", type=Path, required=True)
     parser.add_argument("--skills-root", type=Path, required=True)
     parser.add_argument("--destination", type=Path, required=True)
+    parser.add_argument("--offline", action="store_true", help="install only from the supplied uv cache")
+    parser.add_argument("--uv-cache-dir", type=Path, help="explicit writable uv cache directory for offline builds")
     args = parser.parse_args()
+    if args.offline and args.uv_cache_dir is None:
+        parser.error("--offline requires --uv-cache-dir")
     try:
         identity = build_candidate(
             project_control_root=args.project_control_root,
             skills_root=args.skills_root,
             destination=args.destination,
+            offline=args.offline,
+            uv_cache_dir=args.uv_cache_dir,
         )
     except InstallError as exc:
         parser.error(str(exc))

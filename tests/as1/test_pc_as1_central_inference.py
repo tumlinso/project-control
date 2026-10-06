@@ -1,6 +1,5 @@
 """CPU-only central-owner contract and real Unix transport qualification."""
 import hashlib
-import importlib
 import json
 import os
 from pathlib import Path
@@ -15,15 +14,24 @@ from unittest.mock import Mock
 import pytest
 
 from project_control.observer_analysis import SkillsObserverAnalysisProvider
+from project_control.runtime_binding import _verify_receiver
+
+
+RECEIVER_SOURCE = Path(__file__).resolve().parents[2] / 'src/project_control/local_runtime'
+
+
+def receiver_fixture():
+    # Source checkouts bind the package-owned receiver without an installed
+    # release manifest. Keep tests on that exact src/project_control shape.
+    return _verify_receiver(RECEIVER_SOURCE)
 
 
 @pytest.fixture
 def central(monkeypatch, tmp_path):
-    source = tmp_path / 'skills/local-coding-worker/local_worker/supervisor.py'
-    source.parent.mkdir(parents=True)
-    source.write_text('# trusted supervisor\n')
+    identity = receiver_fixture()
+    source = identity.package_root / 'supervisor.py'
     state = tmp_path / 'state'
-    monkeypatch.setenv('PROJECT_CONTROL_SKILLS_ROOT', str(tmp_path / 'skills'))
+    monkeypatch.delenv('PROJECT_CONTROL_SKILLS_ROOT', raising=False)
     monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR', str(state))
     monkeypatch.delenv('PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256', raising=False)
     monkeypatch.delenv('PROJECT_CONTROL_OBSERVER_GPU_UUIDS', raising=False)
@@ -37,6 +45,7 @@ def central(monkeypatch, tmp_path):
     client.run_observer_turn.return_value = {'status': 'available', 'model_id': 'warm-model'}
     module = SimpleNamespace(__file__=str(source), SupervisorClient=Mock(return_value=client),
                              ProductionBackend=Mock(side_effect=AssertionError('frontend backend forbidden')))
+    monkeypatch.setattr('project_control.observer_analysis.bind_local_runtime', lambda: identity)
     monkeypatch.setattr('project_control.observer_analysis.importlib.import_module', lambda _: module)
     return module, client, status, state
 
@@ -118,19 +127,10 @@ def test_deadline_and_gpu_operator_pin(central, monkeypatch):
     assert client.run_observer_turn.call_args.args[0]['deadline_epoch'] <= deadline
 
 
-def _native_supervisor():
-    root = Path(os.environ.get('PROJECT_CONTROL_SKILLS_ROOT', '/home/tumlinson/.agents/skills'))
-    skill = root / 'local-coding-worker'
-    sys.path.insert(0, str(skill))
-    try:
-        return root, importlib.import_module('local_worker.supervisor')
-    finally:
-        sys.path.pop(0)
-
-
 def test_two_process_clients_share_unix_owner_and_total_ipc_deadline(tmp_path):
-    """Real SK client sockets, fake inference owner; no backend/model/GPU launch."""
-    skills, module = _native_supervisor()
+    """Receiver-bound clients share the warm fake owner; no model or GPU launch."""
+    identity = receiver_fixture()
+    receiver = identity.root
     state = tmp_path / 'state'
     runtime = state / 'runtime'
     runtime.mkdir(parents=True, mode=0o700)
@@ -141,8 +141,8 @@ def test_two_process_clients_share_unix_owner_and_total_ipc_deadline(tmp_path):
     stop = threading.Event()
     status = {'observer_contract': 'PC-OBSERVER-SUPERVISOR/1',
               'runtime_identity': {'fixture': True}, 'observer_only': True,
-              'supervisor_pid': os.getpid(), 'supervisor_process_start': module.process_identity(os.getpid())['process_start'],
-              'source_sha256': hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest(),
+              'supervisor_pid': os.getpid(), 'supervisor_process_start': Path('/proc/self/stat').read_text().split(')')[-1].split()[19],
+              'source_sha256': hashlib.sha256((identity.package_root / 'supervisor.py').read_bytes()).hexdigest(),
               'service_state_root': str(state), 'runtime_root': str(runtime), 'allowed_gpu_uuids': [],
               'slots': [{'server_pid': 987, 'owner_id': 'single-owner', 'model_id': 'warm', 'model_sha256': 'a' * 64}]}
     calls = []
@@ -176,7 +176,18 @@ def test_two_process_clients_share_unix_owner_and_total_ipc_deadline(tmp_path):
     thread.start()
     script = '''
 import json, time
+import os, sys
+from pathlib import Path
 from unittest.mock import Mock
+import project_control.observer_analysis as observer_analysis
+from project_control.runtime_binding import _verify_receiver
+receiver = Path(os.environ['PA1_RECEIVER_ROOT'])
+identity = _verify_receiver(receiver)
+for name in tuple(sys.modules):
+ if name == 'local_worker' or name.startswith('local_worker.'):
+  del sys.modules[name]
+sys.path.insert(0, str(receiver))
+observer_analysis.bind_local_runtime = lambda: identity
 import local_worker.supervisor as module
 module.bind_canonical_runtime = lambda root: (object(), {'fixture': True})
 module.validate_canonical_runtime = lambda identity: None
@@ -188,10 +199,10 @@ provider.close()
 assert not module.ProductionBackend.called
 print(json.dumps(result))
 '''
-    environment = dict(os.environ, PROJECT_CONTROL_SKILLS_ROOT=str(skills),
+    environment = dict(os.environ, PA1_RECEIVER_ROOT=str(receiver),
                        PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=str(state),
-                       PYTHONPATH=os.pathsep.join([str(skills / 'local-coding-worker'), str(Path(__file__).resolve().parents[2] / 'src')]))
-    for key in ('PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256', 'PROJECT_CONTROL_OBSERVER_GPU_UUIDS'):
+                       PYTHONPATH=os.pathsep.join([str(receiver), str(Path(__file__).resolve().parents[2] / 'src')]))
+    for key in ('PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256', 'PROJECT_CONTROL_OBSERVER_GPU_UUIDS', 'PROJECT_CONTROL_SKILLS_ROOT'):
         environment.pop(key, None)
     try:
         results = []

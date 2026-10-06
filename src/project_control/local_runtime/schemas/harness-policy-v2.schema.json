@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "CORE4-HARNESS-POLICY/2",
+  "type": "object",
+  "required": ["format", "sandbox", "approval_mode", "allowed_tools", "max_session_turns", "max_wall_time_seconds", "max_tool_calls", "recursive_agents"],
+  "properties": {
+    "format": {"const": "CORE4-HARNESS-POLICY/2"},
+    "sandbox": {"const": true},
+    "approval_mode": {"const": "plan"},
+    "allowed_tools": {"type": "array", "items": {"enum": ["read_file", "list_directory", "glob", "grep_search"]}, "minItems": 1, "uniqueItems": true},
+    "max_session_turns": {"type": "integer", "minimum": 1},
+    "max_wall_time_seconds": {"type": "integer", "minimum": 1},
+    "max_tool_calls": {"type": "integer", "minimum": 0},
+    "recursive_agents": {"const": false}
+  },
+  "additionalProperties": false
+}

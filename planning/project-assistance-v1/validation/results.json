@@ -1,0 +1,37 @@
+{
+  "format": "pa1-deliverable-validation/1",
+  "date": "2026-10-06",
+  "package_checks": {
+    "status": "passed",
+    "scope": "package_integrity_and_structural_validation_only",
+    "files_hashed": 40,
+    "sources": 38,
+    "outcomes": 9,
+    "native_task_records": 11,
+    "acceptance_cases": 40,
+    "eval_cases": 12,
+    "python_files_parsed": 6,
+    "local_markdown_links_checked": 18,
+    "native_validation": "not_run_requires_trusted_installed_kernel",
+    "product_acceptance": "not_executed",
+    "live_model_or_gpu": "not_executed",
+    "plans_applied": false
+  },
+  "synthetic_baseline": {
+    "status": "passed",
+    "tests": 4,
+    "scope": "Only supplied synthetic even/empty baseline cases; not Project Control or model behavior."
+  },
+  "fixture_assessor_ground_truth": {
+    "odd_tail_case_actual": 5,
+    "odd_tail_case_contract_expected": 10,
+    "synthetic_break_even": 24,
+    "qualification": "Fixture data/code verification only; no real measurement."
+  },
+  "tamper_rejection_self_test": "passed_in_isolated_copy",
+  "native_todo_validation": "not_run_canonical_kernel_not_installed_in_artifact_environment",
+  "product_acceptance_cases": "all_planned_not_executed",
+  "live_model_gpu_sandbox_qualification": "not_performed",
+  "remote_mutations": "none_requested_or_performed",
+  "plans_applied": false
+}

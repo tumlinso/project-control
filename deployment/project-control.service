@@ -1,26 +1,25 @@
 [Unit]
-Description=Project Control architectural observatory
+Description=Project Control unified HTTP observer
 After=network.target
 
 [Service]
 Type=simple
 WorkingDirectory=%h/project-control
-Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis
-Environment=PROJECT_CONTROL_PERFORMANCE_PROBE_STATE_DIR=%h/.cache/project-control/performance-probe
-Environment=TODO_BACKGROUND_HOST_RUNTIME_DIR=%t/codex-todo-orchestrator
-ExecStart=%h/.local/bin/uv run --frozen project-control serve
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/as1-observer-analysis
+Environment=TODO_BACKGROUND_HOST_RUNTIME_DIR=/tmp/codex-todo-orchestrator-1000
+ExecStart=%h/.local/bin/project-control serve observer --host 127.0.0.1 --port 8768
 Restart=on-failure
 RestartSec=2
 UMask=0077
-RuntimeDirectory=codex-todo-orchestrator
-RuntimeDirectoryMode=0700
-RuntimeDirectoryPreserve=yes
+KillMode=control-group
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
+PrivateTmp=false
+ProtectSystem=full
 ProtectHome=read-only
-ReadWritePaths=%h/.cache/project-control %h/.config/project-control
+ReadWritePaths=%h/.cache/project-control %h/.local/state/project-control %h/.config/project-control
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
 WantedBy=default.target
+Alias=project-control-as1.service

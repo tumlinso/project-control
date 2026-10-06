@@ -111,6 +111,55 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("codex")
     commands.add_parser("mutator")
 
+    assistance = commands.add_parser("assistance", help="use demand-only local assistance controls")
+    assistance_commands = assistance.add_subparsers(dest="assistance_command", required=True)
+    assistance_commands.add_parser("status")
+    goal = assistance_commands.add_parser("goal")
+    goal.add_argument("project")
+    goal.add_argument("text")
+    focus = assistance_commands.add_parser("focus")
+    focus.add_argument("project")
+    focus.add_argument("text")
+    focus.add_argument("--repository")
+    focus.add_argument("--path", action="append", default=[])
+    focus.add_argument("--automatic", action="store_true",
+                       help="explicitly permit bounded automatic preparation")
+    focus.add_argument("--for", dest="duration")
+    quiet = assistance_commands.add_parser("quiet")
+    quiet_window = quiet.add_mutually_exclusive_group()
+    quiet_window.add_argument("--for", dest="duration")
+    quiet_window.add_argument("--until")
+    quiet_window.required = True
+    release = assistance_commands.add_parser("release")
+    release.add_argument("--for", dest="duration")
+    release.add_argument("--reason", default="operator-requested")
+    resume = assistance_commands.add_parser("resume")
+    resume_group = resume.add_mutually_exclusive_group(required=True)
+    resume_group.add_argument("--quiet", action="store_true")
+    resume_group.add_argument("--release", action="store_true")
+    resume_group.add_argument("--all", action="store_true")
+    dismiss = assistance_commands.add_parser("dismiss")
+    dismiss.add_argument("project")
+    dismiss.add_argument("--repository")
+    dismiss.add_argument("focus_id")
+    dismiss.add_argument("fingerprint")
+    dismiss.add_argument("--reason", default="operator-dismissed")
+    accept = assistance_commands.add_parser("accept")
+    accept.add_argument("project")
+    accept.add_argument("note_id")
+    handoff = assistance_commands.add_parser("handoff")
+    handoff.add_argument("project")
+    handoff.add_argument("--focus-id")
+    handoff.add_argument("--repository")
+    ask = assistance_commands.add_parser("ask")
+    ask.add_argument("question")
+    ask.add_argument("--project", required=True)
+    run = assistance_commands.add_parser("run", help="explicitly run one local question")
+    run.add_argument("question")
+    run.add_argument("--project", required=True)
+    chat = assistance_commands.add_parser("chat")
+    chat.add_argument("--project")
+
     plan = commands.add_parser("plan")
     plan_commands = plan.add_subparsers(dest="plan_command", required=True)
     compile_plan = plan_commands.add_parser("compile")
@@ -316,6 +365,209 @@ def _plan_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _assistance_composition(project: str):
+    """Build the existing observer composition; callers start it only to ask."""
+    from .app import Runtime
+    from .as1_surface import compose_surface
+    from .profiles import MCPProfile
+
+    config = load_config()
+    if project not in config.workspaces:
+        raise PermissionError("project_not_registered")
+    composition = compose_surface(Runtime(config), MCPProfile.OBSERVER)
+    return config, composition
+
+
+def _assistance_repository(config, project: str, repository: str | None = None) -> tuple[str, Path]:
+    workspace = config.workspaces.get(project)
+    if workspace is None:
+        raise PermissionError("project_not_registered")
+    alias = repository or workspace.authority_repository
+    if alias is None:
+        if len(workspace.repositories) != 1:
+            raise ValueError("project_requires_authority_repository_or_explicit_repository")
+        alias = next(iter(workspace.repositories))
+    if alias not in workspace.repositories:
+        raise ValueError("repository_not_registered_for_project")
+    return alias, workspace.repositories[alias].root
+
+
+def _assistance_ask(composition, question: str, project: str) -> dict[str, object]:
+    """An explicit ask starts the ordinary two-worker broker for this process."""
+    from .as1_surface import public_inquiry
+
+    composition.start()
+    scope = composition.scope(project)
+    value = composition.jobs.inquire(question=question, access_scope=scope)
+    if value.get("status") not in {"completed", "partial"}:
+        return public_inquiry(value)
+    job = value.get("job")
+    if not isinstance(job, dict):
+        return {"status": "unavailable", "reason": "answer_unavailable"}
+    composition.jobs.reconcile()
+    reference = job.get("result_packet")
+    result = composition.store.lookup(reference, access_scope=scope) if reference else None
+    if not result or result.status != "ok":
+        return {"status": "unavailable", "reason": "answer_unavailable"}
+    return public_inquiry({**result.packet.payload, "status": value["status"],
+        "packet_id": result.packet.packet_id, "alias": result.packet.alias,
+        "evidence_packets": job.get("evidence_packets", []),
+        "unresolved_questions": job.get("unresolved_questions", []),
+        "sources": [source.model_dump(exclude_none=True) for source in result.packet.sources]})
+
+
+def _assistance_chat(args) -> int:
+    """Line chat has no resident lease; ordinary lines are explicit questions."""
+    from .assistance.operator import AssistanceOperator
+    operator = AssistanceOperator()
+    project = args.project
+    composition = None
+    print("Assistance chat. Use /status, /quiet DURATION, /release, /resume quiet|release|all, /accept NOTE_ID, /ask TEXT, /exit.")
+    try:
+        while True:
+            try:
+                line = input("you> ").strip()
+            except EOFError:
+                break
+            if not line:
+                continue
+            if line in {"/exit", "/quit"}:
+                break
+            if line == "/status":
+                print(json.dumps(operator.status(), sort_keys=True))
+                continue
+            if line.startswith("/quiet"):
+                fields = line.split(maxsplit=1)
+                from .assistance.operator import parse_duration
+                if len(fields) != 2:
+                    print("usage: /quiet DURATION")
+                    continue
+                until = operator.clock() + parse_duration(fields[1])
+                print(json.dumps(operator.quiet(until=until), sort_keys=True))
+                continue
+            if line == "/release":
+                if composition is None:
+                    config = load_config()
+                    if config.workspaces:
+                        _, composition = _assistance_composition(
+                            project or sorted(config.workspaces)[0])
+                print(json.dumps(operator.request_release(
+                    job_service=composition.jobs if composition is not None else None), sort_keys=True))
+                continue
+            if line.startswith("/resume "):
+                selection = line.split(maxsplit=1)[1]
+                print(json.dumps(operator.resume(quiet=selection in {"quiet", "all"},
+                    release=selection in {"release", "all"}), sort_keys=True))
+                continue
+            if line.startswith("/accept "):
+                fields = line.split(maxsplit=1)
+                if not project:
+                    print("select a registered project with --project")
+                    continue
+                config = load_config()
+                result = operator.accept_suggestion(project=project, note_id=fields[1],
+                                                    trusted_projects=set(config.workspaces))
+                print(json.dumps(result, sort_keys=True))
+                continue
+            if line == "/ask" or line.startswith("/ask "):
+                line = line[4:].strip()
+                if not line:
+                    print("question required")
+                    continue
+            if line.startswith("/"):
+                print("unknown command")
+                continue
+            if not project:
+                print("select a registered project with --project")
+                continue
+            if composition is None:
+                _, composition = _assistance_composition(project)
+            result = _assistance_ask(composition, line, project)
+            print(json.dumps(result, sort_keys=True))
+    finally:
+        # No release claim is made here; dispatcher shutdown is only process
+        # cleanup, and any unresolved owner state remains durable/pending.
+        if composition is not None:
+            composition.jobs.shutdown(timeout=1)
+    return 0
+
+
+def _assistance_command(args) -> int:
+    from .assistance.operator import AssistanceOperator, parse_duration, parse_utc_timestamp
+
+    operator = AssistanceOperator()
+    command = args.assistance_command
+    if command == "status":
+        result = operator.status()
+    elif command == "chat":
+        return _assistance_chat(args)
+    elif command in {"goal", "focus", "dismiss", "accept", "handoff"}:
+        config = load_config()
+        projects = set(config.workspaces)
+        if command == "goal":
+            result = operator.set_goal(project=args.project, text=args.text, trusted_projects=projects)
+        elif command == "focus":
+            automatic_seconds = None
+            if args.automatic:
+                if not args.duration or not args.path:
+                    raise ValueError("automatic_focus_requires_paths_and_bounded_for_duration")
+                automatic_seconds = parse_duration(args.duration)
+                if automatic_seconds > 86400:
+                    raise ValueError("automatic_focus_exceeds_24_hour_ceiling")
+            elif args.duration:
+                raise ValueError("--for_requires_explicit_--automatic")
+            repository, trusted_root = _assistance_repository(config, args.project, args.repository)
+            result = operator.set_focus(project=args.project, text=args.text,
+                trusted_projects=projects, trusted_root=trusted_root, trusted_repository=repository,
+                automatic_seconds=automatic_seconds, source_paths=args.path)
+        elif command == "dismiss":
+            repository, trusted_root = _assistance_repository(config, args.project, args.repository)
+            result = operator.dismiss(project=args.project, focus_id=args.focus_id,
+                fingerprint=args.fingerprint, trusted_projects=projects,
+                trusted_root=trusted_root, trusted_repository=repository, reason=args.reason)
+        elif command == "accept":
+            result = operator.accept_suggestion(project=args.project, note_id=args.note_id,
+                                                trusted_projects=projects)
+        else:
+            repository, trusted_root = _assistance_repository(config, args.project, args.repository)
+            result = operator.handoff(project=args.project, focus_id=args.focus_id,
+                trusted_projects=projects, trusted_root=trusted_root, trusted_repository=repository)
+    elif command == "quiet":
+        until = (operator.clock() + parse_duration(args.duration) if args.duration else
+                 parse_utc_timestamp(args.until) if args.until else None)
+        result = operator.quiet(until=until)
+    elif command == "release":
+        config = load_config()
+        until = operator.clock() + parse_duration(args.duration) if args.duration else None
+        composition = None
+        try:
+            if not config.workspaces:
+                raise ValueError("no_registered_projects_for_observer_runtime")
+            _, composition = _assistance_composition(sorted(config.workspaces)[0])
+            result = operator.request_release(job_service=composition.jobs, until=until,
+                                              reason=args.reason)
+        except (OSError, RuntimeError, ValueError, PermissionError) as exc:
+            result = operator.request_release(until=until, reason=args.reason)
+            result["owner_setup"] = "unavailable"
+            result["owner_setup_reason"] = type(exc).__name__
+        finally:
+            if composition is not None:
+                composition.jobs.shutdown(timeout=1)
+    elif command == "resume":
+        result = operator.resume(quiet=args.quiet or args.all,
+                                 release=args.release or args.all)
+    elif command in {"ask", "run"}:
+        _config, composition = _assistance_composition(args.project)
+        try:
+            result = _assistance_ask(composition, args.question, args.project)
+        finally:
+            composition.jobs.shutdown(timeout=1)
+    else:
+        raise ValueError("unsupported_assistance_command")
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
 def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
     terminal_sandbox = BubblewrapSandbox()
     probe = terminal_sandbox.probe_diagnostics()
@@ -434,6 +686,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _serve_profile("codex", host=None, port=None)
         if args.command == "mutator":
             return _serve_profile("mutator", host=None, port=None)
+        if args.command == "assistance":
+            return _assistance_command(args)
         if args.command == "plan":
             return _plan_command(args)
         if args.command == "migrate-repository":

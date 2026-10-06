@@ -1,0 +1,263 @@
+{
+  "files": {
+    "docs/pa1/rollback/local-coding-worker-portable.tar.gz": "91ed6ba26758f026ac2d4a57a378eb0f5382539232453ff1f362df8fdddeb099",
+    "docs/pa1/rollback/operator-bundle/apply_supplemental.py": "e7e1ddcd3d5b979a8472c9da9ae2a09159cbd0cf3ab858cca53ea445624e2946",
+    "docs/pa1/rollback/operator-bundle/operator-bundle-manifest.json": "9d374317fa46d181e35ca95b3e2d0e0cd4e8a595b9b4ba9a5d7e4ce89cf8b2a4",
+    "docs/pa1/rollback/runtime-transition.json": "4ee36eb664a23e1a9ba3cfcc393cf5853f4034d861e49f38fe217c9004addf9c",
+    "integrations/as1_release.py": "907cc845bca068f84e74af661d9a0bfe9660cb3adb37a90bf9f539093c51c9b6",
+    "integrations/native-skill-catalog.json": "a958436708614e76616be408804c088e19d3d4ce2a8e152ec2d40cd0700cad9e",
+    "tests/assistance/test_lcw_transition.py": "e5431e561dac6686c29a71c334ba011e6a58e0f20a6d529663383cf45dab6ee3"
+  },
+  "format": "pa1-skills-transition-native-acceptance/1",
+  "gates": [
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "SK-PA1-HANDOFF-TEST",
+      "last_run_at": "2026-10-06T16:32:55Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "SK-PA1-HANDOFF",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "SK-PA1-RETIRE-TEST",
+      "last_run_at": "2026-10-06T18:41:32Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "SK-PA1-RETIRE",
+      "type": "command"
+    }
+  ],
+  "observed_at_utc": "2026-10-06T18:42:31.340626+00:00",
+  "receiver_fingerprint": "1860a5d64662da3379d8f9b4823813321ed6cf1f7a78fbb7c5b66cbcd3d684cb",
+  "receiver_manifest_sha256": "576aaf8b80d58df9040e2c3d6058e95a7252227890068b4b9d49c0c0f88add4a",
+  "scope": "Installed Skills forwarding/archive/consumer transition; source and fake CPU protocol tests only. Current PC QUALIFY must verify receiver before promotion.",
+  "semantic_revision": 1031,
+  "source_root": "/home/tumlinson/.agents/skills",
+  "tasks": [
+    {
+      "active_claim": null,
+      "ancestor_chain": [],
+      "artifacts": [],
+      "attention_eligible": false,
+      "attention_reason": null,
+      "authoritative_ready": false,
+      "created_at": "2026-10-06T15:27:37Z",
+      "current_program_eligible": true,
+      "current_relevance": "reference",
+      "dependencies": [],
+      "effective_state": "done",
+      "execution": "closed",
+      "frontier_eligible": false,
+      "heuristic_program_id": null,
+      "id": "SK-PA1-0000",
+      "kind": "epic",
+      "next_action": "",
+      "objective": "Aggregate the verified outcome results; this record is not an initial coordinator gate. Complete last after the outcome and cross-authority evidence is accepted.",
+      "parallel_policy": "serial",
+      "parent_id": null,
+      "priority": 10,
+      "program_basis": "parent_hierarchy",
+      "program_root_id": "SK-PA1-0000",
+      "raw_result": "validated",
+      "raw_status": "done",
+      "reason_codes": [
+        "successful_terminal_result"
+      ],
+      "revision": 1031,
+      "scopes": [],
+      "tags": [],
+      "terminal": true,
+      "title": "Project Assistance v1: bounded Skills runtime transition",
+      "updated_at": "2026-10-06T18:42:13Z"
+    },
+    {
+      "active_claim": null,
+      "ancestor_chain": [
+        "SK-PA1-0000"
+      ],
+      "artifacts": [],
+      "attention_eligible": false,
+      "attention_reason": null,
+      "authoritative_ready": false,
+      "created_at": "2026-10-06T15:27:37Z",
+      "current_program_eligible": true,
+      "current_relevance": "reference",
+      "dependencies": [],
+      "effective_state": "done",
+      "execution": "closed",
+      "frontier_eligible": false,
+      "heuristic_program_id": null,
+      "id": "SK-PA1-HANDOFF",
+      "kind": "task",
+      "next_action": "",
+      "objective": "Inventory runtime files, policies, consumers and source identities required for Project Control ownership; preserve active Skills edits and domain guidance. Produce an auditable handoff without enabling dormant coding or deleting the supplier prematurely.",
+      "parallel_policy": "serial",
+      "parent_id": "SK-PA1-0000",
+      "priority": 100,
+      "program_basis": "parent_hierarchy",
+      "program_root_id": "SK-PA1-0000",
+      "raw_result": "validated",
+      "raw_status": "done",
+      "reason_codes": [
+        "successful_terminal_result"
+      ],
+      "revision": 1022,
+      "scopes": [
+        {
+          "mode": "exclusive",
+          "path": "docs"
+        },
+        {
+          "mode": "exclusive",
+          "path": "integrations"
+        },
+        {
+          "mode": "exclusive",
+          "path": "local-coding-worker"
+        },
+        {
+          "mode": "exclusive",
+          "path": "planning/project-assistance-v1"
+        },
+        {
+          "mode": "exclusive",
+          "path": "tests"
+        },
+        {
+          "mode": "forbidden",
+          "path": ".todo-orchestrator"
+        },
+        {
+          "mode": "forbidden",
+          "path": "todo-status.md"
+        },
+        {
+          "mode": "forbidden",
+          "path": "todos"
+        },
+        {
+          "mode": "read",
+          "path": "cpp-context-compiler"
+        },
+        {
+          "mode": "read",
+          "path": "cuda"
+        },
+        {
+          "mode": "read",
+          "path": "todo-orchestrator"
+        }
+      ],
+      "tags": [],
+      "terminal": true,
+      "title": "Prepare a bounded local-worker supplier handoff",
+      "updated_at": "2026-10-06T16:32:55Z"
+    },
+    {
+      "active_claim": null,
+      "ancestor_chain": [
+        "SK-PA1-0000"
+      ],
+      "artifacts": [],
+      "attention_eligible": false,
+      "attention_reason": null,
+      "authoritative_ready": false,
+      "created_at": "2026-10-06T15:27:37Z",
+      "current_program_eligible": true,
+      "current_relevance": "reference",
+      "dependencies": [
+        {
+          "prerequisite_task_id": "SK-PA1-HANDOFF",
+          "type": "task"
+        }
+      ],
+      "effective_state": "done",
+      "execution": "closed",
+      "frontier_eligible": false,
+      "heuristic_program_id": null,
+      "id": "SK-PA1-RETIRE",
+      "kind": "task",
+      "next_action": "",
+      "objective": "After receiver parity, repoint authorized consumers and catalog/bootstrap guidance, keep one canonical runtime, and retain historical/dormant coding material with truthful status. Preserve Todo/CUDA/ctxpp behavior and verified release identities.",
+      "parallel_policy": "serial",
+      "parent_id": "SK-PA1-0000",
+      "priority": 99,
+      "program_basis": "parent_hierarchy",
+      "program_root_id": "SK-PA1-0000",
+      "raw_result": "validated",
+      "raw_status": "done",
+      "reason_codes": [
+        "successful_terminal_result"
+      ],
+      "revision": 1029,
+      "scopes": [
+        {
+          "mode": "exclusive",
+          "path": "cuda/scripts"
+        },
+        {
+          "mode": "exclusive",
+          "path": "docs"
+        },
+        {
+          "mode": "exclusive",
+          "path": "integrations"
+        },
+        {
+          "mode": "exclusive",
+          "path": "local-coding-worker"
+        },
+        {
+          "mode": "exclusive",
+          "path": "planning/project-assistance-v1"
+        },
+        {
+          "mode": "exclusive",
+          "path": "tests"
+        },
+        {
+          "mode": "forbidden",
+          "path": ".todo-orchestrator"
+        },
+        {
+          "mode": "forbidden",
+          "path": "todo-status.md"
+        },
+        {
+          "mode": "forbidden",
+          "path": "todos"
+        },
+        {
+          "mode": "read",
+          "path": "cpp-context-compiler"
+        },
+        {
+          "mode": "read",
+          "path": "todo-orchestrator"
+        }
+      ],
+      "tags": [],
+      "terminal": true,
+      "title": "Complete compatibility forwarding and retire duplicate runtime ownership",
+      "updated_at": "2026-10-06T18:41:32Z"
+    }
+  ]
+}

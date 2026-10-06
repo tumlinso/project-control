@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tumlinso.dev/schemas/core4-model-cache-v1.schema.json",
+  "title": "CORE4 persistent model cache manifest",
+  "type": "object",
+  "required": ["format", "schema_version", "candidate_id", "payload_sha256", "payload_bytes", "source_manifest", "cache_metadata"],
+  "properties": {
+    "format": {"const": "CORE4-MODEL-CACHE/1"},
+    "schema_version": {"const": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "payload_bytes": {"type": "integer", "minimum": 1},
+    "source_manifest": {"type": "object"},
+    "cache_metadata": {
+      "type": "object",
+      "required": ["inode", "mtime_ns"],
+      "properties": {
+        "inode": {"type": "integer", "minimum": 1},
+        "mtime_ns": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

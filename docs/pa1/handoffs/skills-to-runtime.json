@@ -1,0 +1,13 @@
+{
+  "format": "pa1-cross-handoff/1",
+  "producer": "SK-PA1-HANDOFF",
+  "producer_revision": 1022,
+  "producer_result": "validated",
+  "consumer": "PC-PA1-RUNTIME",
+  "consumer_claim_revision": 943,
+  "manifest": "/home/tumlinson/.agents/skills/docs/pa1/runtime-handoff.json",
+  "manifest_sha256": "d522eb5f138c31b5caa773fd9d3daa256a647f85dff068f54a9efe9e6b2ad904",
+  "supplier_source_commit": "95818340006dd50ef233d7c67ddca2da8eb08bc4",
+  "root_agreement": "docs/pa1/runtime-ownership.md",
+  "verification": "Actual manifest re-read and handed to receiver workers; supplier hashes must verify before each transfer. No supplier removal or cutover before receiver parity."
+}

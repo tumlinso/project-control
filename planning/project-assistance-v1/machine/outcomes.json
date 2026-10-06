@@ -1,0 +1,355 @@
+{
+  "format": "pa1-outcomes/1",
+  "scope": "Nine coarse outcome tasks, not individual agent actions.",
+  "outcomes": [
+    {
+      "id": "PC-PA1-FAST",
+      "repository": "project-control",
+      "title": "Establish fast source-bound development and useful-answer evaluation",
+      "difficulty": "medium",
+      "objective": "Deliver an isolated source-mode worker/broker test seam, visible-trace replay and a small warm-model comparison path, with baseline identities and consequential adoption decisions recorded. Prevent production rebuilds from becoming the tuning loop.",
+      "depends_on": [],
+      "scopes": [
+        "scripts",
+        "tests",
+        "docs",
+        "planning/project-assistance-v1",
+        "src/project_control"
+      ],
+      "read_scope": [
+        "README.md",
+        "pyproject.toml",
+        "packaging",
+        "deployment"
+      ],
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "deliverables": [
+        "Source-import and isolated-state assertions",
+        "Deterministic orchestration fixtures and visible trace replay",
+        "Fixed quality cases plus held-out variants",
+        "Bounded experiment ledger and decision capture"
+      ],
+      "acceptance_summary": "Request-only candidate changes can be exercised without rebuilding/deploying production; failures are classified by layer and counted tests bind real source.",
+      "gate_module": "tests.assistance.test_fast_loop"
+    },
+    {
+      "id": "PC-PA1-RUNTIME",
+      "repository": "project-control",
+      "title": "Absorb the owned local-worker runtime without changing its contracts",
+      "difficulty": "medium-high",
+      "objective": "Move PC-owned observer/inference machinery and relevant tests into Project Control using a verified supplier inventory, update consumers and release bindings, and prove baseline parity before behavioral expansion. Keep one canonical implementation and preserve independent Todo/CUDA/ctxpp authority.",
+      "depends_on": [
+        "PC-PA1-FAST"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "scripts",
+        "packaging",
+        "deployment",
+        "pyproject.toml",
+        "docs",
+        "planning/project-assistance-v1"
+      ],
+      "read_scope": [
+        "README.md"
+      ],
+      "sources": [
+        "S01",
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S23"
+      ],
+      "deliverables": [
+        "Canonical runtime package and compatibility seam",
+        "Updated source/release/entry-point bindings",
+        "Consumer and policy migration manifest",
+        "Parity and denied-authority tests"
+      ],
+      "acceptance_summary": "PC no longer needs mutable Skills runtime source for its owned inference machinery; old paths have one implementation, compatibility and pinned qualification.",
+      "gate_module": "tests.assistance.test_runtime_binding"
+    },
+    {
+      "id": "PC-PA1-FRAMES",
+      "repository": "project-control",
+      "title": "Make continuations suspend, wake and release resources correctly",
+      "difficulty": "high",
+      "objective": "Extend the existing private broker with bounded continuations, typed waits and wake-up reconciliation. Release leases during dependency or long-effect waits; retain generation/effect fencing, truthful deadlines, two-slot capacity and verified GPU eviction.",
+      "depends_on": [
+        "PC-PA1-RUNTIME"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "docs",
+        "planning/project-assistance-v1"
+      ],
+      "read_scope": [
+        "scripts",
+        "packaging",
+        "deployment"
+      ],
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "deliverables": [
+        "Slice/continuation protocol and compatible state persistence",
+        "Bounded wait graph and admission accounting",
+        "Independent deadline/cleanup supervision",
+        "Trusted request-local policy selection",
+        "Power-control state core and resource veto"
+      ],
+      "acceptance_summary": "Two parents can suspend for children without deadlock or occupied model leases; restart, expiry, late results and cleanup races remain correct.",
+      "gate_module": "tests.assistance.test_frames"
+    },
+    {
+      "id": "PC-PA1-KNOWLEDGE",
+      "repository": "project-control",
+      "title": "Serve goal-linked prepared context with valid evidence and freshness",
+      "difficulty": "medium-high",
+      "objective": "Add bounded assistant-owned notes, goals and experiment references using existing packets and trace determinants. Integrate access-filtered retrieval into current information paths without altering exact cache behavior or claiming canonical Todo publication.",
+      "depends_on": [
+        "PC-PA1-FRAMES"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "docs",
+        "planning/project-assistance-v1"
+      ],
+      "read_scope": [
+        "README.md"
+      ],
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "deliverables": [
+        "Derived notebook provider and source-based invalidation",
+        "User-owned focus/goal cards with provenance",
+        "Evidence retention pins independent of recent answers",
+        "Bounded relevant context in existing discovery/evidence paths"
+      ],
+      "acceptance_summary": "Useful context survives appropriate retention, stale material is explicit, unrelated changes avoid blanket invalidation, and inferred notes never become authority silently.",
+      "gate_module": "tests.assistance.test_knowledge"
+    },
+    {
+      "id": "PC-PA1-ASSIST",
+      "repository": "project-control",
+      "title": "Deliver focused automatic assistance and a thin conversational control plane",
+      "difficulty": "medium-high",
+      "objective": "Implement opted-in change-driven assistance, coalescing and no-change backoff over the existing graph, with foreground priority, power/quiet controls and a simple nonresident chat/CLI. Produce decision-relevant context and ideas rather than continuous summaries.",
+      "depends_on": [
+        "PC-PA1-FRAMES",
+        "PC-PA1-KNOWLEDGE"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "docs",
+        "planning/project-assistance-v1"
+      ],
+      "read_scope": [
+        "scripts",
+        "deployment",
+        "README.md"
+      ],
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "deliverables": [
+        "Time-bounded focus and deterministic attention selection",
+        "Change coalescing, no self-trigger and bounded queues",
+        "Quiet/demand-only/GPU-release CLI and chat proposals",
+        "Decision-linked findings and dismissible goal-aware handoff"
+      ],
+      "acceptance_summary": "An opted-in moving-source demonstration creates useful context; quiet survives restart and no-change input makes no model calls; UI waits never reserve a model.",
+      "gate_module": "tests.assistance.test_assistance"
+    },
+    {
+      "id": "PC-PA1-LAB",
+      "repository": "project-control",
+      "title": "Turn permitted questions into isolated tests and mechanism experiments",
+      "difficulty": "high",
+      "objective": "Reuse snapshot, patch and verification machinery for a service-owned scratch laboratory. Support bounded CPU tests and explicitly authorized GPU experiments that release inference resources first. Return empirical evidence and unpromoted candidates only.",
+      "depends_on": [
+        "PC-PA1-FRAMES",
+        "PC-PA1-KNOWLEDGE"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "scripts",
+        "docs",
+        "planning/project-assistance-v1"
+      ],
+      "read_scope": [
+        "packaging",
+        "deployment"
+      ],
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "deliverables": [
+        "Consistent dirty-source materialization with containment",
+        "Typed experiment request/receipt and bounded effect runner",
+        "CPU/GPU execution policy and owned-process cleanup",
+        "Counterexample/negative-result/patch evidence without canonical application"
+      ],
+      "acceptance_summary": "A new scratch test detects a fixture defect, resource and repository sentinels remain intact, and a GPU experiment never waits behind its own retained inference lease.",
+      "gate_module": "tests.assistance.test_lab"
+    },
+    {
+      "id": "PC-PA1-QUALIFY",
+      "repository": "project-control",
+      "title": "Qualify useful workflows and promote one reversible candidate",
+      "difficulty": "high",
+      "objective": "Measure prepared-context usefulness, foreground overhead, bounded real-model behavior and permitted GPU lifecycle on the integrated source. Preserve current MCP contracts, test migration/rollback and promote only a selected candidate with explicit activation settings.",
+      "depends_on": [
+        "PC-PA1-ASSIST",
+        "PC-PA1-LAB"
+      ],
+      "scopes": [
+        "src/project_control",
+        "tests",
+        "scripts",
+        "docs",
+        "packaging",
+        "deployment",
+        "planning/project-assistance-v1"
+      ],
+      "read_scope": [
+        "README.md",
+        "pyproject.toml"
+      ],
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "deliverables": [
+        "Executed acceptance matrix with source/measurement identity",
+        "Finite model-quality comparison and end-to-end usefulness report",
+        "MCP compatibility and old/new runtime isolation results",
+        "Candidate promotion/rollback and explicit feature activation record"
+      ],
+      "acceptance_summary": "The complete product is useful on representative cases and safe under lifecycle pressure; no fixture-only result is labeled live qualification and unsupported optional features stay off.",
+      "gate_module": "tests.assistance.test_release"
+    },
+    {
+      "id": "SK-PA1-HANDOFF",
+      "repository": "skills",
+      "title": "Prepare a bounded local-worker supplier handoff",
+      "difficulty": "medium",
+      "objective": "Inventory runtime files, policies, consumers and source identities required for Project Control ownership; preserve active Skills edits and domain guidance. Produce an auditable handoff without enabling dormant coding or deleting the supplier prematurely.",
+      "depends_on": [],
+      "scopes": [
+        "local-coding-worker",
+        "integrations",
+        "docs",
+        "planning/project-assistance-v1",
+        "tests"
+      ],
+      "read_scope": [
+        "cuda",
+        "todo-orchestrator",
+        "cpp-context-compiler"
+      ],
+      "sources": [
+        "S08",
+        "S09",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "deliverables": [
+        "Hashed runtime/policy/test inventory",
+        "Consumer inventory including CUDA qualification and native maintenance",
+        "Agreed temporary compatibility and catalog transition contract"
+      ],
+      "acceptance_summary": "The receiver can identify and move a bounded dependency closure without losing authority rules, policies or consumers.",
+      "gate_module": "tests.assistance.test_lcw_handoff"
+    },
+    {
+      "id": "SK-PA1-RETIRE",
+      "repository": "skills",
+      "title": "Complete compatibility forwarding and retire duplicate runtime ownership",
+      "difficulty": "medium",
+      "objective": "After receiver parity, repoint authorized consumers and catalog/bootstrap guidance, keep one canonical runtime, and retain historical/dormant coding material with truthful status. Preserve Todo/CUDA/ctxpp behavior and verified release identities.",
+      "depends_on": [
+        "SK-PA1-HANDOFF"
+      ],
+      "scopes": [
+        "local-coding-worker",
+        "integrations",
+        "docs",
+        "tests",
+        "cuda/scripts",
+        "planning/project-assistance-v1"
+      ],
+      "read_scope": [
+        "todo-orchestrator",
+        "cpp-context-compiler"
+      ],
+      "sources": [
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S19",
+        "S23"
+      ],
+      "deliverables": [
+        "Verified forwarders or explicitly retired imports",
+        "Updated catalog and installed guidance",
+        "No duplicate runtime implementation or authority cycle",
+        "Supplier transition tests and handoff receipt"
+      ],
+      "acceptance_summary": "The receiver-owned runtime and Skills consumers operate without duplicate pools or stale source bindings; no legacy mutation tool is silently reactivated.",
+      "gate_module": "tests.assistance.test_lcw_transition"
+    }
+  ]
+}

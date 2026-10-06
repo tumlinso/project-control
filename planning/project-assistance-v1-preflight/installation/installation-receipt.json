@@ -1,0 +1,86 @@
+{
+  "format": "pa1-installation-receipt/1",
+  "observed_at_utc": "2026-10-06T15:29:09.832954+00:00",
+  "status": "bootstrap_installed_execution_not_started",
+  "operator_device_and_inference_hold": "Active until explicit user authorization; preserve ongoing profiling pass.",
+  "ease_of_use_requirement": "Recorded in all task notes, referenced operator invariants, and both run charters; use clear role/budget defaults.",
+  "original_bundles": [
+    "/home/tumlinson/project-control/planning/project-assistance-v1",
+    "/home/tumlinson/.agents/skills/planning/project-assistance-v1"
+  ],
+  "original_bundle_hashes_match": true,
+  "authority_imports": {
+    "project-control": {
+      "project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7",
+      "before_revision": 923,
+      "after_revision": 924,
+      "task_ids_added": [
+        "PC-PA1-0000",
+        "PC-PA1-ASSIST",
+        "PC-PA1-FAST",
+        "PC-PA1-FRAMES",
+        "PC-PA1-KNOWLEDGE",
+        "PC-PA1-LAB",
+        "PC-PA1-QUALIFY",
+        "PC-PA1-RUNTIME"
+      ],
+      "task_ids_modified": [],
+      "plan_digest": "271e1bc4c614c3681786cc53dac5e52bc267e89aceb06eba6f3b73baa2fa77dc",
+      "run_ids_registered": [
+        "PC-PA1-RUN-1"
+      ],
+      "selected_run_preserved": "PC-PCE2-RUN-1",
+      "post_validation_valid": true,
+      "post_validation_remaining_additions": [],
+      "post_validation_remaining_modifications": [],
+      "provider_skew": {
+        "todo_export": 0,
+        "todo_semantic_state": 0,
+        "todo_status": 0,
+        "todo_workflow": 0
+      }
+    },
+    "skills": {
+      "project_uuid": "460468fe-ee72-4a64-a565-87cfec640d0c",
+      "before_revision": 1017,
+      "after_revision": 1018,
+      "task_ids_added": [
+        "SK-PA1-0000",
+        "SK-PA1-HANDOFF",
+        "SK-PA1-RETIRE"
+      ],
+      "task_ids_modified": [],
+      "plan_digest": "bc4e25fbf37cf612d4e9b45f5d7d0ae77ba6933c38e8600941e51135b9bf88b4",
+      "run_ids_registered": [
+        "SK-PA1-RUN-1"
+      ],
+      "selected_run_preserved": "SK-PCE2-RUN-1",
+      "post_validation_valid": true,
+      "post_validation_remaining_additions": [],
+      "post_validation_remaining_modifications": [],
+      "provider_skew": {
+        "todo_export": 0,
+        "todo_semantic_state": 0,
+        "todo_status": 0,
+        "todo_workflow": 0
+      }
+    }
+  },
+  "pa1_runs_selected": false,
+  "pa1_task_claims_or_dispatch_performed": false,
+  "device_side_compute_or_inference_performed": false,
+  "local_model_inference_performed": false,
+  "gpu_diagnostics_or_resource_changes_performed": false,
+  "service_restart_or_runtime_cutover_performed": false,
+  "source_implementation_performed": false,
+  "existing_dirty_edits_preserved": true,
+  "review_status": "Independent read-only review found no import defect; exact MCP task packets were budget-truncated. Root closed task-state coverage through supported read-only native semantic reads.",
+  "root_direct_execution_reason": "Bootstrap plan application and final authority acceptance are controller-owned workflow lifecycle; bounded source/preflight/review delegated to configured subagents.",
+  "skill_guidance": {
+    "path": "/home/tumlinson/.agents/skills/todo-orchestrator/SKILL.md",
+    "sha256": "0947d87f4ee1d0335460e14423ea712a68d52d8c1503e04dc21927c877a29ddb",
+    "relevance": "Explicit plan administration through the supported Project Control front door; preserve revisioned Todo authority and current work."
+  },
+  "all_11_native_tasks_unclaimed_unstarted_verified": true,
+  "native_task_state_evidence": "native-task-states-after-apply.json"
+}

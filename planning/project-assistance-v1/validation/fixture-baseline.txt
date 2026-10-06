@@ -1,0 +1,9 @@
+test_empty (test_pairs.PairSumBaseline.test_empty) ... ok
+test_negative_pair (test_pairs.PairSumBaseline.test_negative_pair) ... ok
+test_one_pair (test_pairs.PairSumBaseline.test_one_pair) ... ok
+test_two_pairs (test_pairs.PairSumBaseline.test_two_pairs) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+OK

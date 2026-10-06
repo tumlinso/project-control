@@ -1,0 +1,8 @@
+"""Explicit limits for the synthetic observer fixture, not production policy."""
+MAX_STEPS = 6
+INQUIRY_SECONDS = 300
+TURN_SECONDS = 60
+LEASE_SECONDS = 120
+VISIBLE_ANSWER_TOKENS = 2048
+VISIBLE_ANSWER_BYTES = 16384
+DIRECT_EXCERPT_BYTES = 49152

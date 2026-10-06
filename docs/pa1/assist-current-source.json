@@ -1,0 +1,43 @@
+{
+  "format": "pa1-assist-current-source/1",
+  "observed_at_utc": "2026-10-06T19:51:23.334231+00:00",
+  "status": "frozen_for_single_required_gate_retry",
+  "source_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+  "receiver_manifest_sha256": "6c86a5721f3a08b4651d7444198a89c963ad162023b869eede43a254e8708041",
+  "receiver_fingerprint": "9d5c01632e6fbad11649362d20edb7b74f6606c47348879487d96e4f9119e7e7",
+  "receiver_file_count": 42,
+  "files": {
+    "src/project_control/as1_jobs.py": "7a7dc18aece053fcbe9f11a453e4446ab36b6b8605cecfc8d69aa0d5e472eb90",
+    "src/project_control/as1_surface.py": "d278e709c8a3be1a66934e8cb939df3096953aa714b845886e1e43201d216773",
+    "src/project_control/cli.py": "5b317670dac55595db74ad6a507d7c7fc886d83f45d929ffe34e6e56d17e8a06",
+    "src/project_control/assistance/operator.py": "dfaf6821fc4105ffb6400030f8f57f4923e5771aa907b6c983424f9864d20b7c",
+    "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+    "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301",
+    "src/project_control/local_runtime/local_worker/observer_runtime.py": "1de425ca098aec1e44775be944654573d550860571e87564add4da5e09d5804b",
+    "tests/assistance/test_assistance.py": "50411f745586bf331af0e5b75b3ff8531f1b311534951cea9fe4b87598900f0d",
+    "tests/assistance/test_attention.py": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+    "tests/assistance/test_attention_surface.py": "f9d7b2d3880113cd26b895fd494ee1baf8611757db54b912eb81a022fd60ff3a",
+    "tests/assistance/test_automatic_broker.py": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+    "tests/assistance/test_worker_slices.py": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+    "tests/local_runtime/test_observer_deadlines.py": "d8c8c7dd08713a87478c9b5fd946e6b446429fac7b9305ad5e0f59ebf510ad2f",
+    "tests/as1/test_pc_as1_inquiry_cache.py": "a6cb6bbb2268a367573209da0df422022319c8eac5b671654437507f05927e6f",
+    "tests/as1/test_pc_as1_runtime_cache_epoch.py": "b83713c3ea8811898f3f9cdf4781c20daa4f6a4f7789272c816967463cc6454b"
+  },
+  "preservation": {
+    "initial_modified_files": 9,
+    "changed": []
+  },
+  "scope": "Source/CPU/fake-protocol only; live model/GPU validation and LAB deferred by operator hold. Automatic and notifications remain off; no candidate deployment.",
+  "review": "Configured Luna reviewer recommends acceptance after final captured-attempt and descriptor-root fixes.",
+  "first_native_gate_attempt": {
+    "passed": 7,
+    "failed": [
+      "PC-PA1-ASSIST-SURFACE",
+      "PC-PA1-ASSIST-INQUIRY-REGRESSION"
+    ],
+    "cause": "Source tests inherited installed release pins; fixture-only per-test clearing/restoration of exactly two variables. Inquiry also had a timing-sensitive diagnostics failure that passed isolated. Runtime guards unchanged.",
+    "surface_evidence": "cc212086-7b0d-4646-afd3-de580b54ded0",
+    "inquiry_evidence": "ac2d735c-3262-4088-8b6c-384f6ed40822",
+    "retry_policy": "One required-gate retry only; any further failure retained for resume per operator instruction."
+  }
+}

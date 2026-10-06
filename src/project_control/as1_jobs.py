@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import fcntl
-import importlib.util
+import importlib
 import json
 import os
 import math
@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .as1_contracts import DurableJob, Finding, InformationPacket, SourceLocator, canonical_digest
 from .as1_packets import SQLITE_CONNECTION_LOCK, mask_payload
+from .runtime_binding import bind_local_runtime, local_runtime_identity
 
 TERMINAL = {'completed', 'partial', 'failed', 'cancelled'}
 SHARED_TOOLS = frozenset({'overview', 'delta', 'frontier', 'search', 'evidence', 'impact', 'history', 'machine'})
@@ -29,6 +30,28 @@ WORKER_JOB_INPUT_MAX_BYTES = 256 * 1024
 WORKER_OBSERVATION_MAX_BYTES = 32768
 _DB_LOCK = threading.RLock()
 BUSY = 'Read-only analysis is pending. Continue reasoning or other useful work and poll with job_id; reuse request_id for retries.'
+
+
+def _load_assistance_components():
+    """Load PA1 extensions after this module is fully initialized.
+
+    The assistance package exports source-evaluation helpers that use
+    JobService. Delaying these imports avoids a package-init cycle while
+    retaining ordinary canonical module identities.
+    """
+    global ChildFrameSpec, FrameError, FrameStore, PowerPolicy, policy_for, ResourceController, trusted_operator_control
+    global automatic_read_scope_from_dependencies
+    if 'FrameStore' not in globals():
+        from .assistance.frames import (ChildFrameSpec as child_spec, FrameError as frame_error,
+            FrameStore as frame_store, automatic_read_scope_from_dependencies as seal_read_scope)
+        from .assistance.power import PowerPolicy as power_policy, trusted_operator_control as mint_operator_control
+        from .assistance.policies import policy_for as select_policy
+        from .assistance.resources import ResourceController as resource_controller
+        ChildFrameSpec, FrameError, FrameStore = child_spec, frame_error, frame_store
+        automatic_read_scope_from_dependencies = seal_read_scope
+        PowerPolicy, policy_for = power_policy, select_policy
+        ResourceController = resource_controller
+        trusted_operator_control = mint_operator_control
 
 # Operator diagnostics intentionally expose only stable, non-content classes.
 # Raw worker/backend reasons remain in the private durable job record.
@@ -78,28 +101,41 @@ def wire(value):
 
 
 class TrustedObserverFactory:
-    """Startup-owned installed Skills binding, verified before executing code.
+    """Startup-owned receiver runtime binding, verified before executing code.
 
-    Digests must come from the validated producer receipt, never tool arguments.
-    No ambient package is imported to establish this trust.
+    The validated receiver manifest supplies the file inventory; a producer
+    receipt may additionally pin the observer entrypoint digest. The legacy
+    Skills root is not a runtime source and cannot redirect this binding.
     """
-    def __init__(self, skills_root, expected_sha256, *, backend, roots, tools, skills=None):
-        self.root = Path(skills_root).resolve(strict=True)
-        path = self.root / 'local-coding-worker/local_worker/observer_runtime.py'
-        if hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
+    def __init__(self, runtime_root, expected_sha256, *, backend, roots, tools, skills=None,
+                 command_factory=None):
+        identity = bind_local_runtime(root=runtime_root)
+        path = identity.root / 'local_worker/observer_runtime.py'
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != expected_sha256:
             raise ValueError('observer runtime receipt mismatch')
-        self.path, self.digest = path, expected_sha256
+        self.runtime_identity = identity
+        self.root, self.path, self.digest = identity.root, path, digest
         self.backend, self.roots, self.tools = backend, tuple(roots), tools
         self.skills = dict(skills or {})
+        self.command_factory = command_factory
 
     def __call__(self, service, job):
-        if hashlib.sha256(self.path.read_bytes()).hexdigest() != self.digest:
-            raise ValueError('observer runtime changed after validation')
-        spec = importlib.util.spec_from_file_location('pc_trusted_observer_runtime', self.path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        command = module.ReadOnlyCommandRunner(self.roots,
-            packetize=lambda payload: service.observe(job.job_id, job.attempt, payload))
+        module = self.load_runtime_module()
+        # This capability comes from sealed broker metadata, never from the
+        # request or a model tool argument. Resolve it before user interaction
+        # so malformed automatic state fails closed before any read port runs.
+        automatic_read_scope = service.preparation_read_scope(job.job_id, access_scope=job.scope,
+            expected_attempt=job.attempt)
+        if automatic_read_scope is not None:
+            if not callable(self.command_factory):
+                raise RuntimeError('automatic_selected_read_adapter_unavailable')
+            command = self.command_factory(service, job, automatic_read_scope)
+            if not callable(getattr(command, 'run', None)):
+                raise RuntimeError('automatic_selected_read_adapter_invalid')
+        else:
+            command = module.ReadOnlyCommandRunner(self.roots,
+                packetize=lambda payload: service.observe(job.job_id, job.attempt, payload))
         backend = self.backend
         # The legacy PC provider exposes investigate_turn rather than the port name.
         class Adapter:
@@ -142,6 +178,19 @@ class TrustedObserverFactory:
         return module.ObserverWorkerPort(Adapter(), command=command, tools=tools,
             fence=fence, checkpoint=checkpoint)
 
+    def load_runtime_module(self):
+        """Return the single canonical observer module after rechecking its source."""
+        identity = bind_local_runtime(root=self.runtime_identity.root)
+        if identity.fingerprint != self.runtime_identity.fingerprint:
+            raise ValueError('observer runtime changed after validation')
+        if hashlib.sha256(self.path.read_bytes()).hexdigest() != self.digest:
+            raise ValueError('observer runtime changed after validation')
+        module = importlib.import_module('local_worker.observer_runtime')
+        loaded_path = Path(str(getattr(module, '__file__', ''))).resolve(strict=True)
+        if loaded_path != self.path.resolve(strict=True):
+            raise ValueError('observer runtime imported from an unexpected path')
+        return module
+
 
 class JobService:
     """A process-lived dispatcher explicitly started by its host lifespan.
@@ -154,6 +203,7 @@ class JobService:
                  lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None,
                  inquiry_context_provider=None, legacy_directory=None,
                  analysis_runtime_identity=None):
+        _load_assistance_components()
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'jobs.sqlite3'
@@ -166,6 +216,7 @@ class JobService:
         self._stop, self._wake = threading.Event(), threading.Event()
         self._thread = None
         self._threads = []
+        self._watchdog = None
         self.freshness_provider = freshness_provider
         self.inquiry_access = inquiry_access
         self.can_execute = can_execute
@@ -202,7 +253,19 @@ class JobService:
                 job TEXT PRIMARY KEY, scope TEXT NOT NULL, attempt INTEGER NOT NULL,
                 frames TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS inquiry_index(identity TEXT PRIMARY KEY, job TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS pa1_child_packets(parent_id TEXT NOT NULL,generation INTEGER NOT NULL,
+                    child_id TEXT NOT NULL,packet_id TEXT NOT NULL UNIQUE,
+                    PRIMARY KEY(parent_id,generation,child_id));
                 CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0);''')
+            db.execute('''CREATE TABLE IF NOT EXISTS pa1_frame_attempts(
+                job TEXT NOT NULL, attempt INTEGER NOT NULL, generation INTEGER NOT NULL,
+                policy_id TEXT NOT NULL, requested TEXT NOT NULL, telemetry TEXT NOT NULL DEFAULT '{}',
+                PRIMARY KEY(job,attempt))''')
+            db.execute('''CREATE TABLE IF NOT EXISTS pa1_automatic_work(
+                job_id TEXT PRIMARY KEY, focus_id TEXT NOT NULL, project TEXT NOT NULL,
+                input_fingerprint TEXT NOT NULL, expected_dependencies TEXT NOT NULL,
+                window_deadline REAL NOT NULL, identity TEXT NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES jobs(id))''')
             db.execute('BEGIN IMMEDIATE')
             if 'inquiry' not in {r['name'] for r in db.execute('PRAGMA table_info(jobs)')}:
                 db.execute('ALTER TABLE jobs ADD COLUMN inquiry INTEGER NOT NULL DEFAULT 0')
@@ -214,6 +277,23 @@ class JobService:
             if 'cleanup_failed' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
                 db.execute('ALTER TABLE execution_slots ADD COLUMN cleanup_failed INTEGER NOT NULL DEFAULT 0')
             db.execute('CREATE TABLE IF NOT EXISTS broker_migrations(name TEXT PRIMARY KEY)')
+            FrameStore.initialize(db)
+            PowerPolicy.initialize(db)
+            ResourceController.initialize(db)
+            frames = FrameStore(db)
+            for row in db.execute('SELECT id,record,updated FROM jobs').fetchall():
+                if frames.get_frame(row['id']) is None and not frames.is_private(row['id']):
+                    legacy = DurableJob.model_validate_json(row['record'])
+                    now = self.clock()
+                    deadline = max(float(legacy.deadline_epoch or row['updated'] + 300), now + 1)
+                    frames.register_root(legacy.job_id, legacy.scope or {}, deadline,
+                        max_turns=6, now=min(float(row['updated']), now),
+                        origin_class='public_demand')
+                    if legacy.status in TERMINAL:
+                        frames.record_terminal(legacy.job_id, 0, legacy.status,
+                            {'status': legacy.status, 'answer': legacy.answer,
+                             'findings': [finding.model_dump() for finding in legacy.findings],
+                             'evidence_packets': list(legacy.evidence_packets)}, now=now)
             if not db.execute("SELECT 1 FROM broker_migrations WHERE name='global_inquiry_context_v1'").fetchone():
                 rows = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job').fetchall()
                 # Preserve every job/slot, choosing one canonical cache generation only.
@@ -346,6 +426,117 @@ class JobService:
         return {'dispatcher': 'running' if self._thread and self._thread.is_alive() else 'stopped',
                 'last_error': self.last_error, 'durable': True}
 
+    def release_owned_resources(self, control, *, callback=None, declared_end=None,
+                                reason='operator-requested'):
+        """Persist release veto before asking the current supervisor to release owned sessions.
+
+        control is a trusted host capability, never request or model data. The
+        callback is optional for hosts that reconcile release separately;
+        without it the durable veto remains pending.
+        """
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            policy = PowerPolicy(db, clock=self.clock)
+            intent = policy.set_release(control, declared_end=declared_end, reason=reason)
+        return self._deliver_owned_release(intent, callback=callback)
+
+    def resume_owned_resources(self, control):
+        """Clear quiet/release veto through the trusted local operator path."""
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            PowerPolicy(db, clock=self.clock).resume(control)
+
+    def _owned_release_callback(self, callback=None):
+        if callable(callback):
+            return callback
+        checked_client = getattr(self.backend, '_checked_client', None)
+        if callable(checked_client):
+            def release(request_id, reason, records):
+                deadline = time.time() + 10
+                client = checked_client(deadline)
+                method = getattr(client, 'release_owned_observer_resources', None)
+                if not callable(method):
+                    raise RuntimeError('owned_release_rpc_unavailable')
+                return method(list(records), request_id=request_id, deadline_epoch=deadline)
+            return release
+        method = getattr(self.backend, 'release_owned_observer_resources', None)
+        if callable(method):
+            # Test/host adapters may implement ResourceController's direct
+            # callback shape rather than expose a SupervisorClient.
+            return method
+        return None
+
+    def _deliver_owned_release(self, intent, *, callback=None):
+        sender = self._owned_release_callback(callback)
+        if sender is None:
+            return 'pending_owner_unavailable'
+        # The release intent was committed by its caller. Keep the callback
+        # outside the broker lock and outside every open write transaction;
+        # ResourceController commits only its post-callback proof projection.
+        with _DB_LOCK:
+            with SQLITE_CONNECTION_LOCK:
+                db = sqlite3.connect(self.path, timeout=10)
+                db.row_factory = sqlite3.Row
+                db.execute('PRAGMA synchronous=FULL')
+        try:
+            controller = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock), clock=self.clock)
+            db.commit()
+            try:
+                outcome = controller.release_owned(intent, sender)
+            except Exception as error:
+                self.last_error = type(error).__name__
+                outcome = 'pending_owner_verification'
+            if db.in_transaction:
+                db.commit()
+        finally:
+            with SQLITE_CONNECTION_LOCK:
+                db.close()
+        if outcome == 'released_verified' and not self._ack_owned_release(intent):
+            outcome = 'pending_reconciliation_required'
+        self._wake.set()
+        return outcome
+
+    def _ack_owned_release(self, intent):
+        """Commit the power-policy release state from already committed proof rows."""
+        with _DB_LOCK:
+            with SQLITE_CONNECTION_LOCK:
+                db = sqlite3.connect(self.path, timeout=10)
+                db.row_factory = sqlite3.Row
+                db.execute('PRAGMA synchronous=FULL')
+        try:
+            policy = PowerPolicy(db, clock=self.clock)
+            controller = ResourceController(db, power_policy=policy, clock=self.clock)
+            db.commit()
+            controller.acknowledge_verified_release(intent)
+            if db.in_transaction:
+                db.commit()
+            return policy.snapshot().get('physical_state') == 'released_verified'
+        except Exception as error:
+            self.last_error = type(error).__name__
+            if db.in_transaction:
+                db.rollback()
+            return False
+        finally:
+            with SQLITE_CONNECTION_LOCK:
+                db.close()
+
+    def _reconcile_owned_release(self):
+        """Retry the latest durable release intent after a session has closed."""
+        with self._db() as db:
+            row = db.execute('SELECT release_request_id,release_until,release_reason,updated,release_veto '
+                'FROM pa1_power_state WHERE singleton=1').fetchone()
+            if not row or not row['release_veto'] or not row['release_request_id']:
+                return None
+            from .assistance.power import ReleaseIntent
+            intent = ReleaseIntent(row['release_request_id'], float(row['updated']),
+                row['release_until'], row['release_reason'] or 'operator-requested')
+            completed = db.execute("SELECT count(*) FROM pa1_owned_resource_sessions "
+                "WHERE release_request_id=? AND state='released_verified'", (intent.request_id,)).fetchone()[0]
+            pending = db.execute("SELECT physical_state FROM pa1_power_state WHERE singleton=1").fetchone()[0]
+        if completed and pending != 'released_verified':
+            return 'released_verified' if self._ack_owned_release(intent) else 'pending_reconciliation_required'
+        return self._deliver_owned_release(intent)
+
     def start(self):
         if self.worker_factory is None:
             raise RuntimeError('durable_processing_unavailable')
@@ -355,14 +546,118 @@ class JobService:
             self._thread = self._threads[0]
             for thread in self._threads:
                 thread.start()
+            # Logical deadlines must progress even when both dispatcher threads
+            # are blocked inside a non-cooperative worker call. Resource slots
+            # remain occupied until those calls return and cleanup is proved.
+            self._watchdog = threading.Thread(target=self._watchdog_loop,
+                name='pc-job-deadline-watchdog', daemon=True)
+            self._watchdog.start()
         return self
 
     def shutdown(self, timeout=95):
         self._stop.set(); self._wake.set()
         end = time.monotonic() + timeout
-        for thread in self._threads:
+        for thread in [*self._threads, *([self._watchdog] if self._watchdog else [])]:
             thread.join(max(0, end-time.monotonic()))
-        return not any(thread.is_alive() for thread in self._threads)
+        return not any(thread.is_alive() for thread in [*self._threads, *([self._watchdog] if self._watchdog else [])])
+
+    def _watchdog_loop(self):
+        """Fence expired generations independently of worker responsiveness.
+
+        This only expires logical work. It deliberately leaves execution_slots
+        in place: a blocked call still owns its physical session until its own
+        finally block proves cleanup.
+        """
+        while not self._stop.wait(.1):
+            try:
+                self._expire_deadlines()
+                self._consume_pending_frame_acks()
+            except Exception as error:
+                self.last_error = type(error).__name__
+
+    def _expire_deadlines(self):
+        now = self.clock()
+        expired = []
+        expired_children = False
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            frames = FrameStore(db)
+            rows = db.execute("""SELECT * FROM jobs
+                WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled')
+                  AND json_extract(record,'$.deadline_epoch') IS NOT NULL
+                  AND json_extract(record,'$.deadline_epoch')<=?""", (now,)).fetchall()
+            for row in rows:
+                job = DurableJob.model_validate_json(row['record'])
+                # A bumped attempt fences every late packet/checkpoint/answer.
+                job.attempt += 1
+                job.status = 'partial' if job.findings or job.evidence_packets else 'failed'
+                job.unresolved_questions = ['The analysis deadline expired before the current worker generation completed.']
+                job.failure_reason = job.failure_reason or 'deadline_exhausted'
+                job.terminal_reason = 'deadline_exhausted'
+                db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?',
+                    (job.model_dump_json(), now, job.job_id))
+                frame = frames.get_frame(job.job_id)
+                if frame is not None:
+                    self._cancel_descendants(db, frames, job.job_id, now)
+                    frames.record_terminal(job.job_id, frame.generation, 'expired',
+                        {'status': 'expired', 'reason': 'deadline_exhausted',
+                         'answer': job.answer, 'findings': [finding.model_dump() for finding in job.findings],
+                         'evidence_packets': list(job.evidence_packets)}, now=now)
+                    expired_children |= frame.parent_id is not None
+                self._trim_index(db, job.scope)
+                expired.append(job.job_id)
+        if expired:
+            # Packet retention reconciliation is outside the transaction. Slot
+            # rows are intentionally retained until physical cleanup completes.
+            self.reconcile()
+            if expired_children:
+                self._wake_ready_parents()
+            self._wake.set()
+        return tuple(expired)
+
+    def _consume_pending_frame_acks(self):
+        """Commit a validated wake only after physical parent-slot release."""
+        wake_parent = False
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            frames = FrameStore(db)
+            waits = db.execute('SELECT parent_id,generation FROM pa1_frame_waits WHERE pending_ack IS NOT NULL').fetchall()
+            for wait in waits:
+                parent_id, generation = wait['parent_id'], int(wait['generation'])
+                if db.execute('SELECT 1 FROM execution_slots WHERE job=? LIMIT 1', (parent_id,)).fetchone():
+                    continue
+                outcome = frames.reconcile(parent_id, generation)
+                ack = frames.pending_wake_ack(parent_id, generation)
+                expected = tuple(sorted(child.job_id for child in outcome.children)) if outcome and outcome.ready else ()
+                if not outcome or not outcome.ready or ack != expected or outcome.wake_version is None:
+                    continue
+                consumed = frames.consume_wake(parent_id, generation, outcome.wake_version)
+                if consumed is None:
+                    continue
+                row = db.execute('SELECT record FROM jobs WHERE id=?', (parent_id,)).fetchone()
+                if not row:
+                    continue
+                job = DurableJob.model_validate_json(row['record'])
+                if job.status in TERMINAL:
+                    frame = frames.get_frame(parent_id)
+                    if frame is not None:
+                        visible = {'status': job.status, 'answer': job.answer,
+                            'findings': [finding.model_dump() for finding in job.findings],
+                            'unresolved_questions': job.unresolved_questions,
+                            'reason': job.terminal_reason, 'result_packet': job.result_packet,
+                            'evidence_packets': list(job.evidence_packets)}
+                        frames.record_terminal(parent_id, generation,
+                            'expired' if job.terminal_reason in {'deadline_exhausted', 'attempt_or_deadline_exhausted'} else job.status,
+                            visible, now=self.clock())
+                        wake_parent |= frame.parent_id is not None
+            terminal_waits = db.execute("""SELECT w.parent_id,w.generation FROM pa1_frame_waits w
+                JOIN jobs j ON j.id=w.parent_id
+                WHERE w.pending_ack IS NULL AND json_extract(j.record,'$.status') IN ('completed','partial','failed','cancelled')
+                AND w.state!='retired'""").fetchall()
+            for wait in terminal_waits:
+                frames.retire_wait(wait['parent_id'], int(wait['generation']))
+        if wake_parent:
+            self._wake_ready_parents()
 
     def submit(self, *, question, access_scope, request_id=None, mode='investigate', hints=(), skill=None,
                _identity=None, _execution_question=None, _freshness_snapshot=None):
@@ -436,9 +731,10 @@ class JobService:
                 if hints:
                     self.packets.pin(job.job_id, hints)
                     pinned = True
-                records = [json.loads(r[0]) for r in db.execute('SELECT record FROM jobs')]
-                occupied_terminal = db.execute("SELECT count(*) FROM execution_slots JOIN jobs ON jobs.id=execution_slots.job WHERE json_extract(jobs.record,'$.status') IN ('completed','partial','failed','cancelled')").fetchone()[0]
-                count = sum(r['status'] not in TERMINAL for r in records) + occupied_terminal
+                count = db.execute("""SELECT count(*) FROM jobs j LEFT JOIN pa1_frames f ON f.job_id=j.id
+                    WHERE (f.parent_id IS NULL) AND NOT EXISTS(SELECT 1 FROM pa1_private_ids p WHERE p.job_id=j.id) AND
+                    (json_extract(j.record,'$.status') NOT IN ('completed','partial','failed','cancelled')
+                     OR EXISTS(SELECT 1 FROM execution_slots s WHERE s.job=j.id))""").fetchone()[0]
                 usage = self._storage_bytes(db)
                 if count >= min(6, self.hard_limit):
                     return {'accepted': False, 'reason': 'admission_limit'}
@@ -446,6 +742,8 @@ class JobService:
                     return {'accepted': False, 'reason': 'storage_limit'}
                 db.execute('INSERT INTO jobs(id,scope,request_id,request_hash,record,updated,inquiry) VALUES(?,?,?,?,?,?,?)',
                     (job.job_id, wire(scope), job.request_id, request_hash, job.model_dump_json(), self.clock(), int(_identity is not None)))
+                FrameStore(db).register_root(job.job_id, scope, job.deadline_epoch,
+                    max_turns=6, now=self.clock(), origin_class='public_demand')
                 if _identity is not None:
                     db.execute('INSERT INTO inquiry_index(identity,job) VALUES(?,?) ON CONFLICT(identity) DO UPDATE SET job=excluded.job', (_identity, job.job_id))
             committed = True
@@ -459,6 +757,250 @@ class JobService:
         finally:
             if pinned and not committed:
                 self.packets.unpin(job.job_id)
+
+    def enqueue_preparation(self, question, access_scope, focus_id, input_fingerprint,
+                            window_deadline, expected_dependencies=None):
+        """Admit one trusted, private automatic preparation under the live focus window.
+
+        This is an internal controller API. It has no public inquiry index,
+        retry identity, poll capability, or answer-cache entry. The persisted
+        window and root-origin checks are repeated at every dispatch.
+        """
+        scope = dict(access_scope) if isinstance(access_scope, dict) else None
+        if (not isinstance(question, str) or not question.strip() or len(question.encode('utf-8')) > 8192
+                or not scope or not scope.get('principal') or not scope.get('profile')
+                or not isinstance(focus_id, str) or not focus_id or len(focus_id) > 256
+                or not isinstance(input_fingerprint, str) or not input_fingerprint
+                or len(input_fingerprint) > 256 or not isinstance(window_deadline, (int, float))
+                or isinstance(window_deadline, bool) or not math.isfinite(float(window_deadline))):
+            return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'invalid_preparation'}
+        dependencies = expected_dependencies if expected_dependencies is not None else {}
+        if not isinstance(dependencies, dict):
+            return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'invalid_dependencies'}
+        try:
+            dependency_wire = wire(dependencies)
+            if len(dependency_wire.encode('utf-8')) > 64 * 1024:
+                return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'dependencies_too_large'}
+            read_scope_seal = automatic_read_scope_from_dependencies(dependencies)
+        except (TypeError, ValueError):
+            return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'invalid_dependencies'}
+        dependency_value = json.loads(dependency_wire)
+        project = scope.get('project')
+        if not isinstance(project, str) or not project:
+            return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'project_scope_required'}
+        now = float(self.clock())
+        if float(window_deadline) <= now:
+            return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'focus_window_expired'}
+        identity = canonical_digest({'focus_id': focus_id, 'project': project,
+            'input_fingerprint': input_fingerprint, 'expected_dependencies': dependency_value,
+            'automatic_read_scope': read_scope_seal, 'scope': scope, 'question': question})
+        try:
+            with self._db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                policy = PowerPolicy(db, clock=self.clock)
+                state = policy.snapshot()
+                if (not state['automatic_enabled'] or state['automatic_focus'] != focus_id
+                        or state['automatic_project'] != project or state['automatic_until'] is None
+                        or float(window_deadline) > float(state['automatic_until'])):
+                    return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'focus_window_unavailable'}
+                control = trusted_operator_control()
+                decision = policy.allow_dispatch('automatic_root', True,
+                    permission=control.permission('dispatch_automatic'), focus_id=focus_id,
+                    project=project)
+                if not decision.allowed:
+                    return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': decision.reason}
+                existing = db.execute('''SELECT a.job_id,j.record FROM pa1_automatic_work a
+                    JOIN jobs j ON j.id=a.job_id WHERE a.identity=?''', (identity,)).fetchone()
+                if existing:
+                    old_job = DurableJob.model_validate_json(existing['record'])
+                    if (old_job.status not in TERMINAL
+                            or db.execute('SELECT 1 FROM execution_slots WHERE job=?', (old_job.job_id,)).fetchone()):
+                        return {'accepted': True, 'job_id': old_job.job_id, 'status': 'existing'}
+                    # The same exact stable input is never rerun by retrying an
+                    # enqueue. Attention policy owns any later cooldown or
+                    # explicit refresh decision.
+                    return {'accepted': True, 'job_id': old_job.job_id, 'status': 'existing'}
+                # A changed focus/source identity invalidates older queued
+                # automatic work. Active calls are fenced, but their slot
+                # remains until normal physical cleanup completes.
+                stale = db.execute('''SELECT a.job_id,j.record FROM pa1_automatic_work a
+                    JOIN jobs j ON j.id=a.job_id WHERE (a.focus_id<>? OR a.project<>? OR a.identity<>?)
+                    AND a.job_id IN (SELECT job_id FROM pa1_frames WHERE origin_class='automatic')''',
+                    (focus_id, project, identity)).fetchall()
+                for old_row in stale:
+                    if old_row['job_id'] == (existing['job_id'] if existing else None):
+                        continue
+                    old = DurableJob.model_validate_json(old_row['record'])
+                    if old.status in TERMINAL:
+                        continue
+                    old.attempt += 1
+                    old.status = 'cancelled'
+                    old.failure_reason = 'preparation_source_changed'
+                    old.terminal_reason = 'preparation_source_changed'
+                    old.unresolved_questions = ['The source fingerprint changed before preparation completed.']
+                    db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?',
+                        (old.model_dump_json(), now, old.job_id))
+                    frames = FrameStore(db)
+                    frame = frames.get_frame(old.job_id)
+                    if frame is not None:
+                        self._cancel_descendants(db, frames, old.job_id, now)
+                        frames.record_terminal(old.job_id, frame.generation, 'cancelled',
+                            {'status': 'cancelled', 'reason': 'preparation_source_changed'}, now=now)
+                job_id = 'job_' + uuid.uuid4().hex
+                job = DurableJob(job_id=job_id, mode='investigate', question=question,
+                    hints=[], status='queued', attempt=0, created_at=stamp(now), findings=[],
+                    evidence_packets=[], unresolved_questions=[], project=project, scope=scope,
+                    deadline_epoch=float(window_deadline))
+                record_wire = job.model_dump_json()
+                if len(record_wire.encode('utf-8')) > 32768:
+                    return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'preparation_too_large'}
+                if self._storage_bytes(db) + len(record_wire.encode('utf-8')) > self.max_storage_bytes:
+                    return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'storage_limit'}
+                db.execute('INSERT INTO jobs(id,scope,request_id,request_hash,record,updated,inquiry) VALUES(?,?,?,?,?,?,0)',
+                    (job_id, wire(scope), None, identity, record_wire, now))
+                FrameStore(db).register_root(job_id, scope, float(window_deadline),
+                    max_turns=6, origin_class='automatic', automatic_read_scope=read_scope_seal, now=now)
+                db.execute('INSERT INTO pa1_private_ids(job_id) VALUES(?)', (job_id,))
+                db.execute('INSERT INTO pa1_automatic_work VALUES(?,?,?,?,?,?,?)',
+                    (job_id, focus_id, project, input_fingerprint, dependency_wire,
+                     float(window_deadline), identity))
+                self._wake.set()
+                return {'accepted': True, 'job_id': job_id, 'status': 'queued'}
+        except (sqlite3.Error, OSError, ValueError):
+            return {'accepted': False, 'job_id': None, 'status': 'deferred', 'reason': 'storage_unavailable'}
+
+    def preparation_read_scope(self, job_id, *, access_scope, expected_attempt):
+        """Return the trusted persisted file seal for an automatic lease or descendant.
+
+        This accessor is for the host-owned worker factory, not public callers or
+        model context. It cross-checks the frame lineage against the admission
+        dependency map each time the worker binds its read tools.
+        """
+        if not isinstance(job_id, str) or not job_id:
+            return None
+        try:
+            with self._db() as db:
+                db.execute('BEGIN')
+                frames = FrameStore(db)
+                frame = frames.get_frame(job_id)
+                if frame is None or frame.origin_class != 'automatic':
+                    return None
+                if not isinstance(access_scope, dict):
+                    raise FrameError('automatic read scope requires the leased trusted scope')
+                if (not isinstance(expected_attempt, int) or isinstance(expected_attempt, bool)
+                        or expected_attempt < 1):
+                    raise FrameError('automatic read scope requires its captured positive attempt')
+                durable = db.execute('SELECT scope,record FROM jobs WHERE id=?', (job_id,)).fetchone()
+                slot = db.execute('SELECT attempt FROM execution_slots WHERE job=?', (job_id,)).fetchone()
+                if durable is None or slot is None:
+                    raise FrameError('automatic read scope requires a live execution lease')
+                leased = DurableJob.model_validate_json(durable['record'])
+                if (frame.state != 'running' or durable['scope'] != wire(access_scope) or frame.scope != access_scope
+                        or leased.scope != access_scope or leased.status != 'running'
+                        or leased.attempt != int(slot['attempt']) or leased.attempt != expected_attempt):
+                    raise FrameError('automatic read scope does not match the leased job scope')
+                seal = frames.automatic_read_scope(job_id)
+                work = db.execute('SELECT focus_id,project,window_deadline,expected_dependencies '
+                    'FROM pa1_automatic_work WHERE job_id=?',
+                    (frame.root_id,)).fetchone()
+                if work is None:
+                    raise FrameError('automatic admission dependency seal is missing')
+                now = float(self.clock())
+                if (float(work['window_deadline']) <= now or float(frame.deadline) <= now
+                        or (leased.deadline_epoch is not None and float(leased.deadline_epoch) <= now)):
+                    raise FrameError('automatic read scope expired')
+                if frame.parent_id is not None:
+                    edge = db.execute('''SELECT c.generation,w.state,p.generation AS current_generation
+                        FROM pa1_frame_children c JOIN pa1_frame_waits w
+                          ON w.parent_id=c.parent_id AND w.generation=c.generation
+                        JOIN pa1_frames p ON p.job_id=c.parent_id
+                        WHERE c.parent_id=? AND c.child_id=?''',
+                        (frame.parent_id, job_id)).fetchone()
+                    if (edge is None or edge['state'] != 'waiting'
+                            or int(edge['generation']) != int(edge['current_generation'])):
+                        raise FrameError('automatic descendant frame generation is stale')
+                policy = PowerPolicy(db, clock=self.clock)
+                origin = policy.root_demand_origin(frame.root_id)
+                frame_class = 'automatic_root' if frame.parent_id is None else 'private_child'
+                permission = trusted_operator_control().permission('dispatch_automatic')
+                decision = policy.allow_dispatch(frame_class, True, root_id=frame.root_id,
+                    demand_origin=origin, permission=permission, focus_id=work['focus_id'],
+                    project=work['project'])
+                if not decision.allowed:
+                    raise FrameError('automatic read scope policy is no longer allowed')
+                dependencies = json.loads(work['expected_dependencies'])
+                if automatic_read_scope_from_dependencies(dependencies) != seal:
+                    raise FrameError('automatic read scope differs from its admission dependencies')
+                return seal
+        except (sqlite3.Error, OSError, TypeError, ValueError):
+            raise FrameError('automatic read scope is unavailable or inconsistent')
+
+    def preparation_lookup(self, job_id, *, access_scope):
+        """Read a private preparation result for its exact originating scope."""
+        if not isinstance(job_id, str) or not job_id:
+            return {'status': 'unavailable', 'reason': 'preparation_unavailable'}
+        try:
+            with self._db() as db:
+                db.execute('BEGIN')
+                row = db.execute('''SELECT j.*,a.focus_id,a.project,a.input_fingerprint,
+                    a.expected_dependencies FROM jobs j JOIN pa1_automatic_work a ON a.job_id=j.id
+                    WHERE j.id=?''', (job_id,)).fetchone()
+                if not row or row['scope'] != wire(dict(access_scope)):
+                    return {'status': 'unavailable', 'reason': 'preparation_unavailable'}
+                job = DurableJob.model_validate_json(row['record'])
+                if job.status not in TERMINAL or db.execute(
+                        'SELECT 1 FROM execution_slots WHERE job=?', (job_id,)).fetchone():
+                    return {'status': 'pending'}
+                if job.terminal_reason == 'preparation_source_changed':
+                    return {'status': 'unavailable', 'reason': 'preparation_source_changed'}
+                frame = FrameStore(db).get_frame(job_id)
+                dependencies = json.loads(row['expected_dependencies'])
+                source_values = {}
+                for packet_id in list(dict.fromkeys(job.evidence_packets +
+                        ([job.result_packet] if job.result_packet else []))):
+                    packet = self.packets.lookup(packet_id, access_scope=access_scope)
+                    if packet.status == 'ok':
+                        for source in packet.packet.sources:
+                            source_values[wire(source.model_dump(exclude_none=True))] = source.model_dump(exclude_none=True)
+                return {'status': job.status, 'answer': job.answer,
+                    'findings': [finding.model_dump() for finding in job.findings],
+                    'evidence_packets': list(job.evidence_packets),
+                    'unresolved_questions': list(job.unresolved_questions),
+                    'sources': list(source_values.values()),
+                    'dependencies': dependencies,
+                    'input_fingerprint': row['input_fingerprint'], 'focus_id': row['focus_id'],
+                    'model_turns_used': frame.root_turns_used if frame is not None else 0}
+        except (sqlite3.Error, OSError, TypeError, ValueError):
+            return {'status': 'unavailable', 'reason': 'preparation_unavailable'}
+
+    def cancel_preparation(self, job_id, *, access_scope):
+        """Cancel an exact-scope private preparation and its descendants."""
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('''SELECT j.* FROM jobs j JOIN pa1_automatic_work a ON a.job_id=j.id
+                WHERE j.id=? AND j.scope=?''', (job_id, wire(dict(access_scope)))).fetchone()
+            if not row:
+                return False
+            job = DurableJob.model_validate_json(row['record'])
+            if job.status in TERMINAL:
+                return False
+            now = float(self.clock())
+            job.attempt += 1
+            job.status = 'cancelled'
+            job.failure_reason = 'operator_cancelled'
+            job.terminal_reason = 'operator_cancelled'
+            job.unresolved_questions = ['The preparation was cancelled by its trusted controller.']
+            db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?',
+                (job.model_dump_json(), now, job_id))
+            frames = FrameStore(db)
+            frame = frames.get_frame(job_id)
+            if frame is not None:
+                self._cancel_descendants(db, frames, job_id, now)
+                frames.record_terminal(job_id, frame.generation, 'cancelled',
+                    {'status': 'cancelled', 'reason': 'operator_cancelled'}, now=now)
+        self.reconcile()
+        self._wake.set()
+        return True
 
     def inquire(self, question, access_scope, mode='investigate', skill=None, hints=(),
                 request_id=None, execution_question=None, foreground_timeout=30):
@@ -748,8 +1290,21 @@ class JobService:
             row = db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
             if not row:
                 return {'status': 'not_found'}
+            if FrameStore(db).is_private(job_id):
+                return {'status': 'not_found'}
             if not self._inquiry_authorized(json.loads(row['record']), access_scope, log=True):
                 return {'status': 'forbidden'}
+            observations = self._public_observations(db, row)
+        return {'status': 'ok', 'job': DurableJob.model_validate_json(row['record']).model_dump(),
+                'observations': observations}
+
+    def _worker_lookup(self, job_id, *, access_scope):
+        """Private exact-scope snapshot for an already claimed worker only."""
+        with self._db() as db:
+            db.execute('BEGIN')
+            row = db.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
+            if not row or row['scope'] != wire(dict(access_scope)):
+                raise PermissionError('worker_scope_mismatch')
             observations = self._public_observations(db, row)
         return {'status': 'ok', 'job': DurableJob.model_validate_json(row['record']).model_dump(),
                 'observations': observations}
@@ -779,7 +1334,8 @@ class JobService:
 
     def is_inquiry(self, job_id):
         with self._db() as db:
-            return bool(db.execute('SELECT 1 FROM jobs WHERE id=? AND inquiry=1', (job_id,)).fetchone())
+            return (not FrameStore(db).is_private(job_id)
+                    and bool(db.execute('SELECT 1 FROM jobs WHERE id=? AND inquiry=1', (job_id,)).fetchone()))
 
     # Inquiry and legacy observer reads share the same project knowledge.
     lookup_inquiry = lookup
@@ -789,10 +1345,13 @@ class JobService:
             raise ValueError('log limit must be 1..50')
         with self._db() as db:
             rows = db.execute('SELECT jobs.*, inquiry_index.identity FROM jobs LEFT JOIN inquiry_index ON jobs.id=inquiry_index.job ORDER BY updated DESC,jobs.id DESC').fetchall()
+            private_ids = {row[0] for row in db.execute('SELECT job_id FROM pa1_private_ids')}
         candidates = []
         answered_count = 0
         for row in rows:
             job = json.loads(row['record'])
+            if row['id'] in private_ids:
+                continue
             if not self._cache_eligible(job):
                 continue
             # Superseded/evicted inquiry generations are history, not another
@@ -870,11 +1429,63 @@ class JobService:
                 # noncooperative startup or clock jump outlasts the lease.
                 if not expired['cleanup_failed'] and not self._owner_alive(expired['owner_pid'], expired['owner_start']):
                     db.execute('DELETE FROM execution_slots WHERE job=? AND attempt=?', (expired['job'], expired['attempt']))
-            rows = db.execute('SELECT * FROM jobs ORDER BY updated,id').fetchall()
+            rows = db.execute('''SELECT j.* FROM jobs j LEFT JOIN pa1_frames f ON f.job_id=j.id
+                LEFT JOIN pa1_frames r ON r.job_id=f.root_id
+                ORDER BY CASE WHEN coalesce(r.origin_class,f.origin_class,'public_demand')='automatic' THEN 1 ELSE 0 END,
+                    j.updated,j.id''').fetchall()
+            frames = FrameStore(db)
+            automatic_slots = db.execute('''SELECT count(*) FROM execution_slots s
+                JOIN pa1_frames f ON f.job_id=s.job
+                JOIN pa1_frames r ON r.job_id=f.root_id WHERE r.origin_class='automatic' ''').fetchone()[0]
             for row in rows:
                 job = DurableJob.model_validate_json(row['record'])
                 if job.status in TERMINAL:
                     continue
+                frame = frames.get_frame(job.job_id)
+                if frame is not None:
+                    if frame.state == 'waiting':
+                        continue
+                    if frame.state == 'suspended':
+                        # A suspended parent is requeued only after a complete,
+                        # durable child result set has materialized its wake.
+                        pending = db.execute("""SELECT generation FROM pa1_frame_waits
+                            WHERE parent_id=? ORDER BY generation DESC LIMIT 1""", (job.job_id,)).fetchone()
+                        if not pending:
+                            continue
+                        outcome = frames.reconcile(job.job_id, int(pending['generation']))
+                        if not outcome or not outcome.ready:
+                            continue
+                        job.status = 'queued_after_eviction'
+                        db.execute('UPDATE jobs SET record=?,available=?,updated=? WHERE id=?',
+                            (job.model_dump_json(), now, now, job.job_id))
+                    # The release/eligibility proof gates a newly queued child
+                    # before its first dispatch. Once that child has run, its
+                    # ancestor wait intentionally remains open until the child
+                    # becomes terminal; reapplying this gate would deadlock
+                    # every resumed private child and every nested parent.
+                    if (frame.parent_id is not None and frame.state == 'queued'
+                            and not frames.eligible(job.job_id, now)):
+                        continue
+                    if frame.state in {'completed', 'partial', 'failed', 'cancelled', 'expired'}:
+                        continue
+                    origin = PowerPolicy(db, clock=self.clock).root_demand_origin(frame.root_id)
+                    frame_class = ('automatic_root' if frame.origin_class == 'automatic' and frame.parent_id is None
+                                   else 'public_root' if frame.parent_id is None else 'private_child')
+                    automatic = origin.kind == 'automatic'
+                    automatic_work = (db.execute('SELECT * FROM pa1_automatic_work WHERE job_id=?',
+                        (frame.root_id,)).fetchone() if automatic else None)
+                    if automatic and not automatic_work:
+                        continue
+                    automatic_permission = (trusted_operator_control().permission('dispatch_automatic')
+                                            if automatic else None)
+                    if automatic and automatic_slots >= 1:
+                        continue
+                    if not PowerPolicy(db, clock=self.clock).allow_dispatch(
+                            frame_class, True, root_id=frame.root_id,
+                            demand_origin=origin, permission=automatic_permission,
+                            focus_id=automatic_work['focus_id'] if automatic_work else None,
+                            project=automatic_work['project'] if automatic_work else None).allowed:
+                        continue
                 if preflight is not None and job.job_id not in preflight:
                     continue
                 if self.can_execute is not None and not self.can_execute(job, bool(row['inquiry'])):
@@ -882,7 +1493,8 @@ class JobService:
                 occupied = db.execute('SELECT 1 FROM execution_slots WHERE job=?', (job.job_id,)).fetchone()
                 if occupied:
                     continue
-                if (job.deadline_epoch is not None and now >= job.deadline_epoch) or job.attempt >= 3:
+                retry_exhausted = (job.attempt >= 3 if frame is None else frame.failed_attempts >= 3)
+                if (job.deadline_epoch is not None and now >= job.deadline_epoch) or retry_exhausted:
                     job.status = 'partial' if job.findings else 'failed'
                     job.unresolved_questions = ['Analysis deadline or attempt budget exhausted.']
                     job.terminal_reason = 'attempt_or_deadline_exhausted'
@@ -894,6 +1506,9 @@ class JobService:
                 if db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] >= 2:
                     continue
                 job.attempt += 1; job.status = 'running'
+                if frame is not None:
+                    db.execute('UPDATE pa1_frames SET state=\'running\',updated=? WHERE job_id=?',
+                        (now, job.job_id))
                 db.execute('UPDATE jobs SET record=?,lease=?,updated=? WHERE id=?',
                     (job.model_dump_json(), now + self.lease_seconds, now, job.job_id))
                 db.execute('INSERT INTO execution_slots(job,attempt,lease,owner_pid,owner_start) VALUES(?,?,?,?,?)', (job.job_id, job.attempt, now+self.lease_seconds, os.getpid() if _dispatch else None, self._process_start(os.getpid()) if _dispatch else None))
@@ -917,7 +1532,151 @@ class JobService:
             raise RuntimeError('stale_attempt')
         return row, job
 
-    def _packet(self, db, job, payload, tool):
+    def _private_wait(self, job, result):
+        """Persist a typed child proposal and queued private job atomically."""
+        proposal = result.get('private_wait')
+        if not isinstance(proposal, dict) or set(proposal) != {'kind', 'question', 'max_turns'}:
+            raise FrameError('invalid_private_wait_proposal')
+        question = proposal['question']
+        turns = proposal['max_turns']
+        if (proposal['kind'] != 'child' or not isinstance(question, str)
+                or not question.strip() or len(question.encode('utf-8')) > 512
+                or not isinstance(turns, int) or isinstance(turns, bool) or turns not in (1, 2)):
+            raise FrameError('invalid_private_wait_proposal')
+        now = self.clock()
+        child_id = 'job_' + uuid.uuid4().hex
+        deadline = float(job.deadline_epoch or now)
+        if deadline <= now:
+            raise FrameError('parent_deadline_expired')
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            _, current = self._running(db, job.job_id, job.attempt)
+            frames = FrameStore(db)
+            parent = frames.get_frame(job.job_id)
+            if parent is None:
+                frames.register_root(job.job_id, job.scope, deadline, max_turns=6, now=now)
+                parent = frames.get_frame(job.job_id)
+            generation = parent.generation + 1
+            child = DurableJob(job_id=child_id, mode=job.mode, question=question.strip(), hints=[],
+                status='queued', attempt=0, created_at=stamp(now), findings=[], evidence_packets=[],
+                unresolved_questions=[], project=job.project, scope=dict(job.scope), skill=job.skill,
+                deadline_epoch=deadline)
+            request_hash = canonical_digest({'parent': job.job_id, 'generation': generation,
+                'question': child.question, 'scope': child.scope, 'mode': child.mode, 'skill': child.skill})
+            db.execute('INSERT INTO jobs(id,scope,request_id,request_hash,record,updated,inquiry) VALUES(?,?,?,?,?,?,0)',
+                (child_id, wire(child.scope), None, request_hash, child.model_dump_json(), now))
+            spec = ChildFrameSpec(job_id=child_id, scope=child.scope, deadline=deadline,
+                question=child.question, turn_reservation=turns)
+            frames.register_wait(job.job_id, generation, [spec], now=now)
+            current.status = 'yielding'
+            current.failure_reason = None
+            db.execute('UPDATE jobs SET record=?,updated=?,lease=0,available=? WHERE id=?',
+                (current.model_dump_json(), now, now, job.job_id))
+        return generation
+
+    def _private_child_context(self, db, job_id):
+        """Return durable, bounded visible outcomes for a parent resume."""
+        frames = FrameStore(db)
+        row = db.execute('SELECT generation FROM pa1_frame_waits WHERE parent_id=? ORDER BY generation DESC LIMIT 1',
+                          (job_id,)).fetchone()
+        if not row:
+            return (), None, None
+        generation = int(row['generation'])
+        outcome = frames.reconcile(job_id, generation)
+        if not outcome or not outcome.ready:
+            return (), generation, None
+        children = []
+        for child in outcome.children[:4]:
+            item = {'child_id': child.job_id, 'status': child.status,
+                    'result': dict(child.result), 'terminal_version': child.terminal_version}
+            if len(wire(item).encode('utf-8')) > 16 * 1024:
+                item['result'] = {'status': child.status,
+                    'failure_reason': 'child_result_exceeded_context_bound'}
+            children.append(item)
+        return tuple(children), generation, outcome.wake_version
+
+    def _wake_ready_parents(self):
+        now = self.clock()
+        changed = False
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            frames = FrameStore(db)
+            waits = db.execute('SELECT parent_id,generation FROM pa1_frame_waits WHERE state IN (\'waiting\',\'ready\')').fetchall()
+            for wait in waits:
+                outcome = frames.reconcile(wait['parent_id'], int(wait['generation']))
+                if not outcome or not outcome.ready:
+                    continue
+                row = db.execute('SELECT * FROM jobs WHERE id=?', (wait['parent_id'],)).fetchone()
+                if not row:
+                    continue
+                parent = DurableJob.model_validate_json(row['record'])
+                if parent.status in TERMINAL:
+                    continue
+                observations = json.loads(row['observations'])
+                for child in outcome.children:
+                    prior_packet = db.execute('SELECT packet_id FROM pa1_child_packets WHERE parent_id=? AND generation=? AND child_id=?',
+                        (parent.job_id, int(wait['generation']), child.job_id)).fetchone()
+                    if prior_packet:
+                        continue
+                    result = dict(child.result)
+                    child_refs = list(dict.fromkeys(result.get('evidence_packets', [])))
+                    if result.get('result_packet') and result['result_packet'] not in child_refs:
+                        child_refs.append(result['result_packet'])
+                    source_list = []
+                    for ref in child_refs:
+                        child_packet = db.execute('SELECT packet FROM outbox WHERE id=? AND job=?',
+                            (ref, child.job_id)).fetchone()
+                        if child_packet:
+                            source_list.extend(json.loads(child_packet['packet']).get('sources', []))
+                    payload = {'status': child.status, 'answer': result.get('answer'),
+                        'findings': result.get('findings', []),
+                        'failure_reason': result.get('failure_reason') or result.get('reason'),
+                        'dependency_ordinal': len(observations) + 1,
+                        'child_evidence_packets': child_refs,
+                        'source_locators': source_list,
+                        'provenance_note': 'Private child result with inherited source provenance; not independent corroboration.'}
+                    ident, cleaned = self._packet(db, parent, payload, 'private_child_result', parents=child_refs)
+                    parent.evidence_packets.append(ident)
+                    observations.append({**cleaned, 'packet_id': ident})
+                    db.execute('INSERT INTO pa1_child_packets(parent_id,generation,child_id,packet_id) VALUES(?,?,?,?)',
+                        (parent.job_id, int(wait['generation']), child.job_id, ident))
+                    changed = True
+                if changed:
+                    db.execute('UPDATE jobs SET record=?,observations=?,updated=? WHERE id=?',
+                        (parent.model_dump_json(), wire(observations), now, parent.job_id))
+                parent.status = 'queued_after_eviction'
+                db.execute('UPDATE jobs SET record=?,updated=?,available=? WHERE id=?',
+                    (parent.model_dump_json(), now, now, parent.job_id))
+                changed = True
+        if changed:
+            self.reconcile()
+        self._wake.set()
+
+    def _cancel_descendants(self, db, frames, parent_id, now):
+        """Fence child generations when an owning parent becomes terminal."""
+        descendants = db.execute("""WITH RECURSIVE tree(job_id) AS (
+            SELECT child_id FROM pa1_frame_children WHERE parent_id=?
+            UNION ALL SELECT c.child_id FROM pa1_frame_children c JOIN tree t ON c.parent_id=t.job_id)
+            SELECT job_id FROM tree""", (parent_id,)).fetchall()
+        for entry in descendants:
+            row = db.execute('SELECT * FROM jobs WHERE id=?', (entry['job_id'],)).fetchone()
+            frame = frames.get_frame(entry['job_id'])
+            if not row or frame is None:
+                continue
+            child = DurableJob.model_validate_json(row['record'])
+            if child.status not in TERMINAL:
+                child.attempt += 1
+                child.status = 'cancelled'
+                child.failure_reason = 'parent_terminal'
+                child.terminal_reason = 'parent_terminal'
+                child.unresolved_questions = ['The parent frame ended before this child result could be used.']
+                db.execute('UPDATE jobs SET record=?,updated=?,lease=0 WHERE id=?',
+                    (child.model_dump_json(), now, child.job_id))
+            frames.record_terminal(child.job_id, frame.generation, 'cancelled',
+                {'status': 'cancelled', 'reason': 'parent_terminal',
+                 'unresolved_questions': child.unresolved_questions}, now=now)
+
+    def _packet(self, db, job, payload, tool, *, parents=()):
         cleaned, omissions = mask_payload(payload)
         ident = 'pkt_' + uuid.uuid4().hex
         # UUID encoded as words keeps aliases memorable-shaped and collision-safe.
@@ -949,7 +1708,7 @@ class JobService:
         collect(cleaned)
         packet = InformationPacket(packet_id=ident, alias='job-' + letters,
             created_at=stamp(self.clock()), tool=tool, payload=cleaned,
-            payload_sha256=canonical_digest(cleaned), sources=list(sources.values()), parents=[],
+            payload_sha256=canonical_digest(cleaned), sources=list(sources.values()), parents=list(dict.fromkeys(parents)),
             access_scope=job.scope, omissions=omissions,
             freshness=({'dependencies': {f'file:{s.repository}/{s.path}': s.content_sha256 for s in sources.values()}}
                        if tool in {'investigate', 'skill'} and sources
@@ -1040,6 +1799,7 @@ class JobService:
                 result['unresolved_questions'] = [
                     'The observer exhausted its bounded turn budget before answering the question. '
                     'Review retained observations and submit a new question for further investigation.']
+        wake_parents = False
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             try:
@@ -1050,8 +1810,18 @@ class JobService:
             if status not in TERMINAL | {'yielding', 'queued_after_eviction'}:
                 raise ValueError('invalid worker status')
             job.failure_reason = result.get('reason', job.failure_reason)
-            if self.clock() >= (job.deadline_epoch or float('inf')) or (status not in TERMINAL and job.attempt >= 3):
-                status = result['status'] = 'partial'
+            frame_store = FrameStore(db)
+            frame = frame_store.get_frame(job_id)
+            cooperative_yield = (status == 'yielding' and result.get('reason') in {
+                'slice_complete', 'private_wait_proposed', 'preemption_requested',
+                'foreground_preemption', 'session_evicted'})
+            failed_attempts = 0
+            if frame is not None and status not in TERMINAL and status == 'yielding' and not cooperative_yield:
+                failed_attempts = frame_store.record_failure_attempt(job_id, attempt, now=self.clock())
+            exhausted_attempts = (frame is None and status not in TERMINAL and job.attempt >= 3)
+            exhausted_frame_failures = (frame is not None and failed_attempts >= 3)
+            if self.clock() >= (job.deadline_epoch or float('inf')) or exhausted_attempts or exhausted_frame_failures:
+                status = result['status'] = ('partial' if job.answer or job.findings or job.evidence_packets else 'failed')
                 result['reason'] = 'attempt_or_deadline_exhausted'
                 result['failure_reason'] = job.failure_reason
             job.status = status
@@ -1060,17 +1830,53 @@ class JobService:
             job.unresolved_questions = result.get('unresolved_questions', job.unresolved_questions)
             if status in {'completed', 'partial'} and not ((job.answer or '').strip() or job.findings or job.evidence_packets):
                 status = job.status = result['status'] = 'failed'
+            private_children, wait_generation, wake_version = (
+                self._private_child_context(db, job_id) if frame is not None else ((), None, None))
+            if frame is not None and 'protocol_feedback' in result and status not in TERMINAL:
+                frame_store.save_protocol_feedback(job_id, job.scope, frame.generation, attempt,
+                    result['protocol_feedback'], now=self.clock())
+            consumed = result.get('private_child_results_consumed')
+            accepted_child_ack = False
+            if consumed is not None:
+                expected = {item['child_id'] for item in private_children}
+                supplied = set(consumed) if isinstance(consumed, list) and all(isinstance(x, str) for x in consumed) else set()
+                if not expected or supplied != expected or wait_generation is None or wake_version is None:
+                    raise ValueError('invalid_private_child_result_ack')
+                if status in TERMINAL:
+                    accepted_child_ack = frame_store.prepare_wake_ack(job_id, wait_generation, consumed)
+                    if not accepted_child_ack:
+                        raise ValueError('private_child_result_ack_not_persisted')
             if status in TERMINAL:
                 job.terminal_reason = result.get('reason')
+                if frame is not None and not accepted_child_ack:
+                    self._cancel_descendants(db, frame_store, job_id, self.clock())
             job = DurableJob.model_validate(job.model_dump())
             if any(p not in job.evidence_packets for f in job.findings for p in f.evidence_packets):
                 raise ValueError('unobserved finding evidence')
             if status in TERMINAL:
-                job.result_packet, _ = self._packet(db, job, result, job.mode)
+                public_result = {key: value for key, value in result.items()
+                    if key not in {'private_child_results_consumed', 'private_wait',
+                                   'model_turns_used', 'cumulative_model_turns_used',
+                                   'remaining_model_turns', 'protocol_feedback'}}
+                job.result_packet, _ = self._packet(db, job, public_result, job.mode)
+                if frame is not None:
+                    visible = {key: value for key, value in result.items()
+                        if key in {'status', 'answer', 'findings', 'unresolved_questions', 'reason',
+                                   'failure_reason', 'evidence_packets', 'result_packet'}}
+                    visible['status'] = status
+                    visible['result_packet'] = job.result_packet
+                    visible['evidence_packets'] = list(job.evidence_packets)
+                    if not accepted_child_ack:
+                        frame_store.record_terminal(job_id, frame.generation,
+                            'expired' if result.get('reason') in {'deadline_exhausted', 'attempt_or_deadline_exhausted'} else status,
+                            visible, now=self.clock())
+                        wake_parents = frame.parent_id is not None
             db.execute('UPDATE jobs SET record=?,updated=?,lease=0,available=? WHERE id=?',
-                (job.model_dump_json(), self.clock(), self.clock()+(self.retry_seconds if self.retry_seconds is not None else (5 if job.attempt == 1 else 15)), job_id))
+                (job.model_dump_json(), self.clock(), self.clock() + (0 if result.get('reason') in {'slice_complete', 'private_wait_proposed'} else (self.retry_seconds if self.retry_seconds is not None else (5 if job.attempt == 1 else 15))), job_id))
             self._trim_index(db, job.scope)
         self.reconcile()
+        if wake_parents:
+            self._wake_ready_parents()
         return True
 
     def _trim_index(self, db, scope):
@@ -1082,6 +1888,9 @@ class JobService:
     def cancel(self, job_id, *, access_scope):
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
+            frames = FrameStore(db)
+            if frames.is_private(job_id):
+                return False
             row = db.execute('SELECT * FROM jobs WHERE id=? AND scope=?', (job_id, wire(dict(access_scope)))).fetchone()
             if not row:
                 return False
@@ -1090,8 +1899,14 @@ class JobService:
                 return False
             job.attempt += 1; job.status = 'cancelled'
             db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?', (job.model_dump_json(), self.clock(), job_id))
+            frame = frames.get_frame(job_id)
+            if frame is not None:
+                self._cancel_descendants(db, frames, job_id, self.clock())
+                frames.record_terminal(job_id, frame.generation, 'cancelled',
+                    {'status': 'cancelled', 'reason': 'operator_cancelled'}, now=self.clock())
             self._trim_index(db, job.scope)
         self.reconcile()
+        self._consume_pending_frame_acks()
         return True
 
     def reconcile(self):
@@ -1198,8 +2013,17 @@ class JobService:
 
         # A trusted base that cannot fit must fail before dispatch. It includes
         # caller-independent trusted scope, hints, roots and schemas unchanged.
+        # A request can be projected twice: once after adding host context and
+        # again after adding the durable frame continuation fields. Preserve
+        # the identities omitted by the first pass so the model sees the full
+        # ordered projection and downstream evidence checks can still reject
+        # omitted bodies.
+        previously_omitted = projected.get('omitted_observation_packet_ids', [])
+        if (not isinstance(previously_omitted, list)
+                or any(not isinstance(packet_id, str) or not packet_id for packet_id in previously_omitted)):
+            previously_omitted = []
         projected['observations'] = []
-        projected['omitted_observation_packet_ids'] = []
+        projected['omitted_observation_packet_ids'] = list(previously_omitted)
         if cls._worker_request_bytes(projected) > WORKER_JOB_INPUT_MAX_BYTES:
             return None
 
@@ -1209,7 +2033,7 @@ class JobService:
         dropped = 0
         while True:
             projected['observations'] = normalized[dropped:]
-            projected['omitted_observation_packet_ids'] = [
+            projected['omitted_observation_packet_ids'] = previously_omitted + [
                 observation['packet_id'] for observation in normalized[:dropped]
                 if isinstance(observation, dict) and isinstance(observation.get('packet_id'), str)]
             if cls._worker_request_bytes(projected) <= WORKER_JOB_INPUT_MAX_BYTES:
@@ -1225,6 +2049,28 @@ class JobService:
         heartbeat.start()
         try:
             if self.backend:
+                with self._db() as db:
+                    frames = FrameStore(db)
+                    frame = frames.get_frame(job.job_id)
+                    allowed = True
+                    reason = 'dispatch_policy_changed'
+                    if frame is not None:
+                        policy = PowerPolicy(db, clock=self.clock)
+                        origin = policy.root_demand_origin(frame.root_id)
+                        frame_class = ('automatic_root' if frame.origin_class == 'automatic' and frame.parent_id is None
+                                       else 'public_root' if frame.parent_id is None else 'private_child')
+                        automatic_work = (db.execute('SELECT * FROM pa1_automatic_work WHERE job_id=?',
+                            (frame.root_id,)).fetchone() if origin.kind == 'automatic' else None)
+                        automatic_permission = (trusted_operator_control().permission('dispatch_automatic')
+                                                if origin.kind == 'automatic' else None)
+                        decision = policy.allow_dispatch(frame_class, True, root_id=frame.root_id,
+                            demand_origin=origin, permission=automatic_permission,
+                            focus_id=automatic_work['focus_id'] if automatic_work else None,
+                            project=automatic_work['project'] if automatic_work else None)
+                        allowed, reason = decision.allowed, decision.reason
+                if not allowed:
+                    self.finish(job.job_id, job.attempt, {'status': 'yielding', 'reason': reason})
+                    return
                 response = self.backend.open_sessions(1, compute_profile='narrow', parallelism='default', deadline_epoch=job.deadline_epoch)
                 sessions = response.get('session_ids', response.get('sessions', []))
                 if response.get('status') != 'available' or not sessions:
@@ -1233,11 +2079,28 @@ class JobService:
                 session = sessions[0]
                 if isinstance(session, dict):
                     session = session['session_id']
+                epoch_keys = ('daemon_epoch', 'supervisor_pid', 'supervisor_process_start',
+                              'runtime_fingerprint')
+                supervisor_epoch = {key: response[key] for key in epoch_keys if key in response}
+                tracked_session = bool(supervisor_epoch)
+                if (callable(getattr(self.backend, 'release_owned_observer_resources', None))
+                        and not supervisor_epoch):
+                    raise RuntimeError('observer_supervisor_epoch_missing')
+                if tracked_session:
+                    if set(supervisor_epoch) != set(epoch_keys):
+                        raise RuntimeError('observer_supervisor_epoch_incomplete')
+                    with self._db() as db:
+                        db.execute('BEGIN IMMEDIATE')
+                        ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                            clock=self.clock).record_active_session(session, supervisor_epoch)
             if job.deadline_epoch is not None and self.clock() >= job.deadline_epoch:
                 self.finish(job.job_id, job.attempt, {'status': 'partial', 'reason': 'deadline_exhausted',
                     'unresolved_questions': ['The analysis deadline expired during startup.']})
                 return
-            stored = self.lookup(job.job_id, access_scope=job.scope)
+            with self._db() as db:
+                private_job = FrameStore(db).is_private(job.job_id)
+            stored = (self._worker_lookup(job.job_id, access_scope=job.scope) if private_job
+                      else self.lookup(job.job_id, access_scope=job.scope))
             request = {'job_id': job.job_id, 'attempt': job.attempt, 'mode': job.mode,
                 'question': job.execution_question or job.question, 'scope': job.scope,
                 'deadline_epoch': job.deadline_epoch, 'refresh_context': job.refresh_context,
@@ -1259,7 +2122,109 @@ class JobService:
                     'unresolved_questions': ['Trusted inquiry inputs exceed the bounded worker request size.']})
                 return
             worker = self.worker_factory(self, job)
-            self.finish(job.job_id, job.attempt, worker.run(request))
+            with self._db() as db:
+                frame_store = FrameStore(db)
+                frame = frame_store.get_frame(job.job_id)
+                private_children, wait_generation, wake_version = self._private_child_context(db, job.job_id)
+                protocol_feedback = (frame_store.load_protocol_feedback(job.job_id, job.scope, frame.generation)
+                    if frame is not None else [])
+            if frame is not None:
+                request['model_turns_used'] = frame.turns_used
+                request['private_child_results'] = list(private_children)
+                if protocol_feedback:
+                    request['protocol_feedback'] = protocol_feedback
+                policy_id = ('gather-v1' if frame.parent_id is not None
+                    or not job.evidence_packets and not private_children else 'synthesis-v1')
+                policy = policy_for(policy_id)
+                request['trusted_turn_policy_id'] = policy_id
+                requested = {'logical_context_tokens': policy.logical_context_tokens,
+                    'reasoning_tokens': policy.reasoning_tokens, 'visible_tokens': policy.visible_tokens,
+                    'behavior': policy.behavior, 'reasoning_mode': policy.reasoning_mode}
+                with self._db() as db:
+                    db.execute('''INSERT INTO pa1_frame_attempts(job,attempt,generation,policy_id,requested)
+                        VALUES(?,?,?,?,?) ON CONFLICT(job,attempt) DO UPDATE SET
+                        generation=excluded.generation,policy_id=excluded.policy_id,requested=excluded.requested''',
+                        (job.job_id, job.attempt, frame.generation, policy_id, wire(requested)))
+                request = self._project_worker_request(request, self._checkpoint_public_calls(job.job_id))
+                if request is None:
+                    self.finish(job.job_id, job.attempt, {'status': 'failed',
+                        'reason': 'job_input_budget_exhausted',
+                        'unresolved_questions': ['Private continuation context exceeds the bounded worker request size.']})
+                    return
+            # Slice accounting is available only to trusted, durably framed
+            # work. Legacy seeded jobs retain their established single-run
+            # semantics; they must not get repeated one-turn runs without a
+            # cumulative broker budget.
+            run_slice = getattr(worker, 'run_slice', None) if frame is not None else None
+            if callable(run_slice):
+                if frame is not None:
+                    with self._db() as db:
+                        remaining = FrameStore(db).remaining_turns(job.job_id)
+                else:
+                    remaining = 1
+                if remaining <= 0:
+                    self.finish(job.job_id, job.attempt, {'status': 'partial', 'reason': 'model_turn_budget_exhausted',
+                        'unresolved_questions': ['The bounded model-turn budget was fully reserved by the controller.']})
+                    return
+                response = run_slice(request, max_model_turns=1)
+            else:
+                # Compatibility for old verified producers during staged rollout.
+                response = worker.run(request)
+            if not isinstance(response, dict):
+                raise ValueError('worker_result_must_be_object')
+            if frame is not None:
+                usage = response.get('usage') if isinstance(response.get('usage'), dict) else {}
+                telemetry = {}
+                budget = usage.get('budget') if isinstance(usage.get('budget'), dict) else None
+                if budget is not None:
+                    if set(budget) != {'requested', 'effective', 'used'}:
+                        raise ValueError('worker_budget_telemetry_invalid')
+                    expected_keys = {
+                        'requested': {'logical_context_tokens', 'reasoning_tokens', 'visible_tokens'},
+                        'effective': {'logical_context_tokens', 'reasoning_tokens', 'visible_tokens'},
+                        'used': {'context_tokens', 'reasoning_tokens', 'visible_tokens'},
+                    }
+                    for section, allowed in expected_keys.items():
+                        values = budget.get(section)
+                        if (not isinstance(values, dict) or set(values) != allowed
+                                or any(value is not None and (not isinstance(value, int) or isinstance(value, bool))
+                                       for value in values.values())):
+                            raise ValueError('worker_budget_telemetry_invalid')
+                    telemetry['budget'] = budget
+                reported_policy = usage.get('turn_policy_id', response.get('policy_id', policy_id))
+                if reported_policy != policy_id:
+                    raise ValueError('worker_turn_policy_mismatch')
+                telemetry['turn_policy_id'] = policy_id
+                if telemetry:
+                    with self._db() as db:
+                        db.execute('UPDATE pa1_frame_attempts SET telemetry=? WHERE job=? AND attempt=?',
+                            (wire(telemetry), job.job_id, job.attempt))
+            model_turns = response.get('model_turns_used', 0)
+            if (not isinstance(model_turns, int) or isinstance(model_turns, bool)
+                    or not 0 <= model_turns <= 1):
+                raise ValueError('invalid_model_turn_count')
+            cumulative_turns = response.get('cumulative_model_turns_used')
+            if frame is not None and cumulative_turns is not None:
+                if (not isinstance(cumulative_turns, int) or isinstance(cumulative_turns, bool)
+                        or cumulative_turns != frame.turns_used + model_turns):
+                    raise ValueError('cumulative_model_turn_count_mismatch')
+            if frame is not None and model_turns:
+                with self._db() as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    fresh = FrameStore(db).get_frame(job.job_id)
+                    if fresh is None or fresh.generation != frame.generation:
+                        raise RuntimeError('stale_frame_generation')
+                    FrameStore(db).consume_turns(job.job_id, frame.generation, model_turns,
+                        attempt=job.attempt, now=self.clock())
+            if response.get('reason') == 'private_wait_proposed':
+                self._private_wait(job, response)
+                return
+            if private_children and response.get('private_child_results_consumed') is not None:
+                consumed = response.get('private_child_results_consumed')
+                if (not isinstance(consumed, list) or set(consumed) != {entry['child_id'] for entry in private_children}
+                        or wait_generation is None or wake_version is None):
+                    raise ValueError('invalid_private_child_result_ack')
+            self.finish(job.job_id, job.attempt, response)
         except Exception as error:
             self.last_error = type(error).__name__
             self.finish(job.job_id, job.attempt, {'status': 'partial', 'reason': type(error).__name__,
@@ -1272,6 +2237,19 @@ class JobService:
                     if isinstance(closed, dict) and (closed.get('released') is False
                             or closed.get('status') in {'unavailable', 'busy', 'failed'}):
                         raise RuntimeError('session_cleanup_unproved')
+                    if tracked_session:
+                        receipt = closed.get('owned_resource_receipt') if isinstance(closed, dict) else None
+                        if isinstance(receipt, dict):
+                            with self._db() as db:
+                                db.execute('BEGIN IMMEDIATE')
+                                ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                                    clock=self.clock).record_session(session, receipt)
+                        else:
+                            # The ordinary idle close may succeed while its exact
+                            # process-bound capability is unavailable. Preserve
+                            # that state as unverified so global release remains
+                            # pending instead of claiming device quiescence.
+                            self.last_error = 'observer_close_receipt_missing'
             except Exception:
                 cleanup_failed = True
                 self.last_error = 'session_cleanup_unproved'
@@ -1281,7 +2259,20 @@ class JobService:
                 heartbeat_stop.set(); heartbeat.join()
                 if not cleanup_failed:
                     with self._db() as db:
-                        db.execute('DELETE FROM execution_slots WHERE job=? AND attempt=?', (job.job_id, job.attempt))
+                        db.execute('DELETE FROM execution_slots WHERE job=? AND attempt=?',
+                            (job.job_id, job.attempt))
+                        # Only arm children after the parent's physical session
+                        # has been closed and its slot has been removed.
+                        frames = FrameStore(db)
+                        frame = frames.get_frame(job.job_id)
+                        if frame is not None and frame.state == 'waiting':
+                            wait = db.execute('SELECT generation FROM pa1_frame_waits WHERE parent_id=? ORDER BY generation DESC LIMIT 1',
+                                (job.job_id,)).fetchone()
+                            if wait:
+                                frames.mark_parent_released(job.job_id, int(wait['generation']), now=self.clock())
+                    self._consume_pending_frame_acks()
+                    self._reconcile_owned_release()
+                self._wake.set()
 
     def _drain(self):
         while not self._stop.is_set():

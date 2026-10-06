@@ -1,0 +1,58 @@
+{
+  "format": "pa1-controller-decisions/1",
+  "authorization": "2026-10-06 user: Hold is released. Start implementing this.",
+  "device_hold": "reinstated before LAB/live qualification by latest user direction",
+  "implementation": "authorized",
+  "delegation": "configured gpt-6-luna named profiles; controller retains lifecycle/integration/acceptance",
+  "defaults": {
+    "automatic_background": "off; demand-only",
+    "proactive_notifications": "off",
+    "network_scratch": "denied",
+    "canonical_scratch_promotion": "explicit parent acceptance only",
+    "hidden_reasoning_retention": "none",
+    "kv_persistence": "deferred",
+    "public_mcp_surface": "preserve current tool lists/schemas",
+    "live_qualification": "finite disposable package fixtures through existing central supervisor and CUDA foreground interlock"
+  },
+  "scope": "Package implementation and bounded qualification, including reversible selected-candidate deployment, preserve foreign active work. Production automatic scope and permanent resource windows are not enabled.",
+  "skills_compatibility": {
+    "phase": "only after receiver native gates and parity accepted",
+    "namespace": "legacy package is a navigation forwarder; it removes only its own not-yet-initialized placeholder before calling the strict receiver binder, then returns the canonical local_worker module; reject other preloaded legacy modules",
+    "ownership": "archive supplier runtime with hashes for rollback, replace mutable duplicate implementation with forwarders; keep independent Todo/CUDA/ctxpp authority and domain knowledge",
+    "production": "old release process/source retained as independent immutable rollback artifact; no new code under old schema-v2 manifest",
+    "catalog": "apply minimal targeted delta while preserving current dirty catalog content; no global rebuild"
+  },
+  "frame_integration": {
+    "public_turn_budget": "six model turns total across root and descendants; store owns cumulative accounting and reservations",
+    "origin": "persist trusted public_demand or automatic on root admission; descendants inherit it",
+    "quiet": "blocks automatic roots and automatic descendants; explicit demand remains eligible unless release veto",
+    "policy_mapping": "private children and empty-evidence roots gather-v1; roots with accepted observations or delivered child context synthesis-v1; typed lab plans experiment-plan-v1",
+    "source_binding": "root explicitly refreshes receiver manifest after concurrent runtime writers complete; source test fixtures may clear installed release pins only for source mode",
+    "controller_direct_work_reason": "manifest refresh and cross-owner policy/API decisions are inseparable from final integration; routine coding and tests remain delegated"
+  },
+  "resource_integration": {
+    "state": "under_source_investigation",
+    "observable_trigger": "central supervisor and CUDA foreground controller currently acquire separate owners; nested same-GPU lease would self-contend; observer-only RPC denies immediate full eviction",
+    "decision": "preserve ownership/proof checks; qualify supported handoff or implement bounded trusted controller bridge before live work"
+  },
+  "latest_operator_direction": {
+    "observed_at_utc": "2026-10-06T19:22:06.279121+00:00",
+    "instruction": "Finish and validate ASSIST, then pause overnight before LAB or live qualification. Save a restart handoff and leave no background inference running.",
+    "scope": "Finish ASSIST source/CPU validation only; no LAB claim or implementation, no live model/GPU qualification, no selected-candidate deployment/activation.",
+    "resume_requirement": "Explicit operator resume; no automatic overnight wake or inference."
+  },
+  "assistance_source_scope": {
+    "decision": "Selected automatic focus files are read scope, not only change triggers. Seal exact repository/path entries on automatic root and descendants; require current leased job/attempt and exact admission scope.",
+    "integration_constraint": "Frozen receiver has no read tool envelope. Do not expand public MCP or receiver protocol in this stage.",
+    "adapter": "Permit only existing command envelope argv cat plus one absolute selected file, serviced as a bounded descriptor-based O_NOFOLLOW host file read. Execute no command process, shell or generic runner. Packet must disclose selected_file_read and executed_subprocess=false with original current SourceLocator. Deny all other automatic commands and broad information reads.",
+    "normal_demand": "Existing project-scoped public demand behavior unchanged.",
+    "recorded_at_utc": "2026-10-06T19:28:22.410302+00:00",
+    "seal": "version 1; sorted repository/path/sha256 entries from exact admitted file dependencies, inherited without expansion",
+    "read_checks": "Current lease/attempt/generation/deadline and power checks before each host read and before result persistence. Full file digest must match admission; <=256KiB file and <=8KiB visible text with truncation disclosed."
+  },
+  "validation_retry_boundary": {
+    "instruction": "No massive issue search. If it is a transient runtime error it will still be fixable when we resume.",
+    "decision": "Known inherited release-pin failure permits only the small source-test fixture correction and one required-gate retry. Any further failure is retained in the restart handoff and work pauses.",
+    "observed_at_utc": "2026-10-06T19:50:26.031227+00:00"
+  }
+}

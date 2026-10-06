@@ -17,6 +17,7 @@ from project_control.as1_packets import SQLitePacketStore
 SCOPE = {'principal': 'alice', 'profile': 'observer', 'project': 'pc'}
 SKILLS = Path('/home/tumlinson/.agents/skills')
 ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_ROOT = ROOT/'src/project_control/local_runtime'
 
 
 def wait(predicate, timeout=5):
@@ -50,6 +51,8 @@ def source_environment():
                 'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_READ_ONLY', 'TODO_ORCHESTRATOR_STATE_DIR'):
         environment.pop(key, None)
     environment['PROJECT_CONTROL_SKILLS_ROOT'] = str(SKILLS)
+    environment['PROJECT_CONTROL_LOCAL_RUNTIME_ROOT'] = str(RUNTIME_ROOT)
+    environment['PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256'] = hashlib.sha256((RUNTIME_ROOT/'receiver-manifest.json').read_bytes()).hexdigest()
     environment['PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT'] = package_fingerprint(SKILLS/'todo-orchestrator/todo_orchestrator')
     environment['PYTHONPATH'] = os.pathsep.join([str(ROOT/'src'), str(SKILLS/'todo-orchestrator')])
     environment['AS1_SOURCE_HASHES'] = json.dumps({
@@ -243,8 +246,10 @@ class Turns:
 
 
 def trusted(tmp_path, backend, tools=lambda *a: {'text': 'shared'}):
-    source = SKILLS/'local-coding-worker/local_worker/observer_runtime.py'
-    return TrustedObserverFactory(SKILLS, hashlib.sha256(source.read_bytes()).hexdigest(),
+    from project_control.runtime_binding import local_runtime_identity
+    identity = local_runtime_identity(root=RUNTIME_ROOT)
+    source = identity.root/'local_worker/observer_runtime.py'
+    return TrustedObserverFactory(identity.root, hashlib.sha256(source.read_bytes()).hexdigest(),
         backend=backend, roots=[tmp_path, SKILLS], tools=tools,
         skills={'fixture': {'name': 'fixture', 'root': str(tmp_path/'fixture')}})
 
@@ -299,7 +304,7 @@ def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_
     finally:
         s.shutdown()
     with pytest.raises(ValueError, match='receipt mismatch'):
-        TrustedObserverFactory(SKILLS, '0'*64, backend=backend, roots=[tmp_path], tools=tools)
+        TrustedObserverFactory(RUNTIME_ROOT, '0'*64, backend=backend, roots=[tmp_path], tools=tools)
 
 
 @pytest.mark.as1_case('JOB-07')
@@ -549,8 +554,11 @@ for name, expected in json.loads(os.environ['AS1_SOURCE_HASHES']).items():
  assert source == pathlib.Path.cwd()/'src/project_control'/(name+'.py')
  assert hashlib.sha256(source.read_bytes()).hexdigest() == expected
 from project_control.as1_surface import QUALIFIED_OBSERVER_RUNTIME_SHA256
-native=pathlib.Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT'])/'local-coding-worker/local_worker/observer_runtime.py'
+from project_control.runtime_binding import local_runtime_identity
+identity=local_runtime_identity(root=os.environ['PROJECT_CONTROL_LOCAL_RUNTIME_ROOT'])
+native=identity.root/'local_worker/observer_runtime.py'
 assert hashlib.sha256(native.read_bytes()).hexdigest() == QUALIFIED_OBSERVER_RUNTIME_SHA256
+assert identity.manifest_sha256 == os.environ['PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256']
 raise SystemExit(pytest.main(['-q','-p','no:cacheprovider','tests/as1/test_pc_as1_jobs.py',
  '-k','step_budget_is_terminal or recoverable_yields_resume']))
 """

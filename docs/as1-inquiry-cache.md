@@ -2,8 +2,14 @@
 
 The observer asks a question and receives a supported answer or a compact state.
 `investigate(question, project?, hints?, request_id?, detail?)` and
-`skill(query?, skill?, project?, hints?, request_id?, detail?)` do not accept a
-public job ID. All eleven observer tools remain read-only for source and Todo.
+`skill(query?, skill?, project?, hints?, request_id?)` do not accept a
+public job ID. Skill always assembles extended authoritative excerpts, with a
+49,152-byte aggregate excerpt ceiling across selected resources. This is a
+ceiling, not a target: the worker should select a small coherent set of complete
+useful sections and keep its synthesis concise. Excerpts are assembled from
+verified source reads after model output, so the investigator's 2,048-token
+output cap does not limit their size. All eleven observer tools remain
+read-only for source and Todo.
 Private packet, cache and scheduler bookkeeping can write service-owned state.
 
 The public states are `completed`, `partial`, `thinking`, `busy` and `unavailable`.

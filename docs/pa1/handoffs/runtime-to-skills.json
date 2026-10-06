@@ -1,0 +1,22 @@
+{
+  "format": "pa1-cross-handoff/1",
+  "producer": "PC-PA1-RUNTIME",
+  "producer_revision": 963,
+  "producer_result": "validated",
+  "consumer": "SK-PA1-RETIRE",
+  "canonical_receiver": "/home/tumlinson/project-control/src/project_control/local_runtime",
+  "receiver_manifest_sha256": "2c95c74a24983bbf08f388aed3722a2caf16823b526f05b3ab714cce9c3e9d5a",
+  "receiver_fingerprint": "e9efb7550d2e9f7f72e0460695ad2bdd7bdd75b975c5049941a0edef5ab13d25",
+  "source_files": 42,
+  "parity_evidence": {
+    "docs/pa1/runtime-parity.json": "92737532939e2f80a8600f4094703538c53c99c8204d935df1cbde2e0efdc6f7",
+    "docs/pa1/runtime-transfer.json": "15e197b73a2aba7aef389fc2fab2a8bea3bb6b2fd0e0d20baa018caca1408e4c",
+    "docs/pa1/runtime-source-tests.json": "0519a4d51a7587450ea3f0f916f2b148306d53d1effee74c2d9ee8bf864c7894",
+    "docs/pa1/runtime-observer-tests.json": "106321277ca7b13b88f3fd236635b37d577114e255f615e1c5539374530327fc",
+    "docs/pa1/runtime-domain-identity.json": "cc75320c45892a18f014381cb08f7d43d8a5a747ea1505233b22d3b984071c05"
+  },
+  "native_gates": "All four required runtime gates passed; task terminal validated at rev963.",
+  "compatibility_decision": "docs/pa1/controller-decisions.json",
+  "activation": "Old production process untouched; candidate source/wheel only.",
+  "coordination": "PC FRAMES behavioral work may progress concurrently; staged Skills forwarders must reverify current receiver manifest before integration/qualification. Preserve provenance originals and dirty catalog deltas."
+}

@@ -1,0 +1,600 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "project-control"
+  },
+  "invariants": [
+    {
+      "id": "PC-PA1-AUTH",
+      "severity": "error",
+      "rule": "Todo remains the sole project workflow authority; assistant-owned notes and scratch artifacts cannot mutate canonical source or Todo without explicit existing authority."
+    },
+    {
+      "id": "PC-PA1-SURFACE",
+      "severity": "error",
+      "rule": "Preserve existing MCP discovery, schemas, permissions and literal-retry meaning unless a narrow operator-approved amendment is recorded."
+    },
+    {
+      "id": "PC-PA1-SLOTS",
+      "severity": "error",
+      "rule": "Use at most two same-weight model executions; explicit dependency or long-effect waits hold no inference lease. No unbounded descendants or duplicate private pools."
+    },
+    {
+      "id": "PC-PA1-FENCE",
+      "severity": "error",
+      "rule": "Durable actions and results are generation-fenced, budgeted and crash-reconciled; a public retry never renews an inquiry deadline."
+    },
+    {
+      "id": "PC-PA1-EVIDENCE",
+      "severity": "error",
+      "rule": "Claims retain actual source/experiment provenance, access scope and freshness; historical evidence, hypotheses and canonical authority remain distinguishable."
+    },
+    {
+      "id": "PC-PA1-POWER",
+      "severity": "error",
+      "rule": "Automatic work is opt-in, bounded, preemptible and subject to persistent quiet and GPU-residency vetoes; status never loads a model."
+    },
+    {
+      "id": "PC-PA1-FAST",
+      "severity": "error",
+      "rule": "Prompt/request-only evaluation uses isolated source-mode and warm reuse when compatible, not per-edit production rebuild/deployment."
+    },
+    {
+      "id": "PC-PA1-PRESERVE",
+      "severity": "error",
+      "rule": "Preserve active work, dirty files, history, source bindings and verified resource ownership; no automatic recovery, cleanup of user work or dormant-tool reactivation."
+    },
+    {
+      "id": "PC-PA1-MODULAR",
+      "severity": "error",
+      "rule": "Move runtime ownership without copying the Todo kernel or host resource scheduler; Skills remain knowledge/tooling inputs and one canonical runtime implementation exists."
+    },
+    {
+      "id": "PC-PA1-USEFUL",
+      "severity": "error",
+      "rule": "Optimize measured engineering usefulness, grounded answers and decision quality, not note count, agent count or token consumption."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "PC-PA1-0000",
+      "kind": "epic",
+      "title": "Project Assistance v1: useful persistent local engineering intelligence",
+      "objective": "Aggregate the verified outcome results; this record is not an initial coordinator gate. Complete last after the outcome and cross-authority evidence is accepted.",
+      "parallel_policy": "serial",
+      "priority": 10,
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "Intent and non-goals: planning/project-assistance-v1/docs/01-intent.md. Read the outcome briefs and cross-authority.json. Do not start this aggregate before its serial outcome queue has completed. No child depends on the epic.",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated"
+        ]
+      }
+    },
+    {
+      "id": "PC-PA1-FAST",
+      "parent_id": "PC-PA1-0000",
+      "kind": "task",
+      "title": "Establish fast source-bound development and useful-answer evaluation",
+      "objective": "Deliver an isolated source-mode worker/broker test seam, visible-trace replay and a small warm-model comparison path, with baseline identities and consequential adoption decisions recorded. Prevent production rebuilds from becoming the tuning loop.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "scripts",
+          "tests",
+          "docs",
+          "planning/project-assistance-v1",
+          "src/project_control"
+        ],
+        "read_paths": [
+          "README.md",
+          "pyproject.toml",
+          "packaging",
+          "deployment"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-FAST\",\"difficulty\":\"medium\",\"sources\":[\"S02\",\"S13\",\"S15\",\"S22\",\"S23\",\"O02\"],\"deliverables\":[\"Source-import and isolated-state assertions\",\"Deterministic orchestration fixtures and visible trace replay\",\"Fixed quality cases plus held-out variants\",\"Bounded experiment ledger and decision capture\"],\"acceptance\":\"Request-only candidate changes can be exercised without rebuilding/deploying production; failures are classified by layer and counted tests bind real source.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "PC-PA1-FAST-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_fast_loop",
+            "-v"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "PC-PA1-RUNTIME",
+      "parent_id": "PC-PA1-0000",
+      "kind": "task",
+      "title": "Absorb the owned local-worker runtime without changing its contracts",
+      "objective": "Move PC-owned observer/inference machinery and relevant tests into Project Control using a verified supplier inventory, update consumers and release bindings, and prove baseline parity before behavioral expansion. Keep one canonical implementation and preserve independent Todo/CUDA/ctxpp authority.",
+      "priority": 99,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "scripts",
+          "packaging",
+          "deployment",
+          "pyproject.toml",
+          "docs",
+          "planning/project-assistance-v1"
+        ],
+        "read_paths": [
+          "README.md"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-RUNTIME\",\"difficulty\":\"medium-high\",\"sources\":[\"S01\",\"S08\",\"S09\",\"S14\",\"S15\",\"S23\"],\"deliverables\":[\"Canonical runtime package and compatibility seam\",\"Updated source/release/entry-point bindings\",\"Consumer and policy migration manifest\",\"Parity and denied-authority tests\"],\"acceptance\":\"PC no longer needs mutable Skills runtime source for its owned inference machinery; old paths have one implementation, compatibility and pinned qualification.\",\"external_handoffs\":[{\"producer\":\"SK-PA1-HANDOFF\",\"consumer\":\"PC-PA1-RUNTIME\",\"contract\":\"Current hashed supplier runtime/policy/test inventory and consumer/forwarding agreement.\",\"verification\":\"Receiver re-reads actual producer artifacts and identities; does not trust task title alone.\"}],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "PC-PA1-RUNTIME-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_runtime_binding",
+            "-v"
+          ],
+          "required": true
+        }
+      ],
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PA1-FAST"
+        }
+      ]
+    },
+    {
+      "id": "PC-PA1-FRAMES",
+      "parent_id": "PC-PA1-0000",
+      "kind": "task",
+      "title": "Make continuations suspend, wake and release resources correctly",
+      "objective": "Extend the existing private broker with bounded continuations, typed waits and wake-up reconciliation. Release leases during dependency or long-effect waits; retain generation/effect fencing, truthful deadlines, two-slot capacity and verified GPU eviction.",
+      "priority": 98,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "docs",
+          "planning/project-assistance-v1"
+        ],
+        "read_paths": [
+          "scripts",
+          "packaging",
+          "deployment"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-FRAMES\",\"difficulty\":\"high\",\"sources\":[\"S04\",\"S05\",\"S13\",\"S14\",\"S15\",\"S17\",\"S18\"],\"deliverables\":[\"Slice/continuation protocol and compatible state persistence\",\"Bounded wait graph and admission accounting\",\"Independent deadline/cleanup supervision\",\"Trusted request-local policy selection\",\"Power-control state core and resource veto\"],\"acceptance\":\"Two parents can suspend for children without deadlock or occupied model leases; restart, expiry, late results and cleanup races remain correct.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "PC-PA1-FRAMES-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_frames",
+            "-v"
+          ],
+          "required": true
+        }
+      ],
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PA1-RUNTIME"
+        }
+      ]
+    },
+    {
+      "id": "PC-PA1-KNOWLEDGE",
+      "parent_id": "PC-PA1-0000",
+      "kind": "task",
+      "title": "Serve goal-linked prepared context with valid evidence and freshness",
+      "objective": "Add bounded assistant-owned notes, goals and experiment references using existing packets and trace determinants. Integrate access-filtered retrieval into current information paths without altering exact cache behavior or claiming canonical Todo publication.",
+      "priority": 97,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "docs",
+          "planning/project-assistance-v1"
+        ],
+        "read_paths": [
+          "README.md"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-KNOWLEDGE\",\"difficulty\":\"medium-high\",\"sources\":[\"S05\",\"S06\",\"S07\",\"S19\",\"S20\",\"S25\"],\"deliverables\":[\"Derived notebook provider and source-based invalidation\",\"User-owned focus/goal cards with provenance\",\"Evidence retention pins independent of recent answers\",\"Bounded relevant context in existing discovery/evidence paths\"],\"acceptance\":\"Useful context survives appropriate retention, stale material is explicit, unrelated changes avoid blanket invalidation, and inferred notes never become authority silently.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "PC-PA1-KNOWLEDGE-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_knowledge",
+            "-v"
+          ],
+          "required": true
+        }
+      ],
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PA1-FRAMES"
+        }
+      ]
+    },
+    {
+      "id": "PC-PA1-ASSIST",
+      "parent_id": "PC-PA1-0000",
+      "kind": "task",
+      "title": "Deliver focused automatic assistance and a thin conversational control plane",
+      "objective": "Implement opted-in change-driven assistance, coalescing and no-change backoff over the existing graph, with foreground priority, power/quiet controls and a simple nonresident chat/CLI. Produce decision-relevant context and ideas rather than continuous summaries.",
+      "priority": 96,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "docs",
+          "planning/project-assistance-v1"
+        ],
+        "read_paths": [
+          "scripts",
+          "deployment",
+          "README.md"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-ASSIST\",\"difficulty\":\"medium-high\",\"sources\":[\"S02\",\"S03\",\"S07\",\"S14\",\"S23\",\"O01\",\"O02\"],\"deliverables\":[\"Time-bounded focus and deterministic attention selection\",\"Change coalescing, no self-trigger and bounded queues\",\"Quiet/demand-only/GPU-release CLI and chat proposals\",\"Decision-linked findings and dismissible goal-aware handoff\"],\"acceptance\":\"An opted-in moving-source demonstration creates useful context; quiet survives restart and no-change input makes no model calls; UI waits never reserve a model.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "PC-PA1-ASSIST-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_assistance",
+            "-v"
+          ],
+          "required": true
+        }
+      ],
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PA1-FRAMES"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-PA1-KNOWLEDGE"
+        }
+      ]
+    },
+    {
+      "id": "PC-PA1-LAB",
+      "parent_id": "PC-PA1-0000",
+      "kind": "task",
+      "title": "Turn permitted questions into isolated tests and mechanism experiments",
+      "objective": "Reuse snapshot, patch and verification machinery for a service-owned scratch laboratory. Support bounded CPU tests and explicitly authorized GPU experiments that release inference resources first. Return empirical evidence and unpromoted candidates only.",
+      "priority": 95,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "scripts",
+          "docs",
+          "planning/project-assistance-v1"
+        ],
+        "read_paths": [
+          "packaging",
+          "deployment"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-LAB\",\"difficulty\":\"high\",\"sources\":[\"S08\",\"S10\",\"S11\",\"S12\",\"S14\",\"S15\",\"S19\",\"O03\",\"O04\"],\"deliverables\":[\"Consistent dirty-source materialization with containment\",\"Typed experiment request/receipt and bounded effect runner\",\"CPU/GPU execution policy and owned-process cleanup\",\"Counterexample/negative-result/patch evidence without canonical application\"],\"acceptance\":\"A new scratch test detects a fixture defect, resource and repository sentinels remain intact, and a GPU experiment never waits behind its own retained inference lease.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "PC-PA1-LAB-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_lab",
+            "-v"
+          ],
+          "required": true
+        }
+      ],
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PA1-FRAMES"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-PA1-KNOWLEDGE"
+        }
+      ]
+    },
+    {
+      "id": "PC-PA1-QUALIFY",
+      "parent_id": "PC-PA1-0000",
+      "kind": "validation_task",
+      "title": "Qualify useful workflows and promote one reversible candidate",
+      "objective": "Measure prepared-context usefulness, foreground overhead, bounded real-model behavior and permitted GPU lifecycle on the integrated source. Preserve current MCP contracts, test migration/rollback and promote only a selected candidate with explicit activation settings.",
+      "priority": 94,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "src/project_control",
+          "tests",
+          "scripts",
+          "docs",
+          "packaging",
+          "deployment",
+          "planning/project-assistance-v1"
+        ],
+        "read_paths": [
+          "README.md",
+          "pyproject.toml"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "PC-PA1-AUTH",
+        "PC-PA1-SURFACE",
+        "PC-PA1-SLOTS",
+        "PC-PA1-FENCE",
+        "PC-PA1-EVIDENCE",
+        "PC-PA1-POWER",
+        "PC-PA1-FAST",
+        "PC-PA1-PRESERVE",
+        "PC-PA1-MODULAR",
+        "PC-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-QUALIFY\",\"difficulty\":\"high\",\"sources\":[\"S01\",\"S03\",\"S04\",\"S05\",\"S15\",\"S22\",\"S23\",\"O03\",\"O04\"],\"deliverables\":[\"Executed acceptance matrix with source/measurement identity\",\"Finite model-quality comparison and end-to-end usefulness report\",\"MCP compatibility and old/new runtime isolation results\",\"Candidate promotion/rollback and explicit feature activation record\"],\"acceptance\":\"The complete product is useful on representative cases and safe under lifecycle pressure; no fixture-only result is labeled live qualification and unsupported optional features stay off.\",\"external_handoffs\":[{\"producer\":\"SK-PA1-RETIRE\",\"consumer\":\"PC-PA1-QUALIFY\",\"contract\":\"Single-implementation compatible supplier transition and catalog/entry-point evidence.\",\"verification\":\"Final candidate verifies both current authorities and runtime bindings before promotion.\"}],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "PC-PA1-QUALIFY-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_release",
+            "-v"
+          ],
+          "required": true
+        }
+      ],
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "PC-PA1-ASSIST"
+        },
+        {
+          "type": "task",
+          "task_id": "PC-PA1-LAB"
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "PC-PA1-RUN-1",
+      "root_task_id": "PC-PA1-0000",
+      "charter": {
+        "objective": "Improve human and agent engineering work through prepared evidence, resumable local intelligence and safe experiments while retaining a small Project Control surface.",
+        "boundaries": [
+          "Todo authority is unchanged.",
+          "No automatic durable repository edits or canonical publication.",
+          "Two interchangeable same-weight model slots; waiting owns no inference lease.",
+          "Production is not the tuning harness.",
+          "Preserve existing work and explicit source/resource identities.",
+          "Cross-authority handoffs must be verified by the root, not assumed from native queue order.",
+          "Ask the user about consequential design/authority ambiguity; choose ordinary local details independently."
+        ],
+        "acceptance_conditions": [
+          "Applicable machine/acceptance.json cases have executed evidence.",
+          "All outcomes and external handoffs accepted before aggregate completion.",
+          "Optional features without justified usefulness or authority remain disabled."
+        ]
+      },
+      "lanes": [
+        {
+          "id": "PC-PA1-L-EXEC",
+          "role": "implementer",
+          "tasks": [
+            "PC-PA1-FAST",
+            "PC-PA1-RUNTIME",
+            "PC-PA1-FRAMES",
+            "PC-PA1-KNOWLEDGE",
+            "PC-PA1-ASSIST",
+            "PC-PA1-LAB",
+            "PC-PA1-QUALIFY",
+            "PC-PA1-0000"
+          ],
+          "workspace": {
+            "mode": "exclusive"
+          }
+        }
+      ]
+    }
+  ]
+}

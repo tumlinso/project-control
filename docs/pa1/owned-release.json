@@ -1,0 +1,139 @@
+{
+  "format": "PC-PA1-OWNED-RELEASE/1",
+  "state": "implemented-source",
+  "purpose": "Allow the trusted PA1 resource controller to release only exact observer slots it opened and closed, with physical cleanup proof.",
+  "transport": {
+    "operation": "observer-release-owned",
+    "parameters": [
+      "request_id",
+      "records",
+      "deadline_epoch"
+    ],
+    "record_fields": [
+      "session_id",
+      "capability"
+    ],
+    "maximum_records": 2,
+    "controller_batch_limit": 64,
+    "controller_chunk_size": 2,
+    "empty_records": "rejected",
+    "peer_authentication": "Unix peer UID; ordinary observer-close additionally requires the opening peer PID and process start identity. PA1 resolves the current receiver through observer-status before it forwards a stored receipt.",
+    "transfer": "A later same-UID controller process may use the opaque capability read from the same private JobService database only after observer-status validates the current receiver source, runtime, supervisor PID/start, and daemon epoch. The daemon then checks the current daemon epoch, one-time capability digest, and exact idle physical slot identity; the stored prior process identity alone grants nothing."
+  },
+  "capability": {
+    "minted": "Only after a successful owner-matched observer-close leaves that exact slot idle.",
+    "entropy_bits": 256,
+    "server_storage": "Capability SHA-256 and exact slot fingerprint in a bounded in-memory ledger for the current daemon epoch.",
+    "controller_storage": "Raw capability and fingerprint receipt in pa1_owned_resource_sessions beside the caller's private JobService database.",
+    "fingerprint": [
+      "daemon_epoch",
+      "session_id",
+      "slot_id",
+      "host_lease_id",
+      "owner_id",
+      "residency_generation",
+      "server_pid",
+      "server_process_start",
+      "gpu_uuids"
+    ],
+    "invalidation": [
+      "daemon restart",
+      "slot reuse by any observer-open",
+      "observer-analyze or observer-turn internal resource access",
+      "physical identity change",
+      "ledger eviction"
+    ]
+  },
+  "proof": {
+    "success_requires": [
+      "owned llama-server PID absent from a fresh process observation",
+      "GPU memory at or below the captured baseline tolerance",
+      "HostCoordinator protected residency lease release returned successfully"
+    ],
+    "cleanup": "Reuse of Backend._evict_slot and its HostCoordinator residency-quiescence record.",
+    "active_turn": "A live JobService session without a close receipt remains pending; no process is terminated. Cleanup failures remain pending and can be reconciled with the same request ID.",
+    "stale_capability": "Returns stale/pending reconciliation; never represents physical release. The controller filters old-epoch receipts and continues bounded chunks so a stale historical target does not prevent cleanup of current exact targets; any stale target keeps the overall intent pending."
+  },
+  "durability": {
+    "intent": "PowerPolicy release intent and rewarm veto are committed before the owner callback.",
+    "session_metadata": "ResourceController records trusted open and close transitions in the same JobService SQLite database.",
+    "callback": "Runs after the release-intent transaction commits and with no JobService transaction held. A completed ResourceController result requires per-session PID, memory, and host-release proof.",
+    "daemon_restart": "The in-memory capability ledger is lost. Durable controller intent remains pending; prior process-owner recovery and idle TTL retain their existing responsibilities."
+  },
+  "boundaries": {
+    "global_stop": false,
+    "foreign_borrower_release": false,
+    "arbitrary_gpu_or_owner_parameters": false,
+    "model_or_device_started_by_this_operation": false,
+    "background_assistance_enabled": false,
+    "production_release_promoted": false
+  },
+  "current_source_observation": {
+    "observed_at_utc": "2026-10-06T18:40:47Z",
+    "repository": "/home/tumlinson/project-control",
+    "git_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "worktree_state": "dirty; PA1 source and evidence are worktree-local",
+    "receiver_root": "src/project_control/local_runtime",
+    "receiver_file_count": 42,
+    "receiver_source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+    "receiver_fingerprint": "1860a5d64662da3379d8f9b4823813321ed6cf1f7a78fbb7c5b66cbcd3d684cb",
+    "receiver_manifest_sha256": "576aaf8b80d58df9040e2c3d6058e95a7252227890068b4b9d49c0c0f88add4a",
+    "relevant_sha256": {
+      "src/project_control/as1_jobs.py": "62357eb5f976a6b13e72f5d9970ddb7d792e89c45079d55648bd504ab2ef3ed6",
+      "src/project_control/as1_surface.py": "5f9d1c0d0aedcd3c4b950e15452e68db854f3b1c09f30a407eedcd69c00943b0",
+      "src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+      "src/project_control/assistance/frames.py": "d33f4831c8bf746b0b7cf4ec93213c27fcbd045321b8ce1d25f2b083f9c46987",
+      "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8",
+      "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+      "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8",
+      "src/project_control/runtime_binding.py": "83beea936f05b80bacadecb8a56669ff7bfab0753d46ceec2c0190de09a987d1",
+      "src/project_control/local_runtime/scripts/local_worker.py": "0e445333676ec7d65b9854f92c2c721474a55919edcf25efc3d9da3782dd2123",
+      "src/project_control/local_runtime/local_worker/observer_runtime.py": "998a6a46abb924a9e927abc35e6d95d97d2794cc8c42c537a884cb5e621f08a7"
+    },
+    "native_acceptance": {
+      "status": "accepted",
+      "proof_file": "docs/pa1/frames-native-acceptance.json",
+      "task_id": "PC-PA1-FRAMES",
+      "semantic_revision": 1003,
+      "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+      "required_gates": 9,
+      "passed_gates": 9,
+      "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+    }
+  },
+  "latest_local_cpu_validation": {
+    "scope": "local source tests with fake observer/backend state; no model or device computation",
+    "command": "python -m unittest tests.assistance.test_owned_release -v",
+    "result": {
+      "status": "passed",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0
+    },
+    "test_sha256": "5bd2f7eda7ed95dba24f5a5562286197479bd466b5d18df84c88c3fdaccc3bd0",
+    "resources_source_sha256": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8",
+    "notes": [
+      "Includes the regression covering controller batches larger than the two-record receiver RPC limit.",
+      "Worker-reported CPU fake Unix-socket cleanup suite also passed 17/17 after the final source fix; its exact command was not included in the digest supplied to this evidence update.",
+      "The result is a worker-reported local CPU/source check recorded at 2026-10-06T18:30:31Z; it remains bound to the 456fcd47 receiver manifest and 99003ba fingerprint. Test execution time was not supplied."
+    ],
+    "tested_receiver_identity": {
+      "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+      "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+      "receiver_file_count": 42,
+      "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+      "recorded_at_utc": "2026-10-06T18:30:31Z",
+      "test_execution_time": "not supplied in worker summary"
+    }
+  },
+  "native_acceptance": {
+    "status": "accepted",
+    "proof_file": "docs/pa1/frames-native-acceptance.json",
+    "task_id": "PC-PA1-FRAMES",
+    "semantic_revision": 1003,
+    "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+    "required_gates": 9,
+    "passed_gates": 9,
+    "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+  }
+}

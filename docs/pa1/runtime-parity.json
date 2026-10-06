@@ -1,0 +1,113 @@
+{
+  "format": "pa1-runtime-parity/1",
+  "observed_at_utc": "2026-10-06T17:22:39Z",
+  "source_identity": {
+    "supplier_root": "/home/tumlinson/.agents/skills/local-coding-worker",
+    "supplier_commit": "95818340006dd50ef233d7c67ddca2da8eb08bc4",
+    "inventory": "docs/pa1/runtime-handoff.json",
+    "inventory_sha256": "d522eb5f138c31b5caa773fd9d3daa256a647f85dff068f54a9efe9e6b2ad904",
+    "receiver_root": "src/project_control/local_runtime",
+    "binding_source": "src/project_control/runtime_binding.py",
+    "binding_source_sha256": "83beea936f05b80bacadecb8a56669ff7bfab0753d46ceec2c0190de09a987d1",
+    "receiver_manifest": "src/project_control/local_runtime/receiver-manifest.json",
+    "receiver_manifest_sha256": "2c95c74a24983bbf08f388aed3722a2caf16823b526f05b3ab714cce9c3e9d5a",
+    "receiver_fingerprint": "e9efb7550d2e9f7f72e0460695ad2bdd7bdd75b975c5049941a0edef5ab13d25",
+    "transfer_map": "docs/pa1/runtime-transfer.json",
+    "transfer_map_sha256": "15e197b73a2aba7aef389fc2fab2a8bea3bb6b2fd0e0d20baa018caca1408e4c",
+    "module_identity": "local_worker.*"
+  },
+  "source_parity": {
+    "transfer_entries": 41,
+    "unchanged_hash_entries": 38,
+    "adapted_entries": [
+      {
+        "path": "local_worker/controller.py",
+        "reason": "Skills/Todo/ctxpp/CUDA root discovery uses explicit configured domain roots and LCW_*_CLI overrides."
+      },
+      {
+        "path": "local_worker/supervisor.py",
+        "reason": "Child supervisor launch passes through Project Control's manifest-backed bootstrap before imports."
+      },
+      {
+        "path": "scripts/worker_core.py",
+        "reason": "Todo/ctxpp root discovery uses explicit configured domain roots and imports the receiver-owned local_worker package."
+      }
+    ],
+    "receiver_only_files": [
+      {
+        "path": "local_worker/__init__.py",
+        "reason": "Makes the verified local_worker.* receiver package explicit; supplier used a namespace package."
+      }
+    ],
+    "config_and_schema_paths_preserved": true,
+    "config_and_schema_files_checked": 10,
+    "independent_authorities_excluded": [
+      "todo-orchestrator",
+      "cuda",
+      "cpp-context-compiler"
+    ],
+    "qualification_limit": "Hash and layout parity plus one deterministic policy fixture do not establish full runtime or hardware parity."
+  },
+  "behavioral_checks": {
+    "command": "PYTHONPATH=src .venv/bin/python -m unittest tests.assistance.test_runtime_binding -v",
+    "tests_run": 17,
+    "tests_passed": 17,
+    "tests_failed": 0,
+    "checks": [
+      "A valid source manifest is inspected without importing local_worker.",
+      "The source binding exposes only the verified receiver root and leaves local_worker unimported.",
+      "Source-mode fixtures mirror src/project_control; non-checkout installed fixtures require a schema-v2 digest-pinned release manifest.",
+      "A deliberately inherited schema-v2 old-release pin without local_runtime_binding is rejected as runtime_release_binding_missing; each source-mode test removes inherited release pins and restores them after the case.",
+      "Caller-selected roots, changed manifest-covered files, stale installed release roots, and foreign already-loaded local_worker modules fail closed before binding/import.",
+      "A real local_worker.supervisor module executing VERSION='old' remains old after its source and manifest change to VERSION='new'; rebinding returns runtime_fingerprint_changed_restart_required, including after clearing the module cache.",
+      "A same-root local_worker module preloaded before any verified bind is rejected.",
+      "A valid schema-v2 installed release manifest accepts only its exact receiver manifest hash and fingerprint.",
+      "Importing the real receiver supervisor does not call subprocess.Popen.",
+      "Supplier and receiver local_worker.policy imports produce identical output for the same host-evidence fixture.",
+      "Receiver controller domain-tool paths use explicit configured Skills roots or LCW_*_CLI overrides and fail closed when no trusted paths are configured.",
+      "A malicious project_control package under the untrusted workspace cannot shadow the supervisor bootstrap when the child runs from the trusted package parent; forwarded invalid arguments reach the supervisor parser without starting a process.",
+      "SupervisorClient.ensure_running is exercised with subprocess.Popen mocked; its argv, exact package-parent cwd, controlled PYTHONPATH ordering, and environment passthrough are asserted without starting a child.",
+      "The current public MCP profile record contains observer 11, codex 12, and mutator 16 tool schemas.",
+      "A stale timestamp pyc with identical file size and integer nanosecond mtime would ordinarily load version A; the verified canonical loader executes version B from manifest-hashed raw source and leaves that pyc unchanged.",
+      "The `python -m project_control.runtime_binding local_worker.supervisor` child bootstrap forwards an invalid argument to the actual supervisor parser and exits before a subprocess/model server starts."
+    ],
+    "device_computation": "not_run",
+    "model_inference": "not_run",
+    "test_file_sha256": "81a1e332bfc6be53ce8478bb4d1eaebb14490134eff23eda7079d6029303d2f3"
+  },
+  "installer_binding_check": {
+    "command": "PYTHONPATH=src .venv/bin/python -m unittest tests.test_installer -v",
+    "tests_run": 10,
+    "tests_passed": 10,
+    "tests_failed": 0,
+    "assertions": [
+      "A candidate has no project_control_observer_analysis.pth file.",
+      "The release pins project_control/local_runtime by receiver manifest SHA-256 and file fingerprint."
+    ]
+  },
+  "receiver_consumer_checks": {
+    "command": "PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests/assistance/test_runtime_consumers.py",
+    "tests_passed": 4,
+    "tests_failed": 0,
+    "assertions": [
+      "The trusted observer factory pins the receiver observer source digest and runtime identity.",
+      "A stale supplier digest and a foreign runtime root are rejected.",
+      "The analysis cache identity is bound to the receiver digest and qualification state."
+    ]
+  },
+  "public_mcp_schema_reference": {
+    "record": "docs/pa1/baseline-tests.json",
+    "schema_identity": "SHA-256 of compact sorted-key JSON schema bytes, UTF-8 with ensure_ascii=False",
+    "profile_tool_counts": {
+      "observer": 11,
+      "codex": 12,
+      "mutator": 16
+    }
+  },
+  "scope_and_limits": [
+    "The parity test compares a deterministic policy object and decisions using the supplier and receiver imports; it does not run the complete supplier test suite against both roots.",
+    "Supervisor launch coverage captures the production subprocess.Popen call without starting a child; it does not qualify service startup, model execution, GPU scheduling, or device behavior.",
+    "The installed binding success case uses a source-shaped fixture and the installer suite emulates wheel contents; no full release wheel was built or promoted.",
+    "This record does not establish Skills retirement, installed release activation, or production binding promotion."
+  ]
+}

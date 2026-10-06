@@ -4,22 +4,55 @@ Project Control's coder profile (`codex` compatibility identity) is a stdio MCP 
 `project-control`. It is separate from the loopback observer endpoint and does
 not use the ChatGPT tunnel.
 
-## Candidate-first installation
+## Unified runtime entrypoints
 
-Build an isolated candidate environment containing both local distributions:
-`project-control` and the canonical `todo-orchestrator` from Skills. The installer also creates `runtime-skills/` and `release-manifest.json`.
-Project Control and Skills remain standalone source repositories, paired by an
-explicit release manifest; Skills contains no Project Control copy or submodule.
-The frozen runtime snapshot is a candidate deployment input.
-For deployment, set `PROJECT_CONTROL_SKILLS_ROOT` to that frozen snapshot,
-`PROJECT_CONTROL_RELEASE_MANIFEST` to the manifest's absolute path, and
-`PROJECT_CONTROL_RELEASE_DIGEST` to its SHA-256. Keep all three settings and the
-executable in one release launcher shared by HTTP and stdio. Editing the
-maintained Skills checkout then cannot invalidate the deployed release.
-Development mode without a release manifest still compares live source/package
-fingerprints. The legacy
-`CODING_WORKFLOW_SKILLS_ROOT` name is accepted only during the bounded
-compatibility window and emits a deprecation warning.
+Install the stable launcher from
+[`runtime-unification/entrypoints/project-control`](runtime-unification/entrypoints/project-control)
+at `~/.local/bin/project-control`; source
+[`runtime-unification/entrypoints/shell-env.sh`](runtime-unification/entrypoints/shell-env.sh)
+from the interactive shell profile. The launcher routes HTTP and stdio commands
+through `~/.local/share/project-control/current/bin/project-control-release`
+and publishes that release's interpreter as
+`PROJECT_CONTROL_RUNTIME_PYTHON`. It removes ambient Python paths and legacy
+runtime identity settings before forwarding. The release launcher owns the
+manifest, digest, and frozen Skills binding; do not set a live Skills checkout
+as a runtime override.
+
+The same launcher serves both supported surfaces:
+
+```sh
+project-control serve observer --host 127.0.0.1 --port 8768
+project-control serve codex
+```
+
+Codex MCP registration uses `~/.local/bin/project-control` with
+`serve codex` arguments. There is no HTTP-to-stdio bridge. The installed user
+service uses the same launcher for the loopback HTTP observer. Its durable
+analysis state remains at `~/.cache/project-control/as1-observer-analysis`,
+and `TODO_BACKGROUND_HOST_RUNTIME_DIR` remains
+`/tmp/codex-todo-orchestrator-1000`. The existing observer GPU UUID allowlist
+is passed as configuration only; no background or enabled inference service
+starts as part of the unified observer runtime. The old frozen supervisor hash
+is not carried into the new release.
+
+The separate `project-control-inference` entrypoint resolves `current` once,
+binds the selected release manifest and frozen Skills snapshot, then invokes
+`local_worker.supervisor` through Project Control's verified runtime binding.
+Its systemd unit is optional and remains disabled. Starting that unit only
+starts the supervisor; a model server is created only after an explicit worker
+request.
+
+After an authorized service cutover, check `/healthz` and `/version` on
+`http://127.0.0.1:8768`. `/readyz` also requires the optional central inference
+supervisor, so it may return `503` while that demand-only capability is offline.
+Do not treat that response as a failed HTTP observer startup.
+
+Candidate construction still uses the isolated installer to build both local
+distributions (`project-control` and the canonical `todo-orchestrator` from
+Skills), the `runtime-skills/` snapshot, and `release-manifest.json`. Project
+Control and Skills remain standalone source repositories paired by an explicit
+release manifest. The stable `current` runtime is advanced only after candidate
+validation and preservation of the previous release for rollback.
 
 `project-control doctor --json` reports whether the configured runtime was
 verified and, when it was not, the failing layer and a supported configuration,

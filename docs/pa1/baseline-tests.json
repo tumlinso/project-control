@@ -1,0 +1,189 @@
+{
+  "observed_date": "2026-10-06",
+  "public_mcp_discovery": {
+    "method": "create_mcp with empty config, isolated temporary state directory, patched Todo read-port factory returning None; enumerate source-registered list_tools schemas without starting services or invoking handlers",
+    "profiles": {
+      "codex": {
+        "tool_count": 12,
+        "tools": {
+          "coordinate_task": "ca43adee0db84d5db79719cf6850f88b27116026a5e1cb9a0f1feb230b42c5bb",
+          "delta": "6d059bce3e157fbe71769352bc6ccd6eee019718a81122cc7d80d0ac757dcfe8",
+          "evidence": "8dc64a3273f16cd65289bf725a7b06edf7a9c0b3c069ff140d2eaed247b1b26a",
+          "finish_task": "cf928af2af4ee86faf9f72a9d06cffb8e31771730b72bcd944027d783c8f9acd",
+          "frontier": "51b47131a30494903c1e43671f58f3f74a67759b1421f9676b5298aded1bfd4e",
+          "history": "0118b5cd454e4f7dde363cf637a8fa538191abc07681f0117ee5abd98fe70b67",
+          "impact": "45282bb1a9005f553320003d326d451827a5604daf9dd76b654a703df8d417f5",
+          "inspect_task": "1c7acc833b97f2b775a5e1903c11546a540f6a0f6adfb83735c143cefa9c5bca",
+          "machine": "31069504ac62595d6a41a6bcd44f9d6b0d92620206f8ed9720a1943c70ea256e",
+          "next_task": "c1e014e9c6a61729bc19011d54ce850526add525c12bfe6afb14115d1b8287f9",
+          "overview": "a1d3b361ebce69ff25832ce6d94beb4317248fd2fb282195d840ab2d68696e56",
+          "search": "11cf33dbbbc1d6ebdc14925ff145f7624f14ce70c8c100f957bcd4e5cc003c23"
+        }
+      },
+      "mutator": {
+        "tool_count": 16,
+        "tools": {
+          "amend_project": "11014120ae90ea2769beb0b28937f7d17cacfced1e64b350409bc89a0420f4cc",
+          "coordinate_task": "ca43adee0db84d5db79719cf6850f88b27116026a5e1cb9a0f1feb230b42c5bb",
+          "delta": "6d059bce3e157fbe71769352bc6ccd6eee019718a81122cc7d80d0ac757dcfe8",
+          "evidence": "8dc64a3273f16cd65289bf725a7b06edf7a9c0b3c069ff140d2eaed247b1b26a",
+          "finish_task": "cf928af2af4ee86faf9f72a9d06cffb8e31771730b72bcd944027d783c8f9acd",
+          "frontier": "51b47131a30494903c1e43671f58f3f74a67759b1421f9676b5298aded1bfd4e",
+          "history": "0118b5cd454e4f7dde363cf637a8fa538191abc07681f0117ee5abd98fe70b67",
+          "impact": "45282bb1a9005f553320003d326d451827a5604daf9dd76b654a703df8d417f5",
+          "inspect_task": "1c7acc833b97f2b775a5e1903c11546a540f6a0f6adfb83735c143cefa9c5bca",
+          "investigate": "cdca3853f276ee3fcf81ea7bbdc82ecbc86321f264fbf52630c49d283a3949a2",
+          "machine": "31069504ac62595d6a41a6bcd44f9d6b0d92620206f8ed9720a1943c70ea256e",
+          "maintain_execution": "90bd32b16cc722287cafa86c30701e5164b757496db3b9cf42916c381d11ed9a",
+          "next_task": "c1e014e9c6a61729bc19011d54ce850526add525c12bfe6afb14115d1b8287f9",
+          "overview": "a1d3b361ebce69ff25832ce6d94beb4317248fd2fb282195d840ab2d68696e56",
+          "plan": "9128fd21246a00406b1106356010d1f2c7179ebce8c4981fd8f5ff69c092a414",
+          "search": "11cf33dbbbc1d6ebdc14925ff145f7624f14ce70c8c100f957bcd4e5cc003c23"
+        }
+      },
+      "observer": {
+        "tool_count": 11,
+        "tools": {
+          "delta": "c20e9d03a54f78f1c55bd7aa74878f7847b229266caf1abfa2ee75df2870a92c",
+          "evidence": "be36b8e974a8756213c8c2f149a00367221f37d23598d80fcf5a54b5b16c399a",
+          "frontier": "7fc501b0507c7da5428d7c76a71e513c758f25bb22a8d161d54a25782f3d58e5",
+          "history": "2ce4b50f98e307e547f1b5c52bd7268810d9227aec6747081510610d2301d5ca",
+          "impact": "aae18e760669574fcb0f1f71d3b12218a77edcb6931f854218cc5b1e7cf3b8c2",
+          "investigate": "f6d4d17edbb4cb0f02c679b1e3e720d1ed551981c9de1a5ed03ac8c783f953af",
+          "machine": "0b687f2e1af677b766ea492164c83f054387fb9ee5029a89e4f1d69996a173fe",
+          "overview": "fc5f5ecf91cb4867fc929a2dd745915540b2bacdcc011ba82d59637d4a0d54bb",
+          "read": "14e5a9bed8775d78e3861dfefaf77380990509457acb02ad4cbd58277afb40c5",
+          "search": "ce79c880df0e553d4c77f5e34c0b20813d359a0bdbd46d7827941e6b7bac9fa8",
+          "skill": "5b65ee0fab85c7fd81cc23a1739210f4e698ee881da49b6a2950ae6991fcc3c0"
+        }
+      }
+    },
+    "schema_identity": "SHA-256 of JSON schema serialized with sorted keys, compact separators, UTF-8, ensure_ascii=False"
+  },
+  "record": "PC-PA1-FAST baseline test and MCP discovery",
+  "scope_notes": [
+    "No source or test files were edited.",
+    "No inference, model session, GPU workload, or device computation was invoked.",
+    "The cache and inquiry-surface timeout suites were not retried after their bounded runs.",
+    "MCP schemas reflect source composition at the recorded checkout plus current shared working tree."
+  ],
+  "source": {
+    "git_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "repository": "/home/tumlinson/project-control",
+    "working_tree_note": "Baseline used the shared working tree. Existing dirty src/project_control/as1_skill.py and docs/as1-skill.md were preserved; other pre-existing/untracked files were untouched."
+  },
+  "test_environment": {
+    "cache": "/tmp/pc-pa1-xdg-cache",
+    "models_or_gpu_inference": "not invoked; tests use scripted/mock backends except real CPU sandbox fixtures",
+    "pytest": ".venv/bin/pytest",
+    "python": ".venv/bin/python"
+  },
+  "test_runs": [
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/as1/test_pc_as1_jobs.py",
+      "failures": [
+        "test_actual_port_shared_tools_no_injection_and_agentic_registered_skill: expected completed, got partial",
+        "test_actual_sandbox_network_write_credentials_output_cleanup_and_provenance: bubblewrap cannot create NETLINK_ROUTE socket in sandbox",
+        "test_hints_are_scoped_and_pinned_before_admission_reply: foreign hint response omitted expected reason",
+        "test_step_budget_is_terminal_with_retained_source_and_idempotent_restart[installed-port]: expected 6 observations, got 5",
+        "test_step_budget_is_terminal_with_retained_source_and_idempotent_restart[legacy-producer]: expected 6 observations, got 5",
+        "test_progress_regressions_bind_child_source_without_changing_parent_deployment: child repeats both 5-versus-6 observation failures"
+      ],
+      "result": {
+        "duration_seconds": 17.54,
+        "failed": 6,
+        "passed": 12
+      },
+      "suite": "as1_jobs_sandboxed"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/as1/test_pc_as1_jobs.py (sandbox escalation approved; scripted backends, no model/GPU)",
+      "failures": [
+        "test_actual_port_shared_tools_no_injection_and_agentic_registered_skill: expected context progress to omit packet-id lists; actual contains allowed/input-omitted/omitted packet ID lists",
+        "test_hints_are_scoped_and_pinned_before_admission_reply: foreign hint response omitted expected reason",
+        "test_step_budget_is_terminal_with_retained_source_and_idempotent_restart[installed-port]: expected 6 observations, got 5",
+        "test_step_budget_is_terminal_with_retained_source_and_idempotent_restart[legacy-producer]: expected 6 observations, got 5",
+        "test_progress_regressions_bind_child_source_without_changing_parent_deployment: child repeats both step-budget failures"
+      ],
+      "result": {
+        "duration_seconds": 20.7,
+        "failed": 5,
+        "passed": 13
+      },
+      "suite": "as1_jobs_host_only"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/as1/test_pc_as1_inquiry_cache.py",
+      "result": {
+        "progress_dots_observed": 38,
+        "status": "timeout",
+        "summary_emitted": false,
+        "timeout_seconds": 60
+      },
+      "suite": "as1_inquiry_cache"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/as1/test_pc_as1_packets.py",
+      "result": {
+        "duration_seconds": 2.96,
+        "passed": 10
+      },
+      "suite": "as1_packets"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/as1/test_pc_as1_packet_concurrency.py",
+      "result": {
+        "duration_seconds": 4.43,
+        "passed": 1
+      },
+      "suite": "as1_packet_concurrency"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/as1/test_pc_as1_runtime_cache_epoch.py",
+      "result": {
+        "duration_seconds": 1.56,
+        "passed": 4
+      },
+      "suite": "as1_runtime_cache_epoch"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/test_observer_analysis_registry.py",
+      "result": {
+        "duration_seconds": 0.18,
+        "passed": 14,
+        "subtests_passed": 3
+      },
+      "suite": "observer_analysis_registry"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short tests/test_profiles.py",
+      "result": {
+        "duration_seconds": 0.88,
+        "passed": 12,
+        "subtests_passed": 2
+      },
+      "suite": "mcp_profiles"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 15s .venv/bin/pytest -vv -p no:cacheprovider -o faulthandler_timeout=5 tests/as1/test_pc_as1_inquiry_surface.py::test_terminal_answer_projection_keeps_supported_evidence",
+      "result": {
+        "faulthandler_after_seconds": 5,
+        "interrupted_after_seconds": 10,
+        "location": "tests/as1/test_pc_as1_surface.py:22 (asyncio.run awaiting server.call_tool at tests/as1/test_pc_as1_inquiry_surface.py:228)",
+        "preceding_suite_tests_passed": 13,
+        "status": "hung_then_interrupted"
+      },
+      "suite": "as1_inquiry_surface_hang"
+    },
+    {
+      "command": "XDG_CACHE_HOME=/tmp/pc-pa1-xdg-cache timeout 60s .venv/bin/pytest -q -p no:cacheprovider --tb=short -k 'not terminal_answer_projection_keeps_supported_evidence and not investigate_projection_preserves_historical_freshness_caveat and not investigate_and_skill_leave_event_loop_responsive' tests/as1/test_pc_as1_inquiry_surface.py",
+      "result": {
+        "progress_dots_observed": 26,
+        "status": "timeout",
+        "summary_emitted": false,
+        "timeout_seconds": 60
+      },
+      "suite": "as1_inquiry_surface_remaining"
+    }
+  ]
+}

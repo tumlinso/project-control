@@ -4,6 +4,7 @@ import importlib.util
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,7 +36,83 @@ def native_resources(skills):
     (integrations / "native-skill-routing.md").write_bytes(b"# Native routing\n")
 
 
+def fake_project_control_wheel(temporary):
+    """Create the receiver resource a successful fake pip install would expose."""
+    runtime = temporary / "lib/python3.13/site-packages/project_control/local_runtime"
+    package = runtime / "local_worker"
+    package.mkdir(parents=True, exist_ok=True)
+    files = {
+        "local_worker/__init__.py": b'"""Canonical receiver package."""\n',
+        "local_worker/supervisor.py": b"# receiver fixture\n",
+        "config/production-profile.toml": b"[profile]\n",
+    }
+    for relative, data in files.items():
+        target = runtime / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    manifest = {
+        "schema_version": 1,
+        "source_root": "/fixture/project-control/local_runtime",
+        "source_commit": "a" * 40,
+        "files": {relative: hashlib.sha256(data).hexdigest() for relative, data in files.items()},
+    }
+    (runtime / "receiver-manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    return runtime
+
+
 class InstallerTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("uv"), "uv is required for offline candidate builds")
+    def test_offline_candidate_uses_explicit_cache_and_records_source_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            project, skills, cache, destination = (root / name for name in
+                ("project", "skills", "cache", "release"))
+            project.mkdir(); skills.mkdir(); cache.mkdir()
+            (project / "pyproject.toml").write_text("[project]\nname='fixture'\n")
+            (project / "current.py").write_text("# current working tree\n")
+            todo = skills / "todo-orchestrator"
+            todo.mkdir(); (todo / "pyproject.toml").write_text("[project]\nname='todo'\n")
+            (todo / "current.py").write_text("# current Todo tree\n")
+            native_resources(skills)
+            commands = []
+
+            def runner(command):
+                commands.append(tuple(command))
+                if command[0] == "git":
+                    if "ls-files" in command:
+                        source_root = Path(command[2])
+                        relative = ["pyproject.toml", "current.py"]
+                        return completed(command, stdout="\0".join(relative) + "\0")
+                    return completed(command, stdout="fixture-commit")
+                if "venv" in command:
+                    staging = Path(command[-1])
+                    (staging / "bin").mkdir(exist_ok=True)
+                    (staging / "lib/python3.13/site-packages").mkdir(parents=True)
+                    return completed(command)
+                if "pip" in command:
+                    python = Path(command[command.index("--python") + 1])
+                    fake_project_control_wheel(python.parents[1])
+                    return completed(command)
+                return completed(command)
+
+            build_candidate(project_control_root=project, skills_root=skills,
+                            destination=destination, offline=True, uv_cache_dir=cache, runner=runner)
+            install = next(command for command in commands if "pip" in command)
+            self.assertIn("--offline", install)
+            self.assertIn(str(cache.resolve()), install)
+            release = json.loads((destination / "release-manifest.json").read_text())
+            self.assertEqual(release["schema_version"], 2)
+            inventory = destination / release["source_working_tree_inventory"]["path"]
+            self.assertEqual(hashlib.sha256(inventory.read_bytes()).hexdigest(),
+                             release["source_working_tree_inventory"]["sha256"])
+            data = json.loads(inventory.read_text())
+            self.assertEqual(data["project_control"]["files"]["current.py"]["sha256"],
+                             hashlib.sha256(b"# current working tree\n").hexdigest())
+            self.assertEqual(data["todo_orchestrator"]["files"]["current.py"]["sha256"],
+                             hashlib.sha256(b"# current Todo tree\n").hexdigest())
+
     def test_rollback_inventory_accepts_named_list_and_mapping(self) -> None:
         records = [
             {"name": "project-control", "enabled": True,
@@ -186,13 +263,21 @@ class InstallerTests(unittest.TestCase):
                     staging = Path(command[-1]); (staging / "bin").mkdir(parents=True)
                     (staging / "lib/python3.13/site-packages").mkdir(parents=True)
                     return completed(command)
-                if "pip" in command: return completed(command)
+                if "pip" in command:
+                    fake_project_control_wheel(Path(command[0]).parents[1])
+                    return completed(command)
                 return completed(command)
             build_candidate(project_control_root=project, skills_root=skills, destination=destination, runner=runner)
-            pth = next((destination / "lib/python3.13/site-packages").glob("project_control_observer_analysis.pth"))
-            self.assertEqual(pth.read_text().strip(), str(destination / "runtime-skills/local-coding-worker"))
+            self.assertFalse(list((destination / "lib/python3.13/site-packages").glob("project_control_observer_analysis.pth")))
             release = json.loads((destination / "release-manifest.json").read_text())
-            self.assertEqual(release["observer_analysis_binding"]["path"], str(destination / "runtime-skills/local-coding-worker"))
+            installed_runtime = destination / "lib/python3.13/site-packages/project_control/local_runtime"
+            receiver_manifest = (installed_runtime / "receiver-manifest.json").read_bytes()
+            binding = release["local_runtime_binding"]
+            self.assertEqual(binding["path"], "project_control/local_runtime")
+            self.assertEqual(binding["manifest_sha256"], hashlib.sha256(receiver_manifest).hexdigest())
+            self.assertEqual(binding["fingerprint"], hashlib.sha256(json.dumps(
+                dict(sorted(json.loads(receiver_manifest)["files"].items())), sort_keys=True,
+                separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest())
     def test_candidate_is_published_only_after_both_packages_install(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)

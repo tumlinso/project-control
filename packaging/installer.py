@@ -163,6 +163,29 @@ def _source_fingerprint(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _working_tree_inventory(root: Path, *, runner: Runner) -> dict[str, object]:
+    """Hash the tracked and non-ignored untracked files present at build time."""
+    root = root.resolve()
+    raw_paths = _git_value(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z", runner=runner)
+    files: dict[str, dict[str, str]] = {}
+    for raw in raw_paths.split("\0"):
+        if not raw:
+            continue
+        relative = Path(raw)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise InstallError(f"git returned an unsafe source path: {raw!r}")
+        path = root / relative
+        if path.is_symlink():
+            digest = hashlib.sha256(os.fsencode(os.readlink(path))).hexdigest()
+            files[relative.as_posix()] = {"kind": "symlink", "sha256": digest}
+        elif path.is_file():
+            files[relative.as_posix()] = {"kind": "file", "sha256": _sha256_file(path)}
+        else:
+            files[relative.as_posix()] = {"kind": "missing", "sha256": ""}
+    return {"root": str(root), "commit": _git_value(root, "rev-parse", "HEAD", runner=runner),
+            "files": dict(sorted(files.items()))}
+
+
 def _freeze_skills(skills: Path, temporary: Path, destination: Path) -> dict:
     snapshot = temporary / "runtime-skills"
     for name in ("todo-orchestrator", "cuda", "cpp-context-compiler", "local-coding-worker", "integrations/coding-workflow-mcp"):
@@ -185,30 +208,64 @@ def _freeze_skills(skills: Path, temporary: Path, destination: Path) -> dict:
             "frozen_skill_resources": resources}
 
 
-def _bind_observer_analysis_skill(temporary: Path, destination: Path) -> dict[str, str] | None:
-    """Expose only the frozen local-analysis package to the candidate Python.
+def _bind_project_control_runtime(temporary: Path, *, allow_missing_stub: bool = False) -> dict[str, str] | None:
+    """Pin the wheel-owned receiver bundle in the release manifest.
 
-    A path-only .pth is deterministic and cannot execute startup code.  It is
-    recorded in the digest-pinned release manifest, avoiding ambient
-    PYTHONPATH inheritance while keeping the full skill implementation out of
-    Project Control's wheel.
+    The package directory is already importable through the installed wheel;
+    no .pth or ambient Skills path is needed. The receiver manifest pins every
+    transferred source/config/schema file and the release digest protects the
+    binding record itself.
     """
-    skill = temporary / "runtime-skills" / "local-coding-worker"
-    package = skill / "local_worker"
-    if not package.is_dir():
-        return None
-    sites = [*temporary.glob("lib/python*/site-packages"), temporary / "Lib" / "site-packages"]
-    site = next((candidate for candidate in sites if candidate.is_dir()), None)
-    if site is None:
-        # Test runners may stub venv creation. A real candidate must have its
-        # site-packages directory after pip installation.
-        if (temporary / "bin" / "python").exists():
-            raise InstallError("candidate site-packages missing for observer-analysis binding")
-        return None
-    binding_name = "project_control_observer_analysis.pth"
-    bound_path = destination / "runtime-skills" / "local-coding-worker"
-    (site / binding_name).write_text(str(bound_path) + "\n", encoding="utf-8")
-    return {"pth": binding_name, "path": str(bound_path), "fingerprint": _source_fingerprint(package)}
+    packages = sorted(temporary.glob("lib/python*/site-packages/project_control/local_runtime"))
+    if not packages:
+        # Unit-test runners may stub pip without creating an installed wheel.
+        if allow_missing_stub:
+            return None
+        raise InstallError("candidate Project Control wheel omitted the receiver runtime")
+    if len(packages) != 1:
+        raise InstallError("candidate has ambiguous Project Control receiver package roots")
+    root = packages[0].resolve()
+    manifest_path = root / "receiver-manifest.json"
+    try:
+        raw = manifest_path.read_bytes()
+        manifest = json.loads(raw)
+    except (OSError, ValueError, TypeError) as error:
+        raise InstallError("candidate receiver manifest is missing or invalid") from error
+    files = manifest.get("files") if isinstance(manifest, dict) and manifest.get("schema_version") == 1 else None
+    if not isinstance(files, dict) or not files:
+        raise InstallError("candidate receiver manifest has no source file map")
+    normalized: dict[str, str] = {}
+    for relative, expected in files.items():
+        path = Path(relative) if isinstance(relative, str) else Path("invalid")
+        if (not isinstance(relative, str) or not relative or path.is_absolute() or ".." in path.parts
+                or relative == "receiver-manifest.json" or not isinstance(expected, str)
+                or len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected)):
+            raise InstallError("candidate receiver manifest entry is invalid")
+        source = root / path
+        try:
+            resolved = source.resolve(strict=True)
+        except OSError as error:
+            raise InstallError("candidate receiver source file is missing") from error
+        if root not in resolved.parents or source.is_symlink() or not resolved.is_file():
+            raise InstallError("candidate receiver source path is invalid")
+        if _sha256_file(resolved) != expected:
+            raise InstallError("candidate receiver source file hash mismatch")
+        normalized[path.as_posix()] = expected
+    discovered: set[str] = set()
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise InstallError("candidate receiver contains a symlink")
+        if path.is_dir() and path.name == "__pycache__":
+            continue
+        if path.is_file() and "__pycache__" not in path.relative_to(root).parts and path.suffix != ".pyc" and path.name != "receiver-manifest.json":
+            discovered.add(path.relative_to(root).as_posix())
+    if discovered != set(normalized) or not (root / "local_worker" / "__init__.py").is_file():
+        raise InstallError("candidate receiver file set or package root is invalid")
+    fingerprint = hashlib.sha256(json.dumps(dict(sorted(normalized.items())), sort_keys=True,
+        separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+    return {"path": "project_control/local_runtime",
+            "manifest_sha256": hashlib.sha256(raw).hexdigest(),
+            "fingerprint": fingerprint}
 
 
 def build_candidate(
@@ -216,6 +273,8 @@ def build_candidate(
     project_control_root: Path,
     skills_root: Path,
     destination: Path,
+    offline: bool = False,
+    uv_cache_dir: Path | None = None,
     runner: Runner = _run,
 ) -> CandidateIdentity:
     """Build both local distributions into a new, isolated virtual environment.
@@ -228,23 +287,38 @@ def build_candidate(
     skills_root = skills_root.resolve()
     destination = destination.resolve()
     _refuse_unsafe_destination(destination, (project_control_root, skills_root))
+    if offline and uv_cache_dir is None:
+        raise InstallError("offline builds require an explicit writable uv cache directory")
+    if offline and not uv_cache_dir.expanduser().is_dir():
+        raise InstallError(f"offline uv cache directory is unavailable: {uv_cache_dir}")
     identity = source_identity(project_control_root, skills_root, runner=runner)
+    tree_inventory = {
+        "schema_version": 1,
+        "project_control": _working_tree_inventory(project_control_root, runner=runner),
+        "todo_orchestrator": _working_tree_inventory(Path(identity.todo_root), runner=runner),
+    }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.building-", dir=destination.parent))
     published = False
     try:
-        commands = (
-            (sys.executable, "-m", "venv", str(temporary)),
-            (
-                str(temporary / "bin" / "python"),
-                "-m",
-                "pip",
-                "install",
-                "--disable-pip-version-check",
-                str(skills_root / "todo-orchestrator"),
-                str(project_control_root),
-            ),
-        )
+        if offline:
+            uv = shutil.which("uv")
+            if not uv:
+                raise InstallError("offline builds require the uv executable")
+            cache = str(uv_cache_dir.expanduser().resolve())
+            commands = (
+                (uv, "--cache-dir", cache, "venv", "--python", sys.executable, str(temporary)),
+                (uv, "--cache-dir", cache, "pip", "install", "--offline", "--python",
+                 str(temporary / "bin" / "python"), str(skills_root / "todo-orchestrator"),
+                 str(project_control_root)),
+            )
+        else:
+            commands = (
+                (sys.executable, "-m", "venv", str(temporary)),
+                (str(temporary / "bin" / "python"), "-m", "pip", "install",
+                 "--disable-pip-version-check", str(skills_root / "todo-orchestrator"),
+                 str(project_control_root)),
+            )
         for command in commands:
             completed = runner(command)
             if completed.returncode:
@@ -252,18 +326,26 @@ def build_candidate(
                     f"candidate command failed ({command[0]}): {completed.stderr.strip()}"
                 )
         release = _freeze_skills(skills_root, temporary, destination)
-        observer_binding = _bind_observer_analysis_skill(temporary, destination)
-        if observer_binding is not None:
-            release["observer_analysis_binding"] = observer_binding
+        runtime_binding = _bind_project_control_runtime(temporary, allow_missing_stub=runner is not _run)
+        if runtime_binding is not None:
+            release["local_runtime_binding"] = runtime_binding
+        inventory_path = temporary / "source-working-tree-inventory.json"
+        inventory_path.write_text(json.dumps(tree_inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         release.update({"project_control_commit": identity.project_control_commit,
                         "todo_commit": identity.todo_commit,
-                        "project_control_fingerprint": _source_fingerprint(project_control_root / "src" / "project_control")})
+                        "project_control_fingerprint": _source_fingerprint(project_control_root / "src" / "project_control"),
+                        "source_working_tree_inventory": {
+                            "path": inventory_path.name,
+                            "sha256": _sha256_file(inventory_path),
+                        }})
         (temporary / "release-manifest.json").write_text(json.dumps(release, indent=2, sort_keys=True) + "\n")
         release_digest = hashlib.sha256((temporary / "release-manifest.json").read_bytes()).hexdigest()
         launcher = temporary / "bin" / "project-control-release"
         launcher.parent.mkdir(parents=True, exist_ok=True)
         launcher.write_text("#!/bin/sh\n" +
-            "unset CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT\n" +
+            "unset PYTHONPATH PYTHONHOME CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT "
+            "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256 "
+            "PROJECT_CONTROL_RELEASE_MANIFEST PROJECT_CONTROL_RELEASE_DIGEST\n" +
             "export PROJECT_CONTROL_SKILLS_ROOT=" + shlex.quote(str(destination / "runtime-skills")) + "\n" +
             "export PROJECT_CONTROL_OBSERVER_SKILLS_ROOT=" + shlex.quote(str(destination / "runtime-skills")) + "\n" +
             "export PROJECT_CONTROL_RELEASE_MANIFEST=" + shlex.quote(str(destination / "release-manifest.json")) + "\n" +

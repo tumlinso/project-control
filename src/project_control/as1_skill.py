@@ -13,7 +13,7 @@ import time
 
 import yaml
 
-from .as1_contracts import RESPONSE_BUDGETS_BYTES, SkillSelection, SourceLocator
+from .as1_contracts import RESPONSE_BUDGETS_BYTES, SKILL_ASSEMBLY_DETAIL, SkillSelection, SourceLocator
 from .as1_jobs import TERMINAL, stamp
 from .as1_packets import mask_payload
 from .security import redact_output, stable_public_id
@@ -211,7 +211,7 @@ class SkillService:
                                      freshness=payload['freshness'], sources=sources)
         return {**packet.payload, 'packet_id': packet.packet_id, 'alias': packet.alias}
 
-    def inquire(self, *, access_scope, query=None, skill=None, hints=(), request_id=None, detail='compact'):
+    def inquire(self, *, access_scope, query=None, skill=None, hints=(), request_id=None, detail=SKILL_ASSEMBLY_DETAIL):
         """Public cached inquiry; submit/poll below are private compatibility seams."""
         self._authorize(access_scope)
         if detail not in RESPONSE_BUDGETS_BYTES:
@@ -234,7 +234,7 @@ class SkillService:
             return self.poll(value['job']['job_id'], access_scope=access_scope, detail=detail, _inquiry=True)
         return value
 
-    def submit(self, *, access_scope, query=None, skill=None, hints=(), request_id=None, job_id=None, detail='compact'):
+    def submit(self, *, access_scope, query=None, skill=None, hints=(), request_id=None, job_id=None, detail=SKILL_ASSEMBLY_DETAIL):
         self._authorize(access_scope)
         if detail not in RESPONSE_BUDGETS_BYTES:
             raise ValueError('invalid detail')
@@ -256,7 +256,7 @@ class SkillService:
         return self.jobs.submit(question=question, access_scope=access_scope, request_id=request_id,
                                 mode='skill', skill=selected, hints=hints)
 
-    def poll(self, job_id, *, access_scope, detail='compact', _inquiry=False):
+    def poll(self, job_id, *, access_scope, detail=SKILL_ASSEMBLY_DETAIL, _inquiry=False):
         self._authorize(access_scope)
         value = (self.jobs.lookup_inquiry if _inquiry else self.jobs.lookup)(job_id, access_scope=access_scope)
         if value['status'] != 'ok':
@@ -279,7 +279,7 @@ class SkillService:
         return self.assemble(manifest, access_scope=access_scope, observations=value['observations'],
                              parents=[ref], detail=detail, job_id=job_id, attempt=value['job']['attempt'], _inquiry=_inquiry)
 
-    def assemble(self, selection, *, access_scope, observations=(), parents=(), detail='compact', job_id=None, attempt=None, _inquiry=False):
+    def assemble(self, selection, *, access_scope, observations=(), parents=(), detail=SKILL_ASSEMBLY_DETAIL, job_id=None, attempt=None, _inquiry=False):
         self._authorize(access_scope)
         if detail not in RESPONSE_BUDGETS_BYTES:
             raise ValueError('invalid detail')

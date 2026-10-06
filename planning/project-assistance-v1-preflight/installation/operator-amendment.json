@@ -1,0 +1,9 @@
+{
+  "format": "pa1-installation-amendment/1",
+  "observed_at_utc": "2026-10-06T15:25:44.186978+00:00",
+  "user_instruction": "Operator instruction 2026-10-06: Do not perform device-side computation or inference until the user explicitly authorizes it. A background profiling pass is running; preserve it and do not stop or reconfigure its resources. Keep the product easy to use: role policies, context and reasoning budgets should be available through clear defaults rather than mandatory low-level configuration.",
+  "authorization": "Install bootstrap plans only. Device/inference hold remains until explicit user release.",
+  "amendment": "Derived copies add one referenced invariant, task notes, and run boundary per authority; original package unchanged. No task IDs, dependencies, scopes, lanes, or gates changed.",
+  "plans_applied": false,
+  "pa1_execution_started": false
+}

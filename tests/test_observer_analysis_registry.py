@@ -5,6 +5,8 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 from unittest import mock
 
@@ -14,13 +16,29 @@ from project_control.observer_analysis import (
     SkillsObserverAnalysisProvider,
     observer_analysis_state_root,
 )
+from project_control.runtime_binding import _verify_receiver
+
+
+RECEIVER_SOURCE = Path(__file__).resolve().parents[1] / "src/project_control/local_runtime"
+
+
+def _receiver_fixture():
+    # Keep the receiver in its real src/project_control/local_runtime shape.
+    # A checkout source identity needs no installed-release pin.
+    return _verify_receiver(RECEIVER_SOURCE)
+
+
+def _supervisor_module(identity, client_type):
+    source = identity.package_root / "supervisor.py"
+    client_type.source_path = source
+    return SimpleNamespace(__file__=str(source), SupervisorClient=client_type)
 
 
 class _Client:
     def __init__(self, service_root, **kwargs):
         self.root = Path(service_root)
     def observer_status(self, **kwargs):
-        source = Path(os.environ["PROJECT_CONTROL_SKILLS_ROOT"]) / "local-coding-worker/local_worker/supervisor.py"
+        source = Path(type(self).source_path)
         return {"observer_contract": "PC-OBSERVER-SUPERVISOR/1", "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                 "service_state_root": str(self.root), "runtime_root": str(self.root / "runtime"),
                 "observer_only": True, "supervisor_pid": 123, "supervisor_process_start": "start"}
@@ -94,11 +112,39 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
     def test_status_never_creates_provider_or_backend(self):
         _Provider.created = 0
         registry = ObserverAnalysisRegistry(_Provider)
-        result = registry.status()
+        with mock.patch("project_control.observer_analysis.bind_local_runtime",
+                        side_effect=AssertionError("status must not bind or import a model runtime")) as bind, \
+             mock.patch("project_control.observer_analysis.importlib.import_module",
+                        side_effect=AssertionError("status must not import a model runtime")) as importer:
+            provider = SkillsObserverAnalysisProvider()
+            result = registry.status()
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["source"], "observer_analysis_registry")
         self.assertFalse(result["running"])
         self.assertEqual(_Provider.created, 0)
+        bind.assert_not_called()
+        importer.assert_not_called()
+
+    def test_module_import_and_status_do_not_import_or_launch_model_runtime(self):
+        source = Path(__file__).resolve().parents[1] / "src"
+        script = r'''
+import json, sys
+from project_control.observer_analysis import SkillsObserverAnalysisProvider
+from project_control.observer_analysis import ObserverAnalysisRegistry
+provider = SkillsObserverAnalysisProvider()
+status = ObserverAnalysisRegistry().status()
+assert status["status"] == "ok"
+assert not any(name == "local_worker" or name.startswith("local_worker.") for name in sys.modules)
+assert "llama_cpp" not in sys.modules
+print(json.dumps({"status": status["status"], "provider_available": provider.available}))
+'''
+        environment = dict(os.environ, PYTHONPATH=str(source),
+                           XDG_CACHE_HOME="/tmp/pc-pa1-import-cache")
+        environment.pop("PROJECT_CONTROL_SKILLS_ROOT", None)
+        result = subprocess.run([sys.executable, "-c", script], env=environment,
+                                capture_output=True, text=True, timeout=5, check=True)
+        self.assertIn('"status": "ok"', result.stdout)
+        self.assertIn('"provider_available": true', result.stdout)
 
     def test_status_reports_existing_backend_compactly(self):
         class Backend:
@@ -125,18 +171,16 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
     def test_investigator_turn_is_translated_to_skills_chat_contract(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            skills = base / "skills"
-            module_root = skills / "local-coding-worker" / "local_worker"
-            module_root.mkdir(parents=True)
-            (module_root / "supervisor.py").write_text("# bound source\n")
+            identity = _receiver_fixture()
             captured = []
             class Backend(_Client):
                 def __init__(self, *args, **kwargs): super().__init__(*args, **kwargs)
                 def run_observer_turn(self, request):
                     captured.append(request)
                     return {"status": "available", "text": '{"action":"answer","answer":{}}'}
-            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), SupervisorClient=Backend)
-            with mock.patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(skills), "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}, clear=False), \
+            module = _supervisor_module(identity, Backend)
+            with mock.patch.dict(os.environ, {"PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}, clear=False), \
+                 mock.patch("project_control.observer_analysis.bind_local_runtime", return_value=identity), \
                  mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
                 result = SkillsObserverAnalysisProvider(base / "observed").investigate_turn({
                     "protocol": "PC-LOCAL-INVESTIGATOR-TURN/2", "max_tokens": 123, "timeout_seconds": 12,
@@ -158,11 +202,7 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
             base = Path(temporary)
             observed = base / "observed-read-only-project"
             observed.mkdir()
-            skills = base / "skills"
-            module_root = skills / "local-coding-worker" / "local_worker"
-            module_root.mkdir(parents=True)
-            (module_root / "supervisor.py").write_text("# bound source\n")
-            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"))
+            identity = _receiver_fixture()
             captured: list[Path] = []
             captured_state: list[Path] = []
 
@@ -172,11 +212,12 @@ class ObserverAnalysisRegistryTests(unittest.TestCase):
                     captured.append(Path(service_root))
                     captured_state.append(Path(root))
 
-            module.SupervisorClient = Backend
+            module = _supervisor_module(identity, Backend)
             with mock.patch.dict(os.environ, {
-                "PROJECT_CONTROL_SKILLS_ROOT": str(skills),
                 "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "service-state"),
-            }, clear=False), mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
+            }, clear=False), \
+                    mock.patch("project_control.observer_analysis.bind_local_runtime", return_value=identity), \
+                    mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
                 provider = SkillsObserverAnalysisProvider(observed)
                 provider._get_backend()
                 self.assertEqual(captured, [base / "service-state"])
@@ -228,9 +269,7 @@ class ObserverDeadlineTests(unittest.TestCase):
         from concurrent.futures import ThreadPoolExecutor
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            module_root = base / "skills/local-coding-worker/local_worker"
-            module_root.mkdir(parents=True)
-            (module_root / "supervisor.py").write_text("# bound source\n")
+            identity = _receiver_fixture()
             created, calls = [], []
             barrier = threading.Barrier(2)
             class Backend(_Client):
@@ -241,9 +280,10 @@ class ObserverDeadlineTests(unittest.TestCase):
                 def open_observer_sessions(self, count, **kwargs):
                     calls.append(kwargs)
                     return {"status": "available", "session_ids": ["session"]}
-            module = SimpleNamespace(__file__=str(module_root / "supervisor.py"), SupervisorClient=Backend)
-            with mock.patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(base / "skills"),
+            module = _supervisor_module(identity, Backend)
+            with mock.patch.dict(os.environ, {
                     "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(base / "state")}), \
+                    mock.patch("project_control.observer_analysis.bind_local_runtime", return_value=identity), \
                     mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
                 provider = SkillsObserverAnalysisProvider()
                 deadline = time.time() + 10

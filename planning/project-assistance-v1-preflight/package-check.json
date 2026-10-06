@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "scope": "package_integrity_and_structural_validation_only",
+  "files_hashed": 40,
+  "sources": 38,
+  "outcomes": 9,
+  "native_task_records": 11,
+  "acceptance_cases": 40,
+  "eval_cases": 12,
+  "python_files_parsed": 6,
+  "local_markdown_links_checked": 18,
+  "native_validation": "not_run_requires_trusted_installed_kernel",
+  "product_acceptance": "not_executed",
+  "live_model_or_gpu": "not_executed",
+  "plans_applied": false
+}

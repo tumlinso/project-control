@@ -1,0 +1,1284 @@
+{
+  "created_at": "2026-10-06T20:17:39+00:00",
+  "earlier_full_inventory": {
+    "exclusion_count": 477,
+    "file_count": 361745,
+    "note": "Full metadata walk retained privately; archive and materialized runtime trees were excluded from copies.",
+    "path": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005/state/state-before-full.json",
+    "root_count": 34,
+    "sha256": "e67479f73ca43a89f6724b7d2ecd2f6a17c1710e235d33b26cb8a0fea3cf8dd6",
+    "size_bytes": 243627064
+  },
+  "exclusions": [
+    {
+      "path": "/home/tumlinson/accelerated-ports/CellRank/.git/todo-orchestrator/1fe1b4ab-7379-4f47-a4f7-1865ddb446aa/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-accelerated-ports-cellrank-todo"
+    },
+    {
+      "path": "/home/tumlinson/accelerated-ports/scVelo/.git/todo-orchestrator/b6b1bce7-d113-4646-9d74-062156d3cbac/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-accelerated-ports-scvelo-todo"
+    },
+    {
+      "path": "/home/tumlinson/Baseplane/.git/todo-orchestrator/1a7de0f4-347d-4707-9fc3-5f89d7c4d6b3/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-baseplane-baseplane-todo"
+    },
+    {
+      "path": "/home/tumlinson/Baseplane/.git/todo-orchestrator/1a7de0f4-347d-4707-9fc3-5f89d7c4d6b3/state.sqlite3.owner-recovery.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-baseplane-baseplane-todo"
+    },
+    {
+      "path": "/home/tumlinson/BioPrep/.git/todo-orchestrator/49915fcb-f3cb-4aa5-8a4d-229dd8828d5c/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-bioprep-bioprep-todo"
+    },
+    {
+      "path": "/home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-cellerator-cellerator-todo"
+    },
+    {
+      "path": "/home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/state.sqlite3.owner-recovery.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-cellerator-cellerator-todo"
+    },
+    {
+      "path": "/home/tumlinson/Cellerator/.git/modules/components/CellShard/todo-orchestrator/a52537a5-20db-4aeb-a126-dd0128c71fda/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-cellshard-cellshard-todo"
+    },
+    {
+      "path": "/home/tumlinson/Cellerator/.git/modules/components/CellShard/todo-orchestrator/a52537a5-20db-4aeb-a126-dd0128c71fda/state.sqlite3.owner-recovery.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-cellshard-cellshard-todo"
+    },
+    {
+      "path": "/home/tumlinson/gpu_circuit_bending_atlas/.git/todo-orchestrator/3e4c8a30-6067-4604-a810-96706f3372db/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-circuit-bending-atlas-circuit-bending-atlas-todo"
+    },
+    {
+      "path": "/home/tumlinson/codex-workspace/.git/todo-orchestrator",
+      "reason": "todo_root_unavailable_or_empty",
+      "root": "git-common-codex-codex-todo"
+    },
+    {
+      "path": "/home/tumlinson/CV/.git/todo-orchestrator/2ed62dd2-0879-4804-a810-0db640fb0ac8/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-cv-cv-todo"
+    },
+    {
+      "path": "/home/tumlinson/GlassHelix/.git/todo-orchestrator/b2c4b239-f18d-4252-b388-fb9889e75efd/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-glasshelix-glasshelix-todo"
+    },
+    {
+      "path": "/home/tumlinson/GlassHelix/.git/todo-orchestrator/b2c4b239-f18d-4252-b388-fb9889e75efd/state.sqlite3.owner-recovery.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-glasshelix-glasshelix-todo"
+    },
+    {
+      "path": "/home/tumlinson/numaBraid/.git/todo-orchestrator/7efda1f1-7a8d-4c63-9e51-313690169d92/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-numabraid-numabraid-todo"
+    },
+    {
+      "path": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-project-control-project-control-todo"
+    },
+    {
+      "path": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/state.sqlite3.owner-recovery.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-project-control-project-control-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/0fbfd27d-e3f6-47bb-bb37-a0d939e70b71/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/13723302-e234-48f7-9f6d-3fd15934d928/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/state.sqlite3.owner-recovery.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/715fdead-1276-41d9-a592-c724cc3ed8e6/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/95e96992-bf74-4dd5-9984-a44885069a27/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/9d0f506f-8677-4660-ac11-e64ab40f6026/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/bdf87a08-f404-4a60-aa2c-962945804053/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/cf23d5ee-8755-4e56-a2dd-6802037739a7/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-skills-skills-todo"
+    },
+    {
+      "path": "/home/tumlinson/txtDesk/.git/todo-orchestrator/8d69566b-9fef-41e2-bbeb-d8bc39c28821/projection.lock",
+      "reason": "volatile_or_model_file_excluded",
+      "root": "git-common-txtdesk-txtdesk-todo"
+    },
+    {
+      "path": "/home/tumlinson/CellerRank/.todo-orchestrator",
+      "reason": "target_directory_unreadable",
+      "root": "workspace-cellerrank-cellerrank-todo-authority"
+    },
+    {
+      "path": "/home/tumlinson/CellerVelo/.todo-orchestrator",
+      "reason": "target_directory_unreadable",
+      "root": "workspace-cellervelo-cellervelo-todo-authority"
+    },
+    {
+      "path": "/home/tumlinson/codex-workspace/.todo-orchestrator",
+      "reason": "target_directory_unreadable",
+      "root": "workspace-codex-codex-todo-authority"
+    }
+  ],
+  "files": [
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/accelerated-ports/CellRank/.git/todo-orchestrator/1fe1b4ab-7379-4f47-a4f7-1865ddb446aa/state.sqlite3",
+      "relative_path": "1fe1b4ab-7379-4f47-a4f7-1865ddb446aa/state.sqlite3",
+      "root": "git-common-accelerated-ports-cellrank-todo",
+      "sha256": "b9fa4347c5fd02b6c10ccac01107524c2e0876a9df82513625092a550e748454",
+      "sha256_status": "sha256",
+      "size_bytes": 692224,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/accelerated-ports/scVelo/.git/todo-orchestrator/b6b1bce7-d113-4646-9d74-062156d3cbac/state.sqlite3",
+      "relative_path": "b6b1bce7-d113-4646-9d74-062156d3cbac/state.sqlite3",
+      "root": "git-common-accelerated-ports-scvelo-todo",
+      "sha256": "117f3d96659867a240285ad372903fcff4a23e8753d46c6ed8f4a950439d4977",
+      "sha256_status": "sha256",
+      "size_bytes": 700416,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/Baseplane/.git/todo-orchestrator/1a7de0f4-347d-4707-9fc3-5f89d7c4d6b3/state.sqlite3",
+      "relative_path": "1a7de0f4-347d-4707-9fc3-5f89d7c4d6b3/state.sqlite3",
+      "root": "git-common-baseplane-baseplane-todo",
+      "sha256": "88835197201af1d53484600749e8269d8cc04696d4aa23e4a916d52d3d53fbe1",
+      "sha256_status": "sha256",
+      "size_bytes": 2404352,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/BioPrep/.git/todo-orchestrator/49915fcb-f3cb-4aa5-8a4d-229dd8828d5c/state.sqlite3",
+      "relative_path": "49915fcb-f3cb-4aa5-8a4d-229dd8828d5c/state.sqlite3",
+      "root": "git-common-bioprep-bioprep-todo",
+      "sha256": "af9f82cba68feb014446ba6d39cf1863a985f1dfe89c1c57084bf83cadb18017",
+      "sha256_status": "sha256",
+      "size_bytes": 733184,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/state.sqlite3",
+      "relative_path": "0ccaac37-dbbf-448e-a5f8-def197a70aba/state.sqlite3",
+      "root": "git-common-cellerator-cellerator-todo",
+      "sha256": "b95e7608e6927789ab354a6923b4b96031684af5f88371fead87f0f5615856dc",
+      "sha256_status": "sha256",
+      "size_bytes": 55181312,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/Cellerator/.git/modules/components/CellShard/todo-orchestrator/a52537a5-20db-4aeb-a126-dd0128c71fda/state.sqlite3",
+      "relative_path": "a52537a5-20db-4aeb-a126-dd0128c71fda/state.sqlite3",
+      "root": "git-common-cellshard-cellshard-todo",
+      "sha256": "2536b468da3c3c1ebdda96c4731cc8dea2b7d6a9b6b4c2b5df71f0527288d301",
+      "sha256_status": "sha256",
+      "size_bytes": 9482240,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/gpu_circuit_bending_atlas/.git/todo-orchestrator/3e4c8a30-6067-4604-a810-96706f3372db/state.sqlite3",
+      "relative_path": "3e4c8a30-6067-4604-a810-96706f3372db/state.sqlite3",
+      "root": "git-common-circuit-bending-atlas-circuit-bending-atlas-todo",
+      "sha256": "7998e69bf3c8a0504c2d7beff3b90a2630cd09794a24257a342d5549d480cb1f",
+      "sha256_status": "sha256",
+      "size_bytes": 712704,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/CV/.git/todo-orchestrator/2ed62dd2-0879-4804-a810-0db640fb0ac8/state.sqlite3",
+      "relative_path": "2ed62dd2-0879-4804-a810-0db640fb0ac8/state.sqlite3",
+      "root": "git-common-cv-cv-todo",
+      "sha256": "9c27711d20dacc773edea1dfa60a601d84d8c76d8151745920d5dcee0fd834cc",
+      "sha256_status": "sha256",
+      "size_bytes": 778240,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/GlassHelix/.git/todo-orchestrator/b2c4b239-f18d-4252-b388-fb9889e75efd/state.sqlite3",
+      "relative_path": "b2c4b239-f18d-4252-b388-fb9889e75efd/state.sqlite3",
+      "root": "git-common-glasshelix-glasshelix-todo",
+      "sha256": "63fa1cb8d434d60562731e093f8df0b2deee521f30e34f12290b93e1b4a23df8",
+      "sha256_status": "sha256",
+      "size_bytes": 2768896,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/numaBraid/.git/todo-orchestrator/7efda1f1-7a8d-4c63-9e51-313690169d92/state.sqlite3",
+      "relative_path": "7efda1f1-7a8d-4c63-9e51-313690169d92/state.sqlite3",
+      "root": "git-common-numabraid-numabraid-todo",
+      "sha256": "71e7b393755a367cd7868aa8852607bc723c39b57e6f37354ff00f3303335659",
+      "sha256_status": "sha256",
+      "size_bytes": 794624,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/state.sqlite3",
+      "relative_path": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7/state.sqlite3",
+      "root": "git-common-project-control-project-control-todo",
+      "sha256": "ea3af3de747821b99efe9e64ba1053ba6caa3fe73c137e570d1af1ddebf54df2",
+      "sha256_status": "sha256",
+      "size_bytes": 7589888,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/0fbfd27d-e3f6-47bb-bb37-a0d939e70b71/state.sqlite3",
+      "relative_path": "0fbfd27d-e3f6-47bb-bb37-a0d939e70b71/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "5e79621cfe0900e7d4a32bb189a81be88abc94bcdb73b1d09b07fe537632af2b",
+      "sha256_status": "sha256",
+      "size_bytes": 421888,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/13723302-e234-48f7-9f6d-3fd15934d928/state.sqlite3",
+      "relative_path": "13723302-e234-48f7-9f6d-3fd15934d928/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "b379f6362db5a938c20eb50a37d5cd182435203cbabd32689aa1a166fa7dae2e",
+      "sha256_status": "sha256",
+      "size_bytes": 753664,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/state.sqlite3",
+      "relative_path": "460468fe-ee72-4a64-a565-87cfec640d0c/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "c03151a73cfd0f533c17e44bd208c0115f2dffbc371e94281805833d4da80134",
+      "sha256_status": "sha256",
+      "size_bytes": 9867264,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/715fdead-1276-41d9-a592-c724cc3ed8e6/state.sqlite3",
+      "relative_path": "715fdead-1276-41d9-a592-c724cc3ed8e6/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "56c953151c79856229f85144ad5c92d863aba1644239f9374602c658ebf98bf6",
+      "sha256_status": "sha256",
+      "size_bytes": 389120,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/95e96992-bf74-4dd5-9984-a44885069a27/state.sqlite3",
+      "relative_path": "95e96992-bf74-4dd5-9984-a44885069a27/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "91171dff9db5459a5117ccee786ddedd63e8de401d780c82d6af746206f378a8",
+      "sha256_status": "sha256",
+      "size_bytes": 925696,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/9d0f506f-8677-4660-ac11-e64ab40f6026/state.sqlite3",
+      "relative_path": "9d0f506f-8677-4660-ac11-e64ab40f6026/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "bf867e42a09fce704d6c4fe15c8976ec0b8e973c46d4c86c2840f53dfcb5a0df",
+      "sha256_status": "sha256",
+      "size_bytes": 1277952,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/bdf87a08-f404-4a60-aa2c-962945804053/state.sqlite3",
+      "relative_path": "bdf87a08-f404-4a60-aa2c-962945804053/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "4cf17defc91335885664a4284bc630fec6ff3220a712709636504aedd8711c5d",
+      "sha256_status": "sha256",
+      "size_bytes": 376832,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/cf23d5ee-8755-4e56-a2dd-6802037739a7/state.sqlite3",
+      "relative_path": "cf23d5ee-8755-4e56-a2dd-6802037739a7/state.sqlite3",
+      "root": "git-common-skills-skills-todo",
+      "sha256": "00042058ee1ff25e473ac7869ebebee9ac49e4db15f0b54dfcb0bf4637f8bf35",
+      "sha256_status": "sha256",
+      "size_bytes": 614400,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/txtDesk/.git/todo-orchestrator/8d69566b-9fef-41e2-bbeb-d8bc39c28821/state.sqlite3",
+      "relative_path": "8d69566b-9fef-41e2-bbeb-d8bc39c28821/state.sqlite3",
+      "root": "git-common-txtdesk-txtdesk-todo",
+      "sha256": "007529a307ac6094833d3fb0ead9a5cbd8d482a521053623aba519e1017a0392",
+      "sha256_status": "sha256",
+      "size_bytes": 753664,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.config/project-control/config.toml",
+      "relative_path": ".",
+      "root": "project-control-config",
+      "sha256": "6f9d40435b0c299e9443fedbd38e3ce1d65d67390f3de066bd0565af47146982",
+      "sha256_status": "sha256",
+      "size_bytes": 3318,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/project-control/observer-analysis/as1/jobs/jobs.sqlite3",
+      "relative_path": "observer-analysis/as1/jobs/jobs.sqlite3",
+      "root": "project-control-local-state",
+      "sha256": "77625da2a37fe9ff037cbf065bb2a139ce169ed22650d144c63892e7da4beaab",
+      "sha256_status": "sha256",
+      "size_bytes": 57344,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/project-control/observer-analysis/as1/packets.sqlite3",
+      "relative_path": "observer-analysis/as1/packets.sqlite3",
+      "root": "project-control-local-state",
+      "sha256": "a59f49716ab45e65227b8b668c344bdc7c78287d10ecf020f9dec4f3b6eb20f5",
+      "sha256_status": "sha256",
+      "size_bytes": 6594560,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/059fced9-a3d4-4b0f-b015-f30b84b2833a/state.sqlite3",
+      "relative_path": "059fced9-a3d4-4b0f-b015-f30b84b2833a/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "e76828764998031a11577c2f26d04dcf04cafb645cb813f8757162a84e739ea9",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/13f3d6fc-26a9-492b-adf3-1098a355d352/state.sqlite3",
+      "relative_path": "13f3d6fc-26a9-492b-adf3-1098a355d352/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "07dcb19ab6c24f89200e76b4634f4f7d810f0f3263b789b768b3af8ab62805b0",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/2789535a-8aab-4a08-9316-f0eaa34effe4/state.sqlite3",
+      "relative_path": "2789535a-8aab-4a08-9316-f0eaa34effe4/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "29db6a2036a992256dbcabc662e91c597ced771255caa408b9f7d3cc7018bb48",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/347696ac-e7e6-427c-84e6-59c472d16c96/state.sqlite3",
+      "relative_path": "347696ac-e7e6-427c-84e6-59c472d16c96/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "e25544bc2cbfcb706933644092518072711ccd2dbe4db094c07868a589ab8de9",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/47d0f67b-b567-48c1-9e09-dda4df6b9052/state.sqlite3",
+      "relative_path": "47d0f67b-b567-48c1-9e09-dda4df6b9052/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "5dea044749933bff0cb1aea963d8b039b4d10880ac3fbe45dbab668326956de6",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/47e01742-5e03-4ce1-965d-60eb2b48b083/state.sqlite3",
+      "relative_path": "47e01742-5e03-4ce1-965d-60eb2b48b083/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "51ffe2b20c1cd8274e98eeecfc97c87e5100174f9771c447ce9cb4171bc9a817",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/4a9e7e16-a141-4f12-93ac-f3d092b1619e/state.sqlite3",
+      "relative_path": "4a9e7e16-a141-4f12-93ac-f3d092b1619e/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "db99956d0d5126802a76c60877b05edfbe483755d196acc0f17fefdedd6d8528",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/5e944a1f-2d9b-4cbc-b0c8-11635eb442f0/state.sqlite3",
+      "relative_path": "5e944a1f-2d9b-4cbc-b0c8-11635eb442f0/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "7d67b6c37e041c0e318da993a002994396b83e5bed9ce57799e78b4f4d96bf80",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/60a685b2-4575-4ea6-b5c3-7cefe3a24545/state.sqlite3",
+      "relative_path": "60a685b2-4575-4ea6-b5c3-7cefe3a24545/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "1f1999ddabe96e8b8dba3d055b18aa2862f88e497eff87114edf9f44cf579c0f",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/6855b103-0b6e-4dd9-84f8-4f6bdb8ed25f/state.sqlite3",
+      "relative_path": "6855b103-0b6e-4dd9-84f8-4f6bdb8ed25f/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "881bdb5679eb8f032351b0b5b9d58b168768fd6091dbae9a30e86e6b6172018a",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/6ae63480-69ae-4294-9850-46ad8dde7cfa/state.sqlite3",
+      "relative_path": "6ae63480-69ae-4294-9850-46ad8dde7cfa/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "32473b89627523db982b789f8d3032fef27e46d4a3caeb268cc9bd956e80817d",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/e588f81f-11c6-460f-8832-72e2c4801db2/state.sqlite3",
+      "relative_path": "e588f81f-11c6-460f-8832-72e2c4801db2/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "52a10f96380670a689e3e661fe84f689189f2686204ee1d67f0e3a58c0bc6423",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator/f314624e-45ed-4ea3-a94c-156706514d35/state.sqlite3",
+      "relative_path": "f314624e-45ed-4ea3-a94c-156706514d35/state.sqlite3",
+      "root": "todo-xdg-fallback",
+      "sha256": "b0af5b003efe39d63103adec64339a51ff9213eab077125a8cfbbbcbd101b7af",
+      "sha256_status": "sha256",
+      "size_bytes": 659456,
+      "sqlite": true
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/accelerated-ports/CellRank/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-accelerated-ports-cellrank-todo-authority",
+      "sha256": "5bbc3b344b2b201d5320add8d21a36c0be9bafe3e67cc68566fa36d90f1bac9f",
+      "sha256_status": "sha256",
+      "size_bytes": 473,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/accelerated-ports/CellRank/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-accelerated-ports-cellrank-todo-authority",
+      "sha256": "1035c5f696e0f12b8a7e1afa13ef251d0ccbd8462865d53e7fbc6d41c69e21c8",
+      "sha256_status": "sha256",
+      "size_bytes": 17989,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/accelerated-ports/scVelo/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-accelerated-ports-scvelo-todo-authority",
+      "sha256": "211bbe0f157487224a59d9c4efb6e9745239515eafaed1f8ffa301b58cb1e0be",
+      "sha256_status": "sha256",
+      "size_bytes": 471,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/accelerated-ports/scVelo/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-accelerated-ports-scvelo-todo-authority",
+      "sha256": "bf8ef242b248fde0d87d6e579db96a56c98639a79bd9c41e75276b4a9adee440",
+      "sha256_status": "sha256",
+      "size_bytes": 45976,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0664",
+      "path": "/home/tumlinson/Baseplane/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-baseplane-baseplane-todo-authority",
+      "sha256": "eac1843535ec3e87b13976f6bf7aeb5f08063f6ceda81f0e8272221acb7b44f6",
+      "sha256_status": "sha256",
+      "size_bytes": 434,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/Baseplane/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-baseplane-baseplane-todo-authority",
+      "sha256": "6075ea8af6994f5a8b317ecc98119dbdc8de1eec011eccb21eddfbbbed3fff27",
+      "sha256_status": "sha256",
+      "size_bytes": 1547578,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/BioPrep/.todo-orchestrator/bioprep-preprocessing-extraction.plan.json",
+      "relative_path": "bioprep-preprocessing-extraction.plan.json",
+      "root": "workspace-bioprep-bioprep-todo-authority",
+      "sha256": "6520314b2fdfd493115ebeab03ec84b15a1acae86842d5c324b26e80639bea2c",
+      "sha256_status": "sha256",
+      "size_bytes": 5182,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/BioPrep/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-bioprep-bioprep-todo-authority",
+      "sha256": "b6f55453abeec89152ece9d49bdb6028d9f9591ab01d31c0340d819dcc9e5dbb",
+      "sha256_status": "sha256",
+      "size_bytes": 426,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/BioPrep/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-bioprep-bioprep-todo-authority",
+      "sha256": "bc6353e3024aa06ba362c36d9362a7e54486d72f37d11220d412360c8ac8842a",
+      "sha256_status": "sha256",
+      "size_bytes": 44355,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/Cellerator/.todo-orchestrator/ce-ptr-plan.json",
+      "relative_path": "ce-ptr-plan.json",
+      "root": "workspace-cellerator-cellerator-todo-authority",
+      "sha256": "c9521de860b15ff4b7970f531009301a0daf5b34be69b67bf272f509bae27b1a",
+      "sha256_status": "sha256",
+      "size_bytes": 60207,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0644",
+      "path": "/home/tumlinson/Cellerator/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-cellerator-cellerator-todo-authority",
+      "sha256": "0f6418ad12dacbaa13062bf6c8bd1eb2e2dc5ca0ac12e69ce6deae368b833619",
+      "sha256_status": "sha256",
+      "size_bytes": 475,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/Cellerator/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-cellerator-cellerator-todo-authority",
+      "sha256": "d9ed153c9732b0cbb3d8fe194698818e1cd4346ea28bb9e49920e0bbfadf48fa",
+      "sha256_status": "sha256",
+      "size_bytes": 27887812,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0664",
+      "path": "/home/tumlinson/Cellerator/components/CellShard/.todo-orchestrator/cs-found-plan.json",
+      "relative_path": "cs-found-plan.json",
+      "root": "workspace-cellshard-cellshard-todo-authority",
+      "sha256": "8b12705e765ffec0344165a4f2354603e6bdd690d6f55e14c1fabdbc68419e1f",
+      "sha256_status": "sha256",
+      "size_bytes": 56006,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0664",
+      "path": "/home/tumlinson/Cellerator/components/CellShard/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-cellshard-cellshard-todo-authority",
+      "sha256": "cd86f8b1a069f6e93368f7a0d1d1887dcd1eafc05e6a5e9721f0fd6f96e5008e",
+      "sha256_status": "sha256",
+      "size_bytes": 428,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/Cellerator/components/CellShard/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-cellshard-cellshard-todo-authority",
+      "sha256": "507a4042b353e14c65ddc569136b029ac4409b36b6b48cc403d9dbe5262961f7",
+      "sha256_status": "sha256",
+      "size_bytes": 7294963,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/gpu_circuit_bending_atlas/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-circuit-bending-atlas-circuit-bending-atlas-todo-authority",
+      "sha256": "db58f9874643fb3f9be0a691aba855d455f6de9155db39258460fffc67c66a2d",
+      "sha256_status": "sha256",
+      "size_bytes": 456,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/gpu_circuit_bending_atlas/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-circuit-bending-atlas-circuit-bending-atlas-todo-authority",
+      "sha256": "fbe04f2d6ddd2560ca7f70030df167816c8e0f56c6bff01699d7bcc9970dfefc",
+      "sha256_status": "sha256",
+      "size_bytes": 19433,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/CV/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-cv-cv-todo-authority",
+      "sha256": "9587601f52b71c978e846f837ffee61d921ca766adf1fb090be824b19259c941",
+      "sha256_status": "sha256",
+      "size_bytes": 421,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/CV/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-cv-cv-todo-authority",
+      "sha256": "c85d3036df013eda96ac80953514ca66edabf633797ee3f4bbc771449ba1750b",
+      "sha256_status": "sha256",
+      "size_bytes": 100850,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/GlassHelix/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-glasshelix-glasshelix-todo-authority",
+      "sha256": "c3f5061bbf8585fe8500ff7c508bf82e37002fbb9d0dc7fc0d71baf0c646d238",
+      "sha256_status": "sha256",
+      "size_bytes": 429,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/GlassHelix/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-glasshelix-glasshelix-todo-authority",
+      "sha256": "d0e0751592299707bfdf16993232ce1cf37bde14b68a35327e4e6e9516c8c028",
+      "sha256_status": "sha256",
+      "size_bytes": 1694873,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/numaBraid/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-numabraid-numabraid-todo-authority",
+      "sha256": "4876aa7c8806530c9e6f5405e8b3b4ba3100e22f0ab8ac3770f4939985fd3731",
+      "sha256_status": "sha256",
+      "size_bytes": 428,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/numaBraid/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-numabraid-numabraid-todo-authority",
+      "sha256": "b6defaa99a7a915f8c526a27ce163c3392b234bebd6422a9f8069ca5722404c5",
+      "sha256_status": "sha256",
+      "size_bytes": 112395,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/project-control/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-project-control-project-control-todo-authority",
+      "sha256": "6b9542becfb596f4c5e007f716f4da00f28d1ebab41ff0db573265964dd52cd1",
+      "sha256_status": "sha256",
+      "size_bytes": 448,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/project-control/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-project-control-project-control-todo-authority",
+      "sha256": "6a5bac33cb0c777d5e19f4f2f3651132f2084c879da36053509b44703a062009",
+      "sha256_status": "sha256",
+      "size_bytes": 3312697,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.agents/skills/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-skills-skills-todo-authority",
+      "sha256": "92aff48f1bf66520bb7e7e435b4abf41061a18aca6a26399d740132948003fb7",
+      "sha256_status": "sha256",
+      "size_bytes": 444,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/.agents/skills/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-skills-skills-todo-authority",
+      "sha256": "1dea16a29c1cf8426c08a5dee6dcaeb8bc31139820178826d394568d9bcba421",
+      "sha256_status": "sha256",
+      "size_bytes": 3465824,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/txtDesk/.todo-orchestrator/project.json",
+      "relative_path": "project.json",
+      "root": "workspace-txtdesk-txtdesk-todo-authority",
+      "sha256": "4fac1301d34a175b1a9df43656d941ed430bffbc52be74073029467d7d649c7d",
+      "sha256_status": "sha256",
+      "size_bytes": 426,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/txtDesk/.todo-orchestrator/state.snapshot.json",
+      "relative_path": "state.snapshot.json",
+      "root": "workspace-txtdesk-txtdesk-todo-authority",
+      "sha256": "e5ed2613884cb5732040f17dcbabb02782a2f4362d12b2c5e7328f55a9099410",
+      "sha256_status": "sha256",
+      "size_bytes": 81257,
+      "sqlite": false
+    },
+    {
+      "historical_archive": false,
+      "mode": "0600",
+      "path": "/home/tumlinson/txtDesk/.todo-orchestrator/txtdesk-foundation-plan.json",
+      "relative_path": "txtdesk-foundation-plan.json",
+      "root": "workspace-txtdesk-txtdesk-todo-authority",
+      "sha256": "0dc447ad3ae3a011e1530d7dfded8ce30dd9597c36aeece384e4c21134788520",
+      "sha256_status": "sha256",
+      "size_bytes": 23618,
+      "sqlite": false
+    }
+  ],
+  "inventory_only": true,
+  "inventory_scope": "active_uuid_databases_configs_and_as1_jobs_packets",
+  "roots": [
+    {
+      "file_count": 1,
+      "id": "project-control-config",
+      "kind": "file",
+      "path": "/home/tumlinson/.config/project-control/config.toml",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": null
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-accelerated-ports-cellrank-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/accelerated-ports/CellRank/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "accelerated-ports"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-accelerated-ports-cellrank-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/accelerated-ports/CellRank/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "accelerated-ports"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-accelerated-ports-scvelo-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/accelerated-ports/scVelo/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "accelerated-ports"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-accelerated-ports-scvelo-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/accelerated-ports/scVelo/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "accelerated-ports"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-baseplane-baseplane-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/Baseplane/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "baseplane"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-baseplane-baseplane-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/Baseplane/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "baseplane"
+    },
+    {
+      "file_count": 3,
+      "id": "workspace-bioprep-bioprep-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/BioPrep/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "bioprep"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-bioprep-bioprep-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/BioPrep/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "bioprep"
+    },
+    {
+      "file_count": 3,
+      "id": "workspace-cellerator-cellerator-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/Cellerator/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cellerator"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-cellerator-cellerator-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/Cellerator/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cellerator"
+    },
+    {
+      "file_count": 0,
+      "id": "workspace-cellerrank-cellerrank-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/CellerRank/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cellerrank"
+    },
+    {
+      "file_count": 0,
+      "id": "workspace-cellervelo-cellervelo-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/CellerVelo/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cellervelo"
+    },
+    {
+      "file_count": 3,
+      "id": "workspace-cellshard-cellshard-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/Cellerator/components/CellShard/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cellshard"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-cellshard-cellshard-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/Cellerator/.git/modules/components/CellShard/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cellshard"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-circuit-bending-atlas-circuit-bending-atlas-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/gpu_circuit_bending_atlas/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "circuit-bending-atlas"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-circuit-bending-atlas-circuit-bending-atlas-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/gpu_circuit_bending_atlas/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "circuit-bending-atlas"
+    },
+    {
+      "file_count": 0,
+      "id": "workspace-codex-codex-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/codex-workspace/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "codex"
+    },
+    {
+      "file_count": 0,
+      "id": "git-common-codex-codex-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/codex-workspace/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "codex"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-cv-cv-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/CV/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cv"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-cv-cv-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/CV/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "cv"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-glasshelix-glasshelix-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/GlassHelix/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "glasshelix"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-glasshelix-glasshelix-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/GlassHelix/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "glasshelix"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-numabraid-numabraid-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/numaBraid/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "numabraid"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-numabraid-numabraid-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/numaBraid/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "numabraid"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-project-control-project-control-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/project-control/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "project-control"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-project-control-project-control-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/project-control/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "project-control"
+    },
+    {
+      "file_count": 2,
+      "id": "workspace-skills-skills-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/.agents/skills/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "skills"
+    },
+    {
+      "file_count": 8,
+      "id": "git-common-skills-skills-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "skills"
+    },
+    {
+      "file_count": 3,
+      "id": "workspace-txtdesk-txtdesk-todo-authority",
+      "kind": "directory",
+      "path": "/home/tumlinson/txtDesk/.todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "txtdesk"
+    },
+    {
+      "file_count": 1,
+      "id": "git-common-txtdesk-txtdesk-todo",
+      "kind": "directory",
+      "path": "/home/tumlinson/txtDesk/.git/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": "txtdesk"
+    },
+    {
+      "file_count": 13,
+      "id": "todo-xdg-fallback",
+      "kind": "directory",
+      "path": "/home/tumlinson/.local/state/todo-orchestrator",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": null
+    },
+    {
+      "aliases": [
+        "project-control-xdg-state"
+      ],
+      "file_count": 2,
+      "id": "project-control-local-state",
+      "kind": "directory",
+      "path": "/home/tumlinson/.local/state/project-control",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": null
+    },
+    {
+      "file_count": 0,
+      "id": "as1-observer-analysis-default-cache",
+      "kind": "directory",
+      "path": "/home/tumlinson/.cache/project-control/as1-observer-analysis",
+      "status": "registered_root_targeted_or_retained_in_place",
+      "workspace": null
+    }
+  ],
+  "schema_version": 1,
+  "workspaces": [
+    {
+      "git_common_dir": "/home/tumlinson/accelerated-ports/CellRank/.git",
+      "id": "accelerated-ports",
+      "repository": "cellrank",
+      "root": "/home/tumlinson/accelerated-ports/CellRank",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/accelerated-ports/scVelo/.git",
+      "id": "accelerated-ports",
+      "repository": "scvelo",
+      "root": "/home/tumlinson/accelerated-ports/scVelo",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/Baseplane/.git",
+      "id": "baseplane",
+      "repository": "baseplane",
+      "root": "/home/tumlinson/Baseplane",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/BioPrep/.git",
+      "id": "bioprep",
+      "repository": "bioprep",
+      "root": "/home/tumlinson/BioPrep",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/Cellerator/.git",
+      "id": "cellerator",
+      "repository": "cellerator",
+      "root": "/home/tumlinson/Cellerator",
+      "status": "registered_root_available"
+    },
+    {
+      "id": "cellerrank",
+      "repository": "cellerrank",
+      "root": "/home/tumlinson/CellerRank",
+      "status": "registered_root_missing_or_symlink"
+    },
+    {
+      "id": "cellervelo",
+      "repository": "cellervelo",
+      "root": "/home/tumlinson/CellerVelo",
+      "status": "registered_root_missing_or_symlink"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/Cellerator/.git/modules/components/CellShard",
+      "id": "cellshard",
+      "repository": "cellshard",
+      "root": "/home/tumlinson/Cellerator/components/CellShard",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/gpu_circuit_bending_atlas/.git",
+      "id": "circuit-bending-atlas",
+      "repository": "circuit-bending-atlas",
+      "root": "/home/tumlinson/gpu_circuit_bending_atlas",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/codex-workspace/.git",
+      "id": "codex",
+      "repository": "codex",
+      "root": "/home/tumlinson/codex-workspace",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/CV/.git",
+      "id": "cv",
+      "repository": "cv",
+      "root": "/home/tumlinson/CV",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/GlassHelix/.git",
+      "id": "glasshelix",
+      "repository": "glasshelix",
+      "root": "/home/tumlinson/GlassHelix",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/numaBraid/.git",
+      "id": "numabraid",
+      "repository": "numabraid",
+      "root": "/home/tumlinson/numaBraid",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/project-control/.git",
+      "id": "project-control",
+      "repository": "project-control",
+      "root": "/home/tumlinson/project-control",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/.agents/skills/.git",
+      "id": "skills",
+      "repository": "skills",
+      "root": "/home/tumlinson/.agents/skills",
+      "status": "registered_root_available"
+    },
+    {
+      "git_common_dir": "/home/tumlinson/txtDesk/.git",
+      "id": "txtdesk",
+      "repository": "txtdesk",
+      "root": "/home/tumlinson/txtDesk",
+      "status": "registered_root_available"
+    }
+  ]
+}

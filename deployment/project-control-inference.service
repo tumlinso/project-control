@@ -1,0 +1,20 @@
+[Unit]
+Description=Optional Project Control demand-only inference supervisor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.cache/project-control/as1-observer-analysis
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=%h/.local/bin/project-control-inference
+Restart=no
+UMask=0077
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=%h/.cache/project-control %h/.local/state/project-control %h/.config/project-control
+
+[Install]
+WantedBy=default.target

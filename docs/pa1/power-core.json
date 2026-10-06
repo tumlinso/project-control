@@ -1,0 +1,155 @@
+{
+  "schema": "project-control.pa1-power-core.v1",
+  "implementation": "src/project_control/assistance/power.py",
+  "test": "tests/assistance/test_power.py",
+  "storage": {
+    "table": "pa1_power_state",
+    "connection": "caller-owned JobService SQLite connection",
+    "separate_database_or_pool": false,
+    "transaction_rule": "policy writes are short caller transactions; never hold a transaction while invoking a backend or waiting on tools"
+  },
+  "defaults": {
+    "automatic_enabled": false,
+    "focus_window": null,
+    "quiet": false,
+    "release_veto": false,
+    "physical_state": "not_requested"
+  },
+  "dispatch": {
+    "foreground_classes": [
+      "public_root",
+      "foreground"
+    ],
+    "automatic_classes": [
+      "private_child",
+      "automatic_root",
+      "opportunistic"
+    ],
+    "automatic_requires": [
+      "operator-enabled automatic work",
+      "matching trusted focus and project",
+      "current time within the explicit focus window",
+      "typed dispatch_automatic permission",
+      "a demand"
+    ],
+    "private_child": "inherits a sealed demand origin decoded from the persisted root frame record; public_demand descendants follow explicit public demand and remain eligible during quiet, while automatic descendants require the current matching focus window and dispatch permission and are suppressed by quiet",
+    "origin_binding": "PowerPolicy.root_demand_origin(root_id) reads pa1_frames.origin_class and returns a typed origin bound to that root; model supplied origin strings are rejected",
+    "quiet_policy": "blocks automatic roots and descendants; an explicit public foreground demand remains eligible",
+    "release_policy": "blocks all dispatch until explicit resume or the operator-declared end, including status checks, restart and new demand; repeated trusted release requests during the same active veto reuse its request ID and preserve verified physical proof while optional metadata changes are applied",
+    "priority": "foreground versus opportunistic is returned as scheduling metadata; the scheduler owns ordering and slot limits"
+  },
+  "operator_control": {
+    "interface": [
+      "snapshot",
+      "set_quiet",
+      "set_automatic",
+      "set_focus_window",
+      "set_release",
+      "resume",
+      "check_permission"
+    ],
+    "authority": "typed process-local TrustedOperatorControl and OperatorPermission objects; role strings, model output and source text cannot grant authority",
+    "status": "snapshot is read-only and never calls the backend"
+  },
+  "release_contract": {
+    "intent": "set_release persists the logical rewarming veto and physical_state=pending before returning ReleaseIntent",
+    "delivery": "deliver_release_intent requires the caller transaction to be committed; callbacks must be idempotent by request_id and must not be called while a DB transaction is open",
+    "failure": "callback failure leaves the veto and physical_state=pending",
+    "accounting": "no callback result or caller receipt is treated as proof; ResourceController checks the committed complete tracked-session set and exact owner proof, then mints a typed acknowledgement bound to request_id; PowerPolicy records released_verified only from that provider",
+    "verified_state": "physical_state, verification time, nonempty verified session count, owner-proof digest, and target-set digest persist across restart; logical rewarming veto remains until its declared end or explicit resume"
+  },
+  "expiry_and_focus": {
+    "quiet": "expiry is stored with the quiet window; the first scheduling decision after expiry persists the cleared state, so later focus changes or a backwards wall-clock adjustment cannot revive it",
+    "automatic_focus": "one explicit focus/project window; duration is at least one second and at most 86400 seconds; non-finite boundaries are rejected; dispatch checks exact focus and project and clears an observed expired window durably",
+    "status": "expired state is reported effectively without mutation; expiry is persisted by scheduling policy checks"
+  },
+  "validation": {
+    "command": "PYTHONPATH=src python -m unittest tests.assistance.test_power -v",
+    "tests": 17,
+    "coverage": [
+      "default demand-only state",
+      "typed authority rejection",
+      "root origin read from the real FrameStore schema and preserved across restart",
+      "quiet and explicit public demand",
+      "quiet expiry and no focus resurrection",
+      "focus/project/permission matching and expiry",
+      "public-demand and automatic-origin child inheritance, root binding, and quiet suppression",
+      "release veto across process restart and new demand",
+      "post-commit release callback contract and pending failure",
+      "typed owner proof bridge records released state without clearing logical veto",
+      "declared release end and explicit resume preserve physical pending state",
+      "NaN and infinite quiet, release, and focus timestamps rejected; focus window minimum and 24-hour maximum enforced",
+      "owner verifies all committed session proofs, persists physical release state, and retains logical veto across restart",
+      "partial and replaced owner proof cannot mark physical release verified",
+      "empty/unbound owner proof cannot mark physical release verified",
+      "repeat clicks and metadata updates preserve the active intent and verified proof",
+      "resume and expiry end idempotency and require a new physical proof",
+      "new owner target invalidates prior physical proof under the active veto"
+    ],
+    "device_or_model_computation": false
+  },
+  "current_source_observation": {
+    "observed_at_utc": "2026-10-06T18:40:47Z",
+    "repository": "/home/tumlinson/project-control",
+    "git_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "worktree_state": "dirty; PA1 source and evidence are worktree-local",
+    "receiver_root": "src/project_control/local_runtime",
+    "receiver_file_count": 42,
+    "receiver_source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+    "receiver_fingerprint": "1860a5d64662da3379d8f9b4823813321ed6cf1f7a78fbb7c5b66cbcd3d684cb",
+    "receiver_manifest_sha256": "576aaf8b80d58df9040e2c3d6058e95a7252227890068b4b9d49c0c0f88add4a",
+    "relevant_sha256": {
+      "src/project_control/as1_jobs.py": "62357eb5f976a6b13e72f5d9970ddb7d792e89c45079d55648bd504ab2ef3ed6",
+      "src/project_control/as1_surface.py": "5f9d1c0d0aedcd3c4b950e15452e68db854f3b1c09f30a407eedcd69c00943b0",
+      "src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+      "src/project_control/assistance/frames.py": "d33f4831c8bf746b0b7cf4ec93213c27fcbd045321b8ce1d25f2b083f9c46987",
+      "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8",
+      "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+      "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8",
+      "src/project_control/runtime_binding.py": "83beea936f05b80bacadecb8a56669ff7bfab0753d46ceec2c0190de09a987d1",
+      "src/project_control/local_runtime/scripts/local_worker.py": "0e445333676ec7d65b9854f92c2c721474a55919edcf25efc3d9da3782dd2123",
+      "src/project_control/local_runtime/local_worker/observer_runtime.py": "998a6a46abb924a9e927abc35e6d95d97d2794cc8c42c537a884cb5e621f08a7"
+    },
+    "native_acceptance": {
+      "status": "accepted",
+      "proof_file": "docs/pa1/frames-native-acceptance.json",
+      "task_id": "PC-PA1-FRAMES",
+      "semantic_revision": 1003,
+      "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+      "required_gates": 9,
+      "passed_gates": 9,
+      "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+    }
+  },
+  "latest_local_cpu_validation": {
+    "scope": "source-level policy tests using temporary SQLite state and fake exact-owner proof; no model/device computation",
+    "reported_result": {
+      "status": "passed",
+      "tests": 17
+    },
+    "test_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+    "power_source_sha256": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8",
+    "note": "Historical source validation remains separately recorded under source_validation; no live physical release or GPU qualification is claimed.",
+    "tested_receiver_identity": {
+      "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+      "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+      "receiver_file_count": 42,
+      "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+      "recorded_at_utc": "2026-10-06T18:30:31Z",
+      "test_execution_time": "not supplied in worker summary"
+    },
+    "notes": [
+      "The result is a worker-reported local CPU/source check recorded at 2026-10-06T18:30:31Z; it remains bound to the 456fcd47 receiver manifest and 99003ba fingerprint. Test execution time was not supplied."
+    ]
+  },
+  "native_acceptance": {
+    "status": "accepted",
+    "proof_file": "docs/pa1/frames-native-acceptance.json",
+    "task_id": "PC-PA1-FRAMES",
+    "semantic_revision": 1003,
+    "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+    "required_gates": 9,
+    "passed_gates": 9,
+    "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+  }
+}

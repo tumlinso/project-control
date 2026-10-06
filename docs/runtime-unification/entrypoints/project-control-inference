@@ -1,0 +1,48 @@
+#!/bin/sh
+# Optional, demand-only receiver-bound local worker supervisor.
+set -eu
+
+if [ "$#" -ne 0 ]; then
+    printf '%s\n' "project-control-inference: operator arguments are not accepted" >&2
+    exit 2
+fi
+
+release="$(readlink -f -- "${HOME}/.local/share/project-control/current")"
+manifest="${release}/release-manifest.json"
+skills="${release}/runtime-skills"
+python="${release}/bin/python"
+state="${HOME}/.cache/project-control/as1-observer-analysis"
+host_runtime=/tmp/codex-todo-orchestrator-1000
+gpu_uuids='GPU-21131915-1488-23af-38dd-1743ae1f5cc8 GPU-cf22c41f-5b58-77b1-3535-8fadd1ca6505 GPU-d745da9c-7649-8334-41f1-483afa6f3206 GPU-6c1cac7f-a360-0aef-ba98-2828bfd1db1a'
+
+if [ ! -x "$python" ] || [ ! -f "$manifest" ] || [ ! -d "$skills" ]; then
+    printf '%s\n' "project-control-inference: incomplete unified release: $release" >&2
+    exit 127
+fi
+
+manifest_sha256="$(sha256sum "$manifest")"
+manifest_sha256="${manifest_sha256%% *}"
+
+# Replace inherited identity and Python settings with bindings from this one
+# resolved release. The runtime module verifies its manifest and receiver files
+# before importing local_worker.supervisor.
+unset PYTHONHOME PYTHONPATH PYTHONUSERBASE
+unset CORE4_SUPERVISOR_RUNTIME_DIR
+unset PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256
+unset PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT
+unset CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT
+export PROJECT_CONTROL_RELEASE_MANIFEST="$manifest"
+export PROJECT_CONTROL_RELEASE_DIGEST="$manifest_sha256"
+export PROJECT_CONTROL_SKILLS_ROOT="$skills"
+export PROJECT_CONTROL_OBSERVER_SKILLS_ROOT="$skills"
+export PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR="$state"
+export PROJECT_CONTROL_OBSERVER_GPU_UUIDS='["GPU-21131915-1488-23af-38dd-1743ae1f5cc8","GPU-cf22c41f-5b58-77b1-3535-8fadd1ca6505","GPU-d745da9c-7649-8334-41f1-483afa6f3206","GPU-6c1cac7f-a360-0aef-ba98-2828bfd1db1a"]'
+export TODO_BACKGROUND_HOST_RUNTIME_DIR="$host_runtime"
+
+set --
+for gpu_uuid in $gpu_uuids; do
+    set -- "$@" --allowed-gpu-uuid "$gpu_uuid"
+done
+exec "$python" -I -m project_control.runtime_binding local_worker.supervisor \
+    --serve --repo-root "$state" --service-state-root "$state" \
+    --runtime-root "$state/runtime" --observer-only "$@"

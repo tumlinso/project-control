@@ -19,6 +19,7 @@ from project_control.as1_skill import SkillObserverFactory, SkillService
 import project_control.as1_skill as skill_module
 
 INSTALLED = Path('/home/tumlinson/.agents/skills')
+RUNTIME_ROOT = Path(__file__).resolve().parents[2]/'src/project_control/local_runtime'
 SCOPE = {'principal': 'alice', 'profile': 'observer'}
 
 
@@ -94,7 +95,9 @@ def fixture_root(tmp_path):
 def make(tmp_path, root, backend, *, registrations=None, wrap=True):
     names = [p.name for p in root.iterdir() if (p/'SKILL.md').is_file()]
     skills = registrations or {name: {'name': name, 'root': str(root/name)} for name in names}
-    trusted = TrustedObserverFactory(INSTALLED, digest(INSTALLED/'local-coding-worker/local_worker/observer_runtime.py'),
+    from project_control.runtime_binding import local_runtime_identity
+    identity = local_runtime_identity(root=RUNTIME_ROOT)
+    trusted = TrustedObserverFactory(identity.root, digest(identity.root/'local_worker/observer_runtime.py'),
         backend=backend, roots=[root], tools=lambda *args: {'status': 'ok'}, skills=skills)
     factory = SkillObserverFactory(trusted, skills_root=root) if wrap else trusted
     jobs = JobService(tmp_path/'jobs', packets=SQLitePacketStore(tmp_path/'packets'), worker_factory=factory)

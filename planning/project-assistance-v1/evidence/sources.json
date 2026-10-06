@@ -1,0 +1,1114 @@
+{
+  "format": "pa1-source-ledger/1",
+  "prepared_date": "2026-10-06",
+  "observed_baselines": {
+    "project-control": {
+      "head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+      "dirty": true,
+      "semantic_revision": 923,
+      "project_uuid": "76dc6bf0-1223-4dda-bf8b-c306fb7721a7"
+    },
+    "skills": {
+      "head": "95818340006dd50ef233d7c67ddca2da8eb08bc4",
+      "dirty": true,
+      "semantic_revision": 1017,
+      "project_uuid": "460468fe-ee72-4a64-a565-87cfec640d0c"
+    }
+  },
+  "qualification": "Read-only source research; no live model, service, or native Todo validation claimed. Individual hashes govern source identity.",
+  "sources": [
+    {
+      "id": "S01",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "README.md",
+      "content_sha256": "7e0ab550b367a8763873337e950a206710f2ae82a5e97f6c7813017a9e0feb3a",
+      "ranges_read": [
+        [
+          1,
+          193
+        ]
+      ],
+      "packet": "pkt_5f6b30668d13415a955a05cadd4ebc64",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Current surface, workflow authority, dormant delegation, deployment and development.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "README.md",
+              "line_start": 1,
+              "line_end": 193
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S02",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/ADAPTIVE_EPICS.md",
+      "content_sha256": "881eea6774f4995cdc6d4899eb2b7a3c48be13df0298aad71e45b227050c5f9e",
+      "ranges_read": [
+        [
+          1,
+          65
+        ]
+      ],
+      "packet": "pkt_09c4262c5afa45268cdfe9c2411429b6",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Coarse durable outcomes, root autonomy, context fragments and authorized publication.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "docs/ADAPTIVE_EPICS.md",
+              "line_start": 1,
+              "line_end": 65
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S03",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/as1-surface.md",
+      "content_sha256": "1cf84ff6faee7295e1272c0f8dc67befabc7cbb0b39d9eefca661d507d1b3b9f",
+      "ranges_read": [
+        [
+          1,
+          147
+        ]
+      ],
+      "packet": "pkt_09c4262c5afa45268cdfe9c2411429b6",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Current observer/coder/mutator contracts, global inquiry behavior, inactive features.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "docs/as1-surface.md",
+              "line_start": 1,
+              "line_end": 147
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S04",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/as1-jobs.md",
+      "content_sha256": "25d32976b408c12fc3d7e4edd210e748a03d7b905c9a73854361e5c525517954",
+      "ranges_read": [
+        [
+          1,
+          110
+        ]
+      ],
+      "packet": "pkt_341ebe8b32064e17a7b8b59fc7731444",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Broker durability, outbox, fences, cleanup, observation-only resumption.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "docs/as1-jobs.md",
+              "line_start": 1,
+              "line_end": 110
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S05",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/as1-inquiry-cache.md",
+      "content_sha256": "e41ee7ae8feb4ae4ca239196278e202f7335d7d654ac8e0cbafb2615e9c89cbe",
+      "ranges_read": [
+        [
+          1,
+          103
+        ]
+      ],
+      "packet": "pkt_341ebe8b32064e17a7b8b59fc7731444",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Literal cache identity, freshness, negative cache, public states and budgets.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "docs/as1-inquiry-cache.md",
+              "line_start": 1,
+              "line_end": 103
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S06",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/as1-context.md",
+      "content_sha256": "2aac52087560149990b48b4d9116fefa13b8a9c44a4ea3dbc23ecd3d16622d38",
+      "ranges_read": [
+        [
+          1,
+          35
+        ]
+      ],
+      "packet": "pkt_341ebe8b32064e17a7b8b59fc7731444",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "InformationService, source reads, exact packets and provenance.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "docs/as1-context.md",
+              "line_start": 1,
+              "line_end": 35
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S07",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/as1-trace.md",
+      "content_sha256": "81dc7a40fb575e8bcc3e22ab5f4b7b6b93afb8a47ebef91d2cabf0340bb665e2",
+      "ranges_read": [
+        [
+          1,
+          135
+        ]
+      ],
+      "packet": "pkt_341ebe8b32064e17a7b8b59fc7731444",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Incremental trace providers, determinant identities, coverage limitations; no persistent watcher claim.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "docs/as1-trace.md",
+              "line_start": 1,
+              "line_end": 135
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S08",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/SKILL.md",
+      "content_sha256": "76942813b74d053afe290724878bd9d24fd1ab2e5e14b685c1ab1fc08b9c5c27",
+      "ranges_read": [
+        [
+          1,
+          115
+        ]
+      ],
+      "packet": "pkt_8b325ae084ee4840ab6dfa77d6b1eafc",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Observer runtime and distinct inactive coding contracts; hard authority boundaries.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/SKILL.md",
+              "line_start": 1,
+              "line_end": 115
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S09",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/references/observer-port.md",
+      "content_sha256": "750d21ed01c875736016c7797a1adb6839df77998d1db746f4c57430112cf58d",
+      "ranges_read": [
+        [
+          1,
+          183
+        ]
+      ],
+      "packet": "pkt_65c8d2bd235246cf8f8e1f72595a59eb",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Central owner, leases, read-only port, final-round budget. Some details lag source.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/references/observer-port.md",
+              "line_start": 1,
+              "line_end": 183
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S10",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/references/integration-contract.md",
+      "content_sha256": "1a4153c4f8884b5d0df805bd84f516500d41a280ca2a756ccdd18684b1111b63",
+      "ranges_read": [
+        [
+          1,
+          46
+        ]
+      ],
+      "packet": "pkt_65c8d2bd235246cf8f8e1f72595a59eb",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Prepared context before GPU admission, parent-authorized bounded execution.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/references/integration-contract.md",
+              "line_start": 1,
+              "line_end": 46
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S11",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/references/writable-work-contract.md",
+      "content_sha256": "aee083f610b44f198ad2d853932338fa16a4d05b84ecda35d68bcf2d35f18bea",
+      "ranges_read": [
+        [
+          1,
+          39
+        ]
+      ],
+      "packet": "pkt_65c8d2bd235246cf8f8e1f72595a59eb",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Dirty-overlay snapshots, candidate patches, external tests and guarded acceptance.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/references/writable-work-contract.md",
+              "line_start": 1,
+              "line_end": 39
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S12",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/references/read-only-contract.md",
+      "content_sha256": "5bd1b93811a36760e8eb1567c9ea0dcb60dcf3f0507e6b18fcda78947537808e",
+      "ranges_read": [
+        [
+          1,
+          44
+        ]
+      ],
+      "packet": "pkt_65c8d2bd235246cf8f8e1f72595a59eb",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Distinct legacy one-call coding read path, not a general observer loop.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/references/read-only-contract.md",
+              "line_start": 1,
+              "line_end": 44
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S13",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/local_worker/observer_runtime.py",
+      "content_sha256": "d3a65e54aaf4a6f0c6d38621d521ee0402aba749da4bf2a543c0df75550e580f",
+      "ranges_read": [
+        [
+          1,
+          230
+        ],
+        [
+          520,
+          900
+        ]
+      ],
+      "packet": "pkt_0210df12cfd742e99accda8d513739c0",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Actual tool/turn loop, explicit visible messages, proof, budget and repair behavior.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/local_worker/observer_runtime.py",
+              "line_start": 1,
+              "line_end": 230
+            },
+            {
+              "path": "local-coding-worker/local_worker/observer_runtime.py",
+              "line_start": 520,
+              "line_end": 900
+            }
+          ],
+          "detail": "extended"
+        }
+      },
+      "final_hash_check": {
+        "packet": "pkt_92622a64320342979be81b0a653394aa",
+        "observed_at": "2026-10-06T14:40:50Z",
+        "matches_inspected_hash": true,
+        "qualification": "File identity only; no execution."
+      }
+    },
+    {
+      "id": "S14",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/local_worker/supervisor.py",
+      "content_sha256": "eb35174dd67338720ae78490cf5cdf33e08f371c68eadfbdac0f930c479489bf",
+      "ranges_read": [
+        [
+          1,
+          100
+        ],
+        [
+          235,
+          360
+        ],
+        [
+          720,
+          1040
+        ],
+        [
+          1060,
+          1345
+        ],
+        [
+          1338,
+          1450
+        ]
+      ],
+      "packet": "pkt_5470ea52904b420f9a7d24a584783100",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Central runtime, request contract, leases, active-turn accounting and verified eviction.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/local_worker/supervisor.py",
+              "line_start": 1,
+              "line_end": 100
+            },
+            {
+              "path": "local-coding-worker/local_worker/supervisor.py",
+              "line_start": 235,
+              "line_end": 360
+            },
+            {
+              "path": "local-coding-worker/local_worker/supervisor.py",
+              "line_start": 720,
+              "line_end": 1040
+            },
+            {
+              "path": "local-coding-worker/local_worker/supervisor.py",
+              "line_start": 1060,
+              "line_end": 1345
+            },
+            {
+              "path": "local-coding-worker/local_worker/supervisor.py",
+              "line_start": 1338,
+              "line_end": 1450
+            }
+          ],
+          "detail": "extended"
+        }
+      },
+      "additional_packets": [
+        "pkt_9b5e03dc83574d509a645278cdd51fcb",
+        "pkt_f81b3bcc2ac44497bbf4bbbfad83dbf7"
+      ]
+    },
+    {
+      "id": "S15",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/local_worker/servers/llama_cpp.py",
+      "content_sha256": "fdf1bf991a53e85b2352aba20909eb6718d418afa19348b866df6e61cca1e26a",
+      "ranges_read": [
+        [
+          1,
+          180
+        ],
+        [
+          400,
+          760
+        ],
+        [
+          800,
+          890
+        ]
+      ],
+      "packet": "pkt_5470ea52904b420f9a7d24a584783100",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Startup parameters, injectable backend, generation setter, thinking/answer budgeting and cancellation.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/local_worker/servers/llama_cpp.py",
+              "line_start": 1,
+              "line_end": 180
+            },
+            {
+              "path": "local-coding-worker/local_worker/servers/llama_cpp.py",
+              "line_start": 400,
+              "line_end": 760
+            },
+            {
+              "path": "local-coding-worker/local_worker/servers/llama_cpp.py",
+              "line_start": 800,
+              "line_end": 890
+            }
+          ],
+          "detail": "extended"
+        }
+      },
+      "additional_packets": [
+        "pkt_cea65eec431247adaf55a9598262272a"
+      ]
+    },
+    {
+      "id": "S16",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "local-coding-worker/config/production-profile.toml",
+      "content_sha256": "3010144cb2b002f310e62d4e5a2005c4531c555b8166233cfef2f306b700d35d",
+      "ranges_read": [
+        [
+          1,
+          137
+        ]
+      ],
+      "packet": "pkt_f81b3bcc2ac44497bbf4bbbfad83dbf7",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Inspected narrow profile, context capacity, nominal reasoning ceiling, warm TTL; not live qualification.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "local-coding-worker/config/production-profile.toml",
+              "line_start": 1,
+              "line_end": 137
+            }
+          ],
+          "detail": "extended"
+        }
+      },
+      "final_hash_check": {
+        "packet": "pkt_92622a64320342979be81b0a653394aa",
+        "observed_at": "2026-10-06T14:40:50Z",
+        "matches_inspected_hash": true,
+        "qualification": "File identity only; no execution."
+      }
+    },
+    {
+      "id": "S17",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "src/project_control/as1_jobs.py",
+      "content_sha256": "a5abe172087e909a89011e5f0aca7cf3630801c2eccd7eb1508487ab6b837d01",
+      "ranges_read": [
+        [
+          180,
+          460
+        ],
+        [
+          1030,
+          1338
+        ]
+      ],
+      "packet": "pkt_3e469ddab80440b18f84166dddc6aeac",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Actual private persistence/admission, full-job session holding, execute and cleanup path.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "src/project_control/as1_jobs.py",
+              "line_start": 180,
+              "line_end": 460
+            },
+            {
+              "path": "src/project_control/as1_jobs.py",
+              "line_start": 1030,
+              "line_end": 1338
+            }
+          ],
+          "detail": "extended"
+        }
+      },
+      "final_hash_check": {
+        "packet": "pkt_7a613886f9cc4c37bc4c05e3cee9e9cf",
+        "observed_at": "2026-10-06T14:41:00Z",
+        "matches_inspected_hash": true,
+        "qualification": "File identity only; no execution."
+      }
+    },
+    {
+      "id": "S18",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "src/project_control/as1_contracts.py",
+      "content_sha256": "58302734259d508cab4d6d421e6bcd5fd20065dd56fdda5eef0444aa03731189",
+      "ranges_read": [
+        [
+          1,
+          270
+        ]
+      ],
+      "packet": "pkt_4bee49ffd07d4602a19dffd5fb18567d",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Packet, source, job, profile and response-bound contracts.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "src/project_control/as1_contracts.py",
+              "line_start": 1,
+              "line_end": 270
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S19",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "docs/as1-capability-publication.md",
+      "content_sha256": "8ee0235114b4205daf3a8565819c269c0c01cb0c3ad5d6735eef63dd2335fdae",
+      "ranges_read": [
+        [
+          1,
+          11
+        ]
+      ],
+      "packet": "pkt_0dfe00638b204317be082a180dd00efe",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Canonical finding/relation publication needs scoped live capability and source checks.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "docs/as1-capability-publication.md",
+              "line_start": 1,
+              "line_end": 11
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S20",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "todo-orchestrator/todo_orchestrator/workflow/context_fragments.py",
+      "content_sha256": "779e55a4554b3afefc4c8817d283c43bfb5ad1dd77e2c9933f91c0398d9d45e9",
+      "ranges_read": [
+        [
+          1,
+          230
+        ]
+      ],
+      "packet": "pkt_0dfe00638b204317be082a180dd00efe",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Existing goal/brief/note kinds and ownership; canonical mutation path.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "todo-orchestrator/todo_orchestrator/workflow/context_fragments.py",
+              "line_start": 1,
+              "line_end": 230
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S21",
+      "kind": "read_source",
+      "project": "skills",
+      "repository": "skills",
+      "path": "todo-orchestrator/todo_orchestrator/plan.py",
+      "content_sha256": "b4c054f8ffe70e6557bb0b9ffec655a65f88716bda05cadf73ee7a17fdbe5613",
+      "ranges_read": [
+        [
+          1,
+          240
+        ]
+      ],
+      "packet": "pkt_635449eaea9a48fea7679273f7206e18",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Native schema-3 validation shape, lanes, outcomes, dependencies and authorities.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "skills",
+          "paths": [
+            {
+              "path": "todo-orchestrator/todo_orchestrator/plan.py",
+              "line_start": 1,
+              "line_end": 240
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S22",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "scripts/qualify_observer_model.py",
+      "content_sha256": "c24d6fc4b2c16376af69e119bc4cf53352b4f89e875cc6b477e1cd4c8a8bfef0",
+      "ranges_read": [
+        [
+          1,
+          150
+        ],
+        [
+          225,
+          355
+        ],
+        [
+          435,
+          510
+        ]
+      ],
+      "packet": "pkt_77d9dae48a24494e83327125025d546f",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Existing leased/dry-run calibration, warm thinking sweep, capacity-oriented fixture ranking.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "scripts/qualify_observer_model.py",
+              "line_start": 1,
+              "line_end": 150
+            },
+            {
+              "path": "scripts/qualify_observer_model.py",
+              "line_start": 225,
+              "line_end": 355
+            },
+            {
+              "path": "scripts/qualify_observer_model.py",
+              "line_start": 435,
+              "line_end": 510
+            }
+          ],
+          "detail": "extended"
+        }
+      },
+      "final_hash_check": {
+        "packet": "pkt_7a613886f9cc4c37bc4c05e3cee9e9cf",
+        "observed_at": "2026-10-06T14:41:00Z",
+        "matches_inspected_hash": true,
+        "qualification": "File identity only; no execution."
+      }
+    },
+    {
+      "id": "S23",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "docs/CODEX_SETUP.md",
+      "content_sha256": "7c15d14fea927ff6ea6625166e132518b61dc2d1f19b0bffc775aa2289bb1cd9",
+      "ranges_read": [
+        [
+          1,
+          124
+        ]
+      ],
+      "packet": "pkt_77d9dae48a24494e83327125025d546f",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Candidate versus source mode, exact tools, gate binding and completion behavior.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "docs/CODEX_SETUP.md",
+              "line_start": 1,
+              "line_end": 124
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S24",
+      "kind": "read_source",
+      "project": "project-control",
+      "repository": "project-control",
+      "path": "src/project_control/preledger.py",
+      "content_sha256": "f47180104ca5b8b219d057a86339fc2c0d018e2e8e0eae12b88c94e6a4f2f339",
+      "ranges_read": [
+        [
+          1,
+          559
+        ]
+      ],
+      "packet": "pkt_ff6a43f329ac41039e0c35e30bb485f6",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Schema-2 preledger lowering differs from directly supplied native schema-3 plans.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "project-control",
+          "paths": [
+            {
+              "path": "src/project_control/preledger.py",
+              "line_start": 1,
+              "line_end": 559
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    },
+    {
+      "id": "S25",
+      "kind": "read_source",
+      "project": "cellerator",
+      "repository": "cellerator",
+      "path": "README.md",
+      "content_sha256": "eed8e2f0a581256d75243d9cf10d53528fab3b135969d955bcb9adb0f6f662e7",
+      "ranges_read": [
+        [
+          1,
+          38
+        ]
+      ],
+      "packet": "pkt_c5ef8b51144c4969a9b63c759c73e960",
+      "observed_date": "2026-10-06",
+      "source_selector": "working_tree",
+      "qualification": "source_inspection_only",
+      "summary": "Example of explicit current research intent, structure/value lifetimes and scoped empirical claims.",
+      "refetch": {
+        "tool": "read",
+        "arguments": {
+          "project": "cellerator",
+          "paths": [
+            {
+              "path": "README.md",
+              "line_start": 1,
+              "line_end": 38
+            }
+          ],
+          "detail": "extended"
+        }
+      }
+    }
+  ],
+  "observations": [
+    {
+      "id": "O01",
+      "kind": "tool_observation",
+      "packet": "pkt_93b3225b04044f06b795cc21ccd84aff",
+      "tool": "overview",
+      "arguments": {
+        "project": "project-control",
+        "detail": "extended"
+      },
+      "observed_at": "2026-10-06T13:56:41Z",
+      "summary": "Authored orientation unavailable; README and pyproject returned as entry points.",
+      "limitation": "Not absence of every project goal elsewhere."
+    },
+    {
+      "id": "O02",
+      "kind": "tool_observation",
+      "packet": "pkt_ddac303fbac64369bb92fb629cf10b64",
+      "tool": "frontier",
+      "arguments": {
+        "project": "project-control",
+        "detail": "extended"
+      },
+      "observed_at": "2026-10-06T13:57:28Z",
+      "summary": "Existing PCE2 and inquiry-cache work and stale-heartbeat attention.",
+      "limitation": "Do not recover, supersede or close automatically; re-fetch at adoption."
+    },
+    {
+      "id": "O03",
+      "kind": "tool_observation",
+      "packet": "pkt_c7a03668100347f2b0ebf3a4870b89ba",
+      "tool": "machine",
+      "arguments": {
+        "query_or_view": "gpu_summary",
+        "detail": "standard"
+      },
+      "observed_at": "2026-10-06T14:02:28Z",
+      "summary": "Four Tesla V100-SXM2-16GB; each 16384 MiB total, 16145 MiB free, utilization 0%; driver 580.173.02.",
+      "limitation": "Coarse activity, not exact process identity, ownership or power."
+    },
+    {
+      "id": "O04",
+      "kind": "tool_observation",
+      "packet": "pkt_0b32ae07f3c740f8a321b832961c2347",
+      "tool": "machine",
+      "arguments": {
+        "query_or_view": "gpu_topology",
+        "detail": "standard"
+      },
+      "observed_at": "2026-10-06T14:02:35Z",
+      "summary": "NV6 pairs GPU0-GPU2 and GPU1-GPU3.",
+      "limitation": "Use current UUID-based admission for execution; not a grant."
+    },
+    {
+      "id": "O05",
+      "kind": "tool_observation",
+      "packet": "pkt_ed447c5d3b4f4f0f8b938ce6091a9179",
+      "tool": "search",
+      "arguments": {
+        "project": "project-control",
+        "query": {
+          "kind": "packet",
+          "target": "pkt_21d9ad15e3be4aed8986a3bab9796842"
+        },
+        "detail": "extended"
+      },
+      "observed_at": "2026-10-06T14:05:34Z",
+      "summary": "Expanded history includes calibration, source-proof, transport, cache and lifecycle repairs on October 5.",
+      "limitation": "Subject resolved ambiguously to task/program; history broader, 100-commit limit, ordering is not causal proof."
+    },
+    {
+      "id": "O06",
+      "kind": "coverage_notes",
+      "packets": [
+        "pkt_81efb854e79b45c8b38fad452ef0d773",
+        "pkt_f3dfc6f9984249978c178050e196d410"
+      ],
+      "observed_date": "2026-10-06",
+      "summary": "Raw-commit delta lacked retained baseline; impact had partial provider/repository coverage. runtime_status machine view unsupported.",
+      "limitation": "No complete change comparison or full dependency closure was obtained."
+    }
+  ],
+  "external_sources": [
+    {
+      "id": "W01",
+      "kind": "primary_external_reference",
+      "title": "llama.cpp server documentation",
+      "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/master/tools/server/README.md",
+      "web_reference": "turn386816view0",
+      "retrieved_date": "2026-10-06",
+      "use": "Startup context, request controls, prompt reuse, slot cache APIs. Upstream is not the installed build."
+    },
+    {
+      "id": "W02",
+      "kind": "primary_external_reference",
+      "title": "LangGraph persistence",
+      "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+      "web_reference": "turn386816view1",
+      "retrieved_date": "2026-10-06",
+      "use": "Checkpointed execution versus cross-thread memory. Pattern reference, not framework adoption."
+    },
+    {
+      "id": "W03",
+      "kind": "primary_external_reference",
+      "title": "Effective context engineering for AI agents",
+      "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+      "web_reference": "turn386816view2",
+      "retrieved_date": "2026-10-06",
+      "use": "Selective context and durable notes; not local model performance evidence."
+    },
+    {
+      "id": "W04",
+      "kind": "primary_external_reference",
+      "title": "Building effective agents",
+      "url": "https://www.anthropic.com/engineering/building-effective-agents",
+      "web_reference": "turn386816view3",
+      "retrieved_date": "2026-10-06",
+      "use": "Simple composable patterns and selective autonomy."
+    },
+    {
+      "id": "W05",
+      "kind": "primary_external_reference",
+      "title": "Ray nested remote functions",
+      "url": "https://docs.ray.io/en/latest/ray-core/tasks/nested-tasks.html",
+      "web_reference": "turn134749view0",
+      "retrieved_date": "2026-10-06",
+      "use": "CPU yielding does not imply GPU release while waiting."
+    },
+    {
+      "id": "W06",
+      "kind": "primary_external_reference",
+      "title": "MCP Tasks, version 2025-11-25",
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks",
+      "web_reference": "turn134749view1",
+      "retrieved_date": "2026-10-06",
+      "use": "Experimental versioned task mechanism; not needed for PA1 public protocol."
+    },
+    {
+      "id": "W07",
+      "kind": "primary_external_reference",
+      "title": "Bubblewrap security guidance",
+      "url": "https://github.com/containers/bubblewrap/security",
+      "web_reference": "turn134749view2",
+      "retrieved_date": "2026-10-06",
+      "use": "Enclosing sandbox policy remains essential; source worktree isolation alone is insufficient."
+    }
+  ]
+}

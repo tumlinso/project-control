@@ -1,0 +1,248 @@
+{
+  "format": "pa1-native-frames-acceptance/1",
+  "gates": [
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-CACHE-EPOCH",
+      "last_run_at": "2026-10-06T18:36:12Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-CODING-INACTIVE",
+      "last_run_at": "2026-10-06T18:36:12Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-COMPONENTS",
+      "last_run_at": "2026-10-06T18:36:16Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-IMPORTS",
+      "last_run_at": "2026-10-06T18:36:17Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-OWNED-RELEASE",
+      "last_run_at": "2026-10-06T18:36:17Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-POLICIES",
+      "last_run_at": "2026-10-06T18:36:18Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-RECEIVER-BINDING",
+      "last_run_at": "2026-10-06T18:36:19Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-RECEIVER-PROTOCOLS",
+      "last_run_at": "2026-10-06T18:36:31Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-FRAMES-TEST",
+      "last_run_at": "2026-10-06T18:36:43Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-FRAMES",
+      "type": "command"
+    }
+  ],
+  "observed_at_utc": "2026-10-06T18:40:16.205933+00:00",
+  "receiver_fingerprint": "1860a5d64662da3379d8f9b4823813321ed6cf1f7a78fbb7c5b66cbcd3d684cb",
+  "receiver_manifest_sha256": "576aaf8b80d58df9040e2c3d6058e95a7252227890068b4b9d49c0c0f88add4a",
+  "response_note": "finish_task succeeded but its response exceeded the configured 8192-byte limit; accepted state and all nine gate results verified using supported semantic state read.",
+  "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES.",
+  "semantic_revision": 1003,
+  "task": {
+    "active_claim": null,
+    "ancestor_chain": [
+      "PC-PA1-0000"
+    ],
+    "artifacts": [],
+    "attention_eligible": false,
+    "attention_reason": null,
+    "authoritative_ready": false,
+    "created_at": "2026-10-06T15:27:11Z",
+    "current_program_eligible": true,
+    "current_relevance": "reference",
+    "dependencies": [
+      {
+        "prerequisite_task_id": "PC-PA1-RUNTIME",
+        "type": "task"
+      }
+    ],
+    "effective_state": "done",
+    "execution": "closed",
+    "frontier_eligible": false,
+    "heuristic_program_id": null,
+    "id": "PC-PA1-FRAMES",
+    "kind": "task",
+    "next_action": "",
+    "objective": "Extend the existing private broker with bounded continuations, typed waits and wake-up reconciliation. Release leases during dependency or long-effect waits; retain generation/effect fencing, truthful deadlines, two-slot capacity and verified GPU eviction.",
+    "parallel_policy": "serial",
+    "parent_id": "PC-PA1-0000",
+    "priority": 98,
+    "program_basis": "parent_hierarchy",
+    "program_root_id": "PC-PA1-0000",
+    "raw_result": "validated",
+    "raw_status": "done",
+    "reason_codes": [
+      "successful_terminal_result"
+    ],
+    "revision": 1003,
+    "scopes": [
+      {
+        "mode": "exclusive",
+        "path": "docs"
+      },
+      {
+        "mode": "exclusive",
+        "path": "planning/project-assistance-v1"
+      },
+      {
+        "mode": "exclusive",
+        "path": "src/project_control"
+      },
+      {
+        "mode": "exclusive",
+        "path": "tests"
+      },
+      {
+        "mode": "forbidden",
+        "path": ".todo-orchestrator"
+      },
+      {
+        "mode": "forbidden",
+        "path": "todo-status.md"
+      },
+      {
+        "mode": "forbidden",
+        "path": "todos"
+      },
+      {
+        "mode": "read",
+        "path": "deployment"
+      },
+      {
+        "mode": "read",
+        "path": "packaging"
+      },
+      {
+        "mode": "read",
+        "path": "scripts"
+      }
+    ],
+    "tags": [],
+    "terminal": true,
+    "title": "Make continuations suspend, wake and release resources correctly",
+    "updated_at": "2026-10-06T18:36:43Z"
+  }
+}

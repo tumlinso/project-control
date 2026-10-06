@@ -1,0 +1,30 @@
+{
+  "format": "pa1-cross-authority/1",
+  "policy": "These are root-enforced evidence handoffs, not automatically satisfied native Todo dependencies. No foreign ID is inserted into a native depends_on field. Bind the required handoff evidence through current supported coordination/gates before the consumer is started.",
+  "edges": [
+    {
+      "producer": "PC-PA1-FAST",
+      "consumer": "SK-PA1-HANDOFF",
+      "contract": "Adoption baseline, selected receiver seam, active-work coordination and decisions.",
+      "verification": "Root checks the current recorded scope/consumer agreement before supplier modifications."
+    },
+    {
+      "producer": "SK-PA1-HANDOFF",
+      "consumer": "PC-PA1-RUNTIME",
+      "contract": "Current hashed supplier runtime/policy/test inventory and consumer/forwarding agreement.",
+      "verification": "Receiver re-reads actual producer artifacts and identities; does not trust task title alone."
+    },
+    {
+      "producer": "PC-PA1-RUNTIME",
+      "consumer": "SK-PA1-RETIRE",
+      "contract": "Receiver canonical runtime and behavior/authority parity evidence.",
+      "verification": "Do not remove or repoint live supplier code before parity and coordinated candidate binding."
+    },
+    {
+      "producer": "SK-PA1-RETIRE",
+      "consumer": "PC-PA1-QUALIFY",
+      "contract": "Single-implementation compatible supplier transition and catalog/entry-point evidence.",
+      "verification": "Final candidate verifies both current authorities and runtime bindings before promotion."
+    }
+  ]
+}

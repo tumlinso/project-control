@@ -1,0 +1,179 @@
+{
+  "files": {
+    "src/project_control/as1_context.py": "839be6aab5065b21d4d25ecf51a8b12d17e44ff81bee7f0c708137594fb2367d",
+    "src/project_control/as1_packets.py": "6b8bc850f55088b300cc8d93f38de29e39fd9557fe2fad17fa3bebf9409e6041",
+    "src/project_control/as1_surface.py": "e8bc1dbd8daa90842757d973fdb43dd1c63f8e2547d569251f0b84a8fd8e919c",
+    "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950",
+    "tests/as1/test_pc_as1_runtime_cache_epoch.py": "b83713c3ea8811898f3f9cdf4781c20daa4f6a4f7789272c816967463cc6454b",
+    "tests/assistance/test_knowledge.py": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+    "tests/assistance/test_knowledge_provider.py": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+    "tests/assistance/test_knowledge_store.py": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc"
+  },
+  "format": "pa1-native-knowledge-acceptance/1",
+  "gates": [
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-KNOWLEDGE-CACHE-EPOCH",
+      "last_run_at": "2026-10-06T18:53:13Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-KNOWLEDGE",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-KNOWLEDGE-PACKETS",
+      "last_run_at": "2026-10-06T18:53:19Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-KNOWLEDGE",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-KNOWLEDGE-PROVIDER",
+      "last_run_at": "2026-10-06T18:53:20Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-KNOWLEDGE",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-KNOWLEDGE-STORE",
+      "last_run_at": "2026-10-06T18:53:31Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-KNOWLEDGE",
+      "type": "command"
+    },
+    {
+      "attention_eligible": false,
+      "checkpoint_id": null,
+      "effective_state": "historical_valid",
+      "id": "PC-PA1-KNOWLEDGE-TEST",
+      "last_run_at": "2026-10-06T18:53:34Z",
+      "owner_task_effective_state": "done",
+      "raw_status": "passed",
+      "raw_valid": true,
+      "reason_codes": [
+        "terminal_owner",
+        "historical_gate_state"
+      ],
+      "required": true,
+      "task_id": "PC-PA1-KNOWLEDGE",
+      "type": "command"
+    }
+  ],
+  "observed_at_utc": "2026-10-06T18:53:50.280063+00:00",
+  "scope": "Native required CPU/source tests; independent review20cases. No live model or device inference. Prepared notes remain advisory.",
+  "semantic_revision": 1016,
+  "task": {
+    "active_claim": null,
+    "ancestor_chain": [
+      "PC-PA1-0000"
+    ],
+    "artifacts": [],
+    "attention_eligible": false,
+    "attention_reason": null,
+    "authoritative_ready": false,
+    "created_at": "2026-10-06T15:27:11Z",
+    "current_program_eligible": true,
+    "current_relevance": "reference",
+    "dependencies": [
+      {
+        "prerequisite_task_id": "PC-PA1-FRAMES",
+        "type": "task"
+      }
+    ],
+    "effective_state": "done",
+    "execution": "closed",
+    "frontier_eligible": false,
+    "heuristic_program_id": null,
+    "id": "PC-PA1-KNOWLEDGE",
+    "kind": "task",
+    "next_action": "",
+    "objective": "Add bounded assistant-owned notes, goals and experiment references using existing packets and trace determinants. Integrate access-filtered retrieval into current information paths without altering exact cache behavior or claiming canonical Todo publication.",
+    "parallel_policy": "serial",
+    "parent_id": "PC-PA1-0000",
+    "priority": 97,
+    "program_basis": "parent_hierarchy",
+    "program_root_id": "PC-PA1-0000",
+    "raw_result": "validated",
+    "raw_status": "done",
+    "reason_codes": [
+      "successful_terminal_result"
+    ],
+    "revision": 1016,
+    "scopes": [
+      {
+        "mode": "exclusive",
+        "path": "docs"
+      },
+      {
+        "mode": "exclusive",
+        "path": "planning/project-assistance-v1"
+      },
+      {
+        "mode": "exclusive",
+        "path": "src/project_control"
+      },
+      {
+        "mode": "exclusive",
+        "path": "tests"
+      },
+      {
+        "mode": "forbidden",
+        "path": ".todo-orchestrator"
+      },
+      {
+        "mode": "forbidden",
+        "path": "todo-status.md"
+      },
+      {
+        "mode": "forbidden",
+        "path": "todos"
+      },
+      {
+        "mode": "read",
+        "path": "README.md"
+      }
+    ],
+    "tags": [],
+    "terminal": true,
+    "title": "Serve goal-linked prepared context with valid evidence and freshness",
+    "updated_at": "2026-10-06T18:53:34Z"
+  }
+}

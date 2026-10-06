@@ -11,7 +11,7 @@ from project_control.as1_jobs import JobService, TrustedObserverFactory
 from project_control.as1_packets import SQLitePacketStore
 from project_control.as1_surface import QUALIFIED_OBSERVER_RUNTIME_SHA256
 
-SKILLS = Path('/home/tumlinson/.agents/skills')
+RUNTIME_ROOT = Path(__file__).resolve().parents[2]/'src/project_control/local_runtime'
 SCOPE = {'principal': 'checkpoint-user', 'profile': 'observer', 'project': 'pc'}
 CALL = {'tool': 'command', 'arguments': {'argv': ['pwd'], 'cwd': '/fixture'}}
 
@@ -90,7 +90,9 @@ def test_native_command_checkpoint_reopen_replays_call_packet_without_reread(tmp
                     {'text': 'The function returns sum(values).', 'evidence_packets': [ref]}]}
             return {'status': 'available', 'text': json.dumps(value)}
     def factory(backend):
-        trusted = TrustedObserverFactory(SKILLS, QUALIFIED_OBSERVER_RUNTIME_SHA256,
+        from project_control.runtime_binding import local_runtime_identity
+        identity = local_runtime_identity(root=RUNTIME_ROOT)
+        trusted = TrustedObserverFactory(identity.root, QUALIFIED_OBSERVER_RUNTIME_SHA256,
             backend=backend, roots=[tmp_path], tools=lambda *args: {})
         def bind(service, job):
             worker = trusted(service, job)
@@ -257,7 +259,9 @@ def test_same_database_cross_caller_and_bound_native_identity(running):
     class Backend:
         def run_observer_turn(self, request):
             raise AssertionError('foreign job reached model')
-    trusted = TrustedObserverFactory(SKILLS, QUALIFIED_OBSERVER_RUNTIME_SHA256,
+    from project_control.runtime_binding import local_runtime_identity
+    identity = local_runtime_identity(root=RUNTIME_ROOT)
+    trusted = TrustedObserverFactory(identity.root, QUALIFIED_OBSERVER_RUNTIME_SHA256,
         backend=Backend(), roots=[service.directory.parent], tools=lambda *args: {})
     worker = trusted(service, alice)
     result = worker.run({'job_id': bob.job_id, 'attempt': bob.attempt, 'mode': 'investigate',

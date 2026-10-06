@@ -1,0 +1,17 @@
+{
+  "authorized_at": "2026-10-06T20:05:21.662600+00:00",
+  "operator_scope": "Fresh durable unified runtime and environment; change entry points; preserve all durable workspace state. Everyone uses a unified surface.",
+  "source_root": "/home/tumlinson/project-control",
+  "skills_source": "/home/tumlinson/.agents/skills",
+  "direct_controller_reason": "Runtime selection, service lifecycle and cutover are cross-workstream integration responsibilities. Operator explicitly authorized maintenance outside PA1 task claims.",
+  "delegation": "Configured researcher/scout/implementer/reviewer; no local coding workers",
+  "holds": [
+    "PA1 LAB",
+    "PA1 live qualification",
+    "model/GPU inference",
+    "automatic preparation"
+  ],
+  "rollback_root": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005",
+  "state_policy": "No authority reset, import, restore or hand editing; preserve source and state in place; private backup before cutover.",
+  "entrypoint_policy": "One stable current release selector used by CLI, Codex stdio and unified HTTP service. Preserve existing profile authorization boundaries."
+}

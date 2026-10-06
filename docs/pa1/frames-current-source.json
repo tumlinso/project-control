@@ -1,0 +1,216 @@
+{
+  "format": "PROJECT-CONTROL-PA1-FRAMES-CURRENT-SOURCE/1",
+  "observed_at_utc": "2026-10-06T18:40:47Z",
+  "repository": "/home/tumlinson/project-control",
+  "git_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+  "worktree_state": "dirty; PA1 source and evidence are worktree-local",
+  "receiver_root": "src/project_control/local_runtime",
+  "receiver_file_count": 42,
+  "receiver_source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+  "receiver_fingerprint": "1860a5d64662da3379d8f9b4823813321ed6cf1f7a78fbb7c5b66cbcd3d684cb",
+  "receiver_manifest_sha256": "576aaf8b80d58df9040e2c3d6058e95a7252227890068b4b9d49c0c0f88add4a",
+  "source_sha256": {
+    "src/project_control/as1_jobs.py": "62357eb5f976a6b13e72f5d9970ddb7d792e89c45079d55648bd504ab2ef3ed6",
+    "src/project_control/as1_surface.py": "5f9d1c0d0aedcd3c4b950e15452e68db854f3b1c09f30a407eedcd69c00943b0",
+    "src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+    "src/project_control/assistance/frames.py": "d33f4831c8bf746b0b7cf4ec93213c27fcbd045321b8ce1d25f2b083f9c46987",
+    "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8",
+    "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+    "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8",
+    "src/project_control/runtime_binding.py": "83beea936f05b80bacadecb8a56669ff7bfab0753d46ceec2c0190de09a987d1",
+    "src/project_control/local_runtime/scripts/local_worker.py": "0e445333676ec7d65b9854f92c2c721474a55919edcf25efc3d9da3782dd2123",
+    "tests/assistance/test_frames.py": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+    "tests/assistance/test_power.py": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+    "tests/assistance/test_owned_release.py": "5bd2f7eda7ed95dba24f5a5562286197479bd466b5d18df84c88c3fdaccc3bd0",
+    "tests/assistance/test_turn_policies.py": "4d50a5df5336103af255680e61df7e29b3900abf586e227af24ee1cc1079db95",
+    "tests/assistance/test_inactive_coding.py": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+    "tests/assistance/test_package_imports.py": "928fc46d33e477629a1f52acdc7d9a1d19b1fba9b5818a84bca639a0b4b49668",
+    "tests/assistance/test_runtime_binding.py": "513b52015d980210f55f6cb486635820b8f1be5ad30eb73911b9c47577c3f1af",
+    "tests/as1/test_pc_as1_runtime_cache_epoch.py": "545fecf981749e710aa97937392e6ebf5006d48473ea5a0350cf9291f0509ee6",
+    "src/project_control/local_runtime/local_worker/observer_runtime.py": "998a6a46abb924a9e927abc35e6d95d97d2794cc8c42c537a884cb5e621f08a7"
+  },
+  "local_cpu_evidence": [
+    {
+      "area": "frame orchestration",
+      "command": "python -X faulthandler -m unittest tests.assistance.test_frames -v",
+      "tests": 6,
+      "status": "passed",
+      "scope": "scripted CPU workers, fake clock, temporary source files",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    },
+    {
+      "area": "owned resource release",
+      "command": "python -m unittest tests.assistance.test_owned_release -v",
+      "tests": 13,
+      "status": "passed",
+      "scope": "local fake observer/backend; includes >64 controller batching regression",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    },
+    {
+      "area": "power policy",
+      "test": "tests/assistance/test_power.py",
+      "tests": 17,
+      "status": "passed",
+      "scope": "temporary SQLite and fake owner proof",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    },
+    {
+      "area": "turn policies",
+      "command": ".venv/bin/python -m pytest tests/assistance/test_turn_policies.py -q",
+      "tests": 7,
+      "subtests": 2,
+      "status": "passed",
+      "scope": "fake adapter/request shaping",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    },
+    {
+      "area": "inactive coding boundary",
+      "test": "tests/assistance/test_inactive_coding.py",
+      "tests": 1,
+      "status": "passed",
+      "scope": "patched CLI sentinels",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    },
+    {
+      "area": "package imports",
+      "test": "tests/assistance/test_package_imports.py",
+      "tests": 2,
+      "status": "passed",
+      "scope": "fresh source Python process",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    },
+    {
+      "area": "runtime binding",
+      "test": "tests/assistance/test_runtime_binding.py",
+      "tests": 17,
+      "status": "passed",
+      "scope": "source identity/binding fixtures",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    },
+    {
+      "area": "cache epoch",
+      "test": "tests/as1/test_pc_as1_runtime_cache_epoch.py",
+      "tests": 4,
+      "status": "passed",
+      "scope": "temporary CPU-only producer/receiver fixtures; inherited stale release pins noted by worker",
+      "tested_receiver_identity": {
+        "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+        "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+        "receiver_file_count": 42,
+        "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+        "recorded_at_utc": "2026-10-06T18:30:31Z",
+        "test_execution_time": "not supplied in worker summary"
+      }
+    }
+  ],
+  "qualification_limits": [
+    "The listed worker-reported local CPU checks remain bound to their recorded historical receiver identity; they do not by themselves qualify the current receiver.",
+    "The accepted native proof covers required CPU/source/fake-protocol gates only; it does not claim live model inference, GPU qualification, physical residency or release, or production promotion.",
+    "Historical native receipts in the individual evidence files retain their original manifest and fingerprint identities."
+  ],
+  "source_changes_after_local_cpu_evidence": [
+    {
+      "path": "src/project_control/local_runtime/local_worker/observer_runtime.py",
+      "sha256": "71f3c13b226ebdd0b2ef1b91582dc6e957154f6abab89fdac44ae60abb17bce4",
+      "effect": "This source change postdates the earlier 456fcd47-bound local CPU checks. Current native CPU/source/fake-protocol acceptance is separately established by docs/pa1/frames-native-acceptance.json."
+    }
+  ],
+  "native_acceptance": {
+    "status": "accepted",
+    "proof_file": "docs/pa1/frames-native-acceptance.json",
+    "task_id": "PC-PA1-FRAMES",
+    "semantic_revision": 1003,
+    "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+    "required_gates": 9,
+    "passed_gates": 9,
+    "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+  },
+  "historical_unaccepted_native_gate_attempt": {
+    "acceptance": "unaccepted_historical_superseded",
+    "status_by_gate": {
+      "CODING-INACTIVE": {
+        "status": "failed",
+        "evidence_id": "7bbf2718-f1f0-4648-9621-c905e2b3b2dd"
+      },
+      "COMPONENTS": {
+        "status": "passed",
+        "evidence_id": "b5020cff-50ac-4260-ae2b-f2e57ce703ea"
+      },
+      "IMPORTS": {
+        "status": "failed",
+        "evidence_id": "c75b36ae-34c6-458e-9021-b91e6638743d"
+      },
+      "OWNED-RELEASE": {
+        "status": "passed",
+        "evidence_id": "948b9135-479e-4f75-86dd-6081885b63c5"
+      },
+      "POLICIES": {
+        "status": "failed",
+        "evidence_id": "5988ad09-25f9-4ae8-b34a-d17045640cfd"
+      },
+      "RECEIVER-BINDING": {
+        "status": "failed",
+        "evidence_id": "b3c3b848-2af0-4e99-b78c-8bb2409f34ca"
+      },
+      "RECEIVER-PROTOCOLS": {
+        "status": "failed",
+        "evidence_id": "b258e451-8de0-4499-9421-1948a9ef9fd6"
+      },
+      "TEST": {
+        "status": "passed",
+        "evidence_id": "1c294a4c-a0b7-414e-a2c2-cdba8c52c918"
+      }
+    },
+    "superseded_by": "docs/pa1/frames-native-acceptance.json",
+    "historical_disposition": "This earlier unaccepted attempt used the 1a25b60 manifest and b9981bf fingerprint; its five failure records remain historical and were superseded by the accepted native proof linked above."
+  }
+}

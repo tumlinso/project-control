@@ -1,28 +1,35 @@
 """Startup composition and MCP adapters for the qualified AS1 producer ports."""
 import asyncio
 import hashlib
-import importlib.util
 import json
+import os
 from pathlib import Path
+import stat
+import threading
+import time
 from typing import Any, Literal, get_args
 
 from mcp.types import ToolAnnotations
 from pydantic import ConfigDict, Field, ValidationError, create_model
 from .as1_context import ContextHost, InformationService
-from .as1_contracts import ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAIL, canonical_digest
+from .as1_contracts import (ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAIL,
+                            SourceLocator, canonical_digest, relative_path)
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
 from .as1_jobs import JobService, TrustedObserverFactory, InvalidToolArguments, ObserverLogArguments
 from .as1_packets import SQLitePacketStore
 from .as1_skill import SkillService, SkillObserverFactory, _verified_reads, _entry_precedes_resource
 from .as1_trace import TraceService
-from .config import configured_observer_skills_root
+from .config import DEFAULT_DENY_PATTERNS, configured_observer_skills_root
 from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis_state_root
+from .runtime_binding import local_runtime_identity
 from .profiles import MCPProfile
 from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
                      ArchitectureContextInput, SourceContextInput, CoordinationViewInput)
 from .services.machine_inspection import MachineDiagnostic
+from .security import is_denied
 
-# Qualified inquiry-cache producer receipt; supplied by root after CPU acceptance.
+# Historical observer-source digest used as an integrity pin. Its match alone
+# does not establish current model, GPU, or end-to-end qualification.
 QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'd3a65e54aaf4a6f0c6d38621d521ee0402aba749da4bf2a543c0df75550e580f'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
@@ -33,6 +40,156 @@ _NATIVE_INPUT_ERROR_TITLES = frozenset(model.__name__ for model in (
 _WORKER_EXACT_QUERY = create_model('ObserverExactEntityQuery', __base__=ExactEntityQuery,
     kind=(Literal[(*get_args(InspectInput.model_fields['kind'].annotation),
                    'packet', 'investigation', 'registration')], ...))
+
+
+class _AutomaticSelectedReadCommand:
+    """Read one sealed source through an existing command envelope, without exec."""
+
+    MAX_BYTES = 256 * 1024
+    MAX_VISIBLE_BYTES = 8 * 1024
+
+    def __init__(self, delegate, *, project, selected, validate_current):
+        self.delegate = delegate
+        self.project = project
+        self.validate_current = validate_current
+        entries = {}
+        for alias, relative, root, digest in selected:
+            entries[(alias, relative)] = (Path(root).resolve(strict=True), digest)
+        self.selected = entries
+        self.roots = tuple(dict.fromkeys(root for root, _digest in entries.values()))
+        self.root_identities = {}
+        for root in self.roots:
+            descriptor = self._open_directory_nofollow(root)
+            try:
+                info = os.fstat(descriptor)
+                self.root_identities[root] = (info.st_dev, info.st_ino)
+            finally:
+                os.close(descriptor)
+
+    def _packet(self, payload, guard=None):
+        return self.delegate._packet(payload, guard)
+
+    def allows(self, path):
+        try:
+            resolved = Path(path).resolve(strict=True)
+        except (OSError, RuntimeError):
+            return False
+        return any(resolved == root / relative
+                   for (_alias, relative), (root, _digest) in self.selected.items())
+
+    @staticmethod
+    def _identity(info):
+        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+    @staticmethod
+    def _open_directory_nofollow(path):
+        path = Path(path)
+        if not path.is_absolute() or path == Path('/'):
+            raise ValueError('trusted_repository_root_invalid')
+        descriptor = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            for component in path.parts[1:]:
+                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+            return descriptor
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def _read(self, root, relative):
+        descriptor = self._open_directory_nofollow(root)
+        leaf = None
+        try:
+            root_info = os.fstat(descriptor)
+            if (not stat.S_ISDIR(root_info.st_mode)
+                    or (root_info.st_dev, root_info.st_ino) != self.root_identities[root]):
+                raise ValueError('trusted_repository_root_changed')
+            parts = relative.split('/')
+            for component in parts[:-1]:
+                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+            leaf = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                           dir_fd=descriptor)
+            before = os.fstat(leaf)
+            if not stat.S_ISREG(before.st_mode):
+                raise ValueError('selected_source_not_regular')
+            if before.st_size > self.MAX_BYTES:
+                raise ValueError('selected_source_too_large')
+            with os.fdopen(os.dup(leaf), 'rb') as stream:
+                raw = stream.read(self.MAX_BYTES + 1)
+            after = os.fstat(leaf)
+            current = os.stat(parts[-1], dir_fd=descriptor, follow_symlinks=False)
+            if (len(raw) > self.MAX_BYTES or self._identity(before) != self._identity(after)
+                    or self._identity(after) != self._identity(current)):
+                raise ValueError('selected_source_changed_during_read')
+            if b'\0' in raw:
+                raise ValueError('selected_source_not_text')
+            try:
+                text = raw.decode('utf-8')
+            except UnicodeDecodeError:
+                raise ValueError('selected_source_not_text') from None
+            return raw, text
+        finally:
+            if leaf is not None:
+                os.close(leaf)
+            os.close(descriptor)
+
+    def run(self, argv, cwd, timeout_seconds=10, max_output_bytes=8192, *, guard=None,
+            deadline_epoch=None):
+        if guard is not None and not guard():
+            raise RuntimeError('stale_attempt')
+        base = {'status': 'denied', 'exit_code': None, 'stdout': '', 'stderr': '',
+                'truncated': False, 'timed_out': False, 'duration_seconds': 0.0,
+                'scope': {'roots': [], 'external': False, 'provenance': 'sealed_automatic'}}
+        if (not isinstance(argv, list) or len(argv) != 2 or argv[0] != 'cat'
+                or not isinstance(argv[1], str) or not isinstance(cwd, str)
+                or isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float))
+                or not 0 < timeout_seconds <= 60 or isinstance(max_output_bytes, bool)
+                or not isinstance(max_output_bytes, int) or not 1 <= max_output_bytes <= 65536):
+            return self._packet({**base, 'reason': 'automatic_command_denied'}, guard)
+        matches = [(root, alias, relative, digest)
+                   for (alias, relative), (root, digest) in self.selected.items()
+                   if argv[1] == str(root / relative) and cwd == str(root)]
+        if len(matches) != 1:
+            return self._packet({**base, 'reason': 'automatic_source_not_selected'}, guard)
+        root, alias, relative, expected_digest = matches[0]
+        if not self.allows(root / relative):
+            return self._packet({**base, 'reason': 'automatic_source_not_selected'}, guard)
+        try:
+            if not self.validate_current():
+                return self._packet({**base, 'reason': 'automatic_scope_unavailable'}, guard)
+        except Exception:
+            return self._packet({**base, 'reason': 'automatic_scope_unavailable'}, guard)
+        try:
+            raw, text = self._read(root, relative)
+        except (OSError, ValueError) as error:
+            return self._packet({**base, 'reason': str(error)[:96]}, guard)
+        if guard is not None and not guard():
+            raise RuntimeError('stale_attempt')
+        try:
+            if not self.validate_current():
+                return self._packet({**base, 'reason': 'automatic_scope_unavailable'}, guard)
+        except Exception:
+            return self._packet({**base, 'reason': 'automatic_scope_unavailable'}, guard)
+        if guard is not None and not guard():
+            raise RuntimeError('stale_attempt')
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest != expected_digest:
+            return self._packet({**base, 'reason': 'automatic_source_changed'}, guard)
+        locator = SourceLocator(project=self.project, repository=alias, path=relative,
+                                content_sha256=digest)
+        output_budget = min(max_output_bytes, self.MAX_VISIBLE_BYTES)
+        output = raw[:output_budget].decode('utf-8', errors='ignore')
+        return self._packet({**base, 'status': 'completed', 'exit_code': 0,
+            'stdout': output, 'truncated': len(raw) > len(output.encode('utf-8')),
+            'source_reads': [{'path': str(root / relative), 'content_sha256': digest,
+                              'line_count': len(text.splitlines()), 'method': 'selected_file_read'}],
+            'sources': [locator.model_dump(exclude_none=True)],
+            'operation': 'selected_file_read', 'executed_subprocess': False}, guard)
 
 
 def observer_tool_argument_models(profile):
@@ -79,13 +236,14 @@ def observer_tool_argument_schemas(profile):
     return compact(schemas)
 
 
-def _analysis_runtime_identity(skills_root, observer_runtime_sha256, *, qualification_state='verified'):
-    """Bind inquiry cache entries to the frozen model, sources, and broker logic."""
-    root = Path(skills_root).resolve(strict=True)
+def _analysis_runtime_identity(runtime_root, observer_runtime_sha256, *, source_verification_state='source_verified'):
+    """Bind inquiry cache entries to the validated receiver runtime and broker logic."""
+    identity = local_runtime_identity(root=runtime_root)
+    root = identity.root
     runtime_files = (
-        'local-coding-worker/config/production-profile.toml',
-        'local-coding-worker/local_worker/servers/llama_cpp.py',
-        'local-coding-worker/local_worker/supervisor.py',
+        'config/production-profile.toml',
+        'local_worker/servers/llama_cpp.py',
+        'local_worker/supervisor.py',
     )
     max_file_bytes = 1024 * 1024
 
@@ -103,18 +261,38 @@ def _analysis_runtime_identity(skills_root, observer_runtime_sha256, *, qualific
         path.relative_to(root)
         runtime_digests[relative] = file_digest(path)
 
+    observer_path = root / 'local_worker/observer_runtime.py'
+    observer_digest = file_digest(observer_path)
+    if observer_digest != observer_runtime_sha256:
+        raise ValueError('observer runtime receipt mismatch')
+
     producer_root = Path(__file__).resolve(strict=True).parent
-    producer_files = ('as1_jobs.py', 'as1_surface.py', 'as1_skill.py')
+    # The inquiry epoch follows every controller component that can change
+    # which runtime work is admitted or resumed. Keep model qualification as a
+    # separate receipt; these source hashes establish cache invalidation only.
+    producer_files = ('as1_jobs.py', 'as1_surface.py', 'as1_skill.py',
+                      'as1_context.py', 'as1_packets.py', 'assistance/knowledge.py',
+                      'assistance/frames.py', 'assistance/power.py',
+                      'assistance/policies.py', 'assistance/resources.py')
     producer_digests = {}
     for relative in producer_files:
         path = (producer_root / relative).resolve(strict=True)
         path.relative_to(producer_root)
         producer_digests[relative] = file_digest(path)
     return canonical_digest({
+        'receiver_runtime_root': str(identity.root),
+        'receiver_source_root': identity.source_root,
+        # The verified file fingerprint, not manifest metadata such as the
+        # repository commit label or manifest byte digest, defines this cache
+        # epoch. An unrelated commit that leaves the receiver inventory
+        # unchanged must not evict inquiry results.
+        'receiver_fingerprint': identity.fingerprint,
         'qualified_observer_runtime_sha256': observer_runtime_sha256,
-        'qualification_state': qualification_state,
-        'frozen_skills_root': str(root),
-        'frozen_skills_files_sha256': runtime_digests,
+        # This describes source integrity only. Runtime receipt equality does
+        # not prove current model or device qualification.
+        'source_verification_state': source_verification_state,
+        'live_qualification': None,
+        'receiver_runtime_files_sha256': runtime_digests,
         'analysis_producer_files_sha256': producer_digests,
     })
 
@@ -295,8 +473,43 @@ class SurfaceComposition:
     def start(self):
         if self.jobs.worker_factory is not None:
             self.jobs.start()
+            self._start_attention_watcher()
+
+    def _start_attention_watcher(self):
+        tick = getattr(self, 'attention_tick', None)
+        if not callable(tick):
+            return
+        thread = getattr(self, '_attention_thread', None)
+        if thread is not None and thread.is_alive():
+            return
+        self._attention_stop = threading.Event()
+        interval = float(getattr(self, 'attention_interval_seconds', 1.0))
+        if not 0.05 <= interval <= 60:
+            raise ValueError('attention_interval_out_of_bounds')
+
+        def run():
+            while not self._attention_stop.is_set():
+                try:
+                    tick()
+                except Exception as error:
+                    self.attention_last_error = type(error).__name__
+                if self._attention_stop.wait(interval):
+                    break
+
+        self._attention_thread = threading.Thread(target=run,
+            name='pc-source-attention-reconciler', daemon=True)
+        self._attention_thread.start()
 
     def close(self):
+        stop = getattr(self, '_attention_stop', None)
+        thread = getattr(self, '_attention_thread', None)
+        if stop is not None:
+            stop.set()
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=float(getattr(self, 'attention_join_timeout', 10.0)))
+            if thread.is_alive():
+                # Do not close the broker or backend underneath an active tick.
+                return False
         stopped = self.jobs.shutdown()
         close = getattr(self.backend, 'close', None)
         if stopped and close:
@@ -379,6 +592,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
         semantic_provider=c.control.project_context, impact_provider=c.trace, todo_adapter=runtime.todo_adapter)
     c.control.information_service = c.information
     root = configured_observer_skills_root(config)
+    runtime_root = local_runtime_identity().root
     c.backend = backend or SkillsObserverAnalysisProvider()
     roots = [config.workspaces[p].repositories[a].root for p in sorted(c.host.projects)
              for a in config.workspaces[p].repositories]
@@ -413,10 +627,16 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
             from types import SimpleNamespace
             return c.can_execute_inquiry(SimpleNamespace(scope=scope), shared)
 
-        def information_tool(name, arguments, scope):
+        def information_tool(name, arguments, scope, *, automatic_read_scope=None):
             # Jobs carry a trusted admission scope; requests cannot override it.
             if not execution_permitted(scope, scope.get('_shared_inquiry', False)):
                 raise PermissionError('job_scope_not_permitted')
+            if automatic_read_scope is not None:
+                # The automatic source seal only authorizes the special host
+                # selected-file command adapter below. Existing information
+                # tools can discover data outside that exact file set.
+                return {'status': 'denied', 'reason': 'automatic_source_scope_denied',
+                        'tool': name, 'accepted': False, 'dispatched': False}
             args = dict(arguments)
             project = args.pop('project', None)
             if project is not None and not isinstance(project, str):
@@ -461,23 +681,85 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                 shared = service.is_inquiry(job.job_id)
                 if not execution_permitted(scope, shared):
                     raise PermissionError('job_scope_not_permitted')
+                automatic_read_scope = service.preparation_read_scope(
+                    job.job_id, access_scope=scope, expected_attempt=job.attempt)
+                selected = []
+                selected_roots = {}
+                if automatic_read_scope is not None:
+                    if (not isinstance(automatic_read_scope, dict)
+                            or set(automatic_read_scope) != {'version', 'files'}
+                            or automatic_read_scope.get('version') != 1
+                            or not isinstance(automatic_read_scope.get('files'), list)
+                            or not 1 <= len(automatic_read_scope['files']) <= 64
+                            or not isinstance(scope.get('project'), str)
+                            or scope.get('project') not in config.workspaces):
+                        raise PermissionError('automatic_source_scope_invalid')
+                    workspace = config.workspaces[scope['project']]
+                    deny_patterns = [*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns]
+                    seen = set()
+                    for entry in automatic_read_scope['files']:
+                        if not isinstance(entry, dict) or set(entry) != {'repository', 'path', 'sha256'}:
+                            raise PermissionError('automatic_source_scope_invalid')
+                        alias, relative, digest = (entry['repository'], entry['path'], entry['sha256'])
+                        if (not isinstance(alias, str) or alias not in workspace.repositories
+                                or not isinstance(relative, str) or relative_path(relative) != relative
+                                or is_denied(Path(relative), deny_patterns)
+                                or not isinstance(digest, str) or len(digest) != 64
+                                or any(char not in '0123456789abcdef' for char in digest)
+                                or (alias, relative) in seen):
+                            raise PermissionError('automatic_source_scope_invalid')
+                        seen.add((alias, relative))
+                        repository = c.information.registry.repository(scope['project'], alias)
+                        repository_root = Path(repository.root).resolve(strict=True)
+                        selected.append((alias, relative, repository_root, digest))
+                        selected_roots[alias] = repository_root
+
+                def command_factory(active_service, active_job, read_scope):
+                    if read_scope is None:
+                        return None
+                    if active_service is not service or active_job.job_id != job.job_id:
+                        raise PermissionError('automatic_source_scope_job_mismatch')
+
+                    def revalidate_scope():
+                        return service.preparation_read_scope(
+                            job.job_id, access_scope=scope,
+                            expected_attempt=job.attempt) == automatic_read_scope
+
+                    class Packetizer:
+                        def _packet(_self, payload, guard=None):
+                            if (payload.get('operation') == 'selected_file_read'
+                                    and not revalidate_scope()):
+                                raise RuntimeError('automatic_scope_unavailable')
+                            if guard is not None and not guard():
+                                raise RuntimeError('stale_attempt')
+                            packet_id = service.observe(job.job_id, job.attempt, payload)
+                            if not isinstance(packet_id, str) or not packet_id:
+                                raise ValueError('packetizer_returned_no_identity')
+                            return {**payload, 'packet_id': packet_id}
+
+                    return _AutomaticSelectedReadCommand(Packetizer(), project=scope['project'],
+                        selected=selected, validate_current=revalidate_scope)
+
                 # Command roots follow the durable admission domain. Catalog and
                 # skill jobs never acquire implicit project filesystem access.
                 permitted = [root]
-                if job.mode != 'skill' and scope['project'] != 'catalog':
+                if automatic_read_scope is not None:
+                    permitted = list(dict.fromkeys(selected_roots.values()))
+                elif job.mode != 'skill' and scope['project'] != 'catalog':
                     permitted = [r.root for r in config.workspaces[scope['project']].repositories.values()] + [root]
-                bound = TrustedObserverFactory(root, self.digest, backend=self.backend,
-                    roots=permitted, tools=lambda name, args, original: self.tools(name, args, {**original, '_shared_inquiry': shared}), skills=self.skills)
+                bound = TrustedObserverFactory(runtime_root, self.digest, backend=self.backend,
+                    roots=permitted,
+                    tools=lambda name, args, original: self.tools(name, args,
+                        {**original, '_shared_inquiry': shared},
+                        automatic_read_scope=automatic_read_scope),
+                    skills=self.skills, command_factory=command_factory)
                 return bound(service, job)
-        trusted = ScopedTrustedObserverFactory(root, observer_runtime_sha256 or QUALIFIED_OBSERVER_RUNTIME_SHA256,
+        trusted = ScopedTrustedObserverFactory(runtime_root, observer_runtime_sha256 or QUALIFIED_OBSERVER_RUNTIME_SHA256,
             backend=c.backend, roots=[root], tools=information_tool, skills=skills)
         factory = SkillObserverFactory(trusted, skills_root=root)
         if c.command is None and canonical in {'investigator', 'skill_assembler'}:
             def command(argv, cwd=None, limits=None):
-                if hashlib.sha256(trusted.path.read_bytes()).hexdigest() != trusted.digest:
-                    raise RuntimeError('observer runtime changed after validation')
-                spec = importlib.util.spec_from_file_location('pc_as1_command_runtime', trusted.path)
-                module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+                module = trusted.load_runtime_module()
                 def packetize(payload):
                     return c.store.create(tool='command', payload=payload, sources=[], access_scope=c.host.scope(None)).packet_id
                 permitted = [root] if canonical == 'skill_assembler' else [*roots, root]
@@ -488,13 +770,13 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
             c.command = command
     except (OSError, ValueError, KeyError) as exc:
         c.worker_unavailable = type(exc).__name__
-    # Derive outside the worker-availability catch: a missing or corrupt frozen
-    # model/runtime file must fail startup rather than reuse an unscoped cache.
+    # Derive outside the worker-availability catch: a missing or corrupt
+    # receiver runtime must fail startup rather than reuse an unscoped cache.
     # An unqualified observer remains gracefully unavailable, with its own epoch.
-    analysis_runtime_identity = _analysis_runtime_identity(root,
+    analysis_runtime_identity = _analysis_runtime_identity(runtime_root,
         trusted.digest if trusted is not None else
             (observer_runtime_sha256 or QUALIFIED_OBSERVER_RUNTIME_SHA256),
-        qualification_state='verified' if trusted is not None else 'unavailable')
+        source_verification_state='source_verified' if trusted is not None else 'source_unavailable')
     c.jobs = JobService(state_root / 'jobs-v2', legacy_directory=state_root / 'jobs',
                         packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,
                         inquiry_context_provider=inquiry_context,
@@ -503,6 +785,74 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     c.information.job_lookup = lambda ident, scope: c.jobs.lookup(ident, access_scope=scope)
     c.skills = SkillService(c.jobs, skills_root=root)
     c.jobs.freshness_provider = InquiryFreshness(c)
+    # Source attention is observed only by an explicitly started observer
+    # service. The cold composition has no watcher and performs no source scan.
+    # Operator grants and the persisted power window still gate every file read
+    # and private preparation admission inside each tick.
+    attention_repositories = {}
+    if canonical == 'observer':
+        for project in sorted(c.host.projects):
+            workspace = config.workspaces[project]
+            alias = workspace.authority_repository
+            if alias is None and len(workspace.repositories) == 1:
+                alias = next(iter(workspace.repositories))
+            if alias in workspace.repositories:
+                attention_repositories[project] = (alias,
+                    c.information.registry.repository(project, alias).root)
+    if attention_repositories and c.jobs.worker_factory is not None:
+        c.attention_interval_seconds = 1.0
+        c.attention_join_timeout = 10.0
+
+        def attention_tick():
+            # All state uses the existing broker database. The connection is
+            # fresh per tick and no explicit transaction spans source reads or
+            # broker calls.
+            from .assistance.attention import AttentionController
+            from .assistance.power import PowerPolicy, trusted_operator_control
+
+            with c.jobs._db() as db:
+                policy = PowerPolicy(db, clock=c.jobs.clock)
+                state = policy.snapshot()
+                if (not state['automatic_enabled'] or state['quiet_active']
+                        or state['release_veto_active']):
+                    return {'status': 'demand_only'}
+                roots = {project: root for project, (_, root) in attention_repositories.items()}
+
+                def resolve_determinants(project):
+                    alias, _ = attention_repositories[project]
+                    observed = c.trace._repository(project, alias, runtime.snapshot(project))
+                    return {f'configuration:{alias}': next(item['digest']
+                        for item in observed.get('inputs', [])
+                        if item.get('kind') == 'configuration' and item.get('key') == alias)}
+
+                controller = AttentionController(db, power_policy=policy,
+                    trusted_roots=roots, access_scope=lambda project: c.host.scope(project),
+                    broker=c.jobs, notebook=c.store, clock=c.jobs.clock,
+                    repository_for=lambda project: attention_repositories[project][0],
+                    resolve_determinants=resolve_determinants)
+                control = trusted_operator_control()
+                matching = [focus for focus in controller.active_focuses(permit_automatic=True)
+                    if focus['focus_id'] == state['automatic_focus']
+                    and focus['project'] == state['automatic_project']
+                    and focus['project'] in attention_repositories]
+                if not matching:
+                    return {'status': 'no_active_automatic_focus'}
+                focus_ids = {focus['focus_id'] for focus in matching}
+                for candidate in controller.candidates():
+                    if candidate.focus_id not in focus_ids:
+                        continue
+                    if candidate.status == 'admitting':
+                        # The durable intent contains the exact idempotent broker
+                        # request and immutable deadline. Reconcile it before a
+                        # new admission, including after process restart.
+                        controller.reconcile_admission(candidate.candidate_id)
+                    elif candidate.status == 'dispatched':
+                        controller.record_result(candidate_id=candidate.candidate_id, control=control)
+                for focus in matching:
+                    controller.scan(focus['focus_id'])
+                return controller.dispatch_next(control)
+
+        c.attention_tick = attention_tick
     return c
 
 

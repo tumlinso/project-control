@@ -1,0 +1,22 @@
+{
+  "format": "project-assistance-bootstrap/1",
+  "name": "Project Assistance v1",
+  "id": "PA1",
+  "date": "2026-10-06",
+  "entry": "IMPLEMENTER_START.md",
+  "native_plan_schema": 3,
+  "plans": [
+    "machine/project-control.todo-plan.json",
+    "machine/skills.todo-plan.json"
+  ],
+  "outcomes": "machine/outcomes.json",
+  "acceptance": "machine/acceptance.json",
+  "sources": "evidence/sources.json",
+  "decisions": "machine/decision-register.json",
+  "cross_authority": "machine/cross-authority.json",
+  "status": "inert_not_applied",
+  "production_runtime": "not_modified",
+  "product_tests": "not_executed",
+  "native_validation": "requires_trusted_installed_kernel",
+  "evaluation_policy": "machine/evaluation-policy.json"
+}

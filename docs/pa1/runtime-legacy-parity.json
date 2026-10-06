@@ -1,0 +1,140 @@
+{
+  "comparisons": [
+    {
+      "baseline_only_failures": [],
+      "case_count": 31,
+      "failure_test_ids_identical": true,
+      "legacy_baseline": {
+        "failed": 19,
+        "passed": 12
+      },
+      "matching_failed_test_ids": [
+        "tests/as1/test_pc_as1_skill.py::test_catalog_optional_name_hints_unscoped_worker_selection_and_profile",
+        "tests/as1/test_pc_as1_skill.py::test_actual_cuda_volta_nested_atlas_route_direct_original_bytes",
+        "tests/as1/test_pc_as1_skill.py::test_missing_map_native_fallback_cross_skill_prerequisite_small_synthesis",
+        "tests/as1/test_pc_as1_skill.py::test_assembly_revalidates_stale_escape_and_redaction_without_fake_verbatim[changed]",
+        "tests/as1/test_pc_as1_skill.py::test_assembly_revalidates_stale_escape_and_redaction_without_fake_verbatim[symlink]",
+        "tests/as1/test_pc_as1_skill.py::test_broker_retains_valid_selection_and_reports_corrupt_range_proof_and_missing_prereq",
+        "tests/as1/test_pc_as1_skill.py::test_real_port_between_turn_preemption_then_resume_and_cancel_fencing",
+        "tests/as1/test_pc_as1_skill.py::test_wrong_registered_root_and_mid_read_replacement_are_explicit",
+        "tests/as1/test_pc_as1_skill.py::test_current_retained_hint_can_supply_explicit_prerequisite",
+        "tests/as1/test_pc_as1_skill.py::test_real_port_mixed_selection_keeps_valid_source_with_unverified_hash_omission",
+        "tests/as1/test_pc_as1_skill.py::test_cross_skill_entry_precedes_first_resource_read_in_durable_provenance[ordered]",
+        "tests/as1/test_pc_as1_skill.py::test_cross_skill_entry_precedes_first_resource_read_in_durable_provenance[reversed]",
+        "tests/as1/test_pc_as1_skill.py::test_cross_skill_entry_precedes_first_resource_read_in_durable_provenance[broker_reversed]",
+        "tests/as1/test_pc_as1_skill.py::test_mixed_ordered_and_reversed_cross_skill_selections_keep_valid_excerpt",
+        "tests/as1/test_pc_as1_skill.py::test_durable_top_level_unresolved_questions_survive_terminal_assembly[False]",
+        "tests/as1/test_pc_as1_skill.py::test_durable_top_level_unresolved_questions_survive_terminal_assembly[True]",
+        "tests/as1/test_pc_as1_skill.py::test_shared_skill_inquiry_reuses_verified_selection_and_shares_assembly_packet",
+        "tests/as1/test_pc_as1_checkpoint_conversation.py::test_native_command_checkpoint_reopen_replays_call_packet_without_reread",
+        "tests/as1/test_pc_as1_checkpoint_conversation.py::test_same_database_cross_caller_and_bound_native_identity"
+      ],
+      "observed_failure_classes": [
+        "Skill fixture selection expected completion but returned partial or unavailable.",
+        "The current Skills CUDA fixture references missing `cuda/references/architectures/volta/v100_atlas/START_HERE.md`.",
+        "Cross-skill provenance, prerequisite, stale-source, or unresolved-question assertions differed from expected output.",
+        "Checkpoint continuation timed out; cross-caller lookup returned `ok` where the test expected `forbidden`."
+      ],
+      "receiver_fixtures": {
+        "failed": 19,
+        "passed": 12
+      },
+      "receiver_only_failures": [],
+      "suites": [
+        "tests/as1/test_pc_as1_skill.py",
+        "tests/as1/test_pc_as1_checkpoint_conversation.py"
+      ]
+    },
+    {
+      "baseline_only_failures": [],
+      "baseline_reference": "docs/pa1/baseline-tests.json: jobs sandboxed run",
+      "case_count": 18,
+      "failure_test_ids_identical": true,
+      "legacy_baseline": {
+        "failed": 6,
+        "passed": 12
+      },
+      "matching_failed_test_ids": [
+        "tests/as1/test_pc_as1_jobs.py::test_actual_port_shared_tools_no_injection_and_agentic_registered_skill",
+        "tests/as1/test_pc_as1_jobs.py::test_actual_sandbox_network_write_credentials_output_cleanup_and_provenance",
+        "tests/as1/test_pc_as1_jobs.py::test_hints_are_scoped_and_pinned_before_admission_reply",
+        "tests/as1/test_pc_as1_jobs.py::test_step_budget_is_terminal_with_retained_source_and_idempotent_restart[installed-port]",
+        "tests/as1/test_pc_as1_jobs.py::test_step_budget_is_terminal_with_retained_source_and_idempotent_restart[legacy-producer]",
+        "tests/as1/test_pc_as1_jobs.py::test_progress_regressions_bind_child_source_without_changing_parent_deployment"
+      ],
+      "observed_failure_classes": [
+        "Worker skill path returned partial instead of completed.",
+        "The sandbox could not create its NETLINK_ROUTE socket in this environment.",
+        "Foreign hint response omitted the expected reason field.",
+        "Both step-budget paths observed five source packets where six were expected; the child regression test reproduced those two failures."
+      ],
+      "receiver_fixtures": {
+        "failed": 6,
+        "passed": 12
+      },
+      "receiver_only_failures": [],
+      "suites": [
+        "tests/as1/test_pc_as1_jobs.py"
+      ]
+    }
+  ],
+  "conclusion": "The archived legacy-bound tests and current receiver-bound fixtures have identical pass/fail totals and identical failed test IDs in all three suites. No additional failure was observed after binding the fixtures to the receiver. The 19 skill/checkpoint failures were newly surfaced by this comparison but all are confirmed on the untouched HEAD test/source archive with the preserved dirty as1_skill.py overlay; the six jobs failures already match the recorded baseline. Because the receiver run uses active candidate producer files while the archive uses HEAD versions, this is a counterfactual status comparison rather than a fully controlled source-only causality test.",
+  "execution": {
+    "baseline_command": "PYTHONFAULTHANDLER=1 PYTHONPATH=/tmp/pa1-runtime-fixture-baseline/src /home/tumlinson/project-control/.venv/bin/python -m pytest -q -p no:cacheprovider --tb=short /tmp/pa1-runtime-fixture-baseline/tests/as1/test_pc_as1_skill.py /tmp/pa1-runtime-fixture-baseline/tests/as1/test_pc_as1_checkpoint_conversation.py",
+    "baseline_environment": {
+      "PYTHONFAULTHANDLER": "1",
+      "PYTHONPATH": "/tmp/pa1-runtime-fixture-baseline/src",
+      "cache_provider": "disabled with -p no:cacheprovider",
+      "wall_limit": "No explicit timeout wrapper was applied; command completed normally in 33.66 seconds, below the 60-second test window.",
+      "working_directory": "/tmp/pa1-runtime-fixture-baseline"
+    },
+    "inference_or_device_computation": false,
+    "interpreter": "/home/tumlinson/project-control/.venv/bin/python",
+    "pytest": "project-control .venv pytest",
+    "receiver_command": "PYTHONPATH=src .venv/bin/python -m pytest -q -p no:cacheprovider tests/as1/test_pc_as1_skill.py tests/as1/test_pc_as1_checkpoint_conversation.py",
+    "receiver_environment": {
+      "PYTHONPATH": "src",
+      "cache_provider": "disabled with -p no:cacheprovider",
+      "wall_limit": "No explicit timeout wrapper was applied; command completed normally in 32.30 seconds.",
+      "working_directory": "/home/tumlinson/project-control"
+    }
+  },
+  "format": "pa1-runtime-legacy-parity/1",
+  "limitations": [
+    "The source archive represents the recorded Git HEAD plus only the identified pre-existing dirty as1_skill.py overlay; it is not a full filesystem snapshot.",
+    "The baseline skill and checkpoint failures were newly surfaced by this comparison and remain failures; matching them does not qualify those behaviors.",
+    "Tests use scripted or fake backends and CPU sandbox probes. No model inference, GPU execution, or device computation was performed.",
+    "This artifact records the completed runs and comparison; it does not alter baseline source, tests, workflow state, or runtime implementation.",
+    "The receiver-bound run exercised the shared current candidate versions of as1_jobs.py, as1_skill.py, as1_surface.py, and runtime_binding.py; the archived counterfactual uses HEAD versions of those files except the explicitly overlaid as1_skill.py. Therefore equal failure sets are evidence that the migration added no observed failures, not a controlled proof isolating fixture-path changes from every producer-source change."
+  ],
+  "purpose": "Counterfactual comparison of legacy-Skills-bound AS1 fixtures with receiver-bound fixtures; records test behavior only and does not qualify device, model, production, or scientific behavior.",
+  "receiver_working_tree_at_artifact_capture": {
+    "src/project_control/as1_jobs.py": "7b9ea35d45ddc1e622f51686c48249ac7ecf10790330c13d5f2f1d0b6be8a8f1",
+    "src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+    "src/project_control/as1_surface.py": "0c8814e5d96bf4c950ddec9bb124599dafb15762ca1396097792049fc5e19d7a",
+    "src/project_control/runtime_binding.py": "6f16b12412b7784488327ef973fabde771ea5b2bdb5587c0ed04d52bae6dfe3d",
+    "tests/as1/test_pc_as1_checkpoint_conversation.py": "ffca5ceeebaa818ccaaea2a33c76bd0cee5afb406212b64191f0ac01f9824b22",
+    "tests/as1/test_pc_as1_jobs.py": "eb676b3ae6791de0bbc0c0902cd965ab2e18c4f8847b5513aa48664caa9de034",
+    "tests/as1/test_pc_as1_skill.py": "cfc0530dd80b8a9d03e7761666228cc4a5dbc4b1eb22a029fe5f8807853e1960"
+  },
+  "source_identity": {
+    "baseline_dirty_overlay": {
+      "path": "src/project_control/as1_skill.py",
+      "reason": "This file was already dirty before PA1 implementation; the exact same bytes were overlaid onto the disposable archived checkout.",
+      "sha256": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc"
+    },
+    "baseline_materialization": "git archive HEAD extracted to /tmp/pa1-runtime-fixture-baseline; no .git directory or canonical checkout reset/copy was used",
+    "legacy_runtime_source": {
+      "path": "/home/tumlinson/.agents/skills/local-coding-worker/local_worker/observer_runtime.py",
+      "sha256": "d3a65e54aaf4a6f0c6d38621d521ee0402aba749da4bf2a543c0df75550e580f"
+    },
+    "other_baseline_overlays": [],
+    "project_control_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "receiver_runtime_source": {
+      "manifest": "src/project_control/local_runtime/receiver-manifest.json",
+      "manifest_sha256": "a2254430001267c1b9498bddfc48c041dfc18e5f71e4f7c4558b788c2261e33f",
+      "path": "src/project_control/local_runtime/local_worker/observer_runtime.py",
+      "sha256": "d3a65e54aaf4a6f0c6d38621d521ee0402aba749da4bf2a543c0df75550e580f"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+#!/bin/sh
+# Stable Project Control entrypoint. Install this file at ~/.local/bin/project-control.
+set -eu
+
+release="${HOME}/.local/share/project-control/current/bin/project-control-release"
+python="${HOME}/.local/share/project-control/current/bin/python"
+
+if [ ! -x "$release" ]; then
+    printf '%s\n' "project-control: unified release launcher is unavailable: $release" >&2
+    exit 127
+fi
+if [ ! -x "$python" ]; then
+    printf '%s\n' "project-control: unified runtime Python is unavailable: $python" >&2
+    exit 127
+fi
+
+# The manifest-backed release launcher supplies the matching Skills snapshot
+# and release pins. Drop ambient Python paths and legacy or stale identity pins.
+unset PYTHONHOME PYTHONPATH
+unset PROJECT_CONTROL_SKILLS_ROOT PROJECT_CONTROL_OBSERVER_SKILLS_ROOT
+unset PROJECT_CONTROL_RELEASE_MANIFEST PROJECT_CONTROL_RELEASE_DIGEST
+unset PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256
+unset PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT
+unset CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT
+
+# Shared durable state locations used by HTTP and stdio entrypoints.
+export PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR="${HOME}/.cache/project-control/as1-observer-analysis"
+export TODO_BACKGROUND_HOST_RUNTIME_DIR=/tmp/codex-todo-orchestrator-1000
+
+# This is configuration for a later, explicit inference request. It does not
+# start or enable an inference process.
+export PROJECT_CONTROL_OBSERVER_GPU_UUIDS='["GPU-21131915-1488-23af-38dd-1743ae1f5cc8","GPU-cf22c41f-5b58-77b1-3535-8fadd1ca6505","GPU-d745da9c-7649-8334-41f1-483afa6f3206","GPU-6c1cac7f-a360-0aef-ba98-2828bfd1db1a"]'
+
+export PROJECT_CONTROL_RUNTIME_PYTHON="$python"
+exec "$release" "$@"

@@ -1,0 +1,47 @@
+{
+  "format": "pa1-overnight-restart-state/1",
+  "operator_hold": "Pause after accepted ASSIST before LAB and live qualification; resume only on explicit instruction.",
+  "observed_at_utc": "2026-10-06T19:54:41.666190+00:00",
+  "semantic_revision": 1057,
+  "accepted_current_outcome": {
+    "id": "PC-PA1-ASSIST",
+    "state": "done",
+    "result": "validated",
+    "required_gates_passed": 9
+  },
+  "remaining": [
+    {
+      "id": "PC-PA1-0000",
+      "state": "planned",
+      "active_claim": null,
+      "result": null
+    },
+    {
+      "id": "PC-PA1-LAB",
+      "state": "ready",
+      "active_claim": null,
+      "result": null
+    },
+    {
+      "id": "PC-PA1-QUALIFY",
+      "state": "blocked",
+      "active_claim": null,
+      "result": null
+    }
+  ],
+  "source_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+  "receiver_manifest_sha256": "6c86a5721f3a08b4651d7444198a89c963ad162023b869eede43a254e8708041",
+  "receiver_fingerprint": "9d5c01632e6fbad11649362d20edb7b74f6606c47348879487d96e4f9119e7e7",
+  "source_receipt": "docs/pa1/assist-current-source.json",
+  "native_acceptance": "docs/pa1/assist-native-acceptance.json",
+  "handoff": "docs/pa1/restart-handoff.md",
+  "production_candidate_deployed": false,
+  "live_qualification_executed": false,
+  "local_inference_started": false,
+  "automatic_background": "off; no new production focus or inference grant created",
+  "notifications": "off",
+  "automation_created": false,
+  "native_context_publish_note": "Optional publish_context hold annotation failed internally; hold is retained in controller decisions and final accepted native outcome note.",
+  "shutdown_evidence": "docs/pa1/overnight-process-check.json",
+  "workers": "No unfinished delegated work; unused pending agents interrupted"
+}

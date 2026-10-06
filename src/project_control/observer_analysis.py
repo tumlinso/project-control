@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .call_audit import call_id_var, summarize_messages, write_event
+from .runtime_binding import RuntimeBindingError, bind_local_runtime
 from .security import redact_output_text
 
 
@@ -117,15 +118,11 @@ class SkillsObserverAnalysisProvider:
     def _get_backend(self) -> Any:
         with self._backend_lock:
             if self._backend is None:
+                identity = bind_local_runtime()
                 module = importlib.import_module("local_worker.supervisor")
-                # The release installer binds this path through a manifest-pinned,
-                # path-only .pth. Reject an ambient local-worker package rather
-                # than accidentally broadening this observer boundary.
-                expected = (Path(os.environ.get("PROJECT_CONTROL_SKILLS_ROOT", "")) /
-                            "local-coding-worker").resolve()
                 source = Path(str(getattr(module, "__file__", ""))).resolve()
-                if not expected.is_dir() or expected not in source.parents:
-                    raise RuntimeError("observer_analysis_runtime_binding_invalid")
+                if identity.package_root != source.parent and identity.package_root not in source.parents:
+                    raise RuntimeBindingError("imported_runtime_source_mismatch")
                 self._source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
                 if self._operator_source_sha256 and self._operator_source_sha256 != self._source_sha256:
                     raise RuntimeError("central_supervisor_source_mismatch")
@@ -163,6 +160,8 @@ class SkillsObserverAnalysisProvider:
 
     @staticmethod
     def _failure(error: Exception) -> str:
+        if isinstance(error, RuntimeBindingError):
+            return "observer_analysis_runtime_binding_invalid"
         if isinstance(error, TimeoutError) or str(error) == "central_supervisor_timeout":
             return "central_supervisor_transport_timeout"
         if isinstance(error, FileNotFoundError) or isinstance(error, ConnectionRefusedError):

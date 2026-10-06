@@ -114,6 +114,11 @@ class SQLitePacketStore:
                     metadata TEXT NOT NULL, hash TEXT NOT NULL, expired INTEGER NOT NULL DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS pins(owner TEXT, packet TEXT, PRIMARY KEY(owner, packet));
                 CREATE TABLE IF NOT EXISTS retention(owner TEXT PRIMARY KEY, terminal INTEGER, updated REAL);
+                CREATE TABLE IF NOT EXISTS knowledge_notes(
+                    note_id TEXT PRIMARY KEY, project TEXT NOT NULL, metadata TEXT NOT NULL,
+                    access_scope TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL);
+                CREATE INDEX IF NOT EXISTS knowledge_notes_project_updated
+                    ON knowledge_notes(project, updated DESC, note_id);
             ''')
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT namespace FROM identity').fetchone()
@@ -122,6 +127,237 @@ class SQLitePacketStore:
             if not row:
                 db.execute('INSERT INTO identity VALUES (?)', (namespace,))
         os.chmod(self.path, 0o600)
+
+    _NOTE_FIELDS = {
+        'note_id', 'project', 'kind', 'claim', 'reason_matters', 'sources',
+        'evidence_packets', 'dependencies', 'coverage', 'uncertainty',
+        'provenance', 'supersedes', 'contradicts', 'next_action',
+        'authoritative', 'is_independent_evidence',
+    }
+    _NOTE_PROVENANCE = {'user', 'source', 'test', 'model'}
+    _MAX_NOTE_BYTES = 8 * 1024
+    _MAX_NOTES_PER_PROJECT = 128
+
+    def _note_scope_allows(self, saved: Mapping[str, Any], supplied: Mapping[str, Any], sources: list[dict]) -> bool:
+        # The packet store's legacy default intentionally treats principal and
+        # profile as provenance. Notes are user data, so principal ownership is
+        # part of their read boundary even when no richer callback is installed.
+        if not supplied or saved.get('principal') != supplied.get('principal'):
+            return False
+        if self.authority_access is not None:
+            return bool(self.authority_access(dict(saved), dict(supplied), sources))
+        return self._authorized(saved, supplied)
+
+    @staticmethod
+    def _validate_note(record: Mapping[str, Any], *, user_goal: bool) -> dict:
+        if not isinstance(record, Mapping):
+            raise TypeError('note record must be a mapping')
+        value = dict(record)
+        unknown = set(value) - SQLitePacketStore._NOTE_FIELDS
+        if unknown:
+            raise ValueError('unknown note fields: ' + ', '.join(sorted(unknown)))
+        if not user_goal and (value.get('provenance') == 'user' or value.get('kind') == 'goal'):
+            raise ValueError('user goals require the trusted put_user_goal path')
+        if user_goal:
+            value['kind'] = 'goal'
+            value['provenance'] = 'user'
+        value.setdefault('sources', [])
+        value.setdefault('evidence_packets', [])
+        value.setdefault('dependencies', {})
+        value.setdefault('coverage', {})
+        value.setdefault('uncertainty', [])
+        if not isinstance(value.get('note_id'), str) or not value['note_id'].strip() or len(value['note_id']) > 128:
+            raise ValueError('note_id must be a stable nonempty identifier of at most 128 characters')
+        if any(ord(char) < 32 for char in value['note_id']):
+            raise ValueError('note_id contains a control character')
+        for field in ('project', 'kind', 'claim', 'reason_matters'):
+            if not isinstance(value.get(field), str) or not value[field].strip():
+                raise ValueError(f'{field} must be a nonempty string')
+        if value.get('provenance') not in SQLitePacketStore._NOTE_PROVENANCE:
+            raise ValueError('unsupported note provenance')
+        if not isinstance(value['sources'], list) or not isinstance(value['evidence_packets'], list):
+            raise ValueError('sources and evidence_packets must be lists')
+        try:
+            value['sources'] = [SourceLocator.model_validate(source).model_dump(mode='json') for source in value['sources']]
+        except Exception as exc:
+            raise ValueError('invalid source locator') from exc
+        if any(not isinstance(ref, str) or not ref.startswith('pkt_') for ref in value['evidence_packets']):
+            raise ValueError('evidence_packets must contain original packet IDs')
+        if len(value['evidence_packets']) != len(set(value['evidence_packets'])):
+            raise ValueError('evidence_packets must be unique')
+        if not isinstance(value['dependencies'], Mapping) or any(
+            not isinstance(key, str) or not key or not isinstance(digest, str) or not digest
+            for key, digest in value['dependencies'].items()
+        ):
+            raise ValueError('dependencies must map nonempty determinant names to digests')
+        value['dependencies'] = dict(value['dependencies'])
+        for field in ('coverage', 'uncertainty'):
+            try:
+                _json(value[field])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f'{field} must be JSON data') from exc
+        for field in ('supersedes', 'contradicts'):
+            if field in value and value[field] is not None:
+                refs = value[field] if isinstance(value[field], list) else [value[field]]
+                if any(not isinstance(ref, str) or not ref for ref in refs):
+                    raise ValueError(f'{field} must contain note IDs')
+        if 'next_action' in value and value['next_action'] is not None and not isinstance(value['next_action'], str):
+            raise ValueError('next_action must be text or null')
+        for field in ('authoritative', 'is_independent_evidence'):
+            if value.get(field) is True:
+                raise ValueError('knowledge notes cannot be authority or independent evidence')
+            value[field] = False
+        if value['provenance'] in {'source', 'test'} and (
+            not value['sources'] or not value['evidence_packets']
+        ):
+            raise ValueError('source/test notes require original source locators and evidence packets')
+        cleaned, removed = mask_payload(value)
+        if removed:
+            raise ValueError('note contains private or authority material')
+        if len(_json(cleaned).encode('utf-8')) > SQLitePacketStore._MAX_NOTE_BYTES:
+            raise ValueError('note exceeds 8 KiB record cap')
+        return cleaned
+
+    @staticmethod
+    def _prepared_context_packet(metadata: Mapping[str, Any], payload: Mapping[str, Any]) -> bool:
+        # A packet carrying notebook retrieval is a derived presentation, not an
+        # independent witness that can be fed back as evidence for those notes.
+        markers = {'knowledge_notes', 'prepared_notes', 'derived_knowledge', 'knowledge_context'}
+        def contains_marker(value):
+            if isinstance(value, Mapping):
+                if any(key in markers for key in value):
+                    return True
+                # This is the actual InformationService packet envelope:
+                # payload.data.prepared_context contains provider notes/goals.
+                # Match that typed location rather than any ordinary `notes`
+                # field, which can be part of an original source packet.
+                prepared = value.get('prepared_context')
+                if isinstance(prepared, Mapping) and ('notes' in prepared or 'goals' in prepared):
+                    return True
+                return any(contains_marker(item) for item in value.values())
+            if isinstance(value, list):
+                return any(contains_marker(item) for item in value)
+            return False
+        if contains_marker(metadata) or contains_marker(payload):
+            return True
+        tool = str(metadata.get('tool', '')).lower().replace('-', '_')
+        return tool in {'knowledge', 'knowledge_context', 'prepared_context', 'notebook_context'}
+
+    def _validate_note_evidence(self, db, record: dict, access_scope: Mapping[str, Any]) -> list[str]:
+        saved_scope = dict(access_scope)
+        if not saved_scope or saved_scope.get('project') != record['project']:
+            raise PermissionError('note project must match the trusted access scope')
+        if not self._note_scope_allows(saved_scope, access_scope, record['sources']):
+            raise PermissionError('note outside current trusted access scope')
+        allowed_ids, evidence_sources, live_ids = [], [], self._live_ids(db)
+        for packet_id in record['evidence_packets']:
+            row = db.execute('SELECT id,metadata,hash,expired FROM packets WHERE id=?', (packet_id,)).fetchone()
+            if not row or row[3] or row[0] not in live_ids:
+                raise ValueError('note evidence packet is missing or expired')
+            metadata = json.loads(row[1])
+            packet_scope, packet_sources = metadata['access_scope'], metadata['sources']
+            if not self._note_scope_allows(packet_scope, access_scope, packet_sources):
+                raise PermissionError('note evidence packet is outside current trusted scope')
+            body = db.execute('SELECT payload FROM bodies WHERE hash=?', (row[2],)).fetchone()
+            if not body:
+                raise RuntimeError('packet body missing: storage corruption')
+            if self._prepared_context_packet(metadata, json.loads(body[0])):
+                raise ValueError('prepared knowledge context cannot corroborate a note')
+            allowed_ids.append(row[0])
+            evidence_sources.extend(packet_sources)
+        if record['provenance'] in {'source', 'test'}:
+            source_wires = { _json(source) for source in evidence_sources }
+            if not {_json(source) for source in record['sources']} <= source_wires:
+                raise ValueError('source/test note locators must appear in cited original packets')
+        return allowed_ids
+
+    def _put_note(self, record: Mapping[str, Any], *, access_scope: Mapping[str, Any], user_goal: bool) -> dict:
+        value = self._validate_note(record, user_goal=user_goal)
+        now = self.clock()
+        owner = 'note:' + value['note_id']
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            prior = db.execute('SELECT project,metadata,access_scope,created FROM knowledge_notes WHERE note_id=?',
+                               (value['note_id'],)).fetchone()
+            if prior:
+                prior_scope = json.loads(prior[2])
+                prior_record = json.loads(prior[1])
+                if prior[0] != value['project'] or not self._note_scope_allows(
+                    prior_scope, access_scope, prior_record['sources']
+                ):
+                    raise PermissionError('cannot update a note outside its original trusted scope')
+                # Keep original scope and creation time on update; a caller cannot
+                # widen an existing note by presenting a broader request scope.
+                scope_to_store, created = prior_scope, prior[3]
+                if access_scope.get('project') != value['project']:
+                    raise PermissionError('note project must match the trusted access scope')
+            else:
+                scope_to_store, created = dict(access_scope), now
+            refs = self._validate_note_evidence(db, value, access_scope)
+            count = db.execute('SELECT count(*) FROM knowledge_notes WHERE project=? AND note_id<>?',
+                               (value['project'], value['note_id'])).fetchone()[0]
+            if not prior and count >= self._MAX_NOTES_PER_PROJECT:
+                raise ValueError('project knowledge capacity reached (128 records)')
+            wire = _json(value)
+            stored_scope = _json(scope_to_store)
+            # Evidence validation happens before pin changes, within the same
+            # write transaction. Any insertion failure rolls both back.
+            db.execute('DELETE FROM pins WHERE owner=?', (owner,))
+            db.executemany('INSERT INTO pins(owner,packet) VALUES (?,?)', [(owner, ref) for ref in refs])
+            db.execute('INSERT OR REPLACE INTO knowledge_notes(note_id,project,metadata,access_scope,created,updated) '
+                       'VALUES (?,?,?,?,?,?)',
+                       (value['note_id'], value['project'], wire, stored_scope, created, now))
+        return json.loads(wire)
+
+    def put_note(self, record: Mapping[str, Any], *, access_scope: Mapping[str, Any]) -> dict:
+        """Persist one advisory note and its evidence pins in the packet DB transaction."""
+        return self._put_note(record, access_scope=access_scope, user_goal=False)
+
+    def put_user_goal(self, record: Mapping[str, Any], *, access_scope: Mapping[str, Any]) -> dict:
+        """Persist trusted user intent with user provenance; it grants no runtime power."""
+        return self._put_note(record, access_scope=access_scope, user_goal=True)
+
+    def get_note(self, note_id: str, *, access_scope: Mapping[str, Any]) -> dict | None:
+        with self._db() as db:
+            db.execute('BEGIN')
+            row = db.execute('SELECT metadata,access_scope FROM knowledge_notes WHERE note_id=?', (note_id,)).fetchone()
+            if not row:
+                return None
+            record, saved_scope = json.loads(row[0]), json.loads(row[1])
+            if (access_scope.get('project') != record['project']
+                    or not self._note_scope_allows(saved_scope, access_scope, record['sources'])):
+                return None
+            return record
+
+    def list_notes(self, *, access_scope: Mapping[str, Any], project: str, limit: int = 128) -> list[dict]:
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= self._MAX_NOTES_PER_PROJECT:
+            raise ValueError('limit must be between 1 and 128')
+        if access_scope.get('project') != project:
+            raise PermissionError('requested project must match the trusted access scope')
+        with self._db() as db:
+            db.execute('BEGIN')
+            rows = db.execute('SELECT metadata,access_scope FROM knowledge_notes WHERE project=? '
+                              'ORDER BY updated DESC,note_id LIMIT ?', (project, limit)).fetchall()
+            result = []
+            for metadata, stored_scope in rows:
+                record, saved_scope = json.loads(metadata), json.loads(stored_scope)
+                if self._note_scope_allows(saved_scope, access_scope, record['sources']):
+                    result.append(record)
+            return result
+
+    def delete_note(self, note_id: str, *, access_scope: Mapping[str, Any]) -> bool:
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT metadata,access_scope FROM knowledge_notes WHERE note_id=?', (note_id,)).fetchone()
+            if not row:
+                return False
+            record, saved_scope = json.loads(row[0]), json.loads(row[1])
+            if (access_scope.get('project') != record['project']
+                    or not self._note_scope_allows(saved_scope, access_scope, record['sources'])):
+                return False
+            db.execute('DELETE FROM pins WHERE owner=?', ('note:' + note_id,))
+            db.execute('DELETE FROM knowledge_notes WHERE note_id=?', (note_id,))
+            return True
 
     @contextmanager
     def _db(self):

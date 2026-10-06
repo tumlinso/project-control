@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "LOCAL-CODING-WORKER-RESULT/2", "type": "object",
+  "required": ["format", "schema_version", "status", "role", "summary", "findings", "changed_paths", "packet_hash", "source_identity", "telemetry", "child_reported", "backend", "artifacts"],
+  "properties": {
+    "format": {"const": "LOCAL-CODING-WORKER-RESULT/2"}, "schema_version": {"const": 2},
+    "status": {"enum": ["completed", "no_change", "needs_codex", "failed", "preempted"]}, "role": {"enum": ["explain", "debug", "review", "test_plan"]},
+    "summary": {"type": "string", "maxLength": 500}, "findings": {"type": "array"},
+    "changed_paths": {"type": "array", "maxItems": 64, "items": {"type": "string", "minLength": 1}},
+    "packet_hash": {"type": ["string", "null"]}, "source_identity": {"type": ["object", "null"]}, "telemetry": {"type": "object"},
+    "child_reported": {"type": "boolean"}, "backend": {"enum": ["fake", "real"]}, "artifacts": {"type": "array"},
+    "model_outcome": {"$ref": "model-outcome-v1.schema.json"}
+  }, "additionalProperties": false
+}

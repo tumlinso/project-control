@@ -1,0 +1,34 @@
+{
+  "format": "pa1-execution-start/1",
+  "observed_at_utc": "2026-10-06T16:02:10.542467+00:00",
+  "operator_hold": "Released by explicit current user instruction.",
+  "authorization": "Implement entire PA1 epic; use configured gpt-6-luna Codex subagents aggressively in bounded parallel ownership lanes.",
+  "active_task": "PC-PA1-FAST",
+  "run": "PC-PA1-RUN-1",
+  "source_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+  "preserved_modified_files": {
+    "docs/as1-inquiry-cache.md": "e41ee7ae8feb4ae4ca239196278e202f7335d7d654ac8e0cbafb2615e9c89cbe",
+    "docs/as1-skill.md": "465e38e98069fd1297310e0dec273c61e92052cb0ada449862090048f60e4d43",
+    "src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+    "planning/adaptive-surface-v1/validation/qualification/compiler-journey.json": "3119ff17a4bf9959d8cfcc18beb65fa182f11fb39b7992b1d4e3a70e82098d11",
+    "planning/adaptive-surface-v1/validation/qualification/economics-comparison.json": "be03a93f242a36ebb64302695b0dffaf094e558ef3fb8f64acf95252fab107e2",
+    "planning/adaptive-surface-v1/validation/qualification/economics-new.json": "b40d436a1d0b8ca294ab2f50cf0a06b5542eaab94d3d5e6f24c20dc2a680f639",
+    "planning/adaptive-surface-v1/validation/qualification/economics-old.json": "3ef8d044d0a051e3b53c88cdfc6de4d2c0e6e692f644ecef346f3b8d9e8e7ea7",
+    "planning/adaptive-surface-v1/validation/qualification/native-journey.json": "e11ae829287a85311042ba086d479863bb6c47bfb3eec8f54a6a19ce17054c90",
+    "planning/adaptive-surface-v1/validation/qualification/observer-journey.json": "da15aab31c9f9ad20e95a4b4a2ce58e4ea0b96b71184890bb52e60e28b11d65d"
+  },
+  "defaults": {
+    "automatic_work": "off; demand-only",
+    "scratch_network": "off",
+    "scratch_execution": "bounded isolated CPU by default; GPU through existing resource interlock only",
+    "external_mcp": "preserve discovery/schema/permissions/literal retries",
+    "retention": "bounded derived notes; no hidden reasoning archive",
+    "runtime_promotion": "one reversible candidate after actual source qualification"
+  },
+  "lifecycle_notes": [
+    "Root owns claims, gate bindings, integration, handoffs and final acceptance.",
+    "No Project Control delegate_task or local-coding-worker coding delegation.",
+    "Native context publication returned capability_operation_forbidden; release is recorded here and the existing hold was conditional on explicit user authorization.",
+    "No stale dispatch recovery or unrelated work supersession is authorized."
+  ]
+}

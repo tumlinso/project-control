@@ -1,0 +1,76 @@
+{
+  "format": "pc-pa1-runtime-observer-tests/1",
+  "recorded_on": "2026-10-06",
+  "source_identity": {
+    "repository": "/home/tumlinson/project-control",
+    "git_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "worktree_state": "dirty; observer tests and concurrent runtime work are uncommitted",
+    "receiver_root": "src/project_control/local_runtime",
+    "receiver_source_commit": "95818340006dd50ef233d7c67ddca2da8eb08bc4",
+    "receiver_file_count": 42,
+    "receiver_fingerprint": "e9efb7550d2e9f7f72e0460695ad2bdd7bdd75b975c5049941a0edef5ab13d25",
+    "receiver_manifest_sha256": "2c95c74a24983bbf08f388aed3722a2caf16823b526f05b3ab714cce9c3e9d5a"
+  },
+  "test_environment": {
+    "python": "3.13.11",
+    "executable": ".venv/bin/python",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "device_or_model_inference": "not invoked; all observer and backend behavior uses CPU fake services, fake processes, and fixture data",
+    "external_network": "not used; tests exercise local Unix and loopback sockets only"
+  },
+  "supplier_tests": [
+    {
+      "path": "/home/tumlinson/.agents/skills/local-coding-worker/tests/as1/test_sk_as1_central_supervisor.py",
+      "sha256": "44eccf460bbbb716c2dcfd614951da042c834aedb70910f9f0db7e22c437336f"
+    },
+    {
+      "path": "/home/tumlinson/.agents/skills/local-coding-worker/tests/as1/test_sk_as1_observer_deadlines.py",
+      "sha256": "e04dcf7651f47eb7f4f536499a55099c75400d5e234edcab0518f50cc208f778"
+    }
+  ],
+  "sha256": {
+    "src/project_control/runtime_binding.py": "83beea936f05b80bacadecb8a56669ff7bfab0753d46ceec2c0190de09a987d1",
+    "src/project_control/local_runtime/receiver-manifest.json": "2c95c74a24983bbf08f388aed3722a2caf16823b526f05b3ab714cce9c3e9d5a",
+    "tests/local_runtime/test_observer_supervisor.py": "4e42efa8188a1b5f816391d097f57963c9b51b329f325ddbcfc874f0a0f1728f",
+    "tests/local_runtime/test_observer_deadlines.py": "54fe6330102ff31f8a6f60354359dc321d550255d372c9e20d59e687b11370c0"
+  },
+  "runs": [
+    {
+      "command": "timeout 120s .venv/bin/python -X faulthandler -m pytest -q --tb=no -o faulthandler_timeout=20 tests/local_runtime/test_observer_supervisor.py tests/local_runtime/test_observer_deadlines.py",
+      "permission_context": "approved host-only test rerun because the sandbox denies AF_UNIX/AF_INET socket creation; tests use local fake backends and no external network",
+      "timeout_seconds": 120,
+      "elapsed_seconds": 8.77,
+      "result": {
+        "status": "passed",
+        "tests": 53,
+        "subtests": 14,
+        "skipped": 0
+      }
+    },
+    {
+      "command": "timeout 100s .venv/bin/python -X faulthandler -m pytest -q --tb=no -o faulthandler_timeout=20 tests/local_runtime/test_observer_supervisor.py tests/local_runtime/test_observer_deadlines.py",
+      "permission_context": "workspace sandbox",
+      "timeout_seconds": 100,
+      "elapsed_seconds": 46.6,
+      "result": {
+        "status": "blocked_by_sandbox_socket_policy",
+        "tests_passed": 31,
+        "tests_failed": 21,
+        "tests_skipped": 1,
+        "teardown_errors": 17,
+        "cause": "PermissionError: Operation not permitted while creating local AF_UNIX/AF_INET sockets"
+      }
+    }
+  ],
+  "coverage": [
+    "The supervisor suite exercises the actual manifest-bound Project Control receiver over local Unix RPC with fake backend/service implementations.",
+    "The deadline suite exercises production observer startup, timeout, admission cleanup, active-turn release, and output validation paths with fake process/service fixtures.",
+    "Tests import through tests/local_runtime receiver binding and assert the canonical receiver identity before using local_worker modules.",
+    "Supplier assertions and test cases are retained; imports now use the verified receiver and shared CPU-only fixtures."
+  ],
+  "limits": [
+    "The pass establishes source test behavior with CPU fakes only; it does not qualify a live model, GPU, device execution, installed release, or model quality.",
+    "The un-escalated workspace sandbox cannot create local AF_UNIX/AF_INET sockets; the same suite passed under the approved host-only test context.",
+    "The two pytest subtest counts are reported separately from collected test cases."
+  ]
+}

@@ -10,7 +10,7 @@ import stat
 import subprocess
 from typing import Any, Callable, Mapping
 
-from .as1_contracts import RESPONSE_BUDGETS_BYTES, SHARED_INFORMATION_TOOLS, SourceLocator, route_search, relative_path
+from .as1_contracts import RESPONSE_BUDGETS_BYTES, SHARED_INFORMATION_TOOLS, SourceLocator, canonical_digest, route_search, relative_path
 from .as1_packets import SQLitePacketStore, mask_payload
 from .adapters.git import GitReadAdapter
 from .config import DEFAULT_DENY_PATTERNS, ProjectControlConfig
@@ -58,11 +58,15 @@ class InformationService:
                  semantic_provider: Callable[[str], dict] | None = None,
                  job_lookup: Callable[[str, Mapping[str, Any]], dict] | None = None,
                  impact_provider: Callable[..., dict] | None = None,
-                 todo_adapter: Callable[[str], Any] | None = None):
+                 todo_adapter: Callable[[str], Any] | None = None,
+                 notebook_provider=None):
         self.config, self.store, self.snapshot_provider, self.host = config, store, snapshot_provider, host
         self.registry = WorkspaceRegistry(config)
         self.semantic_provider, self.job_lookup, self.impact_provider = semantic_provider, job_lookup, impact_provider
         self.todo_adapter = todo_adapter
+        # Imported and constructed on first discovery/evidence request. This
+        # keeps the packet producer's import graph independent of its consumer.
+        self.notebook_provider = notebook_provider
 
     def call(self, tool: str, *, project: str | None = None, detail: str = 'compact', **params) -> dict:
         if tool not in (*SHARED_INFORMATION_TOOLS, 'read'):
@@ -150,6 +154,9 @@ class InformationService:
         elif tool == 'evidence':
             result = evidence_for(self.config, snapshot, EvidenceInput(project=project, **params))
             data = result.data; omissions.extend({'reason': w} for w in result.warnings)
+            if project:
+                data['prepared_context'] = self._prepared_context(params['subject'], project)
+                sources.extend(self._anchors(project, data['prepared_context']))
             gates = []
             for gate in ProjectReconciler(snapshot).reconcile().gates:
                 if params['subject'] not in {str(gate.get('id')), str(gate.get('task_id')), str(gate.get('owner_task_id'))}: continue
@@ -185,6 +192,12 @@ class InformationService:
             result = machine_inspection(self.config, snapshot, project=project or 'catalog', diagnostic=view)
             data = result.data; data['observed_at'] = utc_now()
             omissions.extend({'reason': w} for w in result.warnings)
+        if isinstance(data, dict):
+            prepared = data.get('prepared_context')
+            if isinstance(prepared, dict) and prepared.get('omissions'):
+                omissions.extend({'reason': 'prepared_context_omission', **item}
+                                 for item in prepared['omissions'][:32] if isinstance(item, dict))
+                if status == 'ok': status = 'partial'
         if isinstance(data, dict) and data.get('warnings'):
             omissions.extend({'reason': str(w)} for w in data['warnings'])
         if 'source_registration_unavailable' in json.dumps(context):
@@ -440,8 +453,110 @@ class InformationService:
             source_results.append({'repository': alias, 'paths': paths[:50], 'source': source,
                                    'live_fallback': fixed, 'origin': 'lexical_candidate'})
         return {'semantic': semantic, 'source': source_results, 'skill_uses': context.get('skill_uses', []),
-                'notes': context.get('declarations', []), 'scope': scope,
+                'notes': context.get('declarations', []),
+                'prepared_context': self._prepared_context(query, project), 'scope': scope,
                 'coverage': 'registered_graph_source_symbol_lexical_live; not impact closure'}
+
+    def _prepared_context(self, query: str, project: str) -> dict:
+        """Return bounded notebook context as advisory enrichment of this query."""
+        try:
+            provider = self.notebook_provider
+            if provider is None:
+                from .assistance.knowledge import NotebookProvider
+                provider = NotebookProvider(
+                    self.store,
+                    resolve_dependency=self._resolve_notebook_dependency,
+                    trusted_projects=self.host.projects,
+                    clock=self.store.clock,
+                )
+                self.notebook_provider = provider
+            result = provider.retrieve(query, project=project,
+                access_scope=self.host.scope(project))
+            # Make the non-authoritative contract explicit at the consumer seam,
+            # even if a provider implementation is replaced during migration.
+            if not isinstance(result, dict):
+                raise TypeError('notebook_provider_result_invalid')
+            return {**result, 'authoritative': False, 'mutation_authority': False,
+                    'advisory_instruction': True}
+        except Exception as exc:
+            return {'notes': [], 'goals': [],
+                    'omissions': [{'project': project,
+                                   'reason': 'notebook_provider_unavailable:' + type(exc).__name__}],
+                    'coverage': {'complete': False, 'projects': [project]},
+                    'authoritative': False, 'mutation_authority': False,
+                    'advisory_instruction': True}
+
+    def _resolve_notebook_dependency(self, project: str, key: str):
+        """Resolve only explicit material dependencies inside registered roots."""
+        if project not in self.host.projects or project not in self.config.workspaces:
+            return {'status': 'unavailable', 'reason': 'project_not_permitted'}
+        if not isinstance(key, str) or not key:
+            return {'status': 'unavailable', 'reason': 'invalid_dependency_key'}
+        try:
+            if key.startswith('semantic_revision:'):
+                dependency_project = key.partition(':')[2]
+                if dependency_project != project or dependency_project not in self.host.projects:
+                    return {'status': 'unavailable', 'reason': 'semantic_project_not_permitted'}
+                snapshot = self.snapshot_provider(dependency_project)
+                digest = canonical_digest(snapshot.todo_revision)
+                return {'status': 'current', 'digest': digest}
+            if key.startswith('configuration:'):
+                alias = key.partition(':')[2]
+                if alias not in self.config.workspaces[project].repositories:
+                    return {'status': 'unavailable', 'reason': 'configuration_repository_unregistered'}
+                # Use the same trusted TraceService observation and digest that
+                # powers impact-provider configuration determinants. This is a
+                # material config digest; unrelated HEAD movement is irrelevant.
+                trace = self.impact_provider
+                observe = getattr(trace, '_repository', None)
+                if not callable(observe):
+                    return {'status': 'unavailable', 'reason': 'configuration_provider_unavailable'}
+                observed = observe(project, alias, self.snapshot_provider(project))
+                item = next((entry for entry in observed.get('inputs', [])
+                             if entry.get('kind') == 'configuration' and entry.get('key') == alias), None)
+                if not item or observed.get('freshness') != 'current':
+                    return {'status': 'unavailable', 'reason': 'configuration_observation_unavailable'}
+                return {'status': 'current', 'digest': item['digest']}
+            if not key.startswith('file:'):
+                return {'status': 'unavailable', 'reason': 'unsupported_dependency_kind'}
+            target = key[len('file:'):]
+            selected_project, alias, relative = project, None, None
+            if target.startswith('/'):
+                absolute = Path(target)
+                matches = []
+                for candidate in sorted(self.host.projects):
+                    workspace = self.config.workspaces.get(candidate)
+                    if workspace is None:
+                        continue
+                    for candidate_alias, repository in workspace.repositories.items():
+                        try:
+                            rel = absolute.relative_to(repository.root).as_posix()
+                        except ValueError:
+                            continue
+                        if rel not in {'', '.'}:
+                            matches.append((candidate, candidate_alias, rel))
+                if len(matches) != 1:
+                    return {'status': 'unavailable', 'reason': 'absolute_source_root_ambiguous_or_unregistered'}
+                selected_project, alias, relative = matches[0]
+            else:
+                alias, separator, relative = target.partition('/')
+                if not separator or not alias or not relative:
+                    return {'status': 'unavailable', 'reason': 'invalid_file_dependency'}
+            if selected_project not in self.host.projects:
+                return {'status': 'unavailable', 'reason': 'source_project_not_permitted'}
+            workspace = self.config.workspaces[selected_project]
+            if alias not in workspace.repositories:
+                return {'status': 'unavailable', 'reason': 'source_repository_unregistered'}
+            relative = relative_path(relative)
+            deny = [*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns]
+            if is_denied(Path(relative), deny):
+                return {'status': 'unavailable', 'reason': 'source_path_denied'}
+            repository = self.registry.repository(selected_project, alias)
+            raw = self._working_bytes(repository.root, relative)
+            return {'status': 'current', 'digest': hashlib.sha256(raw).hexdigest()}
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+            reason = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+            return {'status': 'unavailable', 'reason': 'dependency_unavailable:' + reason}
 
     def _read(self, project, *, paths, repository=None, revision=None, detail='compact'):
         if not isinstance(paths, list) or not 1 <= len(paths) <= 32: raise ValueError('read_requires_1_to_32_paths')

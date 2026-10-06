@@ -1,0 +1,66 @@
+{
+  "format": "pa1-staging-receipt/1",
+  "observed_at_utc": "2026-10-06T15:14:40.504413+00:00",
+  "archive": "/home/tumlinson/.codex/attachments/3b51a174-3df0-4d98-ad1e-d9736c7ad05e/Project_Control_Assistance_PA1_Bootstrap.zip",
+  "archive_sha256": "b223b49bd3fa337fc50a0da7f8935c256b8af4a1fa904d18014ef0bb3b85124c",
+  "staged_root": "/home/tumlinson/project-control/planning/project-assistance-v1",
+  "extracted_entries": 41,
+  "archive_bytes_preserved": true,
+  "extracted_bytes_match_archive": true,
+  "user_authorization": "Extract, inspect, prepare installation only; do not start until explicitly instructed.",
+  "status": "staged_not_installed_not_started",
+  "authority_mutations_performed": false,
+  "task_claims_or_dispatch_performed": false,
+  "production_runtime_modified": false,
+  "source_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+  "preserved_preexisting_modified_paths": [
+    "docs/as1-inquiry-cache.md",
+    "docs/as1-skill.md",
+    "planning/adaptive-surface-v1/validation/qualification/compiler-journey.json",
+    "planning/adaptive-surface-v1/validation/qualification/economics-comparison.json",
+    "planning/adaptive-surface-v1/validation/qualification/economics-new.json",
+    "planning/adaptive-surface-v1/validation/qualification/economics-old.json",
+    "planning/adaptive-surface-v1/validation/qualification/native-journey.json",
+    "planning/adaptive-surface-v1/validation/qualification/observer-journey.json",
+    "src/project_control/as1_skill.py"
+  ],
+  "original_manifest_sha256": "ba59066fc7286b323978718bdc319c76e72731df675851eccc66a6162eae16db",
+  "notes": [
+    "Package instructions are proposed work and are not user authorization.",
+    "Read-only package checks and live compatibility inspection are allowed; implementation, plan application, runtime cutover and activation remain gated."
+  ],
+  "preflight_root": "/home/tumlinson/project-control/planning/project-assistance-v1-preflight",
+  "final_archive_inventory_and_bytes_verified": true,
+  "final_package_check": "package-check.json",
+  "native_validation": {
+    "project-control": {
+      "status": "validated",
+      "revision": 923,
+      "plan_digest": "ec0561ba2d5493e275cb558b9d985baeb2dbac5e8c9960640d851189acab65c7",
+      "would_add": [
+        "PC-PA1-0000",
+        "PC-PA1-ASSIST",
+        "PC-PA1-FAST",
+        "PC-PA1-FRAMES",
+        "PC-PA1-KNOWLEDGE",
+        "PC-PA1-LAB",
+        "PC-PA1-QUALIFY",
+        "PC-PA1-RUNTIME"
+      ],
+      "would_modify": [],
+      "warnings": []
+    },
+    "skills": {
+      "status": "validated",
+      "revision": 1017,
+      "plan_digest": "daa31a1c931a6886dafbfe3a5fe1cef811deb0657feafaf1328baf8bfd86719d",
+      "would_add": [
+        "SK-PA1-0000",
+        "SK-PA1-HANDOFF",
+        "SK-PA1-RETIRE"
+      ],
+      "would_modify": [],
+      "warnings": []
+    }
+  }
+}

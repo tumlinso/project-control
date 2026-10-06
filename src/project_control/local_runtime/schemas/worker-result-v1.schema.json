@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local-coding-worker.local/schemas/worker-result-v1.schema.json",
+  "title": "local coding worker result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schema_version", "status", "role", "summary", "findings", "changed_paths", "packet_hash", "source_identity", "telemetry", "child_reported"],
+  "properties": {
+    "format": {"const": "LOCAL-CODING-WORKER-RESULT/1"},
+    "schema_version": {"const": 1},
+    "status": {"enum": ["no_change", "needs_codex", "failed"]},
+    "role": {"enum": ["explain", "debug", "review", "test_plan"]},
+    "summary": {"type": "string", "maxLength": 500},
+    "findings": {"type": "array", "maxItems": 16, "items": {"type": "string", "maxLength": 500}},
+    "changed_paths": {"const": []},
+    "packet_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "source_identity": {"oneOf": [{"$ref": "../../todo-orchestrator/schemas/runtime/source-identity-v1.schema.json"}, {"type": "null"}]},
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend_calls", "tool_calls", "packet_tokens", "snapshot_paths", "elapsed_ms"],
+      "properties": {
+        "backend_calls": {"const": 1},
+        "tool_calls": {"type": "integer", "minimum": 2, "maximum": 3},
+        "packet_tokens": {"type": "integer", "minimum": 1},
+        "snapshot_paths": {"type": "integer", "minimum": 1},
+        "elapsed_ms": {"type": "number", "minimum": 0}
+      }
+    },
+    "child_reported": {"type": "boolean"}
+  }
+}

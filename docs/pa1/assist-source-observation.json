@@ -1,0 +1,16 @@
+{
+  "format": "pa1-assist-source-observation/1",
+  "observed_at_utc": "2026-10-06T19:16:44.768771+00:00",
+  "scope": "Intermediate observed source bytes; attention, operator and broker review fixes pending. No native acceptance or live inference implied.",
+  "receiver_manifest_sha256": "6c86a5721f3a08b4651d7444198a89c963ad162023b869eede43a254e8708041",
+  "receiver_fingerprint": "9d5c01632e6fbad11649362d20edb7b74f6606c47348879487d96e4f9119e7e7",
+  "files": {
+    "src/project_control/assistance/attention.py": "726c988da1cb6b74dbcda785eb7b6b2deeffcff9cb0c3376053eb7b3cb24740b",
+    "src/project_control/as1_surface.py": "c31528ccee70d4c2c3aa60c31a6665e0e1d28a50dcf44901527c58465cf05239",
+    "src/project_control/local_runtime/local_worker/observer_runtime.py": "1de425ca098aec1e44775be944654573d550860571e87564add4da5e09d5804b",
+    "tests/assistance/test_attention.py": "7cdb7a8129831db60cf49e2d721051fb0f7288d6b40e548450b96da4a795015c",
+    "tests/assistance/test_attention_surface.py": "b58d7b9d174c9d01203d0a96e8129c0be5f85c97d604d904319f61e0031b0860",
+    "tests/local_runtime/test_observer_deadlines.py": "d8c8c7dd08713a87478c9b5fd946e6b446429fac7b9305ad5e0f59ebf510ad2f"
+  },
+  "direct_controller_work_reason": "Receiver manifest refresh and cross-owner integration contracts require root acceptance; implementation and review remain delegated to configured Luna profiles."
+}

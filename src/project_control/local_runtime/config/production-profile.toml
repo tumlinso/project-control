@@ -1,0 +1,137 @@
+format = "CORE4-PRODUCTION-PROFILE/1"
+
+[storage]
+canonical_root = "/mnt/block/core4-models"
+staging_root = "/home/tumlinson/.local/share/core4/staging"
+cache_root = "/home/tumlinson/.local/share/core4/models"
+minimum_headroom_bytes = 17179869184
+
+[server]
+binary = "/home/tumlinson/Software/llama.cpp/build/bin/llama-server"
+host = "127.0.0.1"
+base_port = 8080
+startup_timeout_seconds = 600
+request_timeout_seconds = 300
+gpu_layers = 999
+split_mode = "layer"
+batch_size = 4096
+ubatch_size = 1024
+parallel_slots = 1
+flash_attention = "auto"
+kv_cache_type_k = "f16"
+kv_cache_type_v = "f16"
+
+# Private native generation: completion/context/time budgets remain authoritative.
+# The 16K ceiling is reduced by measured decode speed, cold prefill and answer time.
+[observer_generation]
+reasoning_tokens = 16384
+preserve_reasoning = false
+thinking_temperature = 0.6
+direct_temperature = 0.7
+thinking_top_p = 0.95
+direct_top_p = 0.8
+top_k = 20
+min_p = 0.0
+presence_penalty = 0.0
+min_answer_seconds = 15
+conservative_tokens_per_second = 64.68
+conservative_prompt_tokens_per_second = 524.73
+
+[harnesses]
+qwen = "qwen"
+codex = "/usr/local/bin/codex"
+codex_profile = "local"
+qwen_minimum_node_major = 22
+qwen_max_session_turns = 9
+qwen_max_wall_time_seconds = 180
+qwen_max_tool_calls = 8
+qwen_readonly_max_tool_calls = 6
+qwen_writable_max_tool_calls = 8
+qwen_structured_retry_margin = 2
+
+[experiment]
+initial_context = 65536
+refinement_contexts = [16384, 32768, 65536]
+phase_a_task_ids = ["contract-authority"]
+phase_b_task_ids = ["contract-authority", "needs-codex", "resource-policy"]
+minimum_phase_a_acceptance = 1.0
+minimum_phase_b_acceptance = 0.6666666667
+maximum_phase_a_seconds_per_task = 300
+raw_evidence = true
+
+[deployment_policy]
+real_local_enabled = true
+reviewer_enabled = false
+double_solve_enabled = false
+hot_idle_seconds = 900
+max_real_workers = 2
+initial_warm_workers = 1
+worker_layout = "one-per-runtime-discovered-island"
+needs_codex_is_success = true
+reason = "Qwen3.6 Q4 layer split passed a 36,448-token cold prompt at 64K context in 50 seconds, with at least 4.6 GiB GPU headroom; 8K and 16K reasoning ceilings passed at 32K context and remain adaptively bounded. Two independent NVLink-pair services share skill/investigate admission and retain hot residency."
+
+[compute_profiles]
+narrow = "qwen3.6-35b-a3b-q4-k-m"
+
+[[candidates]]
+id = "qwen3-coder-30b-a3b-instruct-q4-k-m"
+family = "qwen3-coder-30b-a3b-instruct"
+quantization = "Q4_K_M"
+artifact = "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf"
+profile = "one-island"
+
+[[candidates]]
+id = "qwen3-coder-30b-a3b-instruct-q5-k-m"
+family = "qwen3-coder-30b-a3b-instruct"
+quantization = "Q5_K_M"
+artifact = "Qwen3-Coder-30B-A3B-Instruct-Q5_K_M.gguf"
+profile = "one-island"
+
+[[candidates]]
+id = "qwen3-coder-30b-a3b-instruct-q6-k"
+family = "qwen3-coder-30b-a3b-instruct"
+quantization = "Q6_K"
+artifact = "Qwen3-Coder-30B-A3B-Instruct-Q6_K.gguf"
+profile = "one-island"
+
+[[candidates]]
+id = "glm-4.7-flash-q4-k-m"
+family = "glm-4.7-flash"
+quantization = "Q4_K_M"
+artifact = "GLM-4.7-Flash-Q4_K_M.gguf"
+profile = "one-island"
+
+[[candidates]]
+id = "glm-4.7-flash-q5-k-m"
+family = "glm-4.7-flash"
+quantization = "Q5_K_M"
+artifact = "GLM-4.7-Flash-Q5_K_M.gguf"
+profile = "one-island"
+
+[[candidates]]
+id = "glm-4.7-flash-q6-k"
+family = "glm-4.7-flash"
+quantization = "Q6_K"
+artifact = "GLM-4.7-Flash-Q6_K.gguf"
+profile = "one-island"
+
+[[candidates]]
+id = "qwen3-coder-next-q4-k-m"
+family = "qwen3-coder-next"
+quantization = "Q4_K_M"
+artifact = "Qwen3-Coder-Next-Q4_K_M.gguf"
+profile = "all-gpu-single-wide"
+
+[[candidates]]
+id = "gpt-oss-20b-mxfp4"
+family = "gpt-oss-20b"
+quantization = "MXFP4"
+artifact = "gpt-oss-20b-mxfp4.gguf"
+profile = "one-island"
+
+[[candidates]]
+id = "qwen3.6-35b-a3b-q4-k-m"
+family = "qwen3.6-35b-a3b"
+quantization = "Q4_K_M"
+artifact = "Qwen3.6-35B-A3B-Q4_K_M.gguf"
+profile = "one-island"

@@ -1,0 +1,251 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "skills"
+  },
+  "invariants": [
+    {
+      "id": "SK-PA1-AUTH",
+      "severity": "error",
+      "rule": "Todo remains the sole project workflow authority; assistant-owned notes and scratch artifacts cannot mutate canonical source or Todo without explicit existing authority."
+    },
+    {
+      "id": "SK-PA1-SURFACE",
+      "severity": "error",
+      "rule": "Preserve existing MCP discovery, schemas, permissions and literal-retry meaning unless a narrow operator-approved amendment is recorded."
+    },
+    {
+      "id": "SK-PA1-SLOTS",
+      "severity": "error",
+      "rule": "Use at most two same-weight model executions; explicit dependency or long-effect waits hold no inference lease. No unbounded descendants or duplicate private pools."
+    },
+    {
+      "id": "SK-PA1-FENCE",
+      "severity": "error",
+      "rule": "Durable actions and results are generation-fenced, budgeted and crash-reconciled; a public retry never renews an inquiry deadline."
+    },
+    {
+      "id": "SK-PA1-EVIDENCE",
+      "severity": "error",
+      "rule": "Claims retain actual source/experiment provenance, access scope and freshness; historical evidence, hypotheses and canonical authority remain distinguishable."
+    },
+    {
+      "id": "SK-PA1-POWER",
+      "severity": "error",
+      "rule": "Automatic work is opt-in, bounded, preemptible and subject to persistent quiet and GPU-residency vetoes; status never loads a model."
+    },
+    {
+      "id": "SK-PA1-FAST",
+      "severity": "error",
+      "rule": "Prompt/request-only evaluation uses isolated source-mode and warm reuse when compatible, not per-edit production rebuild/deployment."
+    },
+    {
+      "id": "SK-PA1-PRESERVE",
+      "severity": "error",
+      "rule": "Preserve active work, dirty files, history, source bindings and verified resource ownership; no automatic recovery, cleanup of user work or dormant-tool reactivation."
+    },
+    {
+      "id": "SK-PA1-MODULAR",
+      "severity": "error",
+      "rule": "Move runtime ownership without copying the Todo kernel or host resource scheduler; Skills remain knowledge/tooling inputs and one canonical runtime implementation exists."
+    },
+    {
+      "id": "SK-PA1-USEFUL",
+      "severity": "error",
+      "rule": "Optimize measured engineering usefulness, grounded answers and decision quality, not note count, agent count or token consumption."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "SK-PA1-0000",
+      "kind": "epic",
+      "title": "Project Assistance v1: bounded Skills runtime transition",
+      "objective": "Aggregate the verified outcome results; this record is not an initial coordinator gate. Complete last after the outcome and cross-authority evidence is accepted.",
+      "parallel_policy": "serial",
+      "priority": 10,
+      "invariants": [
+        "SK-PA1-AUTH",
+        "SK-PA1-SURFACE",
+        "SK-PA1-SLOTS",
+        "SK-PA1-FENCE",
+        "SK-PA1-EVIDENCE",
+        "SK-PA1-POWER",
+        "SK-PA1-FAST",
+        "SK-PA1-PRESERVE",
+        "SK-PA1-MODULAR",
+        "SK-PA1-USEFUL"
+      ],
+      "notes": "Intent and non-goals: planning/project-assistance-v1/docs/01-intent.md. Read the outcome briefs and cross-authority.json. Do not start this aggregate before its serial outcome queue has completed. No child depends on the epic.",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated"
+        ]
+      }
+    },
+    {
+      "id": "SK-PA1-HANDOFF",
+      "parent_id": "SK-PA1-0000",
+      "kind": "task",
+      "title": "Prepare a bounded local-worker supplier handoff",
+      "objective": "Inventory runtime files, policies, consumers and source identities required for Project Control ownership; preserve active Skills edits and domain guidance. Produce an auditable handoff without enabling dormant coding or deleting the supplier prematurely.",
+      "priority": 100,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "local-coding-worker",
+          "integrations",
+          "docs",
+          "planning/project-assistance-v1",
+          "tests"
+        ],
+        "read_paths": [
+          "cuda",
+          "todo-orchestrator",
+          "cpp-context-compiler"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "SK-PA1-AUTH",
+        "SK-PA1-SURFACE",
+        "SK-PA1-SLOTS",
+        "SK-PA1-FENCE",
+        "SK-PA1-EVIDENCE",
+        "SK-PA1-POWER",
+        "SK-PA1-FAST",
+        "SK-PA1-PRESERVE",
+        "SK-PA1-MODULAR",
+        "SK-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"SK-PA1-HANDOFF\",\"difficulty\":\"medium\",\"sources\":[\"S08\",\"S09\",\"S10\",\"S11\",\"S12\",\"S13\",\"S14\",\"S15\",\"S16\"],\"deliverables\":[\"Hashed runtime/policy/test inventory\",\"Consumer inventory including CUDA qualification and native maintenance\",\"Agreed temporary compatibility and catalog transition contract\"],\"acceptance\":\"The receiver can identify and move a bounded dependency closure without losing authority rules, policies or consumers.\",\"external_handoffs\":[{\"producer\":\"PC-PA1-FAST\",\"consumer\":\"SK-PA1-HANDOFF\",\"contract\":\"Adoption baseline, selected receiver seam, active-work coordination and decisions.\",\"verification\":\"Root checks the current recorded scope/consumer agreement before supplier modifications.\"}],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "SK-PA1-HANDOFF-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_lcw_handoff",
+            "-v"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "SK-PA1-RETIRE",
+      "parent_id": "SK-PA1-0000",
+      "kind": "task",
+      "title": "Complete compatibility forwarding and retire duplicate runtime ownership",
+      "objective": "After receiver parity, repoint authorized consumers and catalog/bootstrap guidance, keep one canonical runtime, and retain historical/dormant coding material with truthful status. Preserve Todo/CUDA/ctxpp behavior and verified release identities.",
+      "priority": 99,
+      "parallel_policy": "serial",
+      "scope": {
+        "exclusive_paths": [
+          "local-coding-worker",
+          "integrations",
+          "docs",
+          "tests",
+          "cuda/scripts",
+          "planning/project-assistance-v1"
+        ],
+        "read_paths": [
+          "todo-orchestrator",
+          "cpp-context-compiler"
+        ],
+        "forbidden_paths": [
+          ".todo-orchestrator",
+          "todos",
+          "todo-status.md"
+        ]
+      },
+      "invariants": [
+        "SK-PA1-AUTH",
+        "SK-PA1-SURFACE",
+        "SK-PA1-SLOTS",
+        "SK-PA1-FENCE",
+        "SK-PA1-EVIDENCE",
+        "SK-PA1-POWER",
+        "SK-PA1-FAST",
+        "SK-PA1-PRESERVE",
+        "SK-PA1-MODULAR",
+        "SK-PA1-USEFUL"
+      ],
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"SK-PA1-RETIRE\",\"difficulty\":\"medium\",\"sources\":[\"S08\",\"S09\",\"S14\",\"S15\",\"S19\",\"S23\"],\"deliverables\":[\"Verified forwarders or explicitly retired imports\",\"Updated catalog and installed guidance\",\"No duplicate runtime implementation or authority cycle\",\"Supplier transition tests and handoff receipt\"],\"acceptance\":\"The receiver-owned runtime and Skills consumers operate without duplicate pools or stale source bindings; no legacy mutation tool is silently reactivated.\",\"external_handoffs\":[{\"producer\":\"PC-PA1-RUNTIME\",\"consumer\":\"SK-PA1-RETIRE\",\"contract\":\"Receiver canonical runtime and behavior/authority parity evidence.\",\"verification\":\"Do not remove or repoint live supplier code before parity and coordinated candidate binding.\"}],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "result_policy": {
+        "allowed_dispositions": [
+          "validated",
+          "no_change_required"
+        ]
+      },
+      "gates": [
+        {
+          "id": "SK-PA1-RETIRE-TEST",
+          "type": "command",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "tests.assistance.test_lcw_transition",
+            "-v"
+          ],
+          "required": true
+        }
+      ],
+      "depends_on": [
+        {
+          "type": "task",
+          "task_id": "SK-PA1-HANDOFF"
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "SK-PA1-RUN-1",
+      "root_task_id": "SK-PA1-0000",
+      "charter": {
+        "objective": "Improve human and agent engineering work through prepared evidence, resumable local intelligence and safe experiments while retaining a small Project Control surface.",
+        "boundaries": [
+          "Todo authority is unchanged.",
+          "No automatic durable repository edits or canonical publication.",
+          "Two interchangeable same-weight model slots; waiting owns no inference lease.",
+          "Production is not the tuning harness.",
+          "Preserve existing work and explicit source/resource identities.",
+          "Cross-authority handoffs must be verified by the root, not assumed from native queue order.",
+          "Ask the user about consequential design/authority ambiguity; choose ordinary local details independently."
+        ],
+        "acceptance_conditions": [
+          "Applicable machine/acceptance.json cases have executed evidence.",
+          "All outcomes and external handoffs accepted before aggregate completion.",
+          "Optional features without justified usefulness or authority remain disabled."
+        ]
+      },
+      "lanes": [
+        {
+          "id": "SK-PA1-L-EXEC",
+          "role": "implementer",
+          "tasks": [
+            "SK-PA1-HANDOFF",
+            "SK-PA1-RETIRE",
+            "SK-PA1-0000"
+          ],
+          "workspace": {
+            "mode": "exclusive"
+          }
+        }
+      ]
+    }
+  ]
+}

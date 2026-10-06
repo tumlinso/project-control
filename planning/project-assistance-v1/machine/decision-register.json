@@ -1,0 +1,87 @@
+{
+  "format": "pa1-decisions/1",
+  "policy": "Recommended defaults are not prior user approvals. Batch consequential questions at their boundary, continue safe independent work, and leave unapproved effects off.",
+  "decisions": [
+    {
+      "id": "D01",
+      "question": "Initial workspaces, goal cards and background windows",
+      "trigger": "Before enabling automatic work",
+      "authority": "Ask user",
+      "recommended_default": "Demand-only installation; explicitly opted-in focus records.",
+      "guard": "Do not infer broad permanent permission from an architectural discussion.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D02",
+      "question": "Initial projects, toolchains, resource windows and scope of the already-requested scratch capability",
+      "trigger": "Before enabling automatic execution or first experiment",
+      "authority": "Ask user",
+      "recommended_default": "Keep unqualified execution off; enable bounded CPU scratch for approved focused projects and explicitly covered GPU windows. No per-test approval within the grant; no network by default.",
+      "guard": "Do not re-ask whether scratch coding/testing is wanted. Resolve deployment scope and authority; observe requests and role labels do not grant it.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D03",
+      "question": "Notifications and goal reminders",
+      "trigger": "Before proactive interruption",
+      "authority": "Ask user",
+      "recommended_default": "On-request/handoff context and small digest; no unsolicited repeated alerts.",
+      "guard": "A goal hint should help a decision, not nag.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D04",
+      "question": "Retention and storage budgets",
+      "trigger": "Before persistent user chat/experiment retention beyond existing policy",
+      "authority": "Ask user",
+      "recommended_default": "Bounded derived notes and source pins; no hidden reasoning archive.",
+      "guard": "Do not choose private-history retention silently.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D05",
+      "question": "Fresh investigator access in coder MCP or old delegation reactivation",
+      "trigger": "Only if a representative workflow needs a surface change",
+      "authority": "Ask user if proposed",
+      "recommended_default": "Preserve current12-tool coder and inactive delegation; existing reads plus local operator CLI.",
+      "guard": "Internal agent capabilities do not automatically broaden public profiles.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D06",
+      "question": "Consequential runtime removals or unsupported legacy consumers",
+      "trigger": "After source consumer inventory, before removal/cutover",
+      "authority": "Ask user if consequential",
+      "recommended_default": "Move owned core, retain forwarding compatibility and dormant semantics.",
+      "guard": "Module names and routine import fixes are root decisions.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D07",
+      "question": "Interactive latency, automatic resource and residency envelope",
+      "trigger": "Before live usefulness qualification/automatic activation",
+      "authority": "Ask user",
+      "recommended_default": "At most one automatic model slot; demand may use both; explicit quiet and release modes.",
+      "guard": "Do not promise instant preemption or savings from utilization alone.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D08",
+      "question": "Ordinary implementation and reversible tuning details",
+      "trigger": "During scoped implementation",
+      "authority": "Root decides",
+      "recommended_default": "Use existing seams, focused tests and finite empirical candidates.",
+      "guard": "Do not interrupt the user for filenames or every prompt word.",
+      "state": "unresolved_or_delegated"
+    },
+    {
+      "id": "D09",
+      "question": "Optional KV persistence or broader framework adoption",
+      "trigger": "Only after measured reconstruction cost or missing capability",
+      "authority": "Ask user before expanding scope",
+      "recommended_default": "Defer; explicit-message reconstruction is v1.",
+      "guard": "Upstream feature existence is not installed qualification or a reason to expand.",
+      "state": "unresolved_or_delegated"
+    }
+  ]
+}

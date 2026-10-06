@@ -1,0 +1,14 @@
+{
+  "observed_at_utc": "2026-10-06T19:54:43.530223+00:00",
+  "model_servers": [],
+  "supervisors": [
+    {
+      "pid": 2173,
+      "ppid": 2018,
+      "start_time": "Tue Oct 6 06:44:02 2026",
+      "status": "pre-existing; no matching model server; not started/restarted by this task"
+    }
+  ],
+  "scope": "Read-only host process scan; no device query, inference launch or service action. No new production automatic grant or background job created.",
+  "subagents": "Completed delegated work; two unused pending agents interrupted for overnight hold."
+}

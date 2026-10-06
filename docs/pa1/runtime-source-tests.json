@@ -1,0 +1,45 @@
+{
+  "format": "PROJECT-CONTROL-PA1-RUNTIME-SOURCE-TESTS/1",
+  "source_owned_tests": {
+    "checkout_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "suppliers": [
+      {
+        "path": "/home/tumlinson/.agents/skills/local-coding-worker/tests/test_supervisor.py",
+        "sha256": "23e7f9cbf38f31e7bac391bc3a92c060b511b719f679cd80b45b5496cd4a3d65",
+        "receiver_path": "tests/local_runtime/test_supervisor.py",
+        "receiver_sha256": "87b815d474148649e6954a08cb9685111575d4e48acddc77a5bc14e2b382efb9",
+        "definitions_reported": 48
+      },
+      {
+        "path": "/home/tumlinson/.agents/skills/local-coding-worker/tests/test_core4_integration.py",
+        "sha256": "e5dbcab618e2cfae1e3dd19efe5602382711db1ab84d1db02a9dc389d1b02317",
+        "receiver_path": "tests/local_runtime/test_core4_integration.py",
+        "receiver_sha256": "dd6861a3e54101fa04afad9bb7327f32b57881ba6a88ad8bcbe73cb37d7ee843",
+        "definitions_reported": 21
+      }
+    ],
+    "receiver_package_sha256": "71fb66a92b1e9d48370fa275a2a9f7bd69bd0c4df8c9b13dc851def373f67a57",
+    "receiver_binding": {
+      "package": "src/project_control/local_runtime",
+      "verification": "tests/local_runtime/__init__.py calls bind_local_runtime and asserts the resulting root is the receiver source tree; imported local_worker modules are checked beneath RuntimeIdentity.package_root",
+      "test_scope": "fake supervisor, service, host, adapter, and command fixtures; Core4 writable integration cases bind only to a temporary Git fixture repository",
+      "live_todo_authority_access": false,
+      "model_inference": false,
+      "device_computation": false,
+      "local_worker_service": false
+    },
+    "validation": {
+      "command": ".venv/bin/pytest -q -p no:cacheprovider tests/local_runtime/test_supervisor.py tests/local_runtime/test_core4_integration.py",
+      "execution_environment": "host outside the network-restricted sandbox; requested for local socket-backed fake protocol tests",
+      "collected": 69,
+      "passed": 69,
+      "failed": 0,
+      "subtests_passed": 10,
+      "duration_seconds": 5.82
+    },
+    "limitations": [
+      "This qualifies receiver-source imports and fake CPU protocol/integration behavior only; it does not qualify the installed Todo runtime or device/model execution.",
+      "The fake fixtures replace canonical runtime binding and validation at the local_worker supervisor boundary; source identity and receiver provenance are tested separately by the runtime binding suite."
+    ]
+  }
+}

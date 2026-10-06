@@ -1,0 +1,112 @@
+{
+  "format": "PROJECT-CONTROL-PA1-CODING-INACTIVE/1",
+  "receiver": {
+    "path": "src/project_control/local_runtime/scripts/local_worker.py",
+    "sha256": "e0480e88cf991aa13ce0ec7c5064cc8f8d850dccfa59b0a7792232ce3eac2126",
+    "source_identity": "receiver-owned copy of supplier local-coding-worker/scripts/local_worker.py with an unconditional command-boundary guard"
+  },
+  "guard": {
+    "diagnostic": {
+      "format": "LOCAL-CODING-WORKER-ERROR/1",
+      "error": "local coding, delegation, model-execution, and project-mutation commands are disabled at this receiver",
+      "exit_code": 2
+    },
+    "disabled_commands": [
+      "run",
+      "integrate",
+      "delegate (including collection)",
+      "_delegate-worker",
+      "self-test",
+      "host-check",
+      "evaluate",
+      "release-check"
+    ],
+    "disabled_subcommands": [
+      "service warm/drain/evict/stop",
+      "model-cache install/activate/remove"
+    ],
+    "available_read_only_commands": [
+      "eligible",
+      "service status",
+      "policy validate",
+      "model-cache inspect/list/verify"
+    ],
+    "override": "none; no CLI flag, environment variable, or profile setting re-enables disabled commands",
+    "boundary": "The denial occurs in main() immediately after argument parsing and before request reads, controller construction, worker launch, model checks, or project mutation. Retained implementation functions are unreachable through these supported CLI commands."
+  },
+  "validation": {
+    "test": "tests/assistance/test_inactive_coding.py::test_actual_cli_main_denies_coding_and_mutation_before_handlers",
+    "test_sha256": "74f5367a38b4c79ca9546a5078fabf979840d2d236bca8ac12c20582a161aec6",
+    "command": "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider --tb=short tests/assistance/test_inactive_coding.py",
+    "result": "1 passed; actual main() ran in a fresh subprocess with controller, worker, request-reader, model-check, and integration sentinels patched. Disabled commands returned the fixed diagnostic before invoking sentinels; status and read-only inspection routes succeeded through inert fakes.",
+    "side_effects": "No workspace writes, backend calls, service starts, model execution, or device computation."
+  },
+  "limitations": [
+    "This guards the supported receiver CLI boundary; dormant implementation source remains for historical compatibility and is not removed.",
+    "The source SHA must be refreshed in receiver-manifest.json and the runtime transfer receipt before a manifest-bound launch can accept this edit."
+  ],
+  "current_source_observation": {
+    "observed_at_utc": "2026-10-06T18:40:47Z",
+    "repository": "/home/tumlinson/project-control",
+    "git_head": "1b1026845d3fff5a27ad539a386b24649ba48f68",
+    "worktree_state": "dirty; PA1 source and evidence are worktree-local",
+    "receiver_root": "src/project_control/local_runtime",
+    "receiver_file_count": 42,
+    "receiver_source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+    "receiver_fingerprint": "1860a5d64662da3379d8f9b4823813321ed6cf1f7a78fbb7c5b66cbcd3d684cb",
+    "receiver_manifest_sha256": "576aaf8b80d58df9040e2c3d6058e95a7252227890068b4b9d49c0c0f88add4a",
+    "relevant_sha256": {
+      "src/project_control/as1_jobs.py": "62357eb5f976a6b13e72f5d9970ddb7d792e89c45079d55648bd504ab2ef3ed6",
+      "src/project_control/as1_surface.py": "5f9d1c0d0aedcd3c4b950e15452e68db854f3b1c09f30a407eedcd69c00943b0",
+      "src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+      "src/project_control/assistance/frames.py": "d33f4831c8bf746b0b7cf4ec93213c27fcbd045321b8ce1d25f2b083f9c46987",
+      "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8",
+      "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+      "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8",
+      "src/project_control/runtime_binding.py": "83beea936f05b80bacadecb8a56669ff7bfab0753d46ceec2c0190de09a987d1",
+      "src/project_control/local_runtime/scripts/local_worker.py": "0e445333676ec7d65b9854f92c2c721474a55919edcf25efc3d9da3782dd2123",
+      "src/project_control/local_runtime/local_worker/observer_runtime.py": "998a6a46abb924a9e927abc35e6d95d97d2794cc8c42c537a884cb5e621f08a7"
+    },
+    "native_acceptance": {
+      "status": "accepted",
+      "proof_file": "docs/pa1/frames-native-acceptance.json",
+      "task_id": "PC-PA1-FRAMES",
+      "semantic_revision": 1003,
+      "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+      "required_gates": 9,
+      "passed_gates": 9,
+      "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+    }
+  },
+  "latest_local_cpu_validation": {
+    "scope": "source-level CLI boundary test with patched sentinels; no worker, model, service, or device computation",
+    "reported_result": {
+      "status": "passed",
+      "tests": 1
+    },
+    "test_sha256": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+    "receiver_cli_sha256": "0e445333676ec7d65b9854f92c2c721474a55919edcf25efc3d9da3782dd2123",
+    "note": "This worker-reported local result does not convert the failed latest native gate into an accepted receipt.",
+    "tested_receiver_identity": {
+      "receiver_manifest_sha256": "456fcd47fd024c5775e1f1d8964a0f55ac9e4325b0dcf68692364a2b90fa3add",
+      "receiver_fingerprint": "99003baea7004ccfb6d942a9954b29cac0e2f306f0bee09763005c804afb1570",
+      "receiver_file_count": 42,
+      "source_commit": "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-2026-10-06",
+      "recorded_at_utc": "2026-10-06T18:30:31Z",
+      "test_execution_time": "not supplied in worker summary"
+    },
+    "notes": [
+      "The result is a worker-reported local CPU/source check recorded at 2026-10-06T18:30:31Z; it remains bound to the 456fcd47 receiver manifest and 99003ba fingerprint. Test execution time was not supplied."
+    ]
+  },
+  "native_acceptance": {
+    "status": "accepted",
+    "proof_file": "docs/pa1/frames-native-acceptance.json",
+    "task_id": "PC-PA1-FRAMES",
+    "semantic_revision": 1003,
+    "accepted_at_utc": "2026-10-06T18:40:16.205933+00:00",
+    "required_gates": 9,
+    "passed_gates": 9,
+    "scope": "Native required CPU/source/fake-protocol gates only. No live model/GPU acceptance in FRAMES."
+  }
+}
