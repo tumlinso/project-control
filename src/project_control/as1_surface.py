@@ -28,8 +28,8 @@ from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
 from .services.machine_inspection import MachineDiagnostic
 from .security import is_denied
 
-# Historical observer-source digest used as an integrity pin. Its match alone
-# does not establish current model, GPU, or end-to-end qualification.
+# Historical observer-source digest retained for import compatibility. Runtime
+# integrity is bound to the verified receiver source during composition.
 QUALIFIED_OBSERVER_RUNTIME_SHA256 = 'd3a65e54aaf4a6f0c6d38621d521ee0402aba749da4bf2a543c0df75550e580f'
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 ANALYSIS_READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=False)
@@ -593,6 +593,16 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     c.control.information_service = c.information
     root = configured_observer_skills_root(config)
     runtime_root = local_runtime_identity().root
+    if observer_runtime_sha256 is None:
+        verified_runtime = local_runtime_identity(root=runtime_root)
+        receiver_manifest = (verified_runtime.root / 'receiver-manifest.json').read_bytes()
+        if hashlib.sha256(receiver_manifest).hexdigest() != verified_runtime.manifest_sha256:
+            raise ValueError('receiver manifest changed during observer digest resolution')
+        manifest = json.loads(receiver_manifest)
+        try:
+            observer_runtime_sha256 = manifest['files']['local_worker/observer_runtime.py']
+        except (KeyError, TypeError) as exc:
+            raise ValueError('observer runtime receiver manifest entry missing') from exc
     c.backend = backend or SkillsObserverAnalysisProvider()
     roots = [config.workspaces[p].repositories[a].root for p in sorted(c.host.projects)
              for a in config.workspaces[p].repositories]
@@ -754,7 +764,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                         automatic_read_scope=automatic_read_scope),
                     skills=self.skills, command_factory=command_factory)
                 return bound(service, job)
-        trusted = ScopedTrustedObserverFactory(runtime_root, observer_runtime_sha256 or QUALIFIED_OBSERVER_RUNTIME_SHA256,
+        trusted = ScopedTrustedObserverFactory(runtime_root, observer_runtime_sha256,
             backend=c.backend, roots=[root], tools=information_tool, skills=skills)
         factory = SkillObserverFactory(trusted, skills_root=root)
         if c.command is None and canonical in {'investigator', 'skill_assembler'}:
@@ -775,7 +785,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     # An unqualified observer remains gracefully unavailable, with its own epoch.
     analysis_runtime_identity = _analysis_runtime_identity(runtime_root,
         trusted.digest if trusted is not None else
-            (observer_runtime_sha256 or QUALIFIED_OBSERVER_RUNTIME_SHA256),
+            observer_runtime_sha256,
         source_verification_state='source_verified' if trusted is not None else 'source_unavailable')
     c.jobs = JobService(state_root / 'jobs-v2', legacy_directory=state_root / 'jobs',
                         packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,

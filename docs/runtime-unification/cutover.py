@@ -47,6 +47,7 @@ def main():
     move_preserved(units/'project-control-as1.service.d','project-control-as1.service.d')
     # The prior tunnel hook requires inference readiness, deliberately held off overnight.
     move_preserved(units/'project-control.service.d/refresh-remote-tunnel.conf','refresh-remote-tunnel.conf')
+    move_preserved(units/'project-control.service.d/wf2-execution.conf','wf2-execution.conf')
     move_preserved(units/'project-control-inference.service','project-control-inference.service')
     move_preserved(units/'project-control-inference.service.d','project-control-inference.service.d')
     current=HOME/'.local/share/project-control/current'

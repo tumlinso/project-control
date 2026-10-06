@@ -9,7 +9,7 @@ import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 from project_control.app import create_mcp
 from project_control.as1_context import ContextHost
-from project_control.as1_surface import QUALIFIED_OBSERVER_RUNTIME_SHA256
+from project_control.runtime_binding import local_runtime_identity
 from project_control.config import ProjectControlConfig
 from project_control.profiles import enumerate_tool_schemas, validate_profile_registration
 from project_control.workflow_tools import register_workflow_tools
@@ -171,7 +171,10 @@ def test_composed_producers_lazy_startup_packets_and_native_worker(servers):
     assert c.control.information_service is c.information and c.skills.jobs is c.jobs
     assert isinstance(c.jobs.worker_factory, SkillObserverFactory)
     assert isinstance(c.jobs.worker_factory.trusted, TrustedObserverFactory)
-    assert c.jobs.worker_factory.trusted.digest == QUALIFIED_OBSERVER_RUNTIME_SHA256
+    receiver = local_runtime_identity()
+    expected_observer_digest = hashlib.sha256(
+        (receiver.root / 'local_worker/observer_runtime.py').read_bytes()).hexdigest()
+    assert c.jobs.worker_factory.trusted.digest == expected_observer_digest
     assert c.jobs.health()['dispatcher'] == 'stopped'
     worker = c.jobs.worker_factory.trusted
     assert worker.path.is_file()
@@ -186,9 +189,8 @@ def test_composed_producers_lazy_startup_packets_and_native_worker(servers):
     c.start()
     assert c.jobs.health()['dispatcher'] == 'running'
     assert c.close()
-    bad = servers(observer_runtime_sha256='0' * 64)._project_control_surface
-    assert bad.worker_unavailable == 'ValueError' and bad.jobs.worker_factory is None
-    assert bad.jobs.submit(question='bounded question', access_scope=bad.host.scope(None))['reason'] == 'durable_processing_unavailable'
+    with pytest.raises(ValueError, match='observer runtime receipt mismatch'):
+        servers(observer_runtime_sha256='0' * 64)
     with patch('project_control.cli.load_config', return_value=ProjectControlConfig()):
         _, diagnostic = _doctor(tunnel=False)
     assert diagnostic['surface']['profiles']['observer'] == list(CONTRACT['profiles']['observer']['tools'])

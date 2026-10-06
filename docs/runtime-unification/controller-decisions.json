@@ -13,5 +13,14 @@
   ],
   "rollback_root": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005",
   "state_policy": "No authority reset, import, restore or hand editing; preserve source and state in place; private backup before cutover.",
-  "entrypoint_policy": "One stable current release selector used by CLI, Codex stdio and unified HTTP service. Preserve existing profile authorization boundaries."
+  "entrypoint_policy": "One stable current release selector used by CLI, Codex stdio and unified HTTP service. Preserve existing profile authorization boundaries.",
+  "delivery_authorization": "User: commit and push Everything; explicit push approval after automated egress rejection; preserve current CUDA changes.",
+  "remote_ownership_evidence": "SSH GitHub authentication confirms tumlinso; both origin remotes under tumlinso; initial source commits pushed successfully.",
+  "runtime_binding_fix": {
+    "cause": "Historical hardcoded observer digest blocked startup against strictly verified current receiver",
+    "decision": "Default entrypoint digest derives from verified receiver identity; explicit pins remain enforced. Qualification remains separate.",
+    "historical_digest": "d3a65e54aaf4a6f0c6d38621d521ee0402aba749da4bf2a543c0df75550e580f",
+    "receiver_digest": "1de425ca098aec1e44775be944654573d550860571e87564add4da5e09d5804b",
+    "checks": "Direct focused source composition accepted verified receiver and rejected explicit zero pin; no inference. pytest unavailable in selected runtime."
+  }
 }

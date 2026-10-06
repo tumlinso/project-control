@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-06T20:20:31.548210+00:00",
+  "release": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-committed-201939",
+  "release_manifest_sha256": "775e6195907600142953adda29ec8c5bcdd3a9cf6dd29fc43fb487306a014f4a",
+  "current": "/home/tumlinson/.local/share/project-control/current",
+  "cli": "/home/tumlinson/.local/bin/project-control",
+  "service": "project-control.service",
+  "legacy_as1": "alias of project-control.service",
+  "inference": "disabled and inactive",
+  "rollback": "/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005",
+  "config_change": "server.port 8767 to8768; all workspace settings preserved",
+  "codex_change": "remove stale live Skills override; same standard launcher",
+  "development_env": "canonical .venv alias of current release; no uv sync against this alias"
+}
