@@ -1,7 +1,7 @@
 {
-  "at": "2026-10-06T20:30:55.216084+00:00",
-  "release": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-6c1ce1e",
-  "release_manifest_sha256": "6bb92bea7cd62d77004b84c43aa068a9a3e1395ad4c8f5e485dd0e23badf7e87",
+  "at": "2026-10-06T20:40:09.461628+00:00",
+  "release": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-final",
+  "release_manifest_sha256": "942fb4766cb6a9442ec9614ebf8e6405fd3268b4dd7a693aa42106f582b2db7d",
   "current": "/home/tumlinson/.local/share/project-control/current",
   "cli": "/home/tumlinson/.local/bin/project-control",
   "service": "project-control.service",
@@ -11,8 +11,12 @@
   "config_change": "server.port 8767 to8768; all workspace settings preserved",
   "codex_change": "remove stale live Skills override; same standard launcher",
   "development_env": "canonical .venv alias of current release; no uv sync against this alias",
-  "source_commit": "6c1ce1eceb03aa66235eb0ab70c859c0cca5bb2b",
+  "source_commit": "b83de1061d2c39b2df033499b3e779c540fa144a",
   "skills_commit": "5c69981f8d1755c3408e4f45adbf340c02c4dfe8",
   "superseded_initial_release": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-committed-201939",
-  "startup_integrity_fix": "Expected observer digest from verified receiver manifest; no qualification claim"
+  "startup_integrity_fix": "Expected observer digest from verified receiver manifest; no qualification claim",
+  "authorized_deregistrations": [
+    "cellerrank",
+    "cellervelo"
+  ]
 }

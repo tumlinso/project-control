@@ -43,5 +43,15 @@
   "automation_created": false,
   "native_context_publish_note": "Optional publish_context hold annotation failed internally; hold is retained in controller decisions and final accepted native outcome note.",
   "shutdown_evidence": "docs/pa1/overnight-process-check.json",
-  "workers": "No unfinished delegated work; unused pending agents interrupted"
+  "workers": "No unfinished delegated work; unused pending agents interrupted",
+  "runtime_unification": {
+    "completed_at": "2026-10-06T20:44:01.539736+00:00",
+    "release": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-final",
+    "source_commit": "b83de1061d2c39b2df033499b3e779c540fa144a",
+    "skills_commit": "5c69981f8d1755c3408e4f45adbf340c02c4dfe8",
+    "service": "project-control.service",
+    "inference": "disabled; persistent release veto; no process",
+    "validation": "docs/runtime-unification/validation.json",
+    "hold": "LAB and live qualification require explicit operator resume"
+  }
 }

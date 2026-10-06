@@ -25,5 +25,7 @@
     "default_pin_source": "Expected digest from exact validated receiver manifest bytes, with manifest SHA recheck; no observer re-read used to choose expected pin."
   },
   "stale_workspace_resolution": "Operator confirmed CellerRank/CellerVelo removed previously; configuration-only supported deregistration; all authority/history retained.",
-  "offline_workspace_startup": "Optional attention skips only exact registered-root unavailable/not-directory errors. Other registry errors still propagate; direct source test with available and missing repo passed."
+  "offline_workspace_startup": "Optional attention skips only exact registered-root unavailable/not-directory errors. Other registry errors still propagate; direct source test with available and missing repo passed.",
+  "final_controller_execution_reason": "Final supported build, activation and validation were executed directly as controller lifecycle/integration after user requested immediate completion; implementation and investigation remained delegated.",
+  "final_hold": "LAB/live qualification paused; inference service disabled, no model/supervisor process; persistent release veto saved."
 }

@@ -1,3 +1,42 @@
+# Runtime rebuild completed — explicit overnight hold
+
+The operator authorized a fresh unified runtime and changing every entrypoint,
+then required committing and pushing all work while preserving CUDA edits.
+The selected runtime is `/home/tumlinson/.local/share/project-control/releases/unified-20261006-final`,
+built from committed PC source `b83de1061d2c39b2df033499b3e779c540fa144a`
+and Skills source `5c69981f8d1755c3408e4f45adbf340c02c4dfe8` on system Python 3.12.
+CLI, Codex and HTTP use the same stable `current` selector and private state.
+`project-control-as1.service` aliases the single `project-control.service`.
+The service is active; model-free health/version passed. Inference is disabled,
+no model/supervisor process runs, and a persistent release veto is saved.
+`/readyz` returns 503 deliberately while inference is off. Reconnect Codex
+clients if needed; use the ordinary `project-control` entrypoint thereafter.
+
+All durable state remains in place. Private backups contain 74 files, including
+39 read-only SQLite backups. 33 Todo authority databases were checked: 32 retained
+identical physical hashes and PC retained identical logical rows in every table
+(its physical SQLite layout changed). Actual AS1 cache was backed up additionally;
+its jobs-v2/packet schema migration changed hashes before that addon, so receipts
+do not claim pre-migration row equivalence. The legacy jobs DB is unchanged.
+No database was reset or restored. CUDA edits were preserved and committed.
+The operator confirmed CellerRank/CellerVelo had been removed earlier; only their
+stale registrations were removed using the supported configuration command.
+
+The historical hardcoded observer pin is no longer the startup authority:
+default integrity follows the exact verified receiver manifest; explicit pins
+remain enforced. This establishes integrity, not model/GPU qualification.
+Optional source attention tolerates offline repositories without deregistering
+or altering their state. No LAB/live qualification or overnight automation ran.
+
+Continue only after explicit operator resume. Refresh native authority and use
+`docs/runtime-unification/README.md`, `validation.json`, and `state-backup.json`.
+Old runtimes/settings remain rollback artifacts. Do not run `uv sync` against
+the canonical `.venv` alias of the installed runtime or restore older databases.
+The earlier handoff below records the pre-rebuild state and is historical where
+its service/deployment statements differ from this section.
+
+---
+
 # PA1 restart handoff — overnight operator hold
 
 The latest operator instruction is to finish and validate ASSIST, then pause

@@ -34,7 +34,7 @@ not invoked during this offline-inference pause.
 
 Old candidates, entrypoints and settings are retained beneath
 `/home/tumlinson/.local/share/project-control/rollbacks/runtime-unification-20261006T2005`.
-State backup and preservation coverage are recorded in `state-backup.json` and
+State backup and preservation coverage, including the actual AS1 cache addon, are recorded in `state-backup.json` and
 `state-before.json`; historical archives and materialized worktrees are retained
 in place. Do not restore older databases over current workspace state.
 
@@ -42,3 +42,6 @@ Existing stdio client processes retain their imported release until they
 reconnect. New clients and the unified HTTP service select the current release.
 A Codex restart/reconnect is sufficient; no alternate runtime path is needed.
 See `cutover.json` and `validation.json` for the final deployed identity and checks.
+
+The operator confirmed two old repositories had been removed; their stale
+registrations were removed with `workspace remove`, without deleting saved state.

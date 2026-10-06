@@ -1,0 +1,646 @@
+{
+  "at": "2026-10-06T20:42:05.625547+00:00",
+  "checks": {
+    "project-control.service": {
+      "MainPID": "2020969",
+      "ExecStart": "{ path=/home/tumlinson/.local/bin/project-control ; argv[]=/home/tumlinson/.local/bin/project-control serve observer --host 127.0.0.1 --port 8768 ; ignore_errors=no ; start_time=[Tue 2026-10-06 20:40:09 UTC] ; stop_time=[n/a] ; pid=2020969 ; code=(null) ; status=0/0 }",
+      "Id": "project-control.service",
+      "Names": "project-control.service project-control-as1.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "UnitFileState": "enabled"
+    },
+    "project-control-as1.service": {
+      "MainPID": "2020969",
+      "ExecStart": "{ path=/home/tumlinson/.local/bin/project-control ; argv[]=/home/tumlinson/.local/bin/project-control serve observer --host 127.0.0.1 --port 8768 ; ignore_errors=no ; start_time=[Tue 2026-10-06 20:40:09 UTC] ; stop_time=[n/a] ; pid=2020969 ; code=(null) ; status=0/0 }",
+      "Id": "project-control.service",
+      "Names": "project-control.service project-control-as1.service",
+      "ActiveState": "active",
+      "SubState": "running",
+      "UnitFileState": "enabled"
+    },
+    "project-control-inference.service": {
+      "MainPID": "0",
+      "ExecStart": "{ path=/home/tumlinson/.local/bin/project-control-inference ; argv[]=/home/tumlinson/.local/bin/project-control-inference ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }",
+      "Id": "project-control-inference.service",
+      "Names": "project-control-inference.service",
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "UnitFileState": "disabled"
+    },
+    "healthz": {
+      "http_status": 200,
+      "body": {
+        "status": "ok",
+        "jobs": {
+          "dispatcher": "running",
+          "last_error": "central_supervisor_unavailable",
+          "durable": true
+        },
+        "central_inference": {
+          "status": "unavailable",
+          "reason": "central_supervisor_unavailable"
+        }
+      }
+    },
+    "version": {
+      "http_status": 200,
+      "body": {
+        "name": "project-control",
+        "version": "0.3.2",
+        "tool_schema_version": 10,
+        "features": {
+          "temporarily_inactive": {
+            "delegate_task": {
+              "preserve_implementation": true,
+              "dispatch": "temporarily_inactive",
+              "reason": "local coding delegation is inactive",
+              "reenable": "explicit operator decision; no timed reactivation"
+            },
+            "collect_delegation": {
+              "preserve_implementation": true,
+              "dispatch": "temporarily_inactive",
+              "reason": "local coding delegation is inactive",
+              "reenable": "explicit operator decision; no timed reactivation"
+            }
+          },
+          "automatic_overview": false
+        }
+      }
+    },
+    "readyz": {
+      "http_status": 503,
+      "body": {
+        "status": "unavailable",
+        "central_inference": {
+          "status": "unavailable",
+          "reason": "central_supervisor_unavailable"
+        }
+      }
+    },
+    "workspace_list": {
+      "exit_code": 0,
+      "sha256": "febe765fbfe28ebea89ee80309b4c7eb73926940cc93f83f9101e9f66e5fd653",
+      "output": "{\"programs\": [], \"schema_version\": 2, \"server\": {\"host\": \"127.0.0.1\", \"port\": 8768, \"transport\": \"streamable-http\"}, \"workspaces\": [\"accelerated-ports\", \"baseplane\", \"bioprep\", \"cellerator\", \"cellshard\", \"circuit-bending-atlas\", \"codex\", \"cv\", \"glasshelix\", \"numabraid\", \"project-control\", \"skills\", \"txtdesk\"]}\n"
+    },
+    "todo_authority_databases": {
+      "checked": 33,
+      "all_unchanged": false,
+      "databases": [
+        {
+          "path": "/home/tumlinson/accelerated-ports/CellRank/.git/todo-orchestrator/1fe1b4ab-7379-4f47-a4f7-1865ddb446aa/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/accelerated-ports/scVelo/.git/todo-orchestrator/b6b1bce7-d113-4646-9d74-062156d3cbac/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/Baseplane/.git/todo-orchestrator/1a7de0f4-347d-4707-9fc3-5f89d7c4d6b3/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/BioPrep/.git/todo-orchestrator/49915fcb-f3cb-4aa5-8a4d-229dd8828d5c/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/Cellerator/.git/modules/components/CellShard/todo-orchestrator/a52537a5-20db-4aeb-a126-dd0128c71fda/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/gpu_circuit_bending_atlas/.git/todo-orchestrator/3e4c8a30-6067-4604-a810-96706f3372db/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/CV/.git/todo-orchestrator/2ed62dd2-0879-4804-a810-0db640fb0ac8/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/GlassHelix/.git/todo-orchestrator/b2c4b239-f18d-4252-b388-fb9889e75efd/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/numaBraid/.git/todo-orchestrator/7efda1f1-7a8d-4c63-9e51-313690169d92/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/state.sqlite3",
+          "unchanged": false
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/0fbfd27d-e3f6-47bb-bb37-a0d939e70b71/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/13723302-e234-48f7-9f6d-3fd15934d928/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/460468fe-ee72-4a64-a565-87cfec640d0c/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/715fdead-1276-41d9-a592-c724cc3ed8e6/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/95e96992-bf74-4dd5-9984-a44885069a27/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/9d0f506f-8677-4660-ac11-e64ab40f6026/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/bdf87a08-f404-4a60-aa2c-962945804053/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.agents/skills/.git/todo-orchestrator/cf23d5ee-8755-4e56-a2dd-6802037739a7/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/txtDesk/.git/todo-orchestrator/8d69566b-9fef-41e2-bbeb-d8bc39c28821/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/059fced9-a3d4-4b0f-b015-f30b84b2833a/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/13f3d6fc-26a9-492b-adf3-1098a355d352/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/2789535a-8aab-4a08-9316-f0eaa34effe4/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/347696ac-e7e6-427c-84e6-59c472d16c96/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/47d0f67b-b567-48c1-9e09-dda4df6b9052/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/47e01742-5e03-4ce1-965d-60eb2b48b083/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/4a9e7e16-a141-4f12-93ac-f3d092b1619e/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/5e944a1f-2d9b-4cbc-b0c8-11635eb442f0/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/60a685b2-4575-4ea6-b5c3-7cefe3a24545/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/6855b103-0b6e-4dd9-84f8-4f6bdb8ed25f/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/6ae63480-69ae-4294-9850-46ad8dde7cfa/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/e588f81f-11c6-460f-8832-72e2c4801db2/state.sqlite3",
+          "unchanged": true
+        },
+        {
+          "path": "/home/tumlinson/.local/state/todo-orchestrator/f314624e-45ed-4ea3-a94c-156706514d35/state.sqlite3",
+          "unchanged": true
+        }
+      ],
+      "logical_comparison": {
+        "database": "/home/tumlinson/project-control/.git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/state.sqlite3",
+        "comparisons": [
+          {
+            "table": "schema_migrations",
+            "before_rows": 12,
+            "after_rows": 12,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "meta",
+            "before_rows": 4,
+            "after_rows": 4,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "sessions",
+            "before_rows": 91,
+            "after_rows": 91,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "tasks",
+            "before_rows": 146,
+            "after_rows": 146,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "decisions",
+            "before_rows": 11,
+            "after_rows": 11,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "task_dependencies",
+            "before_rows": 164,
+            "after_rows": 164,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "checkpoints",
+            "before_rows": 13,
+            "after_rows": 13,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "barriers",
+            "before_rows": 10,
+            "after_rows": 10,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "barrier_requirements",
+            "before_rows": 24,
+            "after_rows": 24,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "interfaces",
+            "before_rows": 13,
+            "after_rows": 13,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "interface_consumers",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "checkpoint_interfaces",
+            "before_rows": 9,
+            "after_rows": 9,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "invariants",
+            "before_rows": 62,
+            "after_rows": 62,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "task_invariants",
+            "before_rows": 1109,
+            "after_rows": 1109,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "ownership_scopes",
+            "before_rows": 1076,
+            "after_rows": 1076,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "task_artifacts",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "named_locks",
+            "before_rows": 6,
+            "after_rows": 6,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "task_locks",
+            "before_rows": 8,
+            "after_rows": 8,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "claims",
+            "before_rows": 135,
+            "after_rows": 135,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "lock_leases",
+            "before_rows": 15,
+            "after_rows": 15,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "resource_classes",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "resource_instances",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "resource_requests",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "resource_leases",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "gates",
+            "before_rows": 167,
+            "after_rows": 167,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "checkpoint_gates",
+            "before_rows": 4,
+            "after_rows": 4,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "evidence",
+            "before_rows": 251,
+            "after_rows": 251,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "handoffs",
+            "before_rows": 123,
+            "after_rows": 123,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "migration_warnings",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "projection_status",
+            "before_rows": 1,
+            "after_rows": 1,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "events",
+            "before_rows": 1058,
+            "after_rows": 1058,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "child_executions",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "child_scope_leases",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "child_attempts",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "live_recovery_approvals",
+            "before_rows": 2,
+            "after_rows": 2,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "live_recovery_audit",
+            "before_rows": 2,
+            "after_rows": 2,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "task_completion_gates",
+            "before_rows": 94,
+            "after_rows": 94,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_runs",
+            "before_rows": 11,
+            "after_rows": 11,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_run_charters",
+            "before_rows": 11,
+            "after_rows": 11,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_lanes",
+            "before_rows": 58,
+            "after_rows": 58,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_lane_tasks",
+            "before_rows": 135,
+            "after_rows": 135,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_workspaces",
+            "before_rows": 27,
+            "after_rows": 27,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_dispatches",
+            "before_rows": 113,
+            "after_rows": 113,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_capabilities",
+            "before_rows": 178,
+            "after_rows": 178,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_messages",
+            "before_rows": 15,
+            "after_rows": 15,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_message_recipients",
+            "before_rows": 16,
+            "after_rows": 16,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_message_receipts",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_rendezvous",
+            "before_rows": 3,
+            "after_rows": 3,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_rendezvous_participants",
+            "before_rows": 14,
+            "after_rows": 14,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_rendezvous_arrivals",
+            "before_rows": 14,
+            "after_rows": 14,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_patch_artifacts",
+            "before_rows": 25,
+            "after_rows": 25,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_integration_queue",
+            "before_rows": 15,
+            "after_rows": 15,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_child_result_candidates",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_recovery_audit",
+            "before_rows": 6,
+            "after_rows": 6,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "workflow_context_fragments",
+            "before_rows": 206,
+            "after_rows": 206,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "project_declarations",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "project_amendments",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          },
+          {
+            "table": "project_fragment_invalidations",
+            "before_rows": 0,
+            "after_rows": 0,
+            "old_rows_retained": true,
+            "unchanged": true
+          }
+        ]
+      }
+    },
+    "runtime_python": "3.12.3\n/usr",
+    "current": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-final",
+    "development_alias": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-final",
+    "workspace_configuration_unchanged": true,
+    "authorized_deregistrations": [
+      "cellerrank",
+      "cellervelo"
+    ],
+    "workspace_count": 13,
+    "inference_processes": []
+  }
+}
