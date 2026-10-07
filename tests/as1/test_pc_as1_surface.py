@@ -10,7 +10,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from project_control.app import create_mcp
 from project_control.as1_context import ContextHost
 from project_control.runtime_binding import local_runtime_identity
-from project_control.config import ProjectControlConfig
+from project_control.config import ProjectControlConfig, configured_observer_skills_root
 from project_control.profiles import enumerate_tool_schemas, validate_profile_registration
 from project_control.workflow_tools import register_workflow_tools
 
@@ -249,6 +249,7 @@ def test_worker_command_roots_follow_durable_admission(servers, tmp_path):
     from project_control.config import WorkspaceConfig, RepositoryConfig
     a = tmp_path / 'project_a'; b = tmp_path / 'project_b'; a.mkdir(); b.mkdir()
     config = ProjectControlConfig(workspaces={name: WorkspaceConfig(repositories={'source': RepositoryConfig(root=root)}) for name, root in [('a', a), ('b', b)]})
+    skills_root = configured_observer_skills_root(config)
     c = servers(config=config)._project_control_surface
     trusted = c.jobs.worker_factory.trusted
     job = SimpleNamespace(scope=c.host.scope('a'), mode='investigate', job_id='job_fixture', attempt=1)
@@ -258,9 +259,13 @@ def test_worker_command_roots_follow_durable_admission(servers, tmp_path):
     assert not worker.command.allows(b / 'source.py')
     job.mode = 'skill'
     worker = trusted(c.jobs, job)
-    assert worker.command.roots == (trusted.root,)
+    assert worker.command.roots == (skills_root,)
     assert not worker.command.allows(a / 'source.py')
-    assert worker.command.allows(trusted.root / 'local-coding-worker/SKILL.md')
+    skill_path = skills_root / 'local-coding-worker/SKILL.md'
+    assert skill_path.is_file()
+    assert worker.command.allows(skill_path)
+    receiver_path = local_runtime_identity().root / 'local-coding-worker/SKILL.md'
+    assert not worker.command.allows(receiver_path)
     job.scope['project'] = 'unregistered'
     with pytest.raises(PermissionError):
         trusted(c.jobs, job)

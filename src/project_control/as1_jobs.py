@@ -285,6 +285,10 @@ class JobService:
                     child_id TEXT NOT NULL,packet_id TEXT NOT NULL UNIQUE,
                     PRIMARY KEY(parent_id,generation,child_id));
                 CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0);''')
+            db.execute('''CREATE TABLE IF NOT EXISTS stale_execution_cleanup_audit(
+                receipt_id TEXT PRIMARY KEY, job TEXT NOT NULL, slot_attempt INTEGER NOT NULL,
+                owner_pid INTEGER NOT NULL, owner_start TEXT NOT NULL, release_request_id TEXT NOT NULL,
+                proof TEXT NOT NULL, proof_sha256 TEXT NOT NULL, reconciled_at REAL NOT NULL)''')
             db.execute('''CREATE TABLE IF NOT EXISTS pa1_frame_attempts(
                 job TEXT NOT NULL, attempt INTEGER NOT NULL, generation INTEGER NOT NULL,
                 policy_id TEXT NOT NULL, requested TEXT NOT NULL, telemetry TEXT NOT NULL DEFAULT '{}',
@@ -497,6 +501,145 @@ class JobService:
             policy = PowerPolicy(db, clock=self.clock)
             intent = policy.set_release(control, declared_end=declared_end, reason=reason)
         return self._deliver_owned_release(intent, callback=callback)
+
+    def reconcile_stale_execution_slot(self, control, *, job_id, attempt,
+                                       owner_pid, owner_start, proof):
+        """Remove one terminal job's orphaned slot after trusted host proof.
+
+        This is an operator-only recovery path for slots whose ordinary cleanup
+        failed.  It never treats missing host/resource observations as release
+        evidence, and it preserves the durable job record and proof receipt.
+        """
+        PowerPolicy._authorized(control, 'request_release')
+        if (not isinstance(job_id, str) or not job_id or len(job_id) > 256
+                or type(attempt) is not int or attempt <= 0
+                or type(owner_pid) is not int or owner_pid <= 0
+                or not isinstance(owner_start, str) or not owner_start or len(owner_start) > 128):
+            raise ValueError('stale_execution_slot_identity_invalid')
+
+        # Missing / unreadable / reused owners are all unverifiable.  Only the
+        # kernel's explicit ESRCH result proves this exact PID is now absent.
+        if self._process_start(owner_pid) is not None:
+            raise ValueError('stale_execution_slot_owner_present_or_reused')
+        try:
+            os.kill(owner_pid, 0)
+        except ProcessLookupError:
+            pass
+        except (PermissionError, OSError) as error:
+            raise ValueError('stale_execution_slot_owner_absence_unverifiable') from error
+        else:
+            raise ValueError('stale_execution_slot_owner_absence_unverifiable')
+
+        if not isinstance(proof, dict):
+            raise ValueError('stale_execution_cleanup_proof_required')
+        required = {'format', 'job_id', 'attempt', 'owner_pid', 'owner_start', 'observed_at',
+            'release_manifest_sha256', 'helper', 'owner_process_absent', 'gpu_uuids',
+            'compute_processes', 'gpu_memory_mib', 'host_conflicts', 'native',
+            'process_released', 'memory_released', 'verified'}
+        if set(proof) != required:
+            raise ValueError('stale_execution_cleanup_proof_fields_invalid')
+        now = float(self.clock())
+        observed_at = proof.get('observed_at')
+        if (proof.get('format') != 'PC-AS1-STALE-EXECUTION-CLEANUP/1'
+                or proof.get('job_id') != job_id or type(proof.get('attempt')) is not int
+                or proof.get('attempt') != attempt or type(proof.get('owner_pid')) is not int
+                or proof.get('owner_pid') != owner_pid or proof.get('owner_start') != owner_start
+                or isinstance(observed_at, bool) or not isinstance(observed_at, (int, float))
+                or not math.isfinite(float(observed_at)) or not now - 60 <= float(observed_at) <= now + 5):
+            raise ValueError('stale_execution_cleanup_proof_identity_or_freshness_invalid')
+        from .runtime_binding import RELEASE_DIGEST_VARIABLE
+        expected_release_digest = os.environ.get(RELEASE_DIGEST_VARIABLE)
+        if (not isinstance(expected_release_digest, str)
+                or not re.fullmatch(r'[0-9a-f]{64}', expected_release_digest)
+                or proof.get('release_manifest_sha256') != expected_release_digest):
+            raise ValueError('stale_execution_cleanup_release_pin_mismatch')
+        helper = proof.get('helper')
+        if (not isinstance(helper, dict)
+                or set(helper) != {'unit', 'active_state', 'main_pid', 'kill_mode'}
+                or type(helper.get('main_pid')) is not int
+                or helper != {'unit': 'project-control-inference.service', 'active_state': 'inactive',
+                              'main_pid': 0, 'kill_mode': 'control-group'}):
+            raise ValueError('stale_execution_cleanup_helper_state_invalid')
+        if (proof.get('owner_process_absent') is not True
+                or proof.get('process_released') is not True
+                or proof.get('memory_released') is not True
+                or proof.get('verified') is not True
+                or proof.get('compute_processes') != []
+                or proof.get('host_conflicts') != []):
+            raise ValueError('stale_execution_cleanup_release_unproved')
+        native = proof.get('native')
+        if (not isinstance(native, dict) or set(native) != {'active_leases', 'session_count'}
+                or type(native.get('active_leases')) is not int
+                or type(native.get('session_count')) is not int
+                or native != {'active_leases': 0, 'session_count': 0}):
+            raise ValueError('stale_execution_cleanup_native_state_invalid')
+        allowed_gpu_uuids = getattr(self.backend, '_allowed_gpu_uuids', None)
+        gpu_uuids = proof.get('gpu_uuids')
+        memory = proof.get('gpu_memory_mib')
+        if (not isinstance(allowed_gpu_uuids, (list, tuple)) or not allowed_gpu_uuids
+                or any(not isinstance(item, str) or not item.startswith('GPU-') for item in allowed_gpu_uuids)
+                or not isinstance(gpu_uuids, list)
+                or any(not isinstance(item, str) for item in gpu_uuids)
+                or set(gpu_uuids) != set(allowed_gpu_uuids)
+                or len(gpu_uuids) != len(set(gpu_uuids))
+                or not isinstance(memory, dict) or set(memory) != set(allowed_gpu_uuids)
+                or any(type(memory[item]) is not int or memory[item] != 0 for item in allowed_gpu_uuids)):
+            raise ValueError('stale_execution_cleanup_gpu_scope_or_memory_invalid')
+
+        proof_text = wire(proof)
+        proof_digest = hashlib.sha256(proof_text.encode('utf-8')).hexdigest()
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            job_row = db.execute('SELECT record FROM jobs WHERE id=?', (job_id,)).fetchone()
+            if job_row is None:
+                raise ValueError('stale_execution_slot_job_missing')
+            job = DurableJob.model_validate_json(job_row['record'])
+            if job.status not in TERMINAL or job.attempt < attempt:
+                raise ValueError('stale_execution_slot_job_not_terminal_or_generation_invalid')
+            slot = db.execute('''SELECT attempt,owner_pid,owner_start,cleanup_failed
+                FROM execution_slots WHERE job=?''', (job_id,)).fetchone()
+            if (slot is None or slot['attempt'] != attempt or slot['owner_pid'] != owner_pid
+                    or slot['owner_start'] != owner_start or not slot['cleanup_failed']):
+                raise ValueError('stale_execution_slot_exact_owner_mismatch')
+
+            policy = PowerPolicy(db, clock=self.clock)
+            power = policy.snapshot()
+            if (not power['release_veto_active'] or power['release_until'] is not None
+                    or not power['release_request_id']):
+                raise ValueError('stale_execution_slot_permanent_release_veto_required')
+            resources = ResourceController(db, power_policy=policy, clock=self.clock).snapshot()
+            if any(item['state'] not in {'released_verified', 'superseded'} for item in resources):
+                raise ValueError('stale_execution_slot_owned_resources_not_released')
+            if any(item['state'] == 'released_verified'
+                   and item['release_request_id'] != power['release_request_id'] for item in resources):
+                raise ValueError('stale_execution_slot_owned_resource_release_mismatch')
+
+            # Recheck at the final mutation edge so a PID reused after proof
+            # validation cannot be mistaken for the historical dead owner.
+            if self._process_start(owner_pid) is not None:
+                raise ValueError('stale_execution_slot_owner_present_or_reused')
+            try:
+                os.kill(owner_pid, 0)
+            except ProcessLookupError:
+                pass
+            except (PermissionError, OSError) as error:
+                raise ValueError('stale_execution_slot_owner_absence_unverifiable') from error
+            else:
+                raise ValueError('stale_execution_slot_owner_absence_unverifiable')
+
+            deleted = db.execute('''DELETE FROM execution_slots WHERE job=? AND attempt=?
+                AND owner_pid=? AND owner_start=? AND cleanup_failed=1''',
+                (job_id, attempt, owner_pid, owner_start))
+            if deleted.rowcount != 1:
+                raise ValueError('stale_execution_slot_exact_owner_mismatch')
+            receipt_id = uuid.uuid4().hex
+            db.execute('''INSERT INTO stale_execution_cleanup_audit
+                (receipt_id,job,slot_attempt,owner_pid,owner_start,release_request_id,
+                 proof,proof_sha256,reconciled_at) VALUES(?,?,?,?,?,?,?,?,?)''',
+                (receipt_id, job_id, attempt, owner_pid, owner_start,
+                 power['release_request_id'], proof_text, proof_digest, now))
+        return {'status': 'reconciled', 'receipt_id': receipt_id,
+                'job_id': job_id, 'attempt': attempt, 'proof_sha256': proof_digest}
 
     def coordinate_demand_stop(self, control, *, timeout=95.0):
         """Cancel broker work, then prove its exact owned resources released.
