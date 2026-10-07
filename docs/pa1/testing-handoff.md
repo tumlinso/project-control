@@ -1,5 +1,15 @@
 # PA1 single-pass testing handoff
 
+> **Historical R10 handoff (2026-10-07).** The candidate paths, R10 identity,
+> 12-tool expectations, service state, and command recipes below describe that
+> old qualification only. They are evidence and rationale, not current
+> execution instructions or an assertion of present Todo status. Start from
+> [the current source qualification guide](source-qualification.md),
+> [repository instructions](../../AGENTS.md), and the current live interface.
+> Do not restore removed profiles/tools, the retired adapter, or external
+> supplier paths to reproduce this candidate. Preserve every historical
+> receipt and acceptance result as recorded.
+
 ## Candidate and boundary
 
 - **Candidate source:** `b9806e2373a97236f6bc73ec970238cef4dfb371`.

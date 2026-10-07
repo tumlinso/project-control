@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import threading
 import time
 from typing import Any, Callable, Mapping
@@ -21,7 +22,7 @@ from ..runtime_binding import (
     RELEASE_MANIFEST_VARIABLE,
     bind_local_runtime,
 )
-from ..runtime_identity import bind_runtime
+from ..runtime_identity import bind_runtime, package_fingerprint
 
 
 INFERENCE_SERVICE = "project-control-inference.service"
@@ -47,13 +48,17 @@ def _is_transient_supervisor_transport_error(error: BaseException) -> bool:
 @dataclass(frozen=True)
 class RuntimePin:
     release_root: Path
-    release_manifest: Path
-    release_digest: str
+    release_manifest: Path | None
+    release_digest: str | None
     receiver_manifest_sha256: str
     receiver_fingerprint: str
     receiver_source_commit: str
     todo_identity: Mapping[str, Any]
     todo_runtime_fingerprint: str
+    runtime_mode: str = "release"
+    source_root: Path | None = None
+    skills_root: Path | None = None
+    project_control_fingerprint: str = ""
 
 
 def _sha256(raw: bytes) -> str:
@@ -74,51 +79,103 @@ def _canonical_runtime_context(receiver: Any) -> dict[str, Any]:
     return dict(context)
 
 
+def _todo_executable_identity(context: Mapping[str, Any]) -> dict[str, Any]:
+    """Strip optional content location from the workflow executable identity."""
+    return {key: value for key, value in context.items() if key != "skills_root"}
+
+
+def _identity_fingerprint(identity: Mapping[str, Any]) -> str:
+    return _sha256(json.dumps(
+        identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        default=str).encode("utf-8"))
+
+
+def _same_runtime_pin(left: RuntimePin, right: RuntimePin) -> bool:
+    """Compare executable/service identity while ignoring optional content."""
+    return (
+        left.runtime_mode == right.runtime_mode
+        and left.release_root == right.release_root
+        and left.release_manifest == right.release_manifest
+        and left.release_digest == right.release_digest
+        and left.source_root == right.source_root
+        and left.receiver_manifest_sha256 == right.receiver_manifest_sha256
+        and left.receiver_fingerprint == right.receiver_fingerprint
+        and left.receiver_source_commit == right.receiver_source_commit
+        and dict(left.todo_identity) == dict(right.todo_identity)
+        and left.todo_runtime_fingerprint == right.todo_runtime_fingerprint
+        and left.project_control_fingerprint == right.project_control_fingerprint
+    )
+
+
 def capture_runtime_pin() -> RuntimePin:
-    """Resolve the selected installed release and both runtime identities."""
+    """Resolve a verified source checkout or pinned installed release."""
     manifest_value = os.environ.get(RELEASE_MANIFEST_VARIABLE)
     digest = os.environ.get(RELEASE_DIGEST_VARIABLE)
-    if not manifest_value or not digest or len(digest) != 64:
-        raise DemandRuntimeError("runtime_release_pin_missing")
-    manifest = Path(manifest_value).expanduser().resolve(strict=True)
-    try:
-        raw = manifest.read_bytes()
-    except OSError as error:
-        raise DemandRuntimeError("runtime_release_manifest_unavailable") from error
-    if _sha256(raw) != digest:
-        raise DemandRuntimeError("runtime_release_digest_mismatch")
-    try:
-        release = json.loads(raw)
-    except (ValueError, TypeError) as error:
-        raise DemandRuntimeError("runtime_release_manifest_invalid") from error
-    if not isinstance(release, dict) or release.get("schema_version") != 2:
-        raise DemandRuntimeError("runtime_release_manifest_invalid")
-    release_root = manifest.parent.resolve()
-    current_link = Path.home() / ".local/share/project-control/current"
-    try:
-        selected_root = current_link.resolve(strict=True)
-    except OSError as error:
-        raise DemandRuntimeError("selected_runtime_unavailable") from error
-    if selected_root != release_root:
-        raise DemandRuntimeError("selected_runtime_release_mismatch")
-
+    if bool(manifest_value) != bool(digest):
+        raise DemandRuntimeError("runtime_release_pin_incomplete")
+    source_mode = not manifest_value
+    manifest: Path | None = None
+    release_root: Path
+    release: dict[str, Any] | None = None
+    source_root: Path | None = None
+    project_control_root = Path(__file__).resolve().parents[1]
+    project_control_fingerprint = package_fingerprint(project_control_root)
+    if source_mode:
+        source_root = Path(__file__).resolve().parents[3]
+        release_root = source_root
+    else:
+        if (not isinstance(digest, str) or len(digest) != 64
+                or any(character not in "0123456789abcdef" for character in digest)):
+            raise DemandRuntimeError("runtime_release_digest_mismatch")
+        manifest = Path(manifest_value).expanduser().resolve(strict=True)
+        try:
+            raw = manifest.read_bytes()
+        except OSError as error:
+            raise DemandRuntimeError("runtime_release_manifest_unavailable") from error
+        if _sha256(raw) != digest:
+            raise DemandRuntimeError("runtime_release_digest_mismatch")
+        try:
+            release = json.loads(raw)
+        except (ValueError, TypeError) as error:
+            raise DemandRuntimeError("runtime_release_manifest_invalid") from error
+        if not isinstance(release, dict) or release.get("schema_version") not in {2, 3}:
+            raise DemandRuntimeError("runtime_release_manifest_invalid")
+        release_root = manifest.parent.resolve()
+        current_link = Path.home() / ".local/share/project-control/current"
+        try:
+            selected_root = current_link.resolve(strict=True)
+        except OSError as error:
+            raise DemandRuntimeError("selected_runtime_unavailable") from error
+        if selected_root != release_root:
+            raise DemandRuntimeError("selected_runtime_release_mismatch")
+        if release.get("schema_version") == 3 and release.get("project_control_fingerprint") != project_control_fingerprint:
+            raise DemandRuntimeError("project_control_release_fingerprint_mismatch")
     try:
         todo = bind_runtime()
-        receiver = bind_local_runtime(expected_release_digest=digest)
+        receiver = bind_local_runtime(expected_release_digest=digest if not source_mode else None)
         runtime_context = _canonical_runtime_context(receiver)
     except Exception as error:
         raise DemandRuntimeError("runtime_identity_mismatch") from error
-    if todo.release_digest != digest or todo.release_manifest is None:
-        raise DemandRuntimeError("todo_release_identity_mismatch")
-    receiver_manifest = receiver.root / "receiver-manifest.json"
-    try:
-        receiver_digest = _sha256(receiver_manifest.read_bytes())
-    except OSError as error:
-        raise DemandRuntimeError("receiver_manifest_unavailable") from error
-    identity = runtime_context
-    todo_runtime_fingerprint = _sha256(json.dumps(
-        identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-        default=str).encode("utf-8"))
+    if source_mode:
+        if todo.release_digest is not None or todo.release_manifest is not None:
+            raise DemandRuntimeError("todo_source_identity_mismatch")
+        receiver_digest = receiver.manifest_sha256
+        content_root = runtime_context.get("skills_root")
+        skills_root = Path(content_root).expanduser().resolve() if isinstance(content_root, str) and content_root else None
+    else:
+        if todo.release_digest != digest or todo.release_manifest is None:
+            raise DemandRuntimeError("todo_release_identity_mismatch")
+        receiver_manifest = receiver.root / "receiver-manifest.json"
+        try:
+            receiver_raw = receiver_manifest.read_bytes()
+        except OSError as error:
+            raise DemandRuntimeError("receiver_manifest_unavailable") from error
+        receiver_digest = _sha256(receiver_raw)
+        if receiver_digest != receiver.manifest_sha256:
+            raise DemandRuntimeError("receiver_manifest_digest_mismatch")
+        skills_root = release_root / "runtime-skills"
+    identity = _todo_executable_identity(runtime_context)
+    todo_runtime_fingerprint = _identity_fingerprint(identity)
     return RuntimePin(
         release_root=release_root,
         release_manifest=manifest,
@@ -128,6 +185,10 @@ def capture_runtime_pin() -> RuntimePin:
         receiver_source_commit=receiver.source_commit,
         todo_identity=identity,
         todo_runtime_fingerprint=todo_runtime_fingerprint,
+        runtime_mode="source" if source_mode else "release",
+        source_root=source_root,
+        skills_root=skills_root,
+        project_control_fingerprint=project_control_fingerprint,
     )
 
 
@@ -185,6 +246,8 @@ def _systemd_state(*, timeout: float = 2.0) -> dict[str, str]:
 
 def _process_release_matches(pid: int, pin: RuntimePin) -> bool:
     """Check only non-secret identity variables from the live service process."""
+    if pin.runtime_mode == "source":
+        return _process_source_matches(pid, pin)
     try:
         raw = Path(f"/proc/{pid}/environ").read_bytes()
     except OSError:
@@ -192,15 +255,53 @@ def _process_release_matches(pid: int, pin: RuntimePin) -> bool:
     environment: dict[str, str] = {}
     for item in raw.split(b"\0"):
         key, separator, value = item.partition(b"=")
-        if separator and key in {b"PROJECT_CONTROL_RELEASE_MANIFEST", b"PROJECT_CONTROL_RELEASE_DIGEST",
-                                 b"PROJECT_CONTROL_SKILLS_ROOT"}:
+        if separator and key in {b"PROJECT_CONTROL_RELEASE_MANIFEST", b"PROJECT_CONTROL_RELEASE_DIGEST"}:
             environment[key.decode()] = value.decode(errors="strict")
     return (
         Path(environment.get(RELEASE_MANIFEST_VARIABLE, "/missing")).resolve() == pin.release_manifest
         and environment.get(RELEASE_DIGEST_VARIABLE) == pin.release_digest
-        and Path(environment.get("PROJECT_CONTROL_SKILLS_ROOT", "/missing")).resolve()
-        == (pin.release_root / "runtime-skills").resolve()
     )
+
+
+def _process_source_matches(pid: int, pin: RuntimePin, *, proc_root: Path = Path("/proc")) -> bool:
+    """Bind source readiness to the checkout, interpreter, and source launcher."""
+    if pin.source_root is None:
+        return False
+    proc = Path(proc_root) / str(pid)
+    try:
+        raw = (proc / "environ").read_bytes()
+        executable = (proc / "exe").resolve(strict=True)
+        command_line = (proc / "cmdline").read_bytes().split(b"\0")
+    except OSError:
+        return False
+    environment: dict[str, str] = {}
+    for item in raw.split(b"\0"):
+        key, separator, value = item.partition(b"=")
+        if separator and key in {b"PYTHONPATH", b"PROJECT_CONTROL_RELEASE_MANIFEST",
+                                 b"PROJECT_CONTROL_RELEASE_DIGEST"}:
+            environment[key.decode()] = value.decode(errors="strict")
+    if environment.get(RELEASE_MANIFEST_VARIABLE) or environment.get(RELEASE_DIGEST_VARIABLE):
+        return False
+    expected_source = (pin.source_root / "src").resolve()
+    python_paths = [Path(value or ".").expanduser().resolve()
+                    for value in environment.get("PYTHONPATH", "").split(os.pathsep)]
+    if expected_source not in python_paths:
+        return False
+    try:
+        if executable != Path(sys.executable).resolve(strict=True):
+            return False
+    except OSError:
+        return False
+    arguments = [item.decode(errors="replace") for item in command_line if item]
+    return "-m" in arguments and "project_control.runtime_binding" in arguments \
+        and "local_worker.supervisor" in arguments
+
+
+def _remote_todo_runtime_fingerprint(identity: Mapping[str, Any]) -> str:
+    """Reproduce the supervisor's raw-context fingerprint for consistency."""
+    return _sha256(json.dumps(
+        identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        default=str).encode("utf-8"))
 
 
 def _central_ready(provider: Any, pin: RuntimePin,
@@ -218,13 +319,17 @@ def _central_ready(provider: Any, pin: RuntimePin,
         raise DemandRuntimeError("inference_supervisor_ownership_invalid")
     if pid != expected_main_pid:
         raise DemandRuntimeError("inference_supervisor_service_pid_mismatch")
+    if status.get("project_control_fingerprint") != pin.project_control_fingerprint:
+        raise DemandRuntimeError("inference_project_control_fingerprint_mismatch")
     if (status.get("receiver_manifest_sha256") != pin.receiver_manifest_sha256
             or status.get("receiver_fingerprint") != pin.receiver_fingerprint
             or status.get("receiver_source_commit") != pin.receiver_source_commit):
         raise DemandRuntimeError("inference_receiver_identity_mismatch")
-    if status.get("runtime_identity") != dict(pin.todo_identity):
+    remote_identity = status.get("runtime_identity")
+    if (not isinstance(remote_identity, dict)
+            or _todo_executable_identity(remote_identity) != dict(pin.todo_identity)):
         raise DemandRuntimeError("inference_todo_identity_mismatch")
-    if status.get("runtime_fingerprint") != pin.todo_runtime_fingerprint:
+    if status.get("runtime_fingerprint") != _remote_todo_runtime_fingerprint(remote_identity):
         raise DemandRuntimeError("inference_todo_fingerprint_mismatch")
     if not process_matches(pid, pin):
         raise DemandRuntimeError("inference_release_identity_mismatch")
@@ -299,6 +404,9 @@ class DemandRuntime:
                      for slot in raw_slots if isinstance(slot, dict)] if isinstance(raw_slots, list) else []
             result.update({
                 "readiness": "verified_ready",
+                "runtime_mode": pin.runtime_mode,
+                "source_root": str(pin.source_root) if pin.source_root is not None else None,
+                "project_control_fingerprint": pin.project_control_fingerprint,
                 "release_digest": pin.release_digest,
                 "receiver_fingerprint": pin.receiver_fingerprint,
                 "todo_runtime_fingerprint": pin.todo_runtime_fingerprint,
@@ -411,10 +519,13 @@ class DemandRuntime:
                                         deadline_epoch=deadline, clock=self._clock,
                                         expected_main_pid=main_pid)
                 _remaining(deadline, DEFAULT_STARTUP_SECONDS, self._clock)
-                if self._pin_factory() != pin:
+                if not _same_runtime_pin(self._pin_factory(), pin):
                     raise DemandRuntimeError("selected_runtime_changed_during_startup")
                 _remaining(deadline, DEFAULT_STARTUP_SECONDS, self._clock)
                 return {"status": "ready", "service": INFERENCE_SERVICE,
+                        "runtime_mode": pin.runtime_mode,
+                        "source_root": str(pin.source_root) if pin.source_root is not None else None,
+                        "project_control_fingerprint": pin.project_control_fingerprint,
                         "release_digest": pin.release_digest,
                         "receiver_fingerprint": pin.receiver_fingerprint,
                         "todo_runtime_fingerprint": pin.todo_runtime_fingerprint,

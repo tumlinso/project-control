@@ -18,13 +18,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install locked development environment
-        run: uv sync --frozen --group dev
-      - name: Run reduced CPU source smoke
+      - name: Install locked source development environment
+        run: scripts/pc-dev setup
+      - name: Run fast CPU source smoke
+        run: scripts/pc-dev test -q
+      - name: Run assistance source boundary tests
         run: >-
-          uv run --frozen --group dev python -m pytest -q
+          scripts/pc-dev test
           tests/assistance/test_broker_close_persistence.py
           tests/assistance/test_execution_cleanup_recovery.py
           tests/assistance/test_lab_snapshot.py
+      - name: Check test imports and collection
+        run: scripts/pc-dev test tests --collect-only -q
       - name: Check whitespace
         run: git diff --check

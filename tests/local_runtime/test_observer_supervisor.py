@@ -174,6 +174,8 @@ class CentralSupervisorTests(unittest.TestCase):
         self.assertEqual(first["observer_contract"], "PC-OBSERVER-SUPERVISOR/1")
         self.assertTrue(first["observer_only"])
         self.assertEqual(first["source_sha256"], hashlib.sha256(Path(supervisor.__file__).read_bytes()).hexdigest())
+        self.assertEqual(first["project_control_fingerprint"],
+                         self.server._project_control_fingerprint)
         self.assertEqual(first["supervisor_pid"], os.getpid())
         self.assertEqual(first["supervisor_process_start"], process_identity(os.getpid())["process_start"])
         self.assertEqual(first["service_state_root"], str(self.state))
@@ -185,6 +187,8 @@ class CentralSupervisorTests(unittest.TestCase):
         self.client.close()
         second = self.new_client().observer_status()
         self.assertEqual(first["slots"], second["slots"])
+        self.assertEqual(first["project_control_fingerprint"],
+                         second["project_control_fingerprint"])
         for session in sessions["session_ids"]:
             self.assertTrue(self.client.close_observer_session(session)["released"])
         idle = self.client.observer_status()

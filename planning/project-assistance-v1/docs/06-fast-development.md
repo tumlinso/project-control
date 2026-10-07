@@ -1,5 +1,14 @@
 # 6. Fast development and empirical tuning
 
+> **Historical design guidance.** This chapter retains the earlier source/model
+> qualification design and does not describe the current service entrypoint or
+> current profile/tool surface. Use the checkout commands in
+> [docs/development.md](../../../docs/development.md) and the current bounded
+> procedures in [docs/pa1/source-qualification.md](../../../docs/pa1/source-qualification.md).
+> The model-specific measurement and resource ownership principles below may
+> still inform a relevant qualification; they do not authorize live inference,
+> GPU work, or reuse of old commands and receipts as current evidence.
+
 ## The loop to eliminate
 
 Do not use `edit a few prompt words → rebuild the paired release → replace the live service → ask a new production question` as a development loop. It mixes logic debugging, model-quality evaluation, serving configuration and deployment. It also contaminates comparisons with cold starts, cache identity changes, unrelated source changes and different questions.

@@ -91,6 +91,18 @@ class ReleaseIdentityTests(unittest.TestCase):
         with self.assertRaises(runtime_identity.RuntimeIdentityError):
             runtime_identity.bind_runtime(environment)
 
+    def test_schema3_requires_project_control_package_fingerprint(self) -> None:
+        environment = self._write_release()
+        data = json.loads(self.manifest.read_text(encoding="utf-8"))
+        del data["project_control_fingerprint"]
+        self.manifest.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+        environment[runtime_identity.RELEASE_DIGEST_VARIABLE] = hashlib.sha256(
+            self.manifest.read_bytes()).hexdigest()
+
+        with self.assertRaisesRegex(runtime_identity.RuntimeIdentityError,
+                                    "Invalid release manifest"):
+            runtime_identity.bind_runtime(environment)
+
 
 if __name__ == "__main__":
     unittest.main()

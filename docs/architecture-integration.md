@@ -1,5 +1,12 @@
 # Integrating the remaining workflow runtime
 
+> **Historical migration plan.** The Todo and workflow adapter consolidation
+> described here has since been implemented in this repository. Its ownership
+> tables and open-work language are not a current backlog or authority to
+> recreate the external supplier/adapter layout. For today's source development
+> and test commands, use [development.md](development.md) and
+> [AGENTS.md](../AGENTS.md). Keep the historical rationale and receipts below.
+
 ## Why ordinary development is expensive
 
 Project Control is Python, but its workflow runtime is assembled from several

@@ -1,88 +1,66 @@
 # ChatGPT observer setup
 
-This procedure connects only the Project Control **observer** profile. Keep it
-bound to `127.0.0.1`; do not expose port 8767 publicly.
+This connects ChatGPT to the read-only Project Control observer over the
+loopback HTTP endpoint. Keep the listener bound to `127.0.0.1`; expose it to a
+remote client only through an explicitly configured, authenticated tunnel.
 
-## Local service
+## Start the local source service
 
-1. Initialize the owner-only configuration:
+Set up the checkout when first installing dependencies or when they change:
 
-   ```bash
-   uv run project-control config init
-   uv run project-control config migrate --dry-run
-   uv run project-control workspace add disposable source /absolute/path/to/disposable/repo --authority
-   uv run project-control doctor --json
-   ```
+```sh
+scripts/pc-dev setup
+```
 
-2. Copy `deployment/project-control.service` to
-   `~/.config/systemd/user/project-control.service`. Adjust `WorkingDirectory`
-   only if this checkout is not at `~/project-control`, then run:
+The source service unit in `scripts/services/project-control.service` runs
+`scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768`. Preserve its
+existing profile, principal binding, workspace configuration, ports, and state
+locations when installing or editing a unit. Then:
 
-   ```bash
-   systemctl --user daemon-reload
-   systemctl --user enable --now project-control.service
-   systemctl --user status project-control.service
-   curl --fail http://127.0.0.1:8767/healthz
-   curl --fail http://127.0.0.1:8767/readyz
-   ```
+```sh
+systemctl --user daemon-reload
+systemctl --user restart project-control.service
+curl --fail http://127.0.0.1:8768/healthz
+curl --fail http://127.0.0.1:8768/readyz
+```
 
-The MCP endpoint is `http://127.0.0.1:8767/mcp` and uses stateless Streamable
-HTTP with JSON responses. Trusted service startup selects the observer profile;
-client metadata cannot change it. The server registers no Todo workflow tool,
-and direct hidden-name invocation is denied before Todo is reached.
+The MCP endpoint is `http://127.0.0.1:8768/mcp`. Readiness covers valid core
+configuration and the bundled workflow engine. Inference and optional domain
+content have separate status and are not prerequisites for core reads. To verify
+the real surface, reconnect the MCP client, list tools, and make one read-only
+call for a registered project.
 
-## OpenAI account connection gate
+## Connect ChatGPT
 
-These steps require the user's OpenAI account and are intentionally not
-performed by Codex:
+These steps require the user's OpenAI account and are performed by the account
+owner:
 
-1. Enable Developer Mode in ChatGPT.
-2. Create or select an OpenAI Secure MCP Tunnel.
-3. Install the official tunnel client locally and configure it with the tunnel
-   credentials from the OpenAI account. Forward only to
-   `http://127.0.0.1:8767/mcp`. Never paste credentials into Codex chat or store
-   them in this repository.
-4. The files `deployment/tunnel-client.yaml.example` and
-   `deployment/tunnel-client.service.example` are templates. Copy them into the
-   owner-only `~/.config/project-control/` directory, reconcile executable and
-   field names with the installed official client's help, and store credentials
-   only in its supported secret store or a `0600` local environment file.
-5. Run `uv run project-control doctor --tunnel --json`, then enable the tunnel
-   client service.
-6. Create a custom ChatGPT app named `project-control` using that tunnel.
-7. Reconnect or recreate the custom app after the AS1 schema change, then
-   verify exactly 11 observer tools: `overview`, `delta`, `frontier`, `search`,
-   `evidence`, `impact`, `history`, `machine`, `read`, `investigate`, `skill`.
-   Hidden workflow/control names and removed legacy tools are denied at dispatch.
-8. Start a fresh conversation and explicitly call `overview` for the registered
-   disposable project before adding active engineering projects. An omitted
-   project gives the registered catalog; overview is never automatically injected.
+1. Enable Developer Mode in ChatGPT and create or select an authenticated MCP
+   tunnel.
+2. Configure the tunnel client to forward only to
+   `http://127.0.0.1:8768/mcp`. Keep credentials in the client's supported
+   secret store or a local owner-only file; never put them in this repository
+   or a chat message.
+3. Start the tunnel client and add its endpoint as a custom ChatGPT app.
+4. Reconnect the app after a server surface change. Verify the actual listed
+   observer tools and make a read-only call before relying on the connection.
 
-ChatGPT may snapshot definitions at connection time. Reconnect after a surface
-change and verify the actual live tool list. Source documentation does not prove
-candidate qualification or live cutover. The observer supports compact (default),
-standard and extended detail; local profiles do not support extended.
+Tunnel client commands and configuration fields depend on the installed client;
+use that client's current help. This repository does not bundle or install
+tunnel credentials. Codex uses a separate stdio registration described in
+[Codex setup](CODEX_SETUP.md).
 
-Codex does not use this custom app or tunnel; it uses the separately configured
-stdio profile described in `CODEX_SETUP.md`. Deep research may use this app only
-for its read/fetch behavior.
+## Observer use
 
-## Observer usage
+Use `overview`, `frontier`, `search`, `evidence`, and the other currently
+advertised read tools to ground questions in registered projects. Use
+`investigate` for bounded read-only questions and poll its durable job ID when
+the result is pending. Use `skill` for optional domain guidance when available.
+Project Control verifies bundled executable code independently of optional
+domain content. A missing skill catalog can limit that guidance without
+preventing core project reads.
 
-Use the eight shared information tools for direct evidence. `frontier` supplies
-active work and coordination; `overview` supplies purpose and architecture.
-`search` retains discovery and accepts exact typed semantic entities through a
-direct canonical lookup, for example `query={"kind": "task", "target": "T1"}`.
-Exact file reads use `read` with registered project/repository and relative paths.
-There is no observer shell or public Project Control `find`.
-
-Use `investigate` to submit bounded read-only questions and poll durable job IDs;
-continue useful work when a job is pending. `skill` searches the installed catalog
-or requests guidance through the same job broker. Project Control brokers source
-access and verified excerpts; the local worker reads installed SKILL.md and follows
-its authored routes. Start compact and request more detail deliberately. Examples,
-packet coverage and retry semantics are in [the adaptive surface guide](as1-surface.md).
-
-For Todo/bootstrap preparation, preserve durable intent, constraints, acceptance,
-rationale, uncertainty and references. Observer findings and packet hints grant
-no project or workflow mutation authority.
+Observer findings do not grant mutation authority. Preserve project and Todo
+state; semantic mutations use the authorized workflow path. See
+[the current surface guide](as1-surface.md) for supported requests and response
+semantics.

@@ -1,8 +1,25 @@
 # PA1 live qualification plan
 
-This is the bounded plan for `PC-PA1-LAB` / live qualification. The package acceptance contract currently contains 40 mandatory cases; each remains `not_run_as_acceptance_case` until an exact scenario receipt is supplied. Existing native CPU gates, source tests, scripted responses, and historical receipts may explain overlap, but they do not satisfy a case by themselves.
+> **Historical qualification plan (2026-10-07).** This plan snapshots an
+> earlier 40-case acceptance contract and R10-era assumptions. Preserve its
+> case definitions, limits, and receipts as historical material; it does not
+> establish current Todo task status or authorize execution against today's
+> service. Use [the current source qualification guide](source-qualification.md)
+> and current workflow authority to choose any new source or live checks.
+> Reconcile cases with the current interface; do not recreate removed
+> profiles/tools, the retired adapter, or historical supplier layout.
 
-The case definitions are copied from `planning/project-assistance-v1/machine/acceptance.json` (SHA-256 `8db435add7f875ec96c5a6758b0a7122029515ea2c61689de43fe6a22e8826d6`). Re-fetch that contract and the current candidate identity before execution. Root owns run `PC-PA1-RUN-1`; this record does not mutate native task state.
+At the time this document was written, `PC-PA1-LAB` / live qualification was
+tracked against a package contract containing 40 cases. The recorded statuses
+below are historical snapshots, not current task state. Existing native CPU
+gates, source tests, scripted responses, and prior receipts may explain overlap,
+but they do not satisfy a case by themselves.
+
+The case definitions were copied from
+`planning/project-assistance-v1/machine/acceptance.json` (historical SHA-256
+`8db435add7f875ec96c5a6758b0a7122029515ea2c61689de43fe6a22e8826d6`). The
+historical note that the root owned run `PC-PA1-RUN-1` is not a current task
+claim. Consult current Todo authority before any workflow task operation.
 
 ## Hard budgets and stop rules
 

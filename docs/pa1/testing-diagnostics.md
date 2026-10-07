@@ -1,6 +1,19 @@
 # PA1 testing and diagnosis assignment
 
-This is a diagnostic supplement to [`testing-handoff.md`](testing-handoff.md), which is authoritative for candidate identity, activation, commands, evidence locations, and safety controls. It assigns the next testing agent a single bounded pass. It does not authorize changing the candidate, widening resource grants, or repeating a failed case after a fix.
+> **Historical R10 diagnostic assignment (2026-10-07).** This document's
+> candidate hashes, installed-runtime prerequisites, selected recipes, and
+> tool/profile expectations applied to an earlier frozen candidate. Keep them
+> as historical evidence; do not use them as the current runbook or infer
+> current Todo task status from them. Use [the current source qualification
+> guide](source-qualification.md), [repository instructions](../../AGENTS.md),
+> and live configuration for current commands and interface. Do not restore
+> retired profiles/tools, the adapter, or supplier paths.
+
+When written, this was a diagnostic supplement to
+[`testing-handoff.md`](testing-handoff.md), which supplied candidate identity,
+activation, commands, evidence locations, and safety controls for that pass. It
+assigned a single bounded pass and did not authorize changing that candidate,
+widening resource grants, or repeating a failed case after a fix.
 
 ## Preflight and source checks
 

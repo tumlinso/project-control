@@ -19,6 +19,8 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = qualifier
 SPEC.loader.exec_module(qualifier)
 
+from scripts import qualification_runtime
+
 
 def test_default_invocation_is_inert_and_does_not_create_artifacts(tmp_path, capsys):
     output = tmp_path / "new-run"
@@ -176,6 +178,137 @@ def test_skill_helper_keeps_one_composition_alive_while_polling_and_joins_bounde
     assert "shutdown(timeout=2)" not in qualifier.SKILL_HELPER
 
 
+def test_declared_runtime_defaults_to_strict_release():
+    args = qualifier._parser().parse_args([
+        "--project", "fixture", "--question", "q", "--skill", "cuda",
+        "--skill-question", "q"])
+    assert args.runtime == "release"
+    source_args = qualifier._parser().parse_args([
+        "--runtime", "source", "--project", "fixture", "--question", "q",
+        "--skill", "cuda", "--skill-question", "q"])
+    assert source_args.runtime == "source"
+
+
+def test_live_and_dry_run_flags_cannot_be_combined(monkeypatch):
+    monkeypatch.setattr(qualifier, "_runtime_provenance",
+                        lambda *args, **kwargs: pytest.fail("runtime inspection must not run"))
+    with pytest.raises(SystemExit) as raised:
+        qualifier.main([
+            "--runtime", "source", "--dry-run", "--execute-live",
+            "--project", "fixture", "--question", "q", "--skill", "cuda",
+            "--skill-question", "q", "--out-dir", "/tmp/never-created"])
+    assert raised.value.code == 2
+
+
+def test_source_status_identity_uses_receiver_and_demand_todo_stamps():
+    expected = {"mode": "source", "source_root": "/checkout",
+                "project_control_fingerprint": "e" * 64,
+                "receiver_fingerprint": "a" * 64,
+                "todo_runtime_fingerprint": "b" * 64}
+    status = {"runtime": {"readiness": "verified_ready", "release_digest": None,
+        "runtime_mode": "source", "source_root": "/checkout",
+        "project_control_fingerprint": "e" * 64,
+        "receiver_fingerprint": expected["receiver_fingerprint"],
+        "todo_runtime_fingerprint": expected["todo_runtime_fingerprint"],
+        "supervisor_pid": 123, "supervisor_process_start": "456",
+        "daemon_epoch": "c" * 64}}
+    observed = qualifier._status_identity(
+        status, runtime_mode="source", expected_source=expected)
+    assert observed["release_digest"] is None
+    assert observed["receiver_fingerprint"] == expected["receiver_fingerprint"]
+    assert observed["todo_runtime_fingerprint"] == expected["todo_runtime_fingerprint"]
+    assert observed["project_control_fingerprint"] == expected["project_control_fingerprint"]
+    status["runtime"]["todo_runtime_fingerprint"] = "d" * 64
+    with pytest.raises(qualifier.QualificationError, match="differs from checked-out demand pin"):
+        qualifier._status_identity(status, runtime_mode="source", expected_source=expected)
+
+
+def test_source_start_receipts_are_checked_against_demand_pin(tmp_path):
+    demand = {"mode": "source", "source_root": str(tmp_path),
+              "project_control_fingerprint": "e" * 64,
+              "receiver_fingerprint": "a" * 64,
+              "todo_runtime_fingerprint": "b" * 64}
+    receipt = {"status": "ready", "release_digest": None,
+               "runtime_mode": "source", "source_root": demand["source_root"],
+               "project_control_fingerprint": demand["project_control_fingerprint"],
+               "receiver_fingerprint": demand["receiver_fingerprint"],
+               "todo_runtime_fingerprint": demand["todo_runtime_fingerprint"],
+               "supervisor_pid": 123, "supervisor_process_start": "456",
+               "daemon_epoch": "c" * 64}
+    driver = object.__new__(qualifier.InstalledQualification)
+    driver.runtime = "source"
+    driver.provenance = {"demand_runtime": demand}
+    driver.release_digest = ""
+    driver.cli_command = ["/checkout/scripts/pc-dev", "run"]
+    driver.runtime_root = tmp_path
+    driver.events = []
+    driver.clock = lambda: 1.0
+    driver._remaining = lambda limit=30: limit
+    driver.runner = lambda argv, **kwargs: subprocess.CompletedProcess(
+        argv, 0, json.dumps(receipt), "")
+    assert driver._start_concurrently() == {
+        "runtime_mode": "source", "source_root": demand["source_root"],
+        "project_control_fingerprint": demand["project_control_fingerprint"],
+        "release_digest": None, "receiver_fingerprint": demand["receiver_fingerprint"],
+        "todo_runtime_fingerprint": demand["todo_runtime_fingerprint"], "supervisor_pid": 123,
+        "supervisor_process_start": "456", "daemon_epoch": "c" * 64}
+
+
+def test_source_skill_helper_clears_release_pins_and_checks_checkout_path(
+        tmp_path, monkeypatch, capsys):
+    root = tmp_path / "checkout"
+    package = root / "src/project_control"
+    package.mkdir(parents=True)
+    module_file = package / "__init__.py"
+    module_file.write_text("", encoding="utf-8")
+    for name in qualification_runtime._SOURCE_PINS:
+        monkeypatch.setenv(name, "/stale/pin")
+
+    class Jobs:
+        def shutdown(self, timeout):
+            return True
+
+    class Skills:
+        def inquire(self, **kwargs):
+            return {"status": "ok"}
+
+    class Composition:
+        jobs = Jobs()
+        skills = Skills()
+
+        def start(self):
+            pass
+
+        def scope(self, project):
+            return {"project": project}
+
+    fake_project_control = types.ModuleType("project_control")
+    fake_project_control.__file__ = str(module_file)
+    fake_cli = types.ModuleType("project_control.cli")
+    fake_cli._assistance_composition = lambda project: (None, Composition())
+    fake_binding = types.ModuleType("project_control.runtime_binding")
+    fake_binding.RELEASE_DIGEST_VARIABLE = "PROJECT_CONTROL_RELEASE_DIGEST"
+    fake_binding.RELEASE_MANIFEST_VARIABLE = "PROJECT_CONTROL_RELEASE_MANIFEST"
+    original_import = builtins.__import__
+
+    def import_hook(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "project_control":
+            return fake_project_control
+        if name == "project_control.cli":
+            return fake_cli
+        if name == "project_control.runtime_binding":
+            return fake_binding
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(sys, "argv", ["skill-helper", "source", "fixture", "cuda",
+                                      "question", str(root), ""])
+    namespace = {"__builtins__": {**builtins.__dict__, "__import__": import_hook}}
+    exec(qualifier.SKILL_HELPER, namespace)
+    assert all(name not in __import__("os").environ
+               for name in qualification_runtime._SOURCE_PINS)
+    assert json.loads(capsys.readouterr().out)["status"] == "ok"
+
+
 def test_skill_helper_repeats_the_same_query_inside_one_live_composition(tmp_path, monkeypatch, capsys):
     root = tmp_path / "release"
     root.mkdir()
@@ -231,7 +364,7 @@ def test_skill_helper_repeats_the_same_query_inside_one_live_composition(tmp_pat
             return fake_binding
         return original_import(name, globals, locals, fromlist, level)
 
-    monkeypatch.setattr(sys, "argv", ["skill-helper", "fixture", "cuda", "same query",
+    monkeypatch.setattr(sys, "argv", ["skill-helper", "release", "fixture", "cuda", "same query",
                                       str(root), digest])
     namespace = {"__builtins__": {**builtins.__dict__, "__import__": import_hook}}
     exec(qualifier.SKILL_HELPER, namespace)
@@ -252,3 +385,106 @@ def test_role_helper_requires_procfs_start_and_equal_owner_descriptors():
     assert 'after_by_id[item["slot_id"]].get("owner_id") == item.get("owner_descriptor")' in qualifier.ROLE_HELPER
     assert 'and isinstance(item.get("owner_descriptor"), str) and item.get("owner_descriptor")' in qualifier.ROLE_HELPER
     assert '"reason": response.get("reason")' in qualifier.ROLE_HELPER
+
+
+def test_source_provenance_uses_checkout_packages_dynamic_receiver_and_pc_dev():
+    root = SCRIPT.parents[1]
+    value = qualification_runtime.runtime_provenance("source", repository_root=root)
+    assert value["runtime"] == "source"
+    assert value["git"]["head"]
+    assert isinstance(value["git"]["dirty"], bool)
+    assert value["interpreter"]["resolved"] == str(Path(sys.executable).resolve())
+    assert value["interpreter"]["prefix"] == str(Path(sys.prefix).resolve())
+    assert value["cli_command"] == [str(root / "scripts/pc-dev"), "run"]
+    assert Path(value["project_control"]["path"]).is_relative_to(root / "src")
+    assert Path(value["todo"]["path"]).is_relative_to(root / "src")
+    assert len(value["project_control"]["fingerprint"]) == 64
+    assert len(value["todo"]["fingerprint"]) == 64
+    assert value["receiver"]["file_count"] == len(value["receiver"]["files"])
+    assert len(value["receiver"]["fingerprint"]) == 64
+
+
+def test_source_provenance_refuses_foreign_imported_packages(monkeypatch, tmp_path):
+    foreign_pc = types.ModuleType("project_control")
+    pc_file = tmp_path / "foreign/project_control/__init__.py"
+    pc_file.parent.mkdir(parents=True)
+    pc_file.touch()
+    foreign_pc.__file__ = str(pc_file)
+    foreign_todo = types.ModuleType("todo_orchestrator")
+    todo_file = tmp_path / "foreign/todo_orchestrator/__init__.py"
+    todo_file.parent.mkdir(parents=True)
+    todo_file.touch()
+    foreign_todo.__file__ = str(todo_file)
+    monkeypatch.setitem(sys.modules, "project_control", foreign_pc)
+    monkeypatch.setitem(sys.modules, "todo_orchestrator", foreign_todo)
+    with pytest.raises(qualification_runtime.QualificationRuntimeError,
+                       match="outside this checkout"):
+        qualification_runtime.runtime_provenance(
+            "source", repository_root=SCRIPT.parents[1])
+
+
+def test_source_provenance_rejects_python_outside_pc_dev_environment(monkeypatch):
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3.12")
+    monkeypatch.setattr(sys, "prefix", "/usr")
+    with pytest.raises(qualification_runtime.QualificationRuntimeError,
+                       match="differs from the checked-in pc-dev environment"):
+        qualification_runtime.runtime_provenance(
+            "source", repository_root=SCRIPT.parents[1])
+
+
+def test_source_provenance_clears_inherited_release_pins():
+    environment = {
+        "PROJECT_CONTROL_RELEASE_MANIFEST": "/retired/manifest.json",
+        "PROJECT_CONTROL_RELEASE_DIGEST": "f" * 64,
+        "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT": "e" * 64,
+        "PROJECT_CONTROL_RUNTIME_PYTHON": "/retired/python",
+    }
+    qualification_runtime.clear_source_pins(environment)
+    assert environment == {}
+
+
+def test_release_provenance_requires_digest_pinned_runtime(monkeypatch):
+    for name in qualification_runtime._SOURCE_PINS:
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(qualification_runtime.QualificationRuntimeError,
+                       match="release runtime pins are missing"):
+        qualification_runtime.runtime_provenance(
+            "release", repository_root=SCRIPT.parents[1])
+
+
+def test_release_provenance_rejects_manifest_digest_mismatch(monkeypatch, tmp_path):
+    manifest = tmp_path / "release-manifest.json"
+    manifest.write_text('{"schema_version":3}', encoding="utf-8")
+    monkeypatch.setenv("PROJECT_CONTROL_RELEASE_MANIFEST", str(manifest))
+    monkeypatch.setenv("PROJECT_CONTROL_RELEASE_DIGEST", "0" * 64)
+    with pytest.raises(qualification_runtime.QualificationRuntimeError,
+                       match="manifest digest mismatch"):
+        qualification_runtime.runtime_provenance(
+            "release", repository_root=SCRIPT.parents[1])
+
+
+def test_release_schema_three_requires_pc_code_fingerprint(monkeypatch, tmp_path):
+    manifest = tmp_path / "release-manifest.json"
+    raw = b'{"schema_version":3}'
+    manifest.write_bytes(raw)
+    monkeypatch.setenv("PROJECT_CONTROL_RELEASE_MANIFEST", str(manifest))
+    monkeypatch.setenv("PROJECT_CONTROL_RELEASE_DIGEST", qualifier._sha256(raw))
+    with pytest.raises(qualification_runtime.QualificationRuntimeError,
+                       match="Project Control fingerprint is missing"):
+        qualification_runtime.runtime_provenance(
+            "release", repository_root=SCRIPT.parents[1])
+
+
+def test_source_dry_run_clears_stale_pins_and_reports_checkout(monkeypatch, capsys, tmp_path):
+    monkeypatch.setenv("PROJECT_CONTROL_RELEASE_MANIFEST", "/retired/manifest.json")
+    monkeypatch.setenv("PROJECT_CONTROL_RELEASE_DIGEST", "f" * 64)
+    result = qualifier.main([
+        "--runtime", "source", "--dry-run", "--project", "fixture",
+        "--question", "Question", "--skill", "cuda", "--skill-question", "Question",
+    ])
+    assert result == 0
+    assert "PROJECT_CONTROL_RELEASE_MANIFEST" not in __import__("os").environ
+    output = json.loads(capsys.readouterr().out)
+    assert output["runtime_provenance"]["runtime"] == "source"
+    assert output["runtime_provenance"]["cli_command"] == [
+        str(SCRIPT.parents[1] / "scripts/pc-dev"), "run"]

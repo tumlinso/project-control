@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sys
 import threading
 import time
 import unittest
@@ -21,6 +22,7 @@ from project_control.assistance.demand_runtime import (
     _systemctl,
     capture_runtime_pin,
 )
+import project_control.assistance.demand_runtime as demand_runtime
 
 
 def pin() -> RuntimePin:
@@ -33,16 +35,22 @@ def pin() -> RuntimePin:
         receiver_source_commit="source-commit",
         todo_identity={"fingerprint": "d" * 64},
         todo_runtime_fingerprint="e" * 64,
+        project_control_fingerprint="f" * 64,
     )
 
 
 def status(expected: RuntimePin) -> dict:
+    runtime_identity = dict(expected.todo_identity)
+    runtime_identity.setdefault("skills_root", "/content/test")
     return {
-        "runtime_identity": dict(expected.todo_identity),
-        "runtime_fingerprint": expected.todo_runtime_fingerprint,
+        "runtime_identity": runtime_identity,
+        "runtime_fingerprint": hashlib.sha256(json.dumps(
+            runtime_identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            default=str).encode("utf-8")).hexdigest(),
         "receiver_manifest_sha256": expected.receiver_manifest_sha256,
         "receiver_fingerprint": expected.receiver_fingerprint,
         "receiver_source_commit": expected.receiver_source_commit,
+        "project_control_fingerprint": expected.project_control_fingerprint,
         "supervisor_pid": 123,
         "supervisor_process_start": "12345",
         "daemon_epoch": "f" * 64,
@@ -78,7 +86,12 @@ class DemandRuntimeTests(unittest.TestCase):
             release_root = home / ".local/share/project-control/releases/test"
             release_root.mkdir(parents=True)
             manifest = release_root / "release-manifest.json"
-            raw = json.dumps({"schema_version": 2}, sort_keys=True).encode()
+            pc_fingerprint = demand_runtime.package_fingerprint(
+                Path(demand_runtime.__file__).resolve().parents[1])
+            raw = json.dumps({"schema_version": 3,
+                              "project_control_fingerprint": pc_fingerprint,
+                              "todo_package_root": "/release/current/site-packages/todo_orchestrator",
+                              "todo_runtime_fingerprint": "0" * 64}, sort_keys=True).encode()
             manifest.write_bytes(raw)
             current = home / ".local/share/project-control/current"
             current.symlink_to(release_root, target_is_directory=True)
@@ -95,7 +108,8 @@ class DemandRuntimeTests(unittest.TestCase):
             )
             receiver = SimpleNamespace(root=receiver_root, package_root=Path(__file__).resolve().parent,
                                        fingerprint="receiver-fingerprint",
-                                       source_commit="receiver-commit")
+                                       source_commit="receiver-commit",
+                                       manifest_sha256=hashlib.sha256(receiver_raw).hexdigest())
             runtime_context = {
                 "contract": "TodoPCU-RUNTIME-IDENTITY/1",
                 "skills_root": "skills",
@@ -122,13 +136,137 @@ class DemandRuntimeTests(unittest.TestCase):
             self.assertEqual(selected.release_digest, digest)
             self.assertEqual(selected.receiver_manifest_sha256, hashlib.sha256(receiver_raw).hexdigest())
             self.assertEqual(selected.receiver_fingerprint, "receiver-fingerprint")
-            self.assertEqual(selected.todo_identity, runtime_context)
+            executable_identity = {key: value for key, value in runtime_context.items()
+                                   if key != "skills_root"}
+            self.assertEqual(selected.todo_identity, executable_identity)
+            self.assertEqual(selected.project_control_fingerprint, pc_fingerprint)
             expected_fingerprint = hashlib.sha256(json.dumps(
-                runtime_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                executable_identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
                 default=str).encode("utf-8")).hexdigest()
             self.assertEqual(selected.todo_runtime_fingerprint, expected_fingerprint)
             receiver_bind.assert_called_once_with(expected_release_digest=digest)
             canonical_runtime.bind.assert_called_once_with(service_state_root)
+
+    def test_capture_source_pin_needs_no_release_pointer_and_uses_dynamic_identities(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            source_root = Path(demand_runtime.__file__).resolve().parents[3]
+            receiver_root = source_root / "src/project_control/local_runtime"
+            receiver = SimpleNamespace(
+                root=receiver_root,
+                package_root=Path(__file__).resolve().parent,
+                manifest_sha256="a" * 64,
+                fingerprint="b" * 64,
+                source_commit="working-tree",
+            )
+            todo = SimpleNamespace(release_digest=None, release_manifest=None)
+            runtime_context = {
+                "contract": "TodoPCU-RUNTIME-IDENTITY/1",
+                "skills_root": "/content/first",
+                "package_root": "/checkout/src/todo_orchestrator",
+                "package_source": "/checkout/src/todo_orchestrator",
+                "todo_schema_version": 4,
+                "fingerprint": "c" * 64,
+            }
+            canonical_runtime = SimpleNamespace(
+                __file__=__file__, bind=Mock(return_value=(object(), runtime_context)))
+            with patch.dict(os.environ, {"HOME": str(Path(temporary) / "no-current-pointer")}, clear=True), \
+                 patch("project_control.assistance.demand_runtime.bind_local_runtime",
+                       return_value=receiver) as receiver_bind, \
+                 patch("project_control.assistance.demand_runtime.bind_runtime", return_value=todo), \
+                 patch("project_control.observer_analysis.observer_analysis_state_root",
+                       return_value=Path(temporary) / "observer-state"), \
+                 patch("project_control.assistance.demand_runtime.importlib.import_module",
+                       return_value=canonical_runtime):
+                selected = capture_runtime_pin()
+
+            self.assertEqual(selected.runtime_mode, "source")
+            self.assertIsNone(selected.release_manifest)
+            self.assertIsNone(selected.release_digest)
+            self.assertEqual(selected.release_root, source_root)
+            self.assertEqual(selected.source_root, source_root)
+            self.assertEqual(selected.receiver_manifest_sha256, "a" * 64)
+            self.assertEqual(len(selected.project_control_fingerprint), 64)
+            self.assertEqual(selected.todo_identity, {key: value for key, value in runtime_context.items()
+                                                       if key != "skills_root"})
+            self.assertEqual(selected.skills_root, Path("/content/first"))
+            receiver_bind.assert_called_once_with(expected_release_digest=None)
+
+    def test_direct_incomplete_or_bad_release_pins_do_not_fall_back_to_source(self):
+        for environment in (
+            {"PROJECT_CONTROL_RELEASE_MANIFEST": "/missing/manifest.json"},
+            {"PROJECT_CONTROL_RELEASE_MANIFEST": "/missing/manifest.json",
+             "PROJECT_CONTROL_RELEASE_DIGEST": "bad"},
+        ):
+            with self.subTest(environment=environment), patch.dict(os.environ, environment, clear=True):
+                with self.assertRaises(DemandRuntimeError):
+                    capture_runtime_pin()
+
+    def test_source_readiness_checks_both_control_plane_identities(self):
+        expected = replace(pin(), runtime_mode="source", release_digest=None,
+                           release_manifest=None, source_root=Path("/checkout"),
+                           skills_root=Path("/content"))
+        provider = Mock()
+        provider.central_status.return_value = status(expected)
+        runtime = self.runtime(provider=provider, pin_factory=lambda: expected,
+                               sleeper=lambda _: None)
+
+        result = runtime.ensure_ready(provider=provider, deadline_epoch=time.time() + 10)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertIsNone(result["release_digest"])
+        self.assertEqual(result["receiver_fingerprint"], expected.receiver_fingerprint)
+        self.assertEqual(result["todo_runtime_fingerprint"], expected.todo_runtime_fingerprint)
+
+    def test_source_process_binding_checks_interpreter_checkout_and_pin_absence(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            proc_root = Path(temporary) / "proc"
+            process = proc_root / "123"
+            process.mkdir(parents=True)
+            source_root = Path(temporary) / "checkout"
+            source_path = source_root / "src"
+            source_path.mkdir(parents=True)
+            (process / "environ").write_bytes(
+                f"PYTHONPATH={source_path}".encode() + b"\0")
+            (process / "cmdline").write_bytes(
+                b"python\0-m\0project_control.runtime_binding\0local_worker.supervisor\0--serve\0")
+            (process / "exe").symlink_to(sys.executable)
+            selected = replace(pin(), runtime_mode="source", release_digest=None,
+                               release_manifest=None, source_root=source_root)
+
+            self.assertTrue(demand_runtime._process_source_matches(123, selected, proc_root=proc_root))
+            (process / "environ").write_bytes(
+                f"PYTHONPATH={source_path}\0PROJECT_CONTROL_RELEASE_DIGEST={'a' * 64}\0".encode())
+            self.assertFalse(demand_runtime._process_source_matches(123, selected, proc_root=proc_root))
+
+    def test_source_readiness_rejects_old_pc_snapshot_and_accepts_new_bootstrap(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "project_control"
+            package.mkdir()
+            changed_module = package / "non_receiver_module.py"
+            changed_module.write_text("VALUE = 1\n", encoding="utf-8")
+            old_fingerprint = demand_runtime.package_fingerprint(package)
+            old_pin = replace(pin(), runtime_mode="source", release_digest=None,
+                              release_manifest=None, source_root=Path(temporary),
+                              project_control_fingerprint=old_fingerprint)
+            provider = Mock()
+            provider.central_status.return_value = status(old_pin)
+            changed_module.write_text("VALUE = 2\n", encoding="utf-8")
+            new_fingerprint = demand_runtime.package_fingerprint(package)
+            self.assertNotEqual(old_fingerprint, new_fingerprint)
+            current_pin = replace(old_pin, project_control_fingerprint=new_fingerprint)
+            with self.assertRaisesRegex(DemandRuntimeError,
+                                        "inference_project_control_fingerprint_mismatch"):
+                demand_runtime._central_ready(provider, current_pin, lambda *_: True,
+                    deadline_epoch=time.time() + 2, clock=time.time, expected_main_pid=123)
+
+            provider.central_status.return_value = status(current_pin)
+            accepted = demand_runtime._central_ready(provider, current_pin, lambda *_: True,
+                deadline_epoch=time.time() + 2, clock=time.time, expected_main_pid=123)
+            self.assertEqual(accepted["project_control_fingerprint"],
+                             current_pin.project_control_fingerprint)
 
     def test_status_is_cold_and_never_constructs_or_starts_provider(self):
         provider_factory = Mock(side_effect=AssertionError("status must stay cold"))
@@ -478,6 +616,18 @@ class DemandRuntimeTests(unittest.TestCase):
         runtime = self.runtime(provider=provider, pin_factory=lambda: next(pins), sleeper=lambda _: None)
         with self.assertRaisesRegex(DemandRuntimeError, "selected_runtime_changed_during_startup"):
             runtime.ensure_ready(provider=provider, deadline_epoch=time.time() + 10)
+
+    def test_optional_content_root_change_does_not_change_executable_pin(self):
+        expected = replace(pin(), skills_root=Path("/content/first"))
+        changed_content = replace(expected, skills_root=Path("/content/second"))
+        provider = Mock()
+        provider.central_status.return_value = status(expected)
+        pins = iter([expected, changed_content])
+        runtime = self.runtime(provider=provider, pin_factory=lambda: next(pins), sleeper=lambda _: None)
+
+        result = runtime.ensure_ready(provider=provider, deadline_epoch=time.time() + 10)
+
+        self.assertEqual(result["status"], "ready")
 
     def test_expired_deadline_and_cancellation_do_not_start(self):
         systemctl = Mock()

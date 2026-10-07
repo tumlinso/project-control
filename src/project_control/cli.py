@@ -802,7 +802,12 @@ def _assistance_scoped_lab_command(args) -> int:
             _repository, trusted_root = _assistance_repository(config, project_id)
             roots[project_id] = trusted_root
         pin = capture_runtime_pin()
-        skills_root = (pin.release_root / "runtime-skills").resolve(strict=True)
+        if getattr(pin, "runtime_mode", "release") == "source":
+            if pin.skills_root is None:
+                raise ValueError("lab_cuda_content_root_unavailable")
+            skills_root = pin.skills_root.resolve(strict=True)
+        else:
+            skills_root = (pin.release_root / "runtime-skills").resolve(strict=True)
         controller = skills_root / "cuda" / "scripts" / "cuda_controller.py"
         if controller.is_symlink() or not controller.resolve(strict=True).is_relative_to(skills_root):
             raise ValueError("lab_cuda_controller_outside_selected_runtime_skills")

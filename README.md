@@ -16,31 +16,24 @@ systemctl --user restart project-control-inference.service project-control.servi
 The default smoke covers launcher sanitation, runtime identity, workflow
 binding, readiness, and one focused mutator case using bundled Todo source. It
 does not start the Project Control service or inference/model processes.
-Foreground servers pick up source edits when rerun. Both this host's
-`project-control-inference.service` and
-`project-control.service` use the checkout; restart them after edits to the
-embedded runtime or HTTP service with the command above. The inference
+Foreground servers pick up source edits when rerun. This host's
+`project-control-inference.service` and `project-control.service` use the
+checkout. After a batch of executable Project Control or Todo Python changes
+and focused source checks, restart both services together before live
+assistance use: the supervisor verifies the Project Control package when it
+starts. Focused source tests need no service restart, and external domain
+documentation changes do not change executable identity. The inference
 supervisor remains demand-driven. Installed-release deployments keep using
 their selected release until switched. See [development notes](docs/development.md)
-for setup, test selection, and the reduced CI scope.
+for setup, test selection, and evidence boundaries.
 
-`project-control` observes and coordinates registered engineering workspaces
-through startup-bound MCP profiles over one implementation. The adaptive AS1
-surface exposes eight shared tools: `overview`, `delta`, `frontier`, `search`,
-`evidence`, `impact`, `history`, and `machine`.
-
-- **observer**: 11 tools over loopback HTTP; adds `read`, `investigate`, `skill`.
-- **coder** (`codex` compatibility identity): 12 tools over stdio; adds
-  `next_task`, `inspect_task`, `coordinate_task`, `finish_task`.
-- **mutator**: 16 tools over local stdio; adds `investigate`, the four workflow
-  tools, `plan`, `amend_project`, `maintain_execution`.
-- **investigator** and **skill assembler** are internal read-only modes with
-  the shared eight plus `command` and `log` (10 tools each).
-
-Compact is the default. Only observer supports extended detail. No profile
-receives automatic overview or loads a model at startup. Local profiles retain
-native files, shell, Git and skills. See [the adaptive surface guide](docs/as1-surface.md)
-for routing, exact typed search, packets, durable jobs, examples, and release scope.
+`project-control` reads registered engineering workspaces and coordinates
+authorized workflow operations through startup-bound MCP profiles. The current
+surface design is summarized in
+[the adaptive surface guide](docs/as1-surface.md). After a server or
+registration change, inspect the actual generated MCP `tools/list` response for
+the authoritative tool names and schemas. Inference is demand-driven and does
+not load a model at startup.
 
 Todo Orchestrator remains the sole transactional workflow kernel and SQLite
 semantic authority. Project Control verifies and imports that canonical runtime
@@ -72,7 +65,7 @@ deterministic lookup. There is no public Project Control `find`; local filesyste
 discovery uses native `find`, `rg`, and Git.
 
 Local setup and connection instructions are in `docs/CHATGPT_SETUP.md`.
-Codex setup, compatibility, and cheap-first usage are in `docs/CODEX_SETUP.md`;
+Codex source setup and usage are in `docs/CODEX_SETUP.md`;
 repository guidance migration is in `docs/MIGRATION.md`.
 For coarse outcome packages, guarded conditional choices, compact evidence, and
 root/head-authorized low-ceremony lifecycle actions, see
@@ -82,7 +75,8 @@ documented in `docs/LOCAL_ANALYSIS.md`.
 
 ## Codex usage policy
 
-Normal Codex work starts with the bounded workflow protocol:
+For assigned or registered workflow execution, use the bounded workflow
+protocol:
 
 1. `next_task` acquires or resumes the current first-class lane task.
 2. `inspect_task` retrieves bounded current-task context.
@@ -93,7 +87,14 @@ Normal Codex work starts with the bounded workflow protocol:
 
 Delegated work uses configured Codex subagents under the root's active task
 claim; delegation is not exposed through Project Control workflow tools.
-The eight shared information tools supply additional context when needed.
+Shared information tools supply additional context when needed.
+
+Direct user-authorized Project Control source fixes, rescue work, and local
+tests can run from the checkout without a live service or task assignment. Do
+not acquire or invent a task just to run source tests. Semantic workflow
+mutations still go through Todo's transaction and authorization guards. See
+[repository instructions](AGENTS.md) for the full development and delegation
+policy.
 
 ## Source checks
 
@@ -128,7 +129,8 @@ translated into local Todo dependencies.
 Python 3.11 or newer and `uv` are required. Use `scripts/pc-dev setup` once,
 then use `scripts/pc-dev run ...` and `scripts/pc-dev test ...` for source
 commands. The environment is reused; tests do not trigger a package rebuild or
-service restart.
+service restart. See [deployment](docs/deployment.md) for service restart,
+readiness, and rollback boundaries.
 
 Configuration lives at `$XDG_CONFIG_HOME/project-control/config.toml` or
 `~/.config/project-control/config.toml`, with mode `0600`. Register repositories
@@ -185,23 +187,17 @@ not imply dependency, ownership, or architectural authority, and cross-project
 observations report per-project cursors and skew rather than claiming one global
 transaction. Schema v1 remains readable and is never rewritten automatically.
 
-The service provides `/healthz`, `/readyz`, `/version`, and the loopback MCP URL
-`http://127.0.0.1:8767/mcp`. See `docs/SECURITY.md` for the enforced capability
+The source service provides `/healthz`, `/readyz`, `/version`, and the loopback
+MCP URL `http://127.0.0.1:8768/mcp`. See `docs/SECURITY.md` for the enforced capability
 boundary and `docs/TOOL_CONTRACTS.md` for the current surface and clearly labeled historical backend contracts.
 
 ## Runtime maintenance
 
-Project Control and Skills remain standalone repositories, bound by an explicit
-paired release manifest with distinct authority identities and exact commits.
-Skills contains no Project Control source copy or submodule.
-
-Deployment candidates freeze the required Skills runtime alongside the two
-installed distributions. The release manifest and its configured SHA-256 bind
-that snapshot; mutable development checkouts are not live release dependencies.
-Installed package, frozen Python tools, and manifest mutation still fail closed.
-See [candidate setup](docs/CODEX_SETUP.md) before promotion. Preserve the previous
-candidate and launcher for rollback; switch the common launcher, restart HTTP,
-and establish a fresh stdio connection before declaring the cutover complete.
+Project Control and bundled Todo executable code are verified independently
+from optional CUDA/C++ and skill documentation. Frozen candidates retain strict
+packaged-code verification. Optional domain content can be configured
+separately; it is not required for core startup or workflow reads. See
+[source deployment](docs/deployment.md) for restart and candidate boundaries.
 
 Workflow completion records producer and authority commits separately. A declared
 artifact must exist in the dispatch workspace. Plans reject interface ownership

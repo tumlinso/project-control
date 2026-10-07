@@ -186,6 +186,10 @@ def _release(environment: Mapping[str, str]) -> tuple[Path, str, dict] | None:
                 raise ValueError("release Todo package path is invalid")
             if Path(package_root).expanduser().is_symlink():
                 raise ValueError("release Todo package root is a symlink")
+            pc_fingerprint = data.get("project_control_fingerprint")
+            if (not isinstance(pc_fingerprint, str) or len(pc_fingerprint) != 64
+                    or any(char not in "0123456789abcdef" for char in pc_fingerprint)):
+                raise ValueError("release Project Control fingerprint is invalid")
         # Skills roots and their optional digests/resources are content
         # metadata. They are checked by the relevant skill provider when that
         # capability is invoked, never while binding the core workflow engine.
@@ -193,7 +197,7 @@ def _release(environment: Mapping[str, str]) -> tuple[Path, str, dict] | None:
         raise RuntimeIdentityError("Invalid release manifest", expected=digest, observed=str(exc)) from exc
     pc_fingerprint = data.get("project_control_fingerprint")
     if pc_fingerprint:
-        observed = package_fingerprint(Path(__file__).parent)
+        observed = package_fingerprint(Path(__file__).resolve().parent)
         if observed != pc_fingerprint:
             raise RuntimeIdentityError("Installed Project Control changed", expected=pc_fingerprint, observed=observed)
     return path, digest, data

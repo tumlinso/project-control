@@ -28,6 +28,7 @@ from urllib import request as urllib_request
 
 from project_control.assistance.policies import generation_settings, policy_for
 from project_control.runtime_binding import RuntimeBindingError, bind_local_runtime
+from project_control.runtime_identity import package_fingerprint
 
 from .observer_runtime import remaining_seconds
 from .model_cache import ModelCache
@@ -1884,6 +1885,10 @@ class SupervisorServer:
             getattr(backend, "repo_root", Path.cwd())
         )
         self.receiver_identity = bind_local_runtime()
+        # Snapshot the full Project Control Python package once after runtime
+        # binding. Status reports this attestation instead of rehashing mutable
+        # source files, allowing callers to reject a stale source supervisor.
+        self._project_control_fingerprint = package_fingerprint(Path(__file__).resolve().parents[2])
         self._daemon_epoch = secrets.token_hex(32)
         self._runtime_fingerprint = hashlib.sha256(json.dumps(
             self.runtime_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
@@ -1915,6 +1920,7 @@ class SupervisorServer:
                 "observer_contract": "PC-OBSERVER-SUPERVISOR/1",
                 "supervisor_pid": os.getpid(), "supervisor_process_start": self._process_start,
                 "daemon_epoch": self._daemon_epoch, "runtime_fingerprint": self._runtime_fingerprint,
+                "project_control_fingerprint": self._project_control_fingerprint,
                 "source_sha256": self._source_sha256, "runtime_root": str(self.root),
                 "receiver_manifest_sha256": self.receiver_identity.manifest_sha256,
                 "receiver_fingerprint": self.receiver_identity.fingerprint,

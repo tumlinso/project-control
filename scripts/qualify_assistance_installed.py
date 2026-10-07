@@ -21,6 +21,17 @@ import sys
 import time
 from typing import Any, Callable, Mapping
 
+try:
+    from qualification_runtime import (
+        QualificationRuntimeError, clear_source_pins as _clear_source_pins,
+        runtime_provenance as _runtime_provenance,
+    )
+except ModuleNotFoundError:
+    from scripts.qualification_runtime import (  # type: ignore[no-redef]
+        QualificationRuntimeError, clear_source_pins as _clear_source_pins,
+        runtime_provenance as _runtime_provenance,
+    )
+
 
 class QualificationError(RuntimeError):
     pass
@@ -36,19 +47,31 @@ INQUIRY_POLL_INTERVAL_SECONDS = 1
 CLEANUP_RESERVE_SECONDS = 120
 MAX_OUTPUT_BYTES = 1024 * 1024
 SKILL_HELPER = r'''import json, sys, time
+import os
+mode, project, skill, query, expected_root, expected_digest = sys.argv[1:]
+if mode == "source":
+    for name in ("PROJECT_CONTROL_RELEASE_MANIFEST", "PROJECT_CONTROL_RELEASE_DIGEST",
+                 "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT", "CODING_WORKFLOW_RUNTIME_FINGERPRINT",
+                 "PROJECT_CONTROL_RUNTIME_PYTHON", "CODING_WORKFLOW_RUNTIME_PYTHON",
+                 "PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256",
+                 "PROJECT_CONTROL_LOCAL_RUNTIME_ROOT",
+                 "PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256"):
+        os.environ.pop(name, None)
 import project_control
 from pathlib import Path
 from project_control.cli import _assistance_composition
 from project_control.runtime_binding import RELEASE_DIGEST_VARIABLE, RELEASE_MANIFEST_VARIABLE
 
-project, skill, query, expected_root, expected_digest = sys.argv[1:]
 module = Path(project_control.__file__).resolve(strict=True)
 root = Path(expected_root).resolve(strict=True)
 if not module.is_relative_to(root):
-    raise RuntimeError("installed_package_outside_selected_release")
-manifest = Path(__import__("os").environ.get(RELEASE_MANIFEST_VARIABLE, "")).resolve(strict=True)
-if not manifest.is_relative_to(root) or __import__("os").environ.get(RELEASE_DIGEST_VARIABLE) != expected_digest:
-    raise RuntimeError("selected_release_pin_mismatch")
+    raise RuntimeError("package_outside_selected_runtime")
+if mode == "release":
+    manifest = Path(os.environ.get(RELEASE_MANIFEST_VARIABLE, "")).resolve(strict=True)
+    if not manifest.is_relative_to(root) or os.environ.get(RELEASE_DIGEST_VARIABLE) != expected_digest:
+        raise RuntimeError("selected_release_pin_mismatch")
+elif not module.is_relative_to(root / "src"):
+    raise RuntimeError("source_package_outside_checkout")
 config, composition = _assistance_composition(project)
 try:
     composition.start()
@@ -78,18 +101,30 @@ finally:
 
 ROLE_HELPER = r'''import concurrent.futures, hashlib, json, os, sys, time
 from pathlib import Path
+mode, expected_root, expected_digest = sys.argv[1:]
+if mode == "source":
+    for name in ("PROJECT_CONTROL_RELEASE_MANIFEST", "PROJECT_CONTROL_RELEASE_DIGEST",
+                 "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT", "CODING_WORKFLOW_RUNTIME_FINGERPRINT",
+                 "PROJECT_CONTROL_RUNTIME_PYTHON", "CODING_WORKFLOW_RUNTIME_PYTHON",
+                 "PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256",
+                 "PROJECT_CONTROL_LOCAL_RUNTIME_ROOT",
+                 "PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256"):
+        os.environ.pop(name, None)
 import project_control
 from project_control.observer_analysis import SkillsObserverAnalysisProvider
 from project_control.runtime_binding import RELEASE_DIGEST_VARIABLE, RELEASE_MANIFEST_VARIABLE
 
-expected_root, expected_digest = sys.argv[1:]
 root = Path(expected_root).resolve(strict=True)
 module = Path(project_control.__file__).resolve(strict=True)
-manifest = Path(os.environ.get(RELEASE_MANIFEST_VARIABLE, "")).resolve(strict=True)
-if (not module.is_relative_to(root) or not manifest.is_relative_to(root)
-        or os.environ.get(RELEASE_DIGEST_VARIABLE) != expected_digest
-        or not Path(sys.prefix).resolve().is_relative_to(root)):
-    raise RuntimeError("installed_release_identity_mismatch")
+if mode == "source":
+    if not module.is_relative_to(root / "src"):
+        raise RuntimeError("source_package_outside_checkout")
+else:
+    manifest = Path(os.environ.get(RELEASE_MANIFEST_VARIABLE, "")).resolve(strict=True)
+    if (not module.is_relative_to(root) or not manifest.is_relative_to(root)
+            or os.environ.get(RELEASE_DIGEST_VARIABLE) != expected_digest
+            or not Path(sys.prefix).resolve().is_relative_to(root)):
+        raise RuntimeError("installed_release_identity_mismatch")
 
 provider = SkillsObserverAnalysisProvider()
 identity_keys = ("supervisor_pid", "supervisor_process_start", "daemon_epoch",
@@ -323,12 +358,9 @@ def _selected_release() -> tuple[Path, Path, str]:
         document = json.loads(raw)
     except (ValueError, TypeError) as error:
         raise QualificationError("selected release manifest is invalid") from error
-    if not isinstance(document, dict) or document.get("schema_version") != 2:
+    if not isinstance(document, dict) or document.get("schema_version") not in {2, 3}:
         raise QualificationError("selected release manifest schema mismatch")
     root = manifest.parent
-    current = (Path.home() / ".local/share/project-control/current").resolve(strict=True)
-    if current != root:
-        raise QualificationError("selected release differs from current pointer")
     module_spec = __import__("importlib.util", fromlist=["find_spec"]).find_spec("project_control")
     origin = getattr(module_spec, "origin", None)
     if not origin or not Path(origin).resolve(strict=True).is_relative_to(root):
@@ -354,23 +386,65 @@ def _parse_json_result(result: subprocess.CompletedProcess[str], label: str) -> 
     return value
 
 
-def _status_identity(status: Mapping[str, Any], expected_digest: str | None = None) -> dict[str, Any]:
+def _status_identity(status: Mapping[str, Any], expected_digest: str | None = None, *,
+                     runtime_mode: str = "release",
+                     expected_source: Mapping[str, Any] | None = None) -> dict[str, Any]:
     runtime = status.get("runtime")
     if not isinstance(runtime, dict) or runtime.get("readiness") != "verified_ready":
         raise QualificationError("installed runtime is not identity-verified ready")
     keys = ("release_digest", "receiver_fingerprint", "todo_runtime_fingerprint",
             "supervisor_pid", "supervisor_process_start", "daemon_epoch")
     identity = {key: runtime.get(key) for key in keys}
-    if any(identity[key] in (None, "") for key in keys):
+    required = keys if runtime_mode == "release" else keys[1:]
+    if runtime_mode == "source":
+        source_keys = ("runtime_mode", "source_root", "project_control_fingerprint")
+        identity.update({key: runtime.get(key) for key in source_keys})
+        required = (*required, *source_keys)
+    if any(identity[key] in (None, "") for key in required):
         raise QualificationError("runtime identity receipt is incomplete")
-    if expected_digest and identity["release_digest"] != expected_digest:
-        raise QualificationError("runtime reports a different selected release")
+    if runtime_mode == "release":
+        if expected_digest and identity["release_digest"] != expected_digest:
+            raise QualificationError("runtime reports a different selected release")
+    else:
+        if identity["release_digest"] not in (None, ""):
+            raise QualificationError("source runtime unexpectedly reports a release digest")
+        expected_source = expected_source if isinstance(expected_source, Mapping) else {}
+        if (identity["runtime_mode"] != expected_source.get("mode")
+                or identity["source_root"] != expected_source.get("source_root")
+                or identity["project_control_fingerprint"]
+                    != expected_source.get("project_control_fingerprint")
+                or identity["receiver_fingerprint"] != expected_source.get("receiver_fingerprint")
+                or identity["todo_runtime_fingerprint"]
+                    != expected_source.get("todo_runtime_fingerprint")):
+            raise QualificationError("source runtime identity differs from checked-out demand pin")
     if (not isinstance(identity["supervisor_pid"], int)
             or isinstance(identity["supervisor_pid"], bool)
             or not isinstance(identity["daemon_epoch"], str)
             or len(identity["daemon_epoch"]) != 64):
         raise QualificationError("runtime supervisor identity is malformed")
     return identity
+
+
+def _runtime_stamp(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Compact executable identity used to prove a bounded run stayed stable."""
+    stamp: dict[str, Any] = {"runtime": value.get("runtime"),
+                             "interpreter": value.get("interpreter"),
+                             "cli_command": value.get("cli_command")}
+    for name in ("project_control", "todo", "receiver"):
+        identity = value.get(name)
+        if isinstance(identity, dict):
+            stamp[name] = {key: identity.get(key) for key in
+                           ("path", "root", "fingerprint", "file_count") if key in identity}
+    release = value.get("release")
+    if isinstance(release, dict):
+        stamp["release"] = {key: release.get(key) for key in ("root", "manifest_sha256")}
+    demand = value.get("demand_runtime")
+    if isinstance(demand, dict):
+        stamp["demand_runtime"] = {key: demand.get(key) for key in
+                                   ("mode", "source_root", "project_control_fingerprint",
+                                    "receiver_fingerprint",
+                                    "todo_runtime_fingerprint", "skills_root")}
+    return stamp
 
 
 def _work_is_idle(status: Mapping[str, Any]) -> bool:
@@ -421,7 +495,13 @@ class InstalledQualification:
                  skill_question: str, output_dir: Path, wall_seconds: int,
                  runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
                  clock: Callable[[], float] = time.monotonic,
-                 sleep: Callable[[float], None] = time.sleep):
+                 sleep: Callable[[float], None] = time.sleep,
+                 runtime: str = "release"):
+        self.runtime = runtime
+        self.repository_root = Path(__file__).resolve().parents[1]
+        self.provenance = _runtime_provenance(
+            runtime, repository_root=self.repository_root, release_cli=cli)
+        self.cli_command = list(self.provenance["cli_command"])
         self.cli = cli
         self.project = project
         self.question = question
@@ -434,10 +514,22 @@ class InstalledQualification:
         self.sleep = sleep
         self.events: list[dict[str, Any]] = []
         self.started_by_run = False
-        self.release_root, self.manifest, self.release_digest = _selected_release()
-        self.cli = cli.resolve(strict=True)
-        if not self.cli.is_relative_to(self.release_root):
-            raise QualificationError("CLI executable is outside selected release")
+        if runtime == "release":
+            self.release_root, self.manifest, self.release_digest = _selected_release()
+            self.cli = cli.resolve(strict=True)
+            if not self.cli.is_relative_to(self.release_root):
+                raise QualificationError("CLI executable is outside selected release")
+            self.runtime_root = self.release_root
+            self.python_command = [sys.executable, "-I"]
+        elif runtime == "source":
+            self.release_root = self.repository_root
+            self.manifest = None
+            self.release_digest = ""
+            self.cli = Path(self.cli_command[0])
+            self.runtime_root = self.repository_root
+            self.python_command = [str(self.cli), "python"]
+        else:
+            raise QualificationError("runtime must be source or release")
         self.deadline = self.clock() + wall_seconds
 
     def _remaining(self, limit: float = 30, *, cleanup: bool = False) -> float:
@@ -454,7 +546,7 @@ class InstalledQualification:
                             "argv": args, "at_monotonic": self.clock()})
         result = self.runner(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, text=True, timeout=self._remaining(timeout, cleanup=cleanup),
-                             check=False, cwd=str(self.release_root))
+                             check=False, cwd=str(getattr(self, "runtime_root", self.release_root)))
         value = _parse_json_result(result, label)
         self.events.append({"event": "effect_result", "operation": label,
                             "returncode": result.returncode, "result": value,
@@ -462,11 +554,11 @@ class InstalledQualification:
         return value
 
     def _status(self, *, cleanup: bool = False) -> dict[str, Any]:
-        return self._run([str(self.cli), "assistance", "status"], "status", timeout=10,
+        return self._run([*self.cli_command, "assistance", "status"], "status", timeout=10,
                          cleanup=cleanup)
 
     def _start_concurrently(self) -> dict[str, Any]:
-        argv = [str(self.cli), "assistance", "start"]
+        argv = [*self.cli_command, "assistance", "start"]
         # From this point the run owns the start request and must attempt the
         # supported stop path even when a concurrent receipt is malformed.
         self.started_by_run = True
@@ -478,7 +570,7 @@ class InstalledQualification:
             futures = [pool.submit(self.runner, argv, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    text=True, timeout=self._remaining(120), check=False,
-                                   cwd=str(self.release_root)) for _ in range(2)]
+                                   cwd=str(self.runtime_root)) for _ in range(2)]
             try:
                 for future in as_completed(futures, timeout=self._remaining(125)):
                     try:
@@ -494,9 +586,24 @@ class InstalledQualification:
         for receipt in receipts:
             if receipt.get("status") != "ready":
                 raise QualificationError("assistance start did not return ready")
-            expected = {"release_digest": self.release_digest}
-            if receipt.get("release_digest") != self.release_digest:
-                raise QualificationError("start receipt release identity mismatch")
+            if self.runtime == "release":
+                expected = {"release_digest": self.release_digest}
+                if receipt.get("release_digest") != self.release_digest:
+                    raise QualificationError("start receipt release identity mismatch")
+            else:
+                demand = self.provenance.get("demand_runtime", {})
+                expected = {"runtime_mode": "source",
+                            "source_root": demand.get("source_root"),
+                            "project_control_fingerprint": demand.get("project_control_fingerprint"),
+                            "release_digest": None,
+                            "receiver_fingerprint": demand.get("receiver_fingerprint"),
+                            "todo_runtime_fingerprint": demand.get("todo_runtime_fingerprint")}
+                if receipt.get("release_digest") not in (None, ""):
+                    raise QualificationError("source start receipt unexpectedly has a release digest")
+                for field in ("runtime_mode", "source_root", "project_control_fingerprint",
+                              "receiver_fingerprint", "todo_runtime_fingerprint"):
+                    if receipt.get(field) != expected[field]:
+                        raise QualificationError("source start receipt identity mismatch")
             for field in ("receiver_fingerprint", "todo_runtime_fingerprint",
                           "supervisor_pid", "supervisor_process_start", "daemon_epoch"):
                 if receipt.get(field) in (None, ""):
@@ -509,9 +616,15 @@ class InstalledQualification:
                             "identity": identities[0], "at_monotonic": self.clock()})
         return identities[0]
 
+    def _status_identity(self, status: Mapping[str, Any]) -> dict[str, Any]:
+        demand = self.provenance.get("demand_runtime", {})
+        return _status_identity(
+            status, self.release_digest if self.runtime == "release" else None,
+            runtime_mode=self.runtime, expected_source=demand)
+
     def _skill(self) -> dict[str, Any]:
-        helper = [sys.executable, "-I", "-c", SKILL_HELPER,
-                  self.project, self.skill, self.skill_question,
+        helper = [*self.python_command, "-c", SKILL_HELPER,
+                  self.runtime, self.project, self.skill, self.skill_question,
                   str(self.release_root), self.release_digest]
         value = self._run(helper, "registered_skill_question", timeout=420)
         return value
@@ -537,8 +650,9 @@ class InstalledQualification:
         raise QualificationError(f"{label} remained thinking until its bounded polling limit")
 
     def _direct_roles(self) -> dict[str, Any]:
-        helper = [sys.executable, "-I", "-c", ROLE_HELPER,
-                  str(self.release_root), self.release_digest]
+        helper = [*self.python_command, "-c", ROLE_HELPER,
+                  self.runtime, str(self.repository_root if self.runtime == "source" else self.release_root),
+                  self.release_digest]
         return self._run(helper, "concurrent_trusted_role_turns", timeout=420)
 
     def _inquiry_record(self, operation: str, value: Mapping[str, Any]) -> dict[str, Any]:
@@ -556,8 +670,8 @@ class InstalledQualification:
         self.output_dir = _private_new_directory(self.output_dir)
         started = time.time()
         intent = {"schema_version": 1, "status": "intent_recorded",
-                  "release_root": str(self.release_root),
-                  "release_manifest_sha256": self.release_digest,
+                  "runtime": self.runtime, "runtime_provenance": self.provenance,
+                  "runtime_identity_before": _runtime_stamp(self.provenance),
                   "project": self.project, "operations": ["concurrent_start", "ask", "skill", "stop"],
                   "wall_budget_seconds": self.wall_seconds,
                   "max_inquiry_submissions": MAX_INQUIRY_SUBMISSIONS,
@@ -570,6 +684,7 @@ class InstalledQualification:
                   "created_at_epoch": started}
         _atomic_json(self.output_dir / "intent.json", intent)
         receipt: dict[str, Any] = {"schema_version": 1, "status": "running", "intent": intent,
+                                  "runtime_identity_before": intent["runtime_identity_before"],
                                   "events": self.events, "inquiries": []}
         _atomic_json(self.output_dir / "receipt.json", receipt)
         try:
@@ -584,17 +699,17 @@ class InstalledQualification:
                 raise QualificationError("cold qualification requires an inactive, idle service without a release veto")
             identity = self._start_concurrently()
             ready = self._status()
-            if _status_identity(ready, self.release_digest) != identity:
+            if self._status_identity(ready) != identity:
                 raise QualificationError("status identity differs from concurrent start receipts")
             receipt["cold_start"] = {"before": before, "identity": identity,
                                      "after": ready, "concurrent_start_count": 2}
 
             question = self._poll_identical_question(
-                [str(self.cli), "assistance", "ask", self.question,
+                [*self.cli_command, "assistance", "ask", self.question,
                  "--project", self.project], "source_grounded_question")
             receipt["inquiries"].append(self._inquiry_record("ask", question))
             after_ask = self._status()
-            if _status_identity(after_ask, self.release_digest) != identity:
+            if self._status_identity(after_ask) != identity:
                 raise QualificationError("supervisor identity changed during question")
 
             skill = self._skill()
@@ -602,12 +717,12 @@ class InstalledQualification:
             if len(receipt["inquiries"]) > MAX_INQUIRY_SUBMISSIONS:
                 raise QualificationError("inquiry submission budget exceeded")
             after_skill = self._status()
-            if _status_identity(after_skill, self.release_digest) != identity:
+            if self._status_identity(after_skill) != identity:
                 raise QualificationError("supervisor identity changed during skill call")
             roles = self._direct_roles()
             receipt["trusted_role_smoke"] = roles
             after_roles = self._status()
-            if _status_identity(after_roles, self.release_digest) != identity:
+            if self._status_identity(after_roles) != identity:
                 raise QualificationError("supervisor identity changed during trusted-role calls")
             receipt["identity_stable_through_calls"] = True
             receipt["inquiry_results_usable"] = all(
@@ -633,7 +748,7 @@ class InstalledQualification:
         finally:
             if self.started_by_run:
                 try:
-                    stop = self._run([str(self.cli), "assistance", "stop"], "verified_stop",
+                    stop = self._run([*self.cli_command, "assistance", "stop"], "verified_stop",
                                      timeout=120, cleanup=True)
                     after_stop = self._status(cleanup=True)
                     runtime = after_stop.get("runtime") if isinstance(after_stop, dict) else None
@@ -647,8 +762,25 @@ class InstalledQualification:
                     receipt["stop"] = {"stopped": False,
                                         "failure": {"type": type(error).__name__,
                                                     "message": str(error)[:300]}}
+            try:
+                after_provenance = _runtime_provenance(
+                    self.runtime, repository_root=self.repository_root,
+                    release_cli=self.cli if self.runtime == "release" else None)
+                after_stamp = _runtime_stamp(after_provenance)
+                receipt["runtime_identity_after"] = after_stamp
+                receipt["runtime_identity_stable"] = (
+                    after_stamp == intent["runtime_identity_before"])
+                if not receipt["runtime_identity_stable"]:
+                    receipt["failure"] = {"type": "QualificationError",
+                                           "message": "qualification_runtime_changed"}
+            except BaseException as error:
+                receipt["runtime_identity_stable"] = False
+                receipt["failure"] = {"type": type(error).__name__,
+                                       "message": "qualification_runtime_changed: " + str(error)[:300]}
             receipt["events"] = self.events
-            receipt["status"] = ("bounded_question_and_skill_smoke"
+            receipt["status"] = ("runtime_changed"
+                                 if receipt.get("runtime_identity_stable") is not True
+                                 else "bounded_question_and_skill_smoke"
                                  if receipt.get("stop", {}).get("stopped") is True
                                  and receipt.get("identity_stable_through_calls") is True
                                  and receipt.get("inquiry_results_usable") is True
@@ -661,13 +793,18 @@ class InstalledQualification:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--execute-live", action="store_true",
-                        help="authorize the bounded installed-runtime qualification")
+    parser.add_argument("--runtime", choices=("source", "release"), default="release",
+                        help="qualify the checked-out source or a digest-pinned frozen release")
+    execution = parser.add_mutually_exclusive_group()
+    execution.add_argument("--dry-run", action="store_true",
+                           help="validate runtime identity and print provenance without service calls")
+    execution.add_argument("--execute-live", action="store_true",
+                           help="authorize the bounded installed-runtime qualification")
     parser.add_argument("--project", required=True, help="registered fixture project id")
     parser.add_argument("--question", required=True, help="source-grounded read-only question")
     parser.add_argument("--skill", required=True, help="registered installed skill id")
     parser.add_argument("--skill-question", required=True, help="read-only question for that skill")
-    parser.add_argument("--out-dir", type=Path, required=True,
+    parser.add_argument("--out-dir", type=Path,
                         help="new private directory; existing paths are refused")
     parser.add_argument("--cli", type=Path, help="candidate CLI; defaults to selected release bin")
     parser.add_argument("--wall-seconds", type=int, default=MAX_WALL_SECONDS)
@@ -676,6 +813,16 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    repository_root = Path(__file__).resolve().parents[1]
+    if args.runtime == "source":
+        _clear_source_pins()
+    if args.dry_run:
+        provenance = _runtime_provenance(
+            args.runtime, repository_root=repository_root, release_cli=args.cli)
+        print(json.dumps({"status": "dry_run", "runtime_provenance": provenance,
+                          "commands": [*provenance["cli_command"], "assistance", "..."],
+                          "inference_started": False}, sort_keys=True))
+        return 0
     if not args.execute_live:
         print(json.dumps({"status": "inert", "required_flag": "--execute-live"}, sort_keys=True))
         return 2
@@ -683,14 +830,19 @@ def main(argv: list[str] | None = None) -> int:
         raise QualificationError("wall budget must be between 1 and 600 seconds")
     if not args.project or not args.question.strip() or not args.skill or not args.skill_question.strip():
         raise QualificationError("project, question, registered skill, and skill question are required")
-    manifest_text = os.environ.get("PROJECT_CONTROL_RELEASE_MANIFEST", "")
-    if not manifest_text:
-        raise QualificationError("selected release pins are missing")
-    root = Path(manifest_text).expanduser().resolve(strict=True).parent
-    cli = args.cli or root / "bin" / "project-control"
+    if args.out_dir is None:
+        raise QualificationError("live qualification requires --out-dir")
+    if args.runtime == "source":
+        cli = repository_root / "scripts" / "pc-dev"
+    else:
+        manifest_text = os.environ.get("PROJECT_CONTROL_RELEASE_MANIFEST", "")
+        if not manifest_text:
+            raise QualificationError("selected release pins are missing")
+        root = Path(manifest_text).expanduser().resolve(strict=True).parent
+        cli = args.cli or root / "bin" / "project-control"
     driver = InstalledQualification(cli=cli, project=args.project, question=args.question,
         skill=args.skill, skill_question=args.skill_question, output_dir=args.out_dir,
-        wall_seconds=args.wall_seconds)
+        wall_seconds=args.wall_seconds, runtime=args.runtime)
     receipt = driver.run()
     print(json.dumps({"status": receipt["status"], "receipt": str(driver.output_dir / "receipt.json")},
                      sort_keys=True))
@@ -700,6 +852,6 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except QualificationError as error:
+    except (QualificationError, QualificationRuntimeError) as error:
         print(json.dumps({"status": "failed", "reason": str(error)}, sort_keys=True), file=sys.stderr)
         raise SystemExit(1)

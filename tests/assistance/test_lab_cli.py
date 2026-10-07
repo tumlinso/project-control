@@ -524,7 +524,7 @@ def test_scoped_cli_composition_uses_narrow_planner_and_runs_one_fake_effect(
     class FakeGpuLabExecutor:
         def __init__(self, *, project_roots, cuda_controller, quiesce, resume, owner_reader):
             assert project_roots == {"sample": repo}
-            assert cuda_controller == runtime_root / "runtime-skills" / "cuda" / "scripts" / "cuda_controller.py"
+            assert cuda_controller == controller
             assert callable(owner_reader)
             self.quiesce, self.resume = quiesce, resume
 
@@ -557,7 +557,8 @@ def test_scoped_cli_composition_uses_narrow_planner_and_runs_one_fake_effect(
             }
 
     runtime_root = tmp_path / "selected-runtime"
-    controller = runtime_root / "runtime-skills" / "cuda" / "scripts" / "cuda_controller.py"
+    skills_root = runtime_root / ("source-skills" if use_gpu else "runtime-skills")
+    controller = skills_root / "cuda" / "scripts" / "cuda_controller.py"
     controller.parent.mkdir(parents=True)
     controller.write_text("# fake selected controller\n", encoding="utf-8")
     fake_config = _registered_project(repo)
@@ -572,7 +573,10 @@ def test_scoped_cli_composition_uses_narrow_planner_and_runs_one_fake_effect(
     monkeypatch.setattr(demand_runtime, "ensure_demand_runtime_ready",
                         lambda **kwargs: demand_providers.append(kwargs["provider"]) or {"status": "ready"})
     monkeypatch.setattr(demand_runtime, "capture_runtime_pin",
-                        lambda: SimpleNamespace(release_root=runtime_root))
+                        lambda: SimpleNamespace(
+                            release_root=runtime_root,
+                            runtime_mode="source" if use_gpu else "release",
+                            skills_root=skills_root if use_gpu else None))
     monkeypatch.setattr("project_control.assistance.lab_gpu.GpuLabExecutor", FakeGpuLabExecutor)
 
     cpu_calls = []

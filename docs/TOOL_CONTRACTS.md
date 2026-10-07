@@ -1,12 +1,21 @@
 # Tool contracts
 
-The current role matrix, routing and examples are in [Adaptive role surface](as1-surface.md),
-bound to [surface.json](../planning/adaptive-surface-v1/contracts/surface.json).
-Observer has 11 tools, coder/codex 12, mutator 16; both internal modes have 10.
-Profile checks guard discovery and dispatch; only observer supports extended.
-`search` accepts discovery or exact typed entities; no public `find` exists.
-Project Control exposes no delegation workflow tools; delegated assignments use
-configured Codex subagents under the owning root's active task claim.
+## Current interface discovery
+
+The MCP interface is generated from the selected runtime profile. For current
+names and input schemas, initialize the actual configured server and inspect
+its `tools/list` response; do not treat a checked-in tool count or an old schema
+receipt as live interface evidence. The implementation is in
+[`profiles.py`](../src/project_control/profiles.py),
+[`as1_surface.py`](../src/project_control/as1_surface.py), and the relevant
+profile-bound handlers. [Adaptive role surface](as1-surface.md) is retained as
+an architectural reference; its historical counts and contract examples are
+not current routing instructions. Use [development](development.md) and
+[deployment](deployment.md) for source commands and live verification.
+
+Profile checks guard discovery and dispatch. Project Control has no delegation
+workflow tool; bounded coding/research assignments use configured Codex
+subagents under the owning root's workflow authority.
 
 ## Historical contracts and preserved backends
 

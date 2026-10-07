@@ -104,6 +104,7 @@ class RuntimeIdentityTests(unittest.TestCase):
         manifest = Path(self.temp.name) / "release-manifest.json"
         data = {
             "schema_version": 3,
+            "project_control_fingerprint": runtime_identity.package_fingerprint(self.project_package),
             "todo_package_root": str(self.todo_package),
             "todo_runtime_fingerprint": runtime_identity.package_fingerprint(self.todo_package),
             "skills_root": None,

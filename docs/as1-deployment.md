@@ -1,5 +1,13 @@
 # Observer GPU policy at operator startup
 
+> **Historical deployment recipe.** These examples were written for an
+> installed release and `local-coding-worker` configuration. They are not the
+> current PC service launcher instructions. For checkout-backed source runs,
+> service restart, readiness, and rollback, use [deployment.md](deployment.md).
+> Reconcile resource policy with the current supervisor configuration before
+> applying this historical GPU UUID example; do not restore the retired worker
+> config path or candidate wrapper.
+
 The local operator can restrict the observer worker to approved GPU UUIDs before
 starting the release launcher. This setting is not a public tool argument.
 For the approved GPUs 1/3 in this qualification environment, a wrapper can use:

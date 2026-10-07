@@ -51,6 +51,7 @@ def main():
         'provider': os.environ.get('PC_TEST_PROVIDER_TOKEN'),
         'canonical_content_root': os.environ.get('PROJECT_CONTROL_SKILLS_ROOT'),
         'content_root': os.environ.get('PROJECT_CONTROL_OBSERVER_SKILLS_ROOT'),
+        'analysis_state_dir': os.environ.get('PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR'),
         'pins': {name: os.environ.get(name) for name in (
             'PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
             'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
@@ -94,10 +95,21 @@ def test_source_packages_and_clean_pins():
     for name in %r:
         assert not os.environ.get(name), name
     assert not os.environ.get('PYTHONHOME')
+    assert not os.environ.get('PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR')
     assert os.environ.get('PYTHONPATH') == f'{root}/src:{root}'
 """ % (PIN_ENV,),
         encoding="utf-8",
     )
+    for relative, test_name in (
+        ("test_dev_tests_runner.py", "test_smoke_runner"),
+        ("test_runtime_identity.py", "test_smoke_identity"),
+        ("test_workflow_binding.py", "test_smoke_binding"),
+        ("test_readiness.py", "test_smoke_readiness"),
+        ("as1/test_pc_as1_control.py", "test_mutator_independent_plan_and_role_boundary"),
+    ):
+        path = tests / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"def {test_name}():\n    assert True\n", encoding="utf-8")
     (repo / "pyproject.toml").write_text("[tool.pytest.ini_options]\ntestpaths = ['tests']\n", encoding="utf-8")
 
     venv_target = repo / ".dev-env" if symlink_venv else repo / ".venv"
@@ -155,6 +167,9 @@ def _run(repo: Path, script: str, *args: str, env: dict[str, str] | None = None)
 
 def test_run_mode_uses_checkout_packages_and_forwards_cli_arguments(tmp_path: Path) -> None:
     repo = _checkout(tmp_path)
+    environment = _pinned_environment(repo)
+    environment.pop("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR", None)
+    environment["HOME"] = str(tmp_path / "home")
     result = _run(
         repo,
         "pc-dev",
@@ -165,7 +180,7 @@ def test_run_mode_uses_checkout_packages_and_forwards_cli_arguments(tmp_path: Pa
         "127.0.0.1",
         "--port",
         "8768",
-        env=_pinned_environment(repo),
+        env=environment,
     )
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
@@ -175,7 +190,30 @@ def test_run_mode_uses_checkout_packages_and_forwards_cli_arguments(tmp_path: Pa
     assert payload["provider"] == "keep-provider"
     assert payload["canonical_content_root"] == "/operator/canonical-content"
     assert payload["content_root"] == "/operator/content"
+    assert payload["analysis_state_dir"] == str(tmp_path / "home/.cache/project-control/as1-observer-analysis")
     assert all(value is None for value in payload["pins"].values())
+
+    environment["PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR"] = str(tmp_path / "explicit-analysis-state")
+    result = _run(repo, "pc-dev", "run", "serve", "observer", env=environment)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["analysis_state_dir"] == environment["PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR"]
+
+
+def test_python_mode_defaults_analysis_state_and_preserves_override(tmp_path: Path) -> None:
+    repo = _checkout(tmp_path)
+    environment = _pinned_environment(repo)
+    environment.pop("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR", None)
+    environment["HOME"] = str(tmp_path / "home")
+    code = "import os; print(os.environ.get('PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR', 'unset'))"
+
+    result = _run(repo, "pc-dev", "python", "-c", code, env=environment)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(tmp_path / "home/.cache/project-control/as1-observer-analysis")
+
+    environment["PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR"] = str(tmp_path / "explicit-analysis-state")
+    result = _run(repo, "pc-dev", "python", "-c", code, env=environment)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == environment["PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR"]
 
 
 def test_test_and_legacy_wrappers_run_hermetic_source_pytest(tmp_path: Path) -> None:
@@ -195,6 +233,18 @@ def test_test_and_legacy_wrappers_run_hermetic_source_pytest(tmp_path: Path) -> 
     assert result.returncode == 0, result.stderr
     assert str(repo / "src/project_control/__init__.py") in result.stdout
     assert str(repo / "src/todo_orchestrator/__init__.py") in result.stdout
+
+    result = _run(
+        repo,
+        "pc-dev",
+        "python",
+        "--with-test-helpers",
+        "-c",
+        "import os; print(os.environ.get('PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR', 'unset'))",
+        env=environment,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "unset"
 
 
 def test_setup_uses_repo_cache_and_preserves_existing_venv_symlink(tmp_path: Path) -> None:
@@ -228,3 +278,38 @@ def test_missing_environment_prints_setup_instruction(tmp_path: Path) -> None:
     result = _run(repo, "pc-dev", "test", "tests/test_source_probe.py")
     assert result.returncode == 2
     assert "run scripts/pc-dev setup" in result.stderr
+
+
+def test_options_without_selectors_keep_the_fast_smoke_selection(tmp_path: Path) -> None:
+    repo = _checkout(tmp_path)
+    result = _run(repo, "pc-dev", "test", "-q")
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "5 passed" in result.stdout
+
+    result = _run(repo, "pc-dev", "test", "-k", "smoke", "-q")
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "4 passed" in result.stdout
+
+    result = _run(repo, "pc-dev", "test", "-p", "no:cacheprovider", "--maxfail", "1", "-q")
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "5 passed" in result.stdout
+
+    result = _run(repo, "pc-dev", "test", "-W", "ignore::DeprecationWarning", "-q")
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "5 passed" in result.stdout
+
+
+def test_explicit_selector_with_option_value_is_forwarded_unchanged(tmp_path: Path) -> None:
+    repo = _checkout(tmp_path)
+    result = _run(
+        repo,
+        "pc-dev",
+        "test",
+        "-k",
+        "source_packages",
+        "tests/test_source_probe.py",
+        "-q",
+        env=_pinned_environment(repo),
+    )
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "1 passed" in result.stdout

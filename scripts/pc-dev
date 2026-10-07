@@ -54,6 +54,8 @@ source_environment() {
   if [[ "$mode" == test || "$mode" == test_helpers ]]; then
     unset PROJECT_CONTROL_SKILLS_ROOT
     unset TODO_ORCHESTRATOR_STATE_DIR PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR
+  elif [[ ! ${PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR+x} ]]; then
+    export PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR="${HOME}/.cache/project-control/as1-observer-analysis"
   fi
   if [[ "$mode" == test ]]; then
     export PYTHONPATH="$repo_root/src:$repo_root"
@@ -113,8 +115,30 @@ case "$action" in
       echo "Project Control source tree is incomplete under $repo_root/src" >&2
       exit 2
     fi
-    if [[ $# -eq 0 ]]; then
-      set -- \
+    # Flags alone still mean "run the quick source smoke selection". Treat
+    # values belonging to pytest options (notably -k/-m/-o/-c) as options,
+    # while leaving any explicit file, directory, or node id selector intact.
+    has_selector=0
+    consume_next=0
+    for argument in "$@"; do
+      if (( consume_next )); then
+        consume_next=0
+        continue
+      fi
+      case "$argument" in
+        --)
+          has_selector=1
+          break
+          ;;
+        -k|-m|-o|--override-ini|-c|-p|-W|--pythonwarnings|--confcutdir|--rootdir|--ignore|--ignore-glob|--deselect|--basetemp|--import-mode|--maxfail|--durations|--durations-min|--tb|--capture|--color|--junitxml|--junit-prefix|--log-level|--log-format|--log-date-format|--log-file|--log-file-level|--log-file-format|--log-file-date-format|--show-capture|--verbosity|--assert|--pastebin)
+          consume_next=1
+          ;;
+        -*) ;;
+        *) has_selector=1 ;;
+      esac
+    done
+    if (( ! has_selector )); then
+      set -- "$@" \
         tests/test_dev_tests_runner.py \
         tests/test_runtime_identity.py \
         tests/test_workflow_binding.py \
