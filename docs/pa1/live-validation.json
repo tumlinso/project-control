@@ -5,21 +5,31 @@
   "owner": "root",
   "scope_note": "Evidence digest only. It does not turn advisory package cases into a blanket pass. Original public live reports and negative outcomes remain preserved; model output text is not duplicated here.",
   "candidate": {
-    "receipt": {
-      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/receipt-final.json",
-      "sha256": "b22f5a4d9e26ef8c0a23b5693035f430c17a962f4efd05dd80326d9e9d0e5157"
+    "latest_build": {
+      "receipt": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/receipt-final-r2.json",
+        "sha256": "47a220680b7a6fc070c5efded50d1edfa68ac21a3260545eb240422099a34924"
+      },
+      "source_commit": "57105ac814d8de8f28123d12874e1a9fa3b78e3d",
+      "source_worktree_clean": true,
+      "skills_commit": "5c69981f8d1755c3408e4f45adbf340c02c4dfe8",
+      "skills_worktree_clean": true,
+      "candidate_path": "/home/tumlinson/.local/share/project-control/releases/unified-20261007-pa1-final",
+      "candidate_manifest_sha256": "a3d273a85d8d2f1120cf33ba78375aff869a9ca3113aa19f28b87cbe4eba08c8",
+      "release_manifest_sha256": "b63b8d1ca2f8dae0c0e50b5c39e2997fff74f7795ef0454ee27375a67661bc6c",
+      "receiver_manifest_sha256": "c29de1b8f58f4804f159730ad46ab7141ee178bc51573feef31ab9da8aed1398",
+      "runtime_and_dependencies": "passed candidate-local isolated verification; 41 packages checked",
+      "scope_limits": "No service endpoint check, tests, service, model, GPU, cutover, selector change, or promotion was performed by build receipt"
     },
-    "source_commit": "6ac6bec6e6311e715899ecdc3c291a3e210bdfed",
-    "source_worktree_clean": true,
-    "skills_commit": "5c69981f8d1755c3408e4f45adbf340c02c4dfe8",
-    "candidate_path": "/home/tumlinson/.local/share/project-control/releases/unified-20261007-pa1-qualified",
-    "candidate_manifest_sha256": "4a9afc1160885dd100c8b2005a99855b6869db56354bac6c18261939bee76bb5",
-    "release_manifest_sha256": "f0dbf88dc39f9042127de278809efb89fcfdc4276e8a6d6e4be013a95ca8171b",
-    "receiver_manifest_sha256": "c29de1b8f58f4804f159730ad46ab7141ee178bc51573feef31ab9da8aed1398",
-    "receiver_fingerprint": "d2376e6b05fc433046a1ee65f62a6813c658a89b7f73edb9e6130202497d28fb",
-    "smoke": "passed: isolated runtime binding/import checks, launcher help, and uv pip check (41 packages)",
-    "promotion_or_activation": "not performed; selected launcher and earlier candidates untouched",
-    "source_suite": "not rerun for this candidate receipt"
+    "previous_build": {
+      "source_commit": "6ac6bec6e6311e715899ecdc3c291a3e210bdfed",
+      "release_manifest_sha256": "f0dbf88dc39f9042127de278809efb89fcfdc4276e8a6d6e4be013a95ca8171b",
+      "receiver_manifest_sha256": "c29de1b8f58f4804f159730ad46ab7141ee178bc51573feef31ab9da8aed1398",
+      "status": "preserved historical build; not activated"
+    },
+    "post_build_source_fix": "A production AttentionController.record_result call-site mismatch was found during economics r3; implementer is fixing source and strict stub regression, after which root will build a new delivery candidate.",
+    "cutover": "not performed; root retains candidate selection, selector/service changes and activation",
+    "automatic_work": "off"
   },
   "native_lab": {
     "task_id": "PC-PA1-LAB",
@@ -63,7 +73,14 @@
         "artifact_sha256": "394b935def2803f40f58c611abdf8bd7f603d71827f7eeddcc3d8e8a0a99a12e"
       }
     ],
-    "final_task_acceptance": "pending root decision; A31 remains a genuine failed case attempt"
+    "final_task_acceptance": "pending root decision; A31 remains a genuine failed case attempt",
+    "latest_gate_receipt": {
+      "name": "native-gates-final.json5",
+      "path": "not located in this checkout or qualification artifact directory during this documentation pass",
+      "status": "root reports all five required gates passed on source 57105ac814d8de8f28123d12874e1a9fa3b78e3d",
+      "hash": "not independently indexed; prior exact gate packet IDs remain as earlier gate evidence",
+      "scope_note": "Native implementation gates pass; final PC-PA1-LAB handoff/acceptance remains root-owned and planned because product cases A31, A37 and A38 are incomplete."
+    }
   },
   "live_model": {
     "baseline": {
@@ -81,30 +98,36 @@
         {
           "id": "E01",
           "public_result": "completed",
-          "initial_score": "failed citation validation",
-          "posthoc_score": "qualified on cited source check; visible trace remains invalid; provisional"
+          "rescore": "citation/source assessment qualified; overall A37 remains open"
         },
         {
           "id": "E02",
           "public_result": "partial",
-          "posthoc_score": "partial; one cited path remains missing; not qualified"
+          "rescore": "partial; not qualified"
         },
         {
           "id": "E03",
           "public_result": "deadline exhausted; no result packet",
-          "posthoc_score": "not rescored"
+          "rescore": "not rescored"
         },
         {
           "id": "E04",
           "public_result": "completed",
-          "posthoc_score": "partial citation/result evidence; usefulness not established"
+          "rescore": "partial; not qualified"
         }
       ],
       "rescore": {
         "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r6/rescore-report.json",
         "sha256": "bdcc12092cebd04a5b7c93d0abcb6de07fbc50159a7f73a1f41d33a41a6d6cd5",
         "model_calls": 0,
-        "policy": "post-hoc only; original report not overwritten"
+        "policy": "post-hoc only; original reports preserved",
+        "case_dispositions": {
+          "E01": "citation assessment qualified; this alone does not make the entire comparison pass",
+          "E02": "partial; required skill file still missing",
+          "E03": "not rescored after deadline exhaustion",
+          "E04": "partial; evidence cited but usefulness/acceptance criteria not met"
+        },
+        "scope": "post-hoc citation/source check; not model quality or trace validation"
       },
       "release": {
         "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r6/release-report.json",
@@ -136,14 +159,56 @@
         "result": "failed_preflight_no_execution",
         "reason": "Actual advisory contained no Python test code block; fallback forbidden. No CPU execution, scratch tree or canonical mutation. Source qualification failed due missing cited fixture files."
       },
-      "A37": "A31 and A37 extension attempts were recorded; A37 is partial and not qualified pending accurate source citations/scoring and held-out evidence."
+      "A37": "A31 and A37 extension attempts were recorded; A37 is partial and not qualified pending accurate source citations/scoring and held-out evidence.",
+      "rescore": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/extension-r1/rescore-report.json",
+        "sha256": "6c42bb7f34e1c0024c1cd808a426ddbc92d4b1a5f96ecb777ba4d158afb5b44d",
+        "model_calls": 0,
+        "A31": "failed; required Python code block and tests/test_pairs.py missing",
+        "A37": "failed citation/source assessment; required fixture paths missing",
+        "policy": "original live reports preserved"
+      }
     },
     "held_out": {
-      "required_max_inquiries": 4,
-      "wall_seconds": 300,
-      "status": "pending"
+      "report": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/heldout-r1/report.json",
+      "sha256": "b14c4933bd35a2af613aa45271265fc3e5591a76faad9324271d383d4b02123a",
+      "release": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/heldout-r1/release-report.json",
+        "sha256": "a6acf8a1a8e5a7f9cdd03cebfd280aa41519e33062d679f1ee8f22ab2ae7c728",
+        "status": "released_verified",
+        "request_id": "a2a59bdc49a04aff0e5562dd6f3e47d3",
+        "attempts": 1
+      },
+      "inquiries": 4,
+      "elapsed_seconds": 246.7493,
+      "cap_inquiries": 4,
+      "cap_seconds": 300,
+      "status": "completed_with_gaps",
+      "cases": [
+        {
+          "id": "E01",
+          "status": "completed",
+          "assessment": "qualified on changed-limits fixture"
+        },
+        {
+          "id": "E02",
+          "status": "partial",
+          "assessment": "unqualified"
+        },
+        {
+          "id": "E03",
+          "status": "partial",
+          "assessment": "unqualified"
+        },
+        {
+          "id": "E04",
+          "status": "completed",
+          "assessment": "unqualified"
+        }
+      ],
+      "remaining_budget": "held-out cap consumed; no repeat without updated authority"
     },
-    "current_scoring_work": "Root reports a bounded implementation of a cited direct_cat resolver and post-hoc assessment in progress; preserve the original reports and do not count unreceipted rescoring."
+    "current_scoring_work": "Cited direct_cat source resolver is now in source commit 57105ac; baseline E01 and held-out E01 are the only qualified case-level source assessments reported here. Other cases remain partial/unqualified."
   },
   "gpu": {
     "initial_attempt": {
@@ -184,27 +249,104 @@
     "A16_disposition": "unqualified; cooperative versus full eviction delay not measured"
   },
   "economics": {
-    "status": "root_reported_running; no completed receipt yet",
-    "initial_preflight": {
+    "status": "stopped_incomplete_no_more_live_retry",
+    "source_commit": "57105ac814d8de8f28123d12874e1a9fa3b78e3d",
+    "focus_clock_fix": "Permanent focus grant transaction uses captured now; later clock reads remain live. Root reports targeted focus tests 15 passed/4 subtests and economics tests 10 passed.",
+    "r1": {
       "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r1/report.json",
       "sha256": "19d1c2498cb33eff64eefb9fae467c1032f4c8650e4f734115d430965a245e74",
-      "result": "preflight_failed",
-      "inquiries": 0,
+      "status": "preflight_failed",
+      "public_inquiries_reported": 0,
       "elapsed_seconds": 0.436,
-      "failure": "NameError in initial harness preflight"
+      "failure": "NameError"
     },
-    "authorized_cap": {
-      "inquiries": 6,
-      "wall_seconds": 120
+    "r2": {
+      "report": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r2/report.json",
+      "sha256": "bd99600cb2d0b61ceb4f45ad4f3ab9ad33652928fa19fc68cd2a8237ae6e10d4",
+      "status": "focus_window_invalid",
+      "elapsed_seconds": 40.8499,
+      "public_inquiries_reported": 0,
+      "admission_correction": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r2/admission-correction.json",
+        "sha256": "3899a9a21c0605171cbeb79396cce9e91c26e1cbfbe4d4b58a70858c5bb688c8",
+        "actual_durable_jobs": 1,
+        "model_process_started": true,
+        "note": "Zero public count is not proof of no inference; the original report is preserved."
+      },
+      "release": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r2/release-report.json",
+        "sha256": "75bdd68e5ad8d71d5ba034e6938aaa160007b9410517385f77f3501e5bc4e24a",
+        "status": "released_verified",
+        "first_attempt": true,
+        "verified_slots": 1
+      }
     },
-    "held_out_status": "pending; separate maximum 4 inquiries/300 seconds",
-    "automatic_mode": "keep disabled until measured case passes thresholds"
+    "r3": {
+      "report": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r3/report.json",
+      "sha256": "ddfac9dee133145b7f271785b1bf659d1530fa107d267ecf58b66cd67ef5bba9",
+      "status": "stopped_after_failure",
+      "attempts": 2,
+      "elapsed_seconds": 44.5906,
+      "focus_preflight": "valid; clock fix worked",
+      "failure": "TypeError: production AttentionController.record_result calls JobService.preparation_lookup with an unsupported positional argument",
+      "report_inference_performed_flag": false,
+      "admission_interpretation": "Not proof of no inference; root reports one actual model process in r3 and researcher is preparing an admission correction.",
+      "foreground_attempts": 1,
+      "automatic_job": "queued at attempt 0; supported exact preparation cancellation recorded; dispatcher did not start",
+      "automatic_remains_disabled": true
+    },
+    "r3_release": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r3/release-report.json",
+      "sha256": "eddf8ddad9b8ff48bb38ade8673cf93e2f11ecf6be4cdea80dae482a4238edf2",
+      "status": "released_verified",
+      "request_id": "5ac0c44615386ba8ada27f7e8a5df1f2",
+      "verified_slots": 1,
+      "first_attempt": true
+    },
+    "private_preparation_cleanup": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/private-preparation-cleanup.json",
+      "sha256": "d015ef0a25a7987ac2a7d069f4c7583a21b4a5a71e8e9360b76614ad65c7a787",
+      "method": "supported exact JobService.cancel_preparation",
+      "status": "cancelled",
+      "scope": "private preparation only; history retained"
+    },
+    "pending_job_cleanup": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/pending-job-cleanup.json",
+      "sha256": "b8e713fbb6e1a72a9a58d75f4ebc6f8a76b6f91ecfe35cf00d6e0ee7e7055d38",
+      "method": "supported JobService.cancel for known qualification jobs; durable history retained"
+    },
+    "accounting": {
+      "total_attempts": 3,
+      "attempts_by_run": {
+        "r2": 1,
+        "r3": 2
+      },
+      "elapsed_seconds": 85.4405,
+      "planned_r3_allowance": "5 inquiries/79 seconds; stopped before using it fully; root closed further economics execution after the production bug",
+      "no_more_live_retry": true
+    },
+    "source_fix": "Implementer fixing exact source call-site and adding strict full-stub regression; root will rebuild a new delivery candidate before any cutover.",
+    "automatic_mode": "off"
   },
   "root_blockers": [
-    "A31 live-model counterexample attempt failed before test execution because the advisory did not include exactly one Python code block and cited source files were missing.",
-    "A37 source citation/assessment and held-out work remain incomplete.",
-    "A38 economics run is in progress under its bounded allowance; no result receipt is indexed yet.",
-    "A16 cooperative eviction-delay case remains unmeasured; A33 evidence is bounded partial handoff only.",
-    "No final lifecycle report, cutover, selector change, or activation receipt is indexed."
-  ]
+    "A31 live model answer contained no executable Python test; no CPU execution or fallback was used.",
+    "A37 remains partial: baseline and held-out E01 source assessments qualify, while other cases are partial/unqualified; extension citations fail. Held-out cap is consumed.",
+    "A38 economics is incomplete and stopped after 3 attempts/85.4405 seconds because of a production TypeError; preserve the admission corrections, cancellations, and release evidence. No more live retries are authorized in this branch.",
+    "Source-57105ac candidate build passed immutable candidate-local checks, but an economics runtime bug now requires source correction and a new delivery build before root cutover.",
+    "Native five-gate implementation pass is separate from final LAB handoff/product acceptance; A31/A37/A38 remain incomplete.",
+    "A16 remains unqualified; A33 remains bounded hardware-handoff evidence only; A40 final lifecycle and final resource census remain root-owned/pending."
+  ],
+  "source_update": {
+    "source_commit": "57105ac814d8de8f28123d12874e1a9fa3b78e3d",
+    "targeted_assistance_tests": {
+      "passed": 15,
+      "passed_subtests": 4,
+      "source": "root-reported targeted receipt; no new aggregate source-suite claim"
+    },
+    "targeted_economics_tests": {
+      "passed": 10,
+      "source": "root-reported targeted receipt"
+    },
+    "new_source_scope": "cited direct_cat resolver and post-hoc source assessment; baseline E01 citation score now qualifies, originals retained"
+  }
 }

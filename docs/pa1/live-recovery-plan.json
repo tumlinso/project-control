@@ -1,6 +1,6 @@
 {
   "format": "pa1-live-recovery-plan/1",
-  "recorded_at_utc": "2026-10-07T06:22:37.029084+00:00",
+  "recorded_at_utc": "2026-10-07T06:27:11.265387+00:00",
   "authorization": "User requested LAB and live qualification; profiler restriction explicitly cleared. Root owns finite qualification and recovery.",
   "observed_failure": {
     "attempt": "baseline-r4",
@@ -72,6 +72,20 @@
     "production_fix": "Capture one timestamp for trusted focus grant transaction; all subsequent expiry and handoff checks retain advancing real time.",
     "remaining_inquiry_cap": 5,
     "remaining_wall_seconds": 79,
-    "stop_rule": "One final bounded attempt; no new allowance or retry. Automatic remains off unless all required economics measurements pass."
+    "stop_rule": "One final bounded attempt; no new allowance or retry. Automatic remains off unless all required economics measurements pass.",
+    "result": {
+      "attempt": "economics-r3",
+      "public_attempts": 2,
+      "elapsed_seconds": 44.5906,
+      "focus_preflight": "validated with real expiry clock",
+      "failure": "AttentionController.record_result passed positional access scope to keyword-only JobService.preparation_lookup",
+      "decision": "Stop economics; no additional live retry. Correct production call and add focused regression before delivery.",
+      "automatic_after_run": "disabled",
+      "owned_release": "one slot verified released first supported attempt",
+      "pending_work_cleanup": "Known public jobs cancelled; exact private preparation cancelled via supported cancel_preparation; durable history retained."
+    },
+    "branch_actual_attempts": 3,
+    "branch_actual_elapsed_seconds": 85.4405,
+    "unused_allowance_is_not_permission_to_retry": true
   }
 }

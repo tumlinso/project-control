@@ -1821,7 +1821,7 @@
     },
     {
       "evidence_status": "failed_live_preflight_no_execution",
-      "evidence_summary": "A live model inquiry was performed, but the A31 bridge rejected the advisory before scratch test execution because it contained no Python test code block. No fallback test source, scratch tree, or canonical mutation was used. Citation/source qualification also failed because the named fixture files were absent. The earlier CPU odd-tail fixture probe is only overlap and does not close A31.",
+      "evidence_summary": "A live model answer was received, but it contained no executable Python test code. The bridge rejected it before CPU execution; no fallback, scratch tree or canonical mutation occurred. Current source scoring also found required fixture test paths missing. The CPU odd-tail fixture probe remains overlap only.",
       "expected": "New scratch odd-tail test exposes the defect with source/test evidence; no automatic canonical repair or claim baseline proves correctness.",
       "final_acceptance": "pending_root_review",
       "id": "A31",
@@ -1854,7 +1854,7 @@
         "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
       },
       "owner": "PC-PA1-LAB",
-      "required_next_evidence": "Provide a valid exact A31 test-code input and current cited fixture source under root authority, rerun the bounded bridge, and retain model trace, scratch test, result packet, and source citation validation. Do not reuse the rejected answer as a pass.",
+      "required_next_evidence": "Do not retry within the consumed attempt budget absent updated authority and a valid exact test-generation input. Keep the failed original receipt and record root disposition; no unrun CPU test may be described as passed.",
       "setup": "Give the fixture pairing implementation and passing incomplete baseline suite to an experiment.",
       "sources": [
         "S08",
@@ -1965,7 +1965,7 @@
     },
     {
       "evidence_status": "partial_live_hardware_handoff",
-      "evidence_summary": "A retry verified both inference targets quiescent and released before a controller-leased non-model CUDA correctness smoke over four devices; all 4096-item checks passed, then the foreground owner terminal receipt showed released with no resources. This is bounded handoff evidence only. Parent-result resumption/current power-permission behavior is not established, and no benchmark or speedup is claimed.",
+      "evidence_summary": "A quiescence-timeout attempt failed closed without GPU execution; the retry fixed the observation timing, verified release and ran the bounded four-device correctness probe. This remains bounded handoff evidence only.",
       "expected": "Parent suspends and frees inference; controller-leased non-model runner executes; results resume only after experiment release and current power permission.",
       "final_acceptance": "pending_root_review",
       "id": "A33",
@@ -2216,7 +2216,7 @@
     },
     {
       "evidence_status": "partial_live_model_not_qualified",
-      "evidence_summary": "Four baseline inquiries completed or partially returned within 260.0469 seconds; two-slot same-model/binary/settings observation passed. E03 hit its deadline. Initial citations failed; post-hoc rescore used no model calls and provisionally qualified E01 only, left E02/E04 partial, and did not rescore E03. Extension report remains completed_with_gaps. Assessment and held-out work remain pending.",
+      "evidence_summary": "Baseline-r6 and extension attempts plus the full four-inquiry held-out run are now recorded. Direct cited-source assessment qualifies baseline E01 and held-out E01 only; E02/E03/E04 are partial or unqualified, E03 baseline timed out, and extension citations remain incomplete. Original reports are preserved.",
       "expected": "Measured useful complete/partial results, valid evidence, separate reasoning/prefill/tool timings; no winner chosen just for token volume.",
       "final_acceptance": "pending_root_review",
       "id": "A37",
@@ -2236,7 +2236,7 @@
           "result": "public responses freshness_unverifiable; no grounded E01-E04 scored comparison accepted"
         }
       ],
-      "required_next_evidence": "Complete the cited direct_cat resolver/post-hoc assessment with immutable original reports, verify all citations and scores, then run the separate held-out allowance without tuning on held-out labels. Keep all inquiry and time counters.",
+      "required_next_evidence": "Root reviews preserved baseline and completed held-out scores. The held-out allowance is consumed (4 inquiries/246.7493 seconds); do not rerun or tune against its labels under this authorization.",
       "setup": "Run selected direct/multi-hop/conflict/synthesis cases and held-out variants through candidate.",
       "sources": [
         "S01",
@@ -2249,7 +2249,7 @@
         "O03",
         "O04"
       ],
-      "status": "partial_evidence_not_qualified",
+      "status": "partial_live_evidence_not_qualified",
       "tier": "live_model",
       "title": "Finite grounded model-quality comparison",
       "live_validation_evidence": {
@@ -2259,14 +2259,14 @@
     },
     {
       "budget_note": "The live recovery plan reserves economics up to 6 inquiries/120 seconds inside root-approved budget; no measured paired foreground comparison is in reviewed receipts.",
-      "evidence_status": "in_progress_unqualified",
-      "evidence_summary": "The initial harness preflight failed before any inquiry (NameError, 0.436 seconds). Root reports a bounded retry is running within 6 inquiries/120 seconds; no completed economics receipt is yet available. Held-out work is separate and pending.",
+      "evidence_status": "incomplete_unqualified",
+      "evidence_summary": "Economics r1 failed before inference. R2 reported focus_window_invalid/40.8499 seconds and zero public inquiries, but the admission correction confirms one durable job and a model process started; one-slot release verified first try. R3 passed focus preflight, then stopped after two attempts/44.5906 seconds on a production TypeError. Its inference=false report flag is contradicted by root-reported one actual model process; the admission correction is pending. A queued automatic job was cancelled via supported cleanup with history retained.",
       "expected": "Include preparation/refresh costs, context bytes/tokens, latency spread and sample size; meet predeclared practical envelope or leave feature off.",
       "final_acceptance": "pending_root_review",
       "id": "A38",
       "mandatory": true,
       "owner": "PC-PA1-QUALIFY",
-      "required_next_evidence": "Record final paired measurements and exact source/model/config/resource identities within the 6-inquiry/120-second cap; pass both <=2-second added-wait and <=10% elapsed-overhead limits with no evidence degradation, or keep automatic work off.",
+      "required_next_evidence": "No further economics inference in this branch. Preserve all three attempts and 85.4405 seconds; complete the exact-source fix and strict stub regression, rebuild a new delivery candidate, and require new root authorization before any future live trial. Keep automatic work off.",
       "setup": "Compare equivalent foreground tasks with/without opted-in preparation and background work.",
       "sources": [
         "S01",
@@ -2279,7 +2279,7 @@
         "O03",
         "O04"
       ],
-      "status": "in_progress_no_completed_receipt",
+      "status": "stopped_incomplete_production_bug",
       "tier": "live_model",
       "title": "Assistance economics and foreground interference",
       "live_validation_evidence": {
@@ -2482,7 +2482,7 @@
     },
     {
       "path": "docs/pa1/live-validation.json",
-      "sha256": "11243cc1d8dd993e5ece1e750c56ab48269c5ecd0b7733969b6b29ee97ccafcc",
+      "sha256": "1693dbf2d809eb3de0fec9743f6626dc2a4e0e90b790531505596f0ffa938f06",
       "scope": "candidate build, native LAB gate rerun, real model attempts, bounded GPU handoff, and pending economics/held-out status; evidence references carry external artifact hashes"
     }
   ],
@@ -2501,27 +2501,28 @@
   },
   "qualification_native_state": {
     "task_id": "PC-PA1-QUALIFY",
-    "state": "live_qualification_in_progress_not_accepted",
-    "status": "Candidate build and bounded live attempts exist; aggregate QUALIFY and root acceptance remain pending."
+    "state": "in_progress_not_accepted",
+    "status": "Candidate-local build passed; production economics bug requires source correction and new delivery build before cutover. Product cases and root final decision remain pending."
   },
   "required_before_final_acceptance": [
-    "Root completes final PC-PA1-LAB task disposition after reviewing the five passed latest native gate receipts and the genuine A31 failed attempt; do not equate stage-gate success with product acceptance.",
-    "Resolve A31 with a valid model counterexample/test-generation input and executed scratch test, or record the explicit failure disposition; no CPU fixture overlap is a substitute.",
-    "Complete A37 citation/score assessment and held-out work under retained limits, and finish the bounded A38 economics run; leave automatic work off unless all thresholds pass.",
-    "Review A33 bounded hardware-handoff evidence; A16 cooperative eviction delay and A40 final lifecycle report remain separate and incomplete.",
+    "Root records the final PC-PA1-LAB disposition after reviewing the five passed native gates and the A31 failed product-case attempt; do not treat gate passage as matrix acceptance.",
+    "A31 remains failed: no Python test executed. Preserve that evidence; do not retry without the remaining-authority update and a valid input.",
+    "Review A37 baseline and held-out scores: only E01 in each has a qualified source assessment; other held-out cases are partial/unqualified and the four-inquiry held-out cap is consumed.",
+    "Root reports the planned A38 r3 economics result and reconciles it with the one actual r2 durable job; retain the 6-inquiry/120-second cap and automatic-off thresholds.",
+    "Complete/review the source-57105ac final candidate build before any root-owned cutover; keep A16/A40 and broader lifecycle acceptance separate from the bounded A33 probe.",
     "Re-fetch current active claim, package contract, dirty/untracked source snapshot, receiver manifest/fingerprint, candidate release, model/weights/binary, permission and resource receipts; the CPU supplement predates later dirty root changes.",
     "Close A20 with the exact forced compaction and valid-evidence retention or source re-fetch scenario.",
     "Use already recorded A30 containment tests only within their tested sandbox grant and scope; preserve containment failure as fail-closed.",
     "Perform candidate cutover/rollback only under current native authorization; record activation choice and leave automatic assistance off unless measured A38 passes every predeclared envelope.",
     "After exact receipts exist, root reviews every case, replaces provisional evidence statuses with accepted/partial/failed/not-run dispositions, and sets final_acceptance only if native task gates and all mandatory acceptance conditions are met."
   ],
-  "scope": "Current evidence digest only. Native LAB stage gates, a qualified build candidate, bounded live model/GPU attempts, and the 40 package cases are distinct evidence lanes. No blanket package acceptance, promotion, or activation is claimed.",
+  "scope": "Current evidence digest through economics r3. The 40 mandatory package cases remain individually partial, unqualified, failed or not run. Native implementation gates and candidate-local smoke do not imply product acceptance, cutover or activation.",
   "task_native_state": {
     "task_id": "PC-PA1-LAB",
     "owner": "root",
-    "state": "five_required_stage_gates_passed_final_acceptance_pending",
-    "status": "Latest required native gate rerun passed all five gates. Root retains the task finish/final acceptance decision; A31 is a genuine failed package-case attempt.",
-    "acceptance_receipt": "docs/pa1/live-validation.json#native_lab"
+    "state": "five_required_native_gates_passed_final_handoff_planned",
+    "status": "Root reports native-gates-final.json5 has five passes on source 57105ac; the named packet was not located in the expected evidence roots here. Final handoff remains planned because A31, A37 and A38 are incomplete.",
+    "acceptance_receipt": "root-reported native-gates-final.json5; latest digest/path pending"
   },
   "lab_native_stage_gates": {
     "task_id": "PC-PA1-LAB",

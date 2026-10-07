@@ -221,6 +221,7 @@ def test_execute_stubbed_full_path_uses_real_focus_policy_and_counts_thinking_at
             self.freshness_provider = lambda _probe: {"fresh": True, "changed_sources": []}
             self.responses = {}
             self.foreground_count = 0
+            self.preparation_lookup_scopes = []
         def _db(self):
             return DB(self.composition.db_path)
         def inquiry_context(self, scope, _identity):
@@ -255,6 +256,7 @@ def test_execute_stubbed_full_path_uses_real_focus_policy_and_counts_thinking_at
             job = next((row for row in self.responses.values() if row["job_id"] == job_id), None)
             return {"status": "ok", "job": dict(job)} if job else {"status": "unavailable"}
         def preparation_lookup(self, job_id, *, access_scope):
+            self.preparation_lookup_scopes.append(dict(access_scope))
             return {"status": "completed", "model_turns_used": 6,
                 "sources": [{"path": path, "content_sha256": economics._hash(
                     (self.composition.repo / path).read_bytes())} for path in economics.SOURCE_PATHS]}
@@ -314,12 +316,10 @@ def test_execute_stubbed_full_path_uses_real_focus_policy_and_counts_thinking_at
                 return []
             return [{"focus_id": state["automatic_focus"], "project": economics.SEMANTIC_PROJECT}]
         def candidates(self):
-            return [SimpleNamespace(**composition.candidate)] if composition.candidate else []
+            rows = self.db.execute("SELECT candidate_id,job_id,focus_id,status FROM pa1_attention_candidates").fetchall()
+            return [SimpleNamespace(**dict(row)) for row in rows]
         def reconcile_admission(self, candidate_id):
             return {"status": "completed"}
-        def record_result(self, *, candidate_id, control):
-            composition.candidate["status"] = "completed"
-            return {"status": "stored_advisory", "note": {"note_id": "note-stub"}}
         def scan(self, focus_id):
             revision = subprocess.check_output(["git", "-C", str(composition.repo), "rev-parse", "HEAD"], text=True).strip()
             if revision != composition.last_revision:
@@ -376,4 +376,7 @@ def test_execute_stubbed_full_path_uses_real_focus_policy_and_counts_thinking_at
     assert report["result"]["all_thresholds_passed"] is False
     assert report["result"]["elapsed_overhead_threshold_measured"] is False
     assert composition.jobs.foreground_count == 3
+    assert composition.jobs.preparation_lookup_scopes
+    assert all(scope["project"] == economics.SEMANTIC_PROJECT
+               for scope in composition.jobs.preparation_lookup_scopes)
     assert composition.backend_closed is True

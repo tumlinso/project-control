@@ -667,7 +667,7 @@ class AttentionController:
             return self._defer(candidate_id, "trusted_scope_unavailable")
         # Resolve the private job first. Pending or unknown jobs keep their slot
         # occupied; only a terminal result can be discarded and released.
-        lookup = self.broker.preparation_lookup(row["job_id"], dict(scope))
+        lookup = self.broker.preparation_lookup(row["job_id"], access_scope=dict(scope))
         if not isinstance(lookup, Mapping) or lookup.get("status") not in {"completed", "partial"}:
             status = lookup.get("status") if isinstance(lookup, Mapping) else "unavailable"
             if status == "pending":

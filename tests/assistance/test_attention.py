@@ -45,7 +45,8 @@ class FakeBroker:
             raise TimeoutError("reply_lost_after_admission")
         return {"accepted": True, "job_id": job_id, "status": "queued"}
 
-    def preparation_lookup(self, job_id, _scope):
+    def preparation_lookup(self, job_id, *, access_scope):
+        self.lookup_scopes = getattr(self, "lookup_scopes", []) + [dict(access_scope)]
         return self.results.get(job_id, {"status": "pending"})
 
 
@@ -427,6 +428,10 @@ class AttentionControllerTests(unittest.TestCase):
         self.clock.value += 3
         admission = controller.dispatch_next(self.control)
         self.assertEqual(admission["status"], "dispatched")
+        # The production JobService requires scope by keyword. This call
+        # exercises AttentionController.record_result on a pending exact job.
+        self.assertEqual(controller.record_result(candidate_id=admission["candidate_id"],
+                                                   control=self.control), {"status": "pending"})
         self.assertFalse(jobs._thread)
         stored = db.execute("SELECT focus_id,input_fingerprint,expected_dependencies,window_deadline "
                             "FROM pa1_automatic_work WHERE job_id=?", (admission["job_id"],)).fetchone()
