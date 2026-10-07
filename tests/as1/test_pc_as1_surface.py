@@ -9,6 +9,7 @@ import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 from project_control.app import create_mcp
 from project_control.as1_context import ContextHost
+from project_control.as1_surface import SurfaceComposition
 from project_control.runtime_binding import local_runtime_identity
 from project_control.config import ProjectControlConfig
 from project_control.profiles import enumerate_tool_schemas, validate_profile_registration
@@ -30,6 +31,32 @@ def make_skill_root(root):
         encoding='utf-8',
     )
     return root
+
+
+@pytest.mark.parametrize('profile', ['observer', 'coder', 'codex', 'mutator',
+                                      'investigator', 'skill_assembler'])
+def test_only_public_inquiry_profiles_start_shared_dispatcher(profile):
+    class Jobs:
+        worker_factory = object()
+
+        def __init__(self):
+            self.starts = 0
+
+        def start(self):
+            self.starts += 1
+
+    composition = SurfaceComposition()
+    composition.host = ContextHost(profile, 'fixture', frozenset())
+    composition.jobs = Jobs()
+    watcher_starts = []
+    composition._start_attention_watcher = lambda: watcher_starts.append(profile)
+
+    composition.start()
+
+    expected_dispatcher = 1 if profile in {'observer', 'mutator'} else 0
+    expected_watcher = 1 if profile == 'observer' else 0
+    assert composition.jobs.starts == expected_dispatcher
+    assert len(watcher_starts) == expected_watcher
 
 
 @pytest.fixture
@@ -283,7 +310,8 @@ def test_worker_command_roots_follow_durable_admission(servers, tmp_path, monkey
 
 
 @pytest.mark.as1_case('API-04')
-def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
+@pytest.mark.parametrize('profile', ['observer', 'mutator'])
+def test_public_jobs_use_actual_installed_worker_and_shared_service(servers, profile):
     import time
     class ScriptedBackend:
         def __init__(self):
@@ -316,7 +344,7 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
                     {'text': 'The shared catalog was observed.', 'evidence_packets': [self.replayed_packet['packet_id']]}]}
             return {'status': 'available', 'text': json.dumps(turn)}
     backend = ScriptedBackend()
-    server = servers(observer_backend=backend)
+    server = servers(profile, observer_backend=backend)
     c = server._project_control_surface
     c.start()
     value = run(server.call_tool('investigate', {'question': 'Inspect registered catalog.', 'request_id': 'surface-scripted-job'}))

@@ -11,22 +11,33 @@ scripts/pc-dev run serve mutator
 scripts/pc-dev run codex
 scripts/pc-dev test
 scripts/pc-dev test tests/test_workflow_binding.py -q
-systemctl --user restart project-control-inference.service project-control.service
 ```
 
-The default smoke covers launcher sanitation, runtime identity, workflow
-binding, readiness, and one focused mutator case using bundled Todo source. It
-does not start the Project Control service or inference/model processes.
-Foreground servers pick up source edits when rerun. This host's
+`setup` is needed for a new checkout or dependency changes. The default smoke
+covers launcher sanitation, runtime identity, workflow binding, readiness, and
+one focused mutator case using bundled Todo source. Tests run independently of
+Project Control services and inference/model processes. Foreground servers pick
+up source edits when rerun. This host's
 `project-control-inference.service` and `project-control.service` use the
-checkout. After a batch of executable Project Control or Todo Python changes
-and focused source checks, restart both services together before live
-assistance use: the supervisor verifies the Project Control package when it
-starts. Focused source tests need no service restart, and external domain
-documentation changes do not change executable identity. The inference
-supervisor remains demand-driven. Installed-release deployments keep using
-their selected release until switched. See [development notes](docs/development.md)
-for setup, test selection, and evidence boundaries.
+checkout. Before editing executable Project Control or Todo Python, stop active
+assistance while the current source identity can still release its owned work.
+Then make the edits, run focused source checks, restart both services together,
+and clear the stop veto:
+
+```sh
+scripts/pc-dev run assistance stop
+# Edit executable source, then run focused checks.
+scripts/pc-dev test -q
+systemctl --user restart project-control-inference.service project-control.service
+scripts/pc-dev run assistance resume --release
+```
+
+The supervisor verifies the Project Control package when it starts. Focused
+source tests need no service restart, and external domain documentation changes
+do not change executable identity. `resume --release` does not load a model;
+the inference supervisor remains demand-driven. Installed-release deployments
+keep using their selected release until switched. See [development
+notes](docs/development.md) for setup, test selection, and evidence boundaries.
 
 ## On-demand assistance
 

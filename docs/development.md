@@ -33,16 +33,27 @@ scripts/pc-dev run serve mutator
 ```
 
 These commands run in the foreground. Stop with Ctrl+C and rerun after edits.
-For managed services, see [deployment](deployment.md). After a batch of
-executable Project Control or Todo Python changes, run focused source checks,
-then restart both `project-control-inference.service` and
-`project-control.service` before live assistance use. The supervisor
+The source `codex`/`coder` stdio frontend must not start the shared inquiry
+dispatcher: its sanitized environment has no systemd bus. Public inquiry
+dispatch is owned by the observer and mutator profiles; coder/codex,
+investigator, and skill-assembler profiles do not start it. The local
+`assistance ask`/`chat` CLI manages its intended local dispatcher. For managed
+services, see [deployment](deployment.md).
+
+Before editing executable Project Control or Todo source, stop active
+assistance while the current source identity can still release its owned work.
+Then edit and run focused source checks before restarting both
+`project-control-inference.service` and `project-control.service` for live HTTP
+use. The supervisor
 startup-attests the Project Control package, so restarting HTTP alone can leave
-the supervisor bound to the prior source identity. Do not restart for every
-edit or test: source tests need no service, and external domain-documentation
-changes do not invalidate executable identity. Restart only for an isolated
-unit configuration change when no executable package changed. Inference stays
-demand-driven.
+the supervisor bound to the prior source identity. A newly launched stdio
+client using `scripts/pc-dev run codex` imports the current checkout
+automatically; reconnect it after changing tool registrations or schemas. Do
+not restart for every edit or test: source tests need no service, and external
+domain-documentation changes do not invalidate executable identity. Inference
+stays demand-driven. After the paired restart, run
+`scripts/pc-dev run assistance resume --release` to clear an explicit stop veto
+without loading a model.
 
 Project Control and bundled Todo executable identity is derived independently
 of optional CUDA/C++ or skill documentation. The old

@@ -17,6 +17,7 @@ from project_control.app import Runtime
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import ProjectSnapshot, RepositoryIdentity
 from project_control.profiles import MCPProfile
+from project_control.as1_context import ContextHost
 from project_control.as1_surface import SurfaceComposition, compose_surface
 from project_control.runtime_binding import local_runtime_identity
 
@@ -159,6 +160,7 @@ class AttentionSurfaceTests(unittest.TestCase):
                 order.append("backend-close")
 
         composition = SurfaceComposition()
+        composition.host = ContextHost("observer", "fixture", frozenset())
         composition.jobs = Jobs()
         composition.backend = Backend()
         composition.attention_interval_seconds = 0.05

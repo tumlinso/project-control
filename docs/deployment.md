@@ -34,15 +34,34 @@ workspace list, ports, durable state paths, and any local resource policy. This
 repository's source HTTP unit serves on loopback port `8768`; the optional
 inference supervisor is a separate, demand-driven service.
 
-After a batch of executable Project Control or Todo Python changes, run the
-focused source checks and then restart both services together before live
-assistance use. At startup, the inference supervisor attests the Project
-Control executable package identity; an HTTP-only restart after package code
-changed can leave the supervisor bound to older code. Batch source edits and
-tests before the restart instead of restarting for every edit. Focused source
-tests do not need either service. Optional external domain-documentation
-changes do not invalidate executable identity. For a change confined to one
-unit's configuration, restart that unit:
+The source `codex`/`coder` stdio frontend must not start the shared inquiry
+dispatcher: its sanitized environment has no systemd bus. Public inquiry
+dispatch is owned by the observer and mutator profiles; coder/codex,
+investigator, and skill-assembler profiles do not start it. The local
+`assistance ask`/`chat` CLI manages its intended local dispatcher.
+
+Before editing executable Project Control or Todo Python, stop active
+assistance while the current source identity can still release its owned work.
+Then edit and run focused source checks before restarting both services
+together for live HTTP assistance. At startup, the inference supervisor attests
+the Project Control executable package identity; an HTTP-only restart after
+package code changed can leave the supervisor bound to older code. Batch source
+edits and tests before the restart instead of restarting for every edit. Focused
+source tests do not need either service. A newly launched stdio client using
+`scripts/pc-dev run codex` loads the current checkout automatically; reconnect
+it after changing tool registrations or schemas. Optional external
+domain-documentation changes do not invalidate executable identity. For a
+source-code change, run this sequence:
+
+```sh
+scripts/pc-dev run assistance stop
+scripts/pc-dev test -q
+# Edit executable source before the paired restart.
+systemctl --user restart project-control-inference.service project-control.service
+scripts/pc-dev run assistance resume --release
+```
+
+For configuration-only changes, restart the affected unit:
 
 ```sh
 # For HTTP service configuration only:
@@ -52,6 +71,8 @@ systemctl --user restart project-control-inference.service
 # After executable PC/Todo Python changes, refresh both together:
 systemctl --user restart project-control-inference.service project-control.service
 ```
+
+`resume --release` clears the explicit stop veto without loading a model.
 
 ### Allow source HTTP to read registered Todo state
 
@@ -107,6 +128,21 @@ systemctl --user status project-control.service
 curl --fail http://127.0.0.1:8768/healthz
 curl --fail http://127.0.0.1:8768/readyz
 ```
+
+Record the checkout and imported runtime identity around a source restart:
+
+```sh
+git rev-parse HEAD
+git status --short
+scripts/pc-dev run doctor --json
+systemctl --user show project-control.service -p MainPID -p ExecStart -p ActiveEnterTimestamp
+systemctl --user show project-control-inference.service -p MainPID -p ExecStart -p ActiveEnterTimestamp
+```
+
+`doctor --json` reports the current checkout's verified bundled Todo package
+path and fingerprint. Unit PID/start time and `ExecStart` identify the restarted
+process launch; `/readyz` confirms the live HTTP process serves core readiness.
+Source mode does not require a wheel build or release-manifest refresh.
 
 `/healthz` reports process liveness. `/readyz` reports core configuration and
 the bundled workflow engine; inference and optional content are reported

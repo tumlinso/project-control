@@ -483,9 +483,16 @@ class InquiryFreshness:
 
 class SurfaceComposition:
     def start(self):
+        # The durable inquiry broker is shared across profile compositions.
+        # Observer and mutator expose public investigate. Other profiles must
+        # not start competing global dispatchers when a Codex frontend connects.
+        profile = getattr(getattr(self, 'host', None), 'profile', None)
+        if profile not in {'observer', 'mutator'}:
+            return
         if self.jobs.worker_factory is not None:
             self.jobs.start()
-            self._start_attention_watcher()
+            if profile == 'observer':
+                self._start_attention_watcher()
 
     def _start_attention_watcher(self):
         tick = getattr(self, 'attention_tick', None)
