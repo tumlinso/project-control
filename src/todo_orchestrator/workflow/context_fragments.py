@@ -722,7 +722,7 @@ class ContextFragmentStore:
             "task_id": task_id,
             "run_summary": _compact_content(charter, ("objective", "motivation", "desired_end_state", "conceptual_end_state", "boundaries", "invariants", "acceptance_conditions", "rationale", "uncertainties", "risks", "delegated_judgment", "references", "glossary")),
             "lane_brief": _compact_content(lane, ("role", "authority", "ordered_tasks", "interfaces", "rendezvous", "workspace_mode", "motivation", "desired_end_state", "rationale", "risks", "delegated_judgment", "references")),
-            "task_brief": _compact_content(task, ("objective", "next_action", "scope", "completion_contract", "tests", "gates", "consumes_interfaces", "forbidden_mutations", "motivation", "desired_end_state", "conceptual_end_state", "rationale", "uncertainties", "risks", "delegated_choices", "delegated_judgment", "references")),
+            "task_brief": _compact_content(task, ("objective", "next_action", "scope", "completion_contract", "tests", "gates", "optional_gates", "consumes_interfaces", "forbidden_mutations", "motivation", "desired_end_state", "conceptual_end_state", "rationale", "uncertainties", "risks", "delegated_choices", "delegated_judgment", "references")),
             "unread_delta": _compact_content(delta, ("cursor", "messages", "state_changes", "fragment_changes", "interface_invalidations", "rendezvous_changes")),
             "fragment_manifest": manifest,
             "changed_fragments": changed,

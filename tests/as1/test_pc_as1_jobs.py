@@ -45,6 +45,8 @@ def make(tmp_path, **kwargs):
 
 
 def source_environment():
+    from project_control.runtime_binding import local_runtime_identity
+
     environment = dict(os.environ)
     for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
                 'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
@@ -54,7 +56,8 @@ def source_environment():
     environment.pop('PROJECT_CONTROL_SKILLS_ROOT', None)
     environment['PROJECT_CONTROL_OBSERVER_SKILLS_ROOT'] = str(SKILLS)
     environment['PROJECT_CONTROL_LOCAL_RUNTIME_ROOT'] = str(RUNTIME_ROOT)
-    environment['PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256'] = hashlib.sha256((RUNTIME_ROOT/'receiver-manifest.json').read_bytes()).hexdigest()
+    environment['PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256'] = local_runtime_identity(
+        root=RUNTIME_ROOT).manifest_sha256
     environment['PYTHONPATH'] = str(ROOT/'src')
     environment['AS1_SOURCE_HASHES'] = json.dumps({
         name: hashlib.sha256((ROOT/'src/project_control'/ (name+'.py')).read_bytes()).hexdigest()
@@ -243,7 +246,7 @@ def test_inquiry_startup_timeout_bounds_readiness_and_keeps_zero_budget_cache_re
 
 
 @pytest.mark.as1_case('JOB-03')
-def test_dispatch_readiness_failure_retains_only_stable_private_reason(tmp_path):
+def test_dispatch_readiness_failure_retains_only_stable_private_reason(tmp_path, caplog):
     class Backend:
         def open_sessions(self, *_args, **_kwargs):
             pytest.fail('model session must not open after readiness failure')
@@ -267,6 +270,8 @@ def test_dispatch_readiness_failure_retains_only_stable_private_reason(tmp_path)
         assert job['failure_reason'] == 'inference_project_control_fingerprint_mismatch'
         assert '/private/runtime/path' not in json.dumps(job)
         assert s._inquiry_failure_class(job) == 'runtime_mismatch'
+        assert '/private/runtime/path' in caplog.text
+        assert 'Traceback' not in caplog.text
     finally:
         s.shutdown()
 
@@ -849,9 +854,7 @@ for name, expected in json.loads(os.environ['AS1_SOURCE_HASHES']).items():
  assert hashlib.sha256(source.read_bytes()).hexdigest() == expected
 from project_control.runtime_binding import local_runtime_identity
 identity=local_runtime_identity(root=os.environ['PROJECT_CONTROL_LOCAL_RUNTIME_ROOT'])
-native=identity.root/'local_worker/observer_runtime.py'
-manifest=json.loads((identity.root/'receiver-manifest.json').read_text())
-assert hashlib.sha256(native.read_bytes()).hexdigest() == manifest['files']['local_worker/observer_runtime.py']
+assert identity.source_commit == 'working-tree'
 assert identity.manifest_sha256 == os.environ['PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256']
 raise SystemExit(pytest.main(['-q','-p','no:cacheprovider','tests/as1/test_pc_as1_jobs.py',
  '-k','step_budget_is_terminal or recoverable_yields_resume']))

@@ -72,13 +72,26 @@ class WorkflowPlanSnapshotTests(unittest.TestCase):
         self.assertEqual(brief["delegated_choices"], ["local decomposition"])
 
     def test_incremental_task_plan_versions_existing_task_brief(self):
-        plan = base_plan([safe_task("A", "src/a")])
+        task = safe_task("A", "src/a")
+        task["gates"] = [
+            {"id": "REQUIRED-GATE", "type": "manual", "required": True},
+            {"id": "OPTIONAL-GATE", "type": "manual", "required": False},
+            {"id": "DEFAULT-REQUIRED-GATE", "type": "manual"},
+        ]
+        plan = base_plan([task])
         plan["schema_version"] = 3
         plan["runs"] = [{
             "id": "RUN", "root_task_id": "A", "charter": {"objective": "bounded"},
             "lanes": [{"id": "ROOT", "role": "coordinator", "tasks": ["A"]}],
         }]
         self.repo.apply(plan)
+        from todo_orchestrator.workflow.context_fragments import ContextFragmentStore
+        capsule = ContextFragmentStore(self.repo.service.db).compose_first_class(
+            run_id="RUN", lane_id="ROOT", task_id="A",
+        )
+        self.assertEqual(["DEFAULT-REQUIRED-GATE", "REQUIRED-GATE"], sorted(capsule["task_brief"]["gates"]))
+        self.assertEqual(["DEFAULT-REQUIRED-GATE", "REQUIRED-GATE"], sorted(capsule["task_brief"]["tests"]))
+        self.assertEqual(["OPTIONAL-GATE"], capsule["task_brief"]["optional_gates"])
         incremental = base_plan([safe_task("A", "src/a")])
         incremental["tasks"][0]["objective"] = "Updated objective from task-only plan"
 
@@ -91,8 +104,36 @@ class WorkflowPlanSnapshotTests(unittest.TestCase):
             ).fetchall()
         self.assertEqual([1, 2], [row["version"] for row in versions])
         self.assertEqual("Updated objective from task-only plan", json.loads(versions[-1]["content_json"])["objective"])
+        updated_brief = json.loads(versions[-1]["content_json"])
+        self.assertEqual(["DEFAULT-REQUIRED-GATE", "REQUIRED-GATE"], sorted(updated_brief["gates"]))
+        self.assertEqual(["OPTIONAL-GATE"], updated_brief["optional_gates"])
         self.assertIsNotNone(versions[0]["invalidated_at"])
         self.assertEqual("RUN:task_brief:ROOT:A:2", versions[0]["superseded_by"])
+
+    def test_incremental_task_plan_does_not_rewrite_completed_run_briefs(self):
+        plan = base_plan([safe_task("A", "src/a")])
+        plan["schema_version"] = 3
+        plan["runs"] = [{
+            "id": "RUN", "root_task_id": "A", "charter": {"objective": "bounded"},
+            "lanes": [{"id": "ROOT", "role": "coordinator", "tasks": ["A"]}],
+        }]
+        self.repo.apply(plan)
+        self._fixture(lambda conn, revision: conn.execute(
+            "UPDATE workflow_runs SET status='completed',revision=? WHERE id='RUN'", (revision,),
+        ).rowcount)
+        incremental = base_plan([safe_task("A", "src/a")])
+        incremental["tasks"][0]["objective"] = "New active task objective"
+
+        self.repo.apply(incremental)
+
+        with self.repo.service.db.read() as conn:
+            rows = conn.execute(
+                "SELECT version,content_json,invalidated_at FROM workflow_context_fragments "
+                "WHERE run_id='RUN' AND task_id='A' AND kind='task_brief' ORDER BY version",
+            ).fetchall()
+        self.assertEqual(1, len(rows))
+        self.assertIsNone(rows[0]["invalidated_at"])
+        self.assertEqual("Implement A", json.loads(rows[0]["content_json"])["objective"])
 
     def test_v3_mode_update_refuses_closed_or_active_lane_and_rolls_back(self):
         _, updated = self._workspace_plan()

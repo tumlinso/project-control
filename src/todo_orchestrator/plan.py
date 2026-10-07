@@ -516,8 +516,9 @@ def _refresh_bound_task_briefs(conn: sqlite3.Connection, data: dict[str, Any], r
     task_definitions = {str(task["id"]): dict(task) for task in data.get("tasks", [])}
     for task_id, task_definition in task_definitions.items():
         rows = conn.execute(
-            "SELECT * FROM workflow_context_fragments WHERE task_id=? AND kind='task_brief' "
-            "AND invalidated_at IS NULL ORDER BY run_id,lane_id,version DESC",
+            "SELECT f.* FROM workflow_context_fragments f JOIN workflow_runs r ON r.id=f.run_id "
+            "WHERE f.task_id=? AND f.kind='task_brief' AND f.invalidated_at IS NULL "
+            "AND r.status IN ('active','attention_required') ORDER BY f.run_id,f.lane_id,f.version DESC",
             (task_id,),
         ).fetchall()
         for row in rows:
@@ -535,15 +536,19 @@ def _refresh_bound_task_briefs(conn: sqlite3.Connection, data: dict[str, Any], r
             if all(sorted(prior_scope.get(key, [])) == sorted(current_scope.get(key, [])) for key in scope_keys):
                 task["scope"] = prior_scope
             gates = task.get("gates", [])
+            required_gate_ids = [gate.get("id") for gate in gates if gate.get("required", True)]
+            optional_gate_ids = [gate.get("id") for gate in gates if not gate.get("required", True)]
             brief = {
                 "objective": str(task.get("objective", task.get("title", task_id))),
                 "next_action": str(task.get("next_action", task.get("objective", task.get("title", task_id)))),
                 "scope": dict(task.get("scope", {})),
                 "completion_contract": task.get("completion_contract"),
-                "tests": [gate.get("id") for gate in gates],
-                "gates": [gate.get("id") for gate in gates],
+                "tests": required_gate_ids,
+                "gates": required_gate_ids,
                 "forbidden_mutations": list(dict(task.get("scope", {})).get("forbidden_paths", [])),
             }
+            if optional_gate_ids:
+                brief["optional_gates"] = optional_gate_ids
             if task.get("consumes_interfaces"):
                 brief["consumes_interfaces"] = [dict(item) for item in task["consumes_interfaces"]]
             for key in ("tests", "gates"):
@@ -735,15 +740,19 @@ def _apply_workflow_plan(conn: sqlite3.Connection, data: dict[str, Any], revisio
                 scope_keys = set(prior_scope) | set(current_scope)
                 if prior_brief and all(sorted(prior_scope.get(key, [])) == sorted(current_scope.get(key, [])) for key in scope_keys):
                     task['scope'] = prior_scope
+                required_gate_ids = [gate.get("id") for gate in task.get("gates", []) if gate.get("required", True)]
+                optional_gate_ids = [gate.get("id") for gate in task.get("gates", []) if not gate.get("required", True)]
                 task_brief = {
                     "objective": str(task.get("objective", task.get("title", task_id))),
                     "next_action": str(task.get("next_action", task.get("objective", task.get("title", task_id)))),
                     "scope": dict(task.get("scope", {})),
                     "completion_contract": task.get("completion_contract"),
-                    "tests": [gate.get("id") for gate in task.get("gates", [])],
-                    "gates": [gate.get("id") for gate in task.get("gates", [])],
+                    "tests": required_gate_ids,
+                    "gates": required_gate_ids,
                     "forbidden_mutations": list(dict(task.get("scope", {})).get("forbidden_paths", [])),
                 }
+                if optional_gate_ids:
+                    task_brief["optional_gates"] = optional_gate_ids
                 if task.get("consumes_interfaces"):
                     task_brief["consumes_interfaces"] = [
                         dict(interface) for interface in task["consumes_interfaces"]

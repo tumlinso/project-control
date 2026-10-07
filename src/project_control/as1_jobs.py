@@ -7,6 +7,7 @@ import hashlib
 import fcntl
 import importlib
 import json
+import logging
 import os
 import math
 import re
@@ -29,6 +30,7 @@ CHECKPOINT_MAX_BYTES = 96 * 1024
 WORKER_JOB_INPUT_MAX_BYTES = 256 * 1024
 WORKER_OBSERVATION_MAX_BYTES = 32768
 _DB_LOCK = threading.RLock()
+_LOGGER = logging.getLogger(__name__)
 _RECONCILE_LOCKS_GUARD = threading.Lock()
 _RECONCILE_LOCKS: dict[Path, threading.RLock] = {}
 _RECONCILE_LOCK_DEPTH = threading.local()
@@ -167,6 +169,15 @@ def _demand_readiness_failure_reason(value):
                                  'inference_', 'observer_'))):
         return code
     return 'demand_runtime_unavailable'
+
+
+def _log_demand_readiness_failure(reason):
+    """Keep the raw private startup diagnostic bounded and single-line."""
+    if not isinstance(reason, str) or not reason:
+        return
+    bounded = ''.join(' ' if ord(char) < 32 or ord(char) == 127 else char
+                      for char in reason[:512])
+    _LOGGER.warning('demand runtime readiness failed: %s', bounded)
 
 
 def _public_wait_reason(value):
@@ -1013,11 +1024,14 @@ class JobService:
         try:
             receipt = ensure(deadline_epoch=deadline_epoch)
         except Exception as error:
-            reason = str(error).strip()[:160] or type(error).__name__
+            raw_reason = str(error).strip()
+            _log_demand_readiness_failure(raw_reason or type(error).__name__)
+            reason = raw_reason[:160] or type(error).__name__
             return {'status': 'unavailable', 'reason': reason}
         if not isinstance(receipt, dict):
             return {'status': 'unavailable', 'reason': 'demand_runtime_not_ready'}
         if receipt.get('status') != 'ready':
+            _log_demand_readiness_failure(receipt.get('reason'))
             return {'status': 'unavailable',
                 'reason': _demand_readiness_failure_reason(receipt)}
         return None
