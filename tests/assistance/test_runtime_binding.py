@@ -558,8 +558,14 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
         # hosts the executable runtime. The transfer record and checksummed
         # rollback archive identify the original Skills source; the current
         # catalog path contains retirement navigation markers for some files.
+        # This manifest describes the Project Control source snapshot that
+        # produced the receiver. It may carry a reviewed working-tree label
+        # after receiver-owned Project Control changes; the transferred
+        # Skills commit and inventory below remain the immutable supplier
+        # provenance. Validate the source identity shape without pinning a
+        # later PC snapshot to the original transfer label.
         self.assertRegex(receiver_manifest["source_commit"],
-                         r"^[0-9a-f]{40}\+PC-PA1-[A-Z0-9-]+-reviewed-peer-rpc$")
+                         r"^[0-9a-f]{40}\+[A-Za-z0-9][A-Za-z0-9-]*$")
         self.assertEqual(transfer["source_commit"], "95818340006dd50ef233d7c67ddca2da8eb08bc4")
         self.assertEqual(receiver_manifest["source_inventory_path"], transfer["source_inventory_path"])
         self.assertEqual(receiver_manifest["source_inventory_sha256"], transfer["source_inventory_sha256"])
@@ -635,11 +641,12 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
         self.assertEqual(transformed_paths, {
             "local_worker/controller.py", "local_worker/supervisor.py", "scripts/worker_core.py",
         })
-        # These three current receiver files changed after the original
-        # transfer record. Their current bytes are checked by the receiver
-        # manifest above; keep their names explicit so they cannot be mistaken
-        # for original-source transfer transformations.
+        # These receiver-owned files changed after the original transfer
+        # record. Their current bytes are checked by the receiver manifest
+        # above; keep their names explicit so they cannot be mistaken for
+        # original-source transfer transformations.
         post_transfer_receiver_changes = {
+            "config/production-profile.toml",
             "local_worker/observer_runtime.py",
             "local_worker/residency.py",
             "local_worker/servers/llama_cpp.py",
@@ -665,11 +672,16 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
         ):
             self.assertTrue((RECEIVER / relative).is_file(), relative)
             supplier_relative = "local-coding-worker/" + relative
-            self.assertEqual(
-                hashlib.sha256(source_contents[supplier_relative]).hexdigest(),
-                hashlib.sha256((RECEIVER / relative).read_bytes()).hexdigest(),
-                relative,
-            )
+            if relative in post_transfer_receiver_changes:
+                # Preserve and verify the supplier version in the archive;
+                # the receiver manifest above pins the reviewed PC-owned edit.
+                self.assertIn(relative, current_receiver_differences)
+            else:
+                self.assertEqual(
+                    hashlib.sha256(source_contents[supplier_relative]).hexdigest(),
+                    hashlib.sha256((RECEIVER / relative).read_bytes()).hexdigest(),
+                    relative,
+                )
 
         excluded_ids = {item["id"] for item in transfer["authority_exclusions"]}
         self.assertEqual(excluded_ids, {"todo-orchestrator", "cuda", "cpp-context-compiler"})

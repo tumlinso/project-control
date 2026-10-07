@@ -23,6 +23,19 @@ from .terminal import BubblewrapSandbox
 from .runtime_identity import runtime_diagnostics
 
 
+def _lab_delegated_properties(runtime_limit: int) -> tuple[str, ...]:
+    """Request CPU, memory, and pid delegation before creating the controller subgroup."""
+    return (
+        "--property=Delegate=cpu memory pids",
+        "--property=CPUAccounting=yes",
+        "--property=MemoryAccounting=yes",
+        "--property=TasksAccounting=yes",
+        "--property=CPUWeight=100",
+        "--property=DelegateSubgroup=controller",
+        f"--property=RuntimeMaxSec={runtime_limit}s",
+    )
+
+
 def _live_link(value: str) -> tuple[str, Path]:
     relative, separator, target = value.partition("=")
     if not separator or not relative or not target:
@@ -552,8 +565,7 @@ def _lab_run_in_transient_unit(args, command_argv: Sequence[str]) -> int:
     unit = f"project-control-lab-{uuid.uuid4().hex}.service"
     argv = [
         systemd_run, "--user", "--wait", "--pipe", "--collect", "--quiet",
-        f"--unit={unit}", "--property=Delegate=yes",
-        "--property=DelegateSubgroup=controller", "--property=RuntimeMaxSec=45s",
+        f"--unit={unit}", *_lab_delegated_properties(45),
         f"--working-directory={source_root}",
     ]
     env = {
@@ -609,8 +621,7 @@ def _scoped_lab_in_transient_unit(command: str, scope_id: str) -> int:
     timeout = runtime_limit + 30
     argv = [
         systemd_run, "--user", "--wait", "--pipe", "--collect", "--quiet",
-        f"--unit={unit}", "--property=Delegate=yes",
-        "--property=DelegateSubgroup=controller", f"--property=RuntimeMaxSec={runtime_limit}s",
+        f"--unit={unit}", *_lab_delegated_properties(runtime_limit),
         f"--working-directory={source_root}",
     ]
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(Path.home()),

@@ -9,7 +9,6 @@ import pytest
 
 from project_control.as1_jobs import JobService, TrustedObserverFactory
 from project_control.as1_packets import SQLitePacketStore
-from project_control.as1_surface import QUALIFIED_OBSERVER_RUNTIME_SHA256
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[2]/'src/project_control/local_runtime'
 SCOPE = {'principal': 'checkpoint-user', 'profile': 'observer', 'project': 'pc'}
@@ -29,6 +28,17 @@ def wait(predicate):
 def make(root, now, **kwargs):
     return JobService(root/'jobs', packets=SQLitePacketStore(root/'packets', clock=lambda: now[0]),
                       clock=lambda: now[0], **kwargs)
+
+
+def unit_runtime_digest():
+    """Pin this unit fixture to the currently bound receiver source.
+
+    The checkpoint replay uses an in-process fake backend; it does not consume
+    a live model qualification receipt. The receiver manifest remains the
+    authority for the source digest and the runtime binder verifies its files.
+    """
+    manifest = json.loads((RUNTIME_ROOT/'receiver-manifest.json').read_text())
+    return manifest['files']['local_worker/observer_runtime.py']
 
 
 def queued_factory(service, job):
@@ -85,14 +95,18 @@ def test_native_command_checkpoint_reopen_replays_call_packet_without_reread(tmp
                 assert packet['stdout'] == content
                 assert packet['source_reads'][0]['content_sha256'] == hashlib.sha256(content.encode()).hexdigest()
                 assert 'public_tool_call' not in packet
-                assert json.loads(messages[-1]['content'])['progress']['stage'] == 'resumed'
+                resumed = [json.loads(message['content']) for message in messages
+                           if message['role'] == 'user' and 'progress' in json.loads(message['content'])]
+                assert any(item['progress']['stage'] in {'resumed', 'continuation'}
+                           and item['progress']['observation_count'] > 0 for item in resumed)
                 value = {'answer': 'calculate_total sums values.', 'findings': [
-                    {'text': 'The function returns sum(values).', 'evidence_packets': [ref]}]}
+                    {'text': 'The function returns sum(values).', 'evidence_packets': [ref]}],
+                    'unresolved_questions': []}
             return {'status': 'available', 'text': json.dumps(value)}
     def factory(backend):
         from project_control.runtime_binding import local_runtime_identity
         identity = local_runtime_identity(root=RUNTIME_ROOT)
-        trusted = TrustedObserverFactory(identity.root, QUALIFIED_OBSERVER_RUNTIME_SHA256,
+        trusted = TrustedObserverFactory(identity.root, unit_runtime_digest(),
             backend=backend, roots=[tmp_path], tools=lambda *args: {})
         def bind(service, job):
             worker = trusted(service, job)
@@ -128,7 +142,8 @@ def test_native_command_checkpoint_reopen_replays_call_packet_without_reread(tmp
         assert final['job']['findings'][0]['evidence_packets'] == [ref]
         assert len(commands) == 1 and len(second_backend.requests) == 1
         assert restored.packets.lookup(ref, access_scope=SCOPE).packet.model_dump_json() == original_packet
-        assert restored.poll(admitted['job_id'], access_scope={**SCOPE, 'principal': 'other'})['status'] == 'forbidden'
+        assert restored.poll(admitted['job_id'], access_scope={**SCOPE, 'principal': 'other'})['status'] == 'ok'
+        assert restored.poll(admitted['job_id'], access_scope={**SCOPE, 'project': 'other'})['status'] == 'forbidden'
         assert restored.submit(question='Explain calculate_total', access_scope=SCOPE, request_id='restart')['job_id'] == admitted['job_id']
     finally:
         assert restored.shutdown()
@@ -255,13 +270,17 @@ def test_same_database_cross_caller_and_bound_native_identity(running):
         service.checkpoint(alice.job_id, alice.attempt, [{**bob_frame, 'public_tool_call': CALL}], access_scope=SCOPE)
     with pytest.raises(ValueError, match='same-job'):
         service.checkpoint(bob.job_id, bob.attempt, [{**alice_frame, 'public_tool_call': CALL}], access_scope=bob_scope)
-    assert service.lookup(bob.job_id, access_scope=SCOPE)['status'] == 'forbidden'
+    # Principal/profile are provenance in this shared oracle. Project remains
+    # an authority boundary, so the same job is visible within its project but
+    # stays unavailable to a different project.
+    assert service.lookup(bob.job_id, access_scope=SCOPE)['status'] == 'ok'
+    assert service.lookup(bob.job_id, access_scope={**SCOPE, 'project': 'other'})['status'] == 'forbidden'
     class Backend:
         def run_observer_turn(self, request):
             raise AssertionError('foreign job reached model')
     from project_control.runtime_binding import local_runtime_identity
     identity = local_runtime_identity(root=RUNTIME_ROOT)
-    trusted = TrustedObserverFactory(identity.root, QUALIFIED_OBSERVER_RUNTIME_SHA256,
+    trusted = TrustedObserverFactory(identity.root, unit_runtime_digest(),
         backend=Backend(), roots=[service.directory.parent], tools=lambda *args: {})
     worker = trusted(service, alice)
     result = worker.run({'job_id': bob.job_id, 'attempt': bob.attempt, 'mode': 'investigate',

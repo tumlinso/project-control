@@ -992,12 +992,18 @@ def test_preflight_covers_expired_incompatible_jobs_and_pending_outbox(tmp_path)
     s._thread = None
     s.start()
     try:
-        wait(lambda: s.last_error == 'runtime_identity_mismatch')
+        wait(lambda: (current if (current := s.lookup(ident, access_scope=SCOPE))['job']['status'] == 'failed' else None))
         with s._db() as db:
             current = json.loads(db.execute('SELECT record FROM jobs WHERE id=?', (ident,)).fetchone()[0])
             assert db.execute('SELECT materialized FROM outbox WHERE id=?', ('pending-packet',)).fetchone()[0] == 0
             assert db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] == 0
-        assert current['status'] == 'queued' and current['attempt'] == 0
+        # The watchdog terminalizes genuinely expired work even while the
+        # central identity is unavailable. It retains the request and pending
+        # packet, while the identity fence prevents model dispatch.
+        assert current['status'] == 'failed'
+        assert current['attempt'] == 1
+        assert current['terminal_reason'] == 'deadline_exhausted'
+        assert current['question'] == 'expired and incompatible'
     finally:
         s.shutdown()
 

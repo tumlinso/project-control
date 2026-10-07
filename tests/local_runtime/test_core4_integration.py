@@ -16,7 +16,7 @@ RECEIVER_ROOT = receiver_runtime_path()
 
 from local_worker import controller as _controller_module
 assert_receiver_module(_controller_module)
-from local_worker.controller import IntegrationController, ProductionReadOnlyRuntime
+from local_worker.controller import IntegrationController, IntegrationError, ProductionReadOnlyRuntime
 
 
 def command(code: str) -> dict[str, object]:
@@ -163,15 +163,14 @@ class Core4IntegrationTests(unittest.TestCase):
         common.update(updates)
         return common
 
-    def test_readonly_flow_is_terminal_and_healthy_evidence_is_silent(self) -> None:
+    def test_legacy_receiver_rejects_disabled_readonly_command(self) -> None:
         before = (self.root / "src/kernel.cu").read_bytes()
-        result = self.controller().run(self.request("readonly"))
-        self.assertEqual(result["status"], "no_change")
-        self.assertEqual(result["child_state"], "succeeded")
-        self.assertEqual(result["changed_paths"], [])
-        self.assertEqual(result["cuda"], {"state": "silent", "campaign_ids": []})
+        self.environment["LCW_CUDA_CLI"] = str(self.fake_ctxpp)
+        with self.assertRaisesRegex(IntegrationError, "disabled at this receiver"):
+            self.controller(worker_cli=RECEIVER_ROOT / "scripts/local_worker.py",
+                            ).run(self.request("readonly"))
         self.assertEqual((self.root / "src/kernel.cu").read_bytes(), before)
-        self.assertFalse(result["parent_task_completed"])
+        self.assertEqual(json.loads(self.state.read_text())["state"], "failed")
 
     def test_public_delegate_derives_read_child_request_from_todo_capsule(self) -> None:
         seen = {}
@@ -306,11 +305,12 @@ class Core4IntegrationTests(unittest.TestCase):
         self.assertEqual((self.root / "src/kernel.cu").read_text(), "// delegated candidate\n")
         self.assertFalse(result["parent_task_completed"])
 
-    def test_needs_codex_is_a_successful_terminal_handback(self) -> None:
-        result = self.controller().run(self.request("readonly", target="needs"))
-        self.assertEqual(result["status"], "needs_codex")
-        self.assertEqual(result["child_state"], "needs_codex")
-        self.assertFalse(result["accepted"])
+    def test_legacy_receiver_rejects_disabled_needs_codex_command(self) -> None:
+        self.environment["LCW_CUDA_CLI"] = str(self.fake_ctxpp)
+        with self.assertRaisesRegex(IntegrationError, "disabled at this receiver"):
+            self.controller(worker_cli=RECEIVER_ROOT / "scripts/local_worker.py",
+                            ).run(
+                self.request("readonly", target="needs"))
 
     def test_v2_integration_forwards_policy_selected_real_execution(self) -> None:
         seen = {}

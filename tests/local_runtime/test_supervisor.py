@@ -940,6 +940,7 @@ class ServicePoolTests(_CanonicalRuntimeFixture):
 
         @contextmanager
         def reattach_guard(deadline_epoch):
+            self.assertTrue(backend._pool_lock._is_owned())
             entered.set()
             if not stop_committed.wait(2):
                 raise TimeoutError("test stop barrier timed out")
@@ -960,6 +961,61 @@ class ServicePoolTests(_CanonicalRuntimeFixture):
         self.assertEqual(backend.status()["slots"], [])
         self.assertFalse(runtime.host.owners)
         self.assertNotIn(endpoint["service_lease_id"], backend._leases)
+        backend.close()
+
+    def test_resume_guard_uses_pool_then_database_lock_order_with_concurrent_start(self):
+        backend, _, _ = self.backend()
+        endpoint = backend.warm()
+        receipt = backend.quiesce_for_foreground(request_id="lab-lock-order",
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 2)
+        resume_guard_entered = threading.Event()
+        allow_resume_guard_exit = threading.Event()
+        competing_start_has_pool = threading.Event()
+        competing_start_done = threading.Event()
+        database_lock = threading.Lock()
+        resume_thread_id = {"value": None}
+
+        @contextmanager
+        def guarded_admission(deadline_epoch):
+            with database_lock:
+                if threading.get_ident() == resume_thread_id["value"]:
+                    self.assertTrue(backend._pool_lock._is_owned())
+                    resume_guard_entered.set()
+                    if not allow_resume_guard_exit.wait(1):
+                        raise TimeoutError("resume admission barrier timed out")
+                yield
+
+        backend._admission_guard_factory = guarded_admission
+        results = []
+        def resume():
+            resume_thread_id["value"] = threading.get_ident()
+            results.append(backend.resume_after_foreground(request_id="lab-lock-order",
+                continuation_id=receipt["continuation_id"],
+                resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 3))
+        resume_thread = threading.Thread(target=resume)
+        resume_thread.start()
+        self.assertTrue(resume_guard_entered.wait(2))
+
+        def competing_start():
+            with backend._pool_lock:
+                competing_start_has_pool.set()
+                with guarded_admission(time.time() + 2):
+                    competing_start_done.set()
+        competitor = threading.Thread(target=competing_start)
+        competitor.start()
+        # With pool -> DB ordering, the competitor cannot take the pool lock
+        # while reattachment owns it. DB -> pool ordering would take both locks
+        # in opposite order here.
+        reversed_order_observed = competing_start_has_pool.wait(.1)
+        allow_resume_guard_exit.set()
+        resume_thread.join(timeout=2)
+        competitor.join(timeout=2)
+        self.assertFalse(resume_thread.is_alive())
+        self.assertFalse(competitor.is_alive())
+        self.assertFalse(reversed_order_observed)
+        self.assertTrue(competing_start_done.is_set())
+        self.assertEqual(results[0]["status"], "resumed")
+        self.assertIn(endpoint["service_lease_id"], backend._leases)
         backend.close()
 
     def test_single_island_fallback_remains_unchanged(self):

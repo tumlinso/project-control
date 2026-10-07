@@ -30,14 +30,29 @@ def servers(tmp_path, monkeypatch):
     assert hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest() == hashlib.sha256((BASE / 'src/project_control/as1_surface.py').read_bytes()).hexdigest()
     made = []
     def make(profile='observer', **kwargs):
+        production_demand_gate = kwargs.pop('_production_demand_gate', False)
         with patch('project_control.app.todo_read_port_factory', return_value=None):
             server = create_mcp(kwargs.pop("config", ProjectControlConfig()), profile=profile,
                 state_directory=tmp_path / str(len(made)), **kwargs)
+        if not production_demand_gate:
+            # This composition fixture tests broker behavior with CPU fake
+            # backends. Inject a test-only ready gate; release pin validation
+            # remains covered by DemandRuntime's own tests and production
+            # composition is asserted separately.
+            server._project_control_surface.jobs.demand_runtime_ready = (
+                lambda **_kwargs: {'status': 'ready'})
         made.append(server)
         return server
     yield make
     for server in made:
         server._project_control_surface.close()
+
+
+def test_composition_keeps_production_demand_runtime_gate(servers):
+    c = servers(_production_demand_gate=True)._project_control_surface
+    gate = c.jobs.demand_runtime_ready
+    assert callable(gate)
+    assert gate.__name__ == 'ensure_explicit_demand_runtime'
 
 
 @pytest.mark.as1_case('API-01')
@@ -256,9 +271,10 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
     import time
     class ScriptedBackend:
         def __init__(self):
-            self.turns = 0; self.closed = []; self.replayed_packet = None
+            self.turns = 0; self.opened = []; self.closed = []; self.replayed_packet = None
         def open_sessions(self, count, **policy):
             assert count == 1 and policy['compute_profile'] == 'narrow'
+            self.opened.append('scripted-session')
             return {'status': 'available', 'session_ids': ['scripted-session']}
         def close_session(self, session):
             self.closed.append(session)
@@ -302,7 +318,9 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
     deadline = time.monotonic() + 2
     while not backend.closed and time.monotonic() < deadline:
         time.sleep(.01)
-    assert backend.closed == ['scripted-session']
+    # Framed work runs one model turn per broker slice, closing each short
+    # lease before it resumes with the next durable attempt.
+    assert backend.closed == backend.opened == ['scripted-session'] * backend.turns
     assert c.jobs.lookup(ident, access_scope={**c.scope(None), 'principal': 'other-reader'})['status'] == 'ok'
 
 

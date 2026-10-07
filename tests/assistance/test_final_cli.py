@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+from pathlib import Path
+import subprocess
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -112,6 +114,25 @@ class FinalAssistanceCliTests(unittest.TestCase):
              patch("project_control.cli._lab_transient_unit_active") as active:
             self.assertEqual(-1, _scoped_lab_in_transient_unit("run", "scope-1"))
         active.assert_not_called()
+
+    def test_scoped_lab_unit_explicitly_delegates_all_containment_controllers(self):
+        source_root = Path("/tmp/project-control-test-source")
+        completed = subprocess.CompletedProcess([], 0, stdout='{"status":"done"}', stderr="")
+        with patch("project_control.assistance.lab_runner.current_cgroup_ready", return_value=False), \
+             patch("project_control.cli._lab_transient_unit_active", return_value=False), \
+             patch("project_control.cli.shutil.which", return_value="/usr/bin/systemd-run"), \
+             patch("project_control.cli._lab_runtime_identity",
+                   return_value=(Path("/usr/bin/python3"), source_root)), \
+             patch("project_control.cli.subprocess.run", return_value=completed) as run:
+            self.assertEqual(0, _scoped_lab_in_transient_unit("run", "scope-1"))
+        command = run.call_args.args[0]
+        self.assertIn("--property=Delegate=cpu memory pids", command)
+        self.assertIn("--property=CPUAccounting=yes", command)
+        self.assertIn("--property=MemoryAccounting=yes", command)
+        self.assertIn("--property=TasksAccounting=yes", command)
+        self.assertIn("--property=CPUWeight=100", command)
+        self.assertIn("--property=DelegateSubgroup=controller", command)
+        self.assertIn("--property=RuntimeMaxSec=600s", command)
 
 
 if __name__ == "__main__":

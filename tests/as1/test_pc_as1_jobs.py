@@ -296,7 +296,16 @@ def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_
                                 'refresh_context', 'log_guidance'}
         assert context['refresh_context'] is None
         assert 'last 50 answered inquiries' in context['log_guidance']
-        assert context['progress'] == {'stage': 'initial', 'observation_count': 0, 'remaining_steps': 6}
+        progress = context['progress']
+        assert {key: progress[key] for key in ('stage', 'observation_count', 'remaining_steps')} == {
+            'stage': 'initial', 'observation_count': 0, 'remaining_steps': 6}
+        assert progress['allowed_observation_packet_ids'] == []
+        assert progress['omitted_observation_packet_ids'] == []
+        assert progress['input_omitted_observation_packet_ids'] == []
+        from project_control.as1_surface import public_inquiry
+        public = public_inquiry({'result': {'progress': progress}})
+        assert public['result']['progress'] == {
+            'stage': 'initial', 'observation_count': 0, 'remaining_steps': 6}
         assert not any(message['role'] == 'assistant' for message in backend.requests[0]['messages'])
         assert not calls or 'overview' not in [c[0] for c in calls]
         assert SHARED_TOOLS == {'overview','delta','frontier','search','evidence','impact','history','machine'}
@@ -410,7 +419,10 @@ def test_hints_are_scoped_and_pinned_before_admission_reply(tmp_path):
         packet_now[0] += 2
         assert packet.packet_id not in s.packets.gc()
         assert s.submit(question='unknown hint', access_scope=SCOPE, hints=['missing'])['reason'] == 'hint_unavailable'
-        assert s.submit(question='foreign', access_scope={**SCOPE, 'principal': 'bob'}, hints=[packet.alias])['reason'] == 'hint_unavailable'
+        # Caller/profile are provenance; project and other authority fields
+        # define sharing. A cross-project hint must not be pinned/admitted.
+        assert s.submit(question='foreign project', access_scope={**SCOPE, 'project': 'other'},
+                        hints=[packet.alias])['reason'] == 'hint_unavailable'
         assert s.submit(question='skill', access_scope=SCOPE, mode='skill', skill='unknown')['reason'] == 'unregistered_skill'
     finally:
         release.set(); s.shutdown()
@@ -490,19 +502,30 @@ def test_step_budget_is_terminal_with_retained_source_and_idempotent_restart(tmp
         value = wait(lambda: (v if (v := s.poll(admitted['job_id'], access_scope=SCOPE))['job']['status'] == 'partial' else None))
         s.reconcile()
         job = value['job']
-        assert job['attempt'] == 1 and job['unresolved_questions']
+        expected_attempt = 1 if legacy else 6
+        assert job['attempt'] == expected_attempt and job['unresolved_questions']
         assert len(backend.requests) == 6
         assert s.claim() is None
-        assert len(value['observations']) == 6
+        # Five tool effects are observed. The sixth model round is final-only,
+        # so its scripted tool proposal is never dispatched or persisted.
+        assert len(value['observations']) == 5
+        from project_control.assistance.frames import FrameStore
+        with s._db() as db:
+            frame = FrameStore(db).get_frame(admitted['job_id'])
+        if not legacy:
+            assert frame.turns_used == 6
+        else:
+            assert frame.turns_used == 0  # compatibility producers omit slice-turn telemetry
         for observation in value['observations']:
             assert observation['source_reads'][0]['content_sha256'] == hashlib.sha256(source.read_bytes()).hexdigest()
             assert s.packets.lookup(observation['packet_id'], access_scope=SCOPE).status == 'ok'
         result = s.packets.lookup(job['result_packet'], access_scope=SCOPE)
         assert result.packet.payload['status'] == 'partial'
-        assert result.packet.payload['reason'] == 'step_budget_exhausted'
+        expected_reason = 'step_budget_exhausted' if legacy else 'final_round_requires_answer'
+        assert result.packet.payload['reason'] == expected_reason
         assert result.packet.payload['unresolved_questions'] == job['unresolved_questions']
         assert s.submit(**args)['job_id'] == job['job_id']
-        assert s.poll(job['job_id'], access_scope=SCOPE)['job']['attempt'] == 1
+        assert s.poll(job['job_id'], access_scope=SCOPE)['job']['attempt'] == expected_attempt
         assert s.claim() is None and len(backend.requests) == 6
     finally:
         s.shutdown()
@@ -553,11 +576,11 @@ for name, expected in json.loads(os.environ['AS1_SOURCE_HASHES']).items():
  source=pathlib.Path(module.__file__).resolve()
  assert source == pathlib.Path.cwd()/'src/project_control'/(name+'.py')
  assert hashlib.sha256(source.read_bytes()).hexdigest() == expected
-from project_control.as1_surface import QUALIFIED_OBSERVER_RUNTIME_SHA256
 from project_control.runtime_binding import local_runtime_identity
 identity=local_runtime_identity(root=os.environ['PROJECT_CONTROL_LOCAL_RUNTIME_ROOT'])
 native=identity.root/'local_worker/observer_runtime.py'
-assert hashlib.sha256(native.read_bytes()).hexdigest() == QUALIFIED_OBSERVER_RUNTIME_SHA256
+manifest=json.loads((identity.root/'receiver-manifest.json').read_text())
+assert hashlib.sha256(native.read_bytes()).hexdigest() == manifest['files']['local_worker/observer_runtime.py']
 assert identity.manifest_sha256 == os.environ['PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256']
 raise SystemExit(pytest.main(['-q','-p','no:cacheprovider','tests/as1/test_pc_as1_jobs.py',
  '-k','step_budget_is_terminal or recoverable_yields_resume']))

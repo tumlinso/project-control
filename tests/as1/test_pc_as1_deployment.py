@@ -44,6 +44,11 @@ def native_constructor(tmp_path, monkeypatch):
         assert name == 'local_worker.supervisor'
         return native
     monkeypatch.setattr(module.importlib, 'import_module', load)
+    # The unit fake represents a receiver-owned supervisor module. Skills is
+    # no longer the runtime owner, so bind this synthetic module to its own
+    # explicit package root while retaining the provider's containment check.
+    monkeypatch.setattr(module, 'bind_local_runtime',
+                        lambda: SimpleNamespace(package_root=root / 'local_worker'))
     monkeypatch.setenv('PROJECT_CONTROL_SKILLS_ROOT', str(root.parent))
     monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR', str(tmp_path / 'private'))
     monkeypatch.delenv('PROJECT_CONTROL_OBSERVER_GPU_UUIDS', raising=False)
@@ -107,6 +112,6 @@ def test_operator_policy_retains_native_source_binding_check(native_constructor,
     monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_GPU_UUIDS', json.dumps([GPU_A]))
     native.__file__ = '/ambient/local_worker/supervisor.py'
     provider = module.SkillsObserverAnalysisProvider()
-    with pytest.raises(RuntimeError, match='observer_analysis_runtime_binding_invalid'):
+    with pytest.raises(RuntimeError, match='imported_runtime_source_mismatch'):
         provider._get_backend()
     assert calls == []

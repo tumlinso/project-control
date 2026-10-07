@@ -305,6 +305,10 @@ _PRIVATE_INQUIRY_FIELDS = {'job', 'observations', 'job_id', 'prior_job', 'attemp
     'refresh_context', 'deadline_epoch', 'attempt_generation', 'lease_epoch', 'poll_after_seconds',
     'attempts', 'leases', 'lease_expires_at', 'lease_expires_epoch', 'lease_seconds',
     'attempt_count', 'scheduler_generation', 'queue_depth'}
+_PRIVATE_INQUIRY_FIELDS.update({
+    'allowed_observation_packet_ids', 'omitted_observation_packet_ids',
+    'input_omitted_observation_packet_ids',
+})
 
 
 def public_inquiry(value):

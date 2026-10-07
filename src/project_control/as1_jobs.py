@@ -84,6 +84,12 @@ _PUBLIC_WAIT_REASONS = frozenset({'release_veto_active', 'automatic_disabled',
     'quiet_window_active', 'foreground_priority', 'session_unavailable',
     'runtime_unavailable', 'capacity_wait', 'dispatch_policy_changed',
     'preemption_requested', 'foreground_preemption', 'session_evicted'})
+_COLD_SUPERVISOR_FAILURES = frozenset({
+    'central_supervisor_unavailable',
+    'central_supervisor_timeout',
+    'central_supervisor_transport_timeout',
+    'central_supervisor_transport_error',
+})
 
 
 def _public_wait_reason(value):
@@ -254,6 +260,7 @@ class JobService:
         self._central_preflight_checked = 0.0
         self._central_preflight_allowed = True
         self._central_preflight_error = None
+        self._central_preflight_cold = False
         # WAL mode persists; set it once, before dispatch, not on every racing connection.
         with _DB_LOCK:
             with SQLITE_CONNECTION_LOCK:
@@ -2624,10 +2631,10 @@ class JobService:
             checked = time.monotonic()
             if (not self._central_preflight_allowed
                     and checked - self._central_preflight_checked < 1.0):
-                # Durable jobs already encode a demand source. Let claim run
-                # the canonical policy gate and the verified demand start;
-                # cold status alone must not deadlock finite opted-in work.
-                return candidates if candidates else False
+                # Only a cold/unreachable socket can yield to a demand start.
+                # Identity/contract failures must park durable work until the
+                # runtime is repaired, even if a candidate is opt-in eligible.
+                return candidates if candidates and self._central_preflight_cold else False
             try:
                 value = status()
                 if not isinstance(value, dict):
@@ -2639,11 +2646,14 @@ class JobService:
                 self.last_error = reason
                 self._central_preflight_error = reason
                 self._central_preflight_allowed = False
-                return candidates if candidates else False
+                self._central_preflight_cold = reason in _COLD_SUPERVISOR_FAILURES
+                self._central_preflight_checked = checked
+                return candidates if candidates and self._central_preflight_cold else False
             else:
                 if self._central_preflight_error and self.last_error == self._central_preflight_error:
                     self.last_error = None
                 self._central_preflight_error = None
                 self._central_preflight_allowed = True
+                self._central_preflight_cold = False
             self._central_preflight_checked = checked
             return candidates if force and self._central_preflight_allowed else self._central_preflight_allowed

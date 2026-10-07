@@ -118,7 +118,8 @@ def test_invalid_internal_arguments_retain_feedback_then_answer_without_retry(se
         assert backend.turns == 6
         return
     assert value['status'] == 'completed', value
-    assert value['job']['attempt'] == 1 and backend.turns == 4
+    # The installed framed worker persists one bounded turn per attempt.
+    assert value['job']['attempt'] == 4 and backend.turns == 4
     retained = c.jobs.lookup(value['job']['job_id'], access_scope=c.scope(None))['observations']
     assert len([p for p in retained if p.get('reason') == 'invalid_arguments']) == 2
 
@@ -554,6 +555,11 @@ def test_two_host_global_dispatch_public_cache_and_packet_resolution(tmp_path):
         coder = create_mcp(ProjectControlConfig(), profile='coder', state_directory=tmp_path/'shared',
                            host=ContextHost('coder', 'bob', frozenset()), observer_backend=backend)
     a, b = observer._project_control_surface, coder._project_control_surface
+    # This multi-host test uses a scripted CPU backend; keep the explicit
+    # demand gate deterministic without weakening the composed production
+    # gate (covered in test_pc_as1_surface).
+    a.jobs.demand_runtime_ready = b.jobs.demand_runtime_ready = (
+        lambda **_kwargs: {'status': 'ready'})
     class Live:
         def is_alive(self): return True
     a.jobs._thread = Live()  # fixture admission only; coder owns real CPU dispatcher

@@ -1364,34 +1364,44 @@ class ProductionBackend:
                     continue
                 new_lease = str(lease["service_lease_id"])
                 prior_lease = saved.get("service_lease_id")
+                veto_cleanup_slot = None
+                release_ephemeral = False
                 try:
                     # Reattaching the prior observer lease is a fresh model
                     # admission. Serialize this short state change with the
-                    # durable stop veto, keeping the DB guard outside the pool
-                    # lock and away from warm/readiness waits.
-                    with self._admission_guard_factory(deadline_epoch):
-                        with self._pool_lock:
+                    # durable stop veto. Match warm's pool-lock -> spawn-guard
+                    # order to avoid a pool/DB lock cycle with concurrent starts.
+                    # Warm/readiness has already completed before this fence.
+                    with self._pool_lock:
+                        with self._admission_guard_factory(deadline_epoch):
                             slot = self._slots.get(str(lease["slot_id"]))
                             if slot is None:
                                 pending.append({"slot_id": saved["slot_id"],
                                                 "reason": "rewarmed_slot_disappeared"})
                                 continue
                             if continuation.get("vetoed") or saved.get("vetoed"):
+                                saved["vetoed"] = True
                                 slot.state = "draining"
-                                if not self._evict_slot(slot.slot_id):
-                                    pending.append({"slot_id": saved["slot_id"],
-                                                    "reason": "vetoed_rewarm_cleanup_unverified"})
-                                continue
-                            if prior_lease:
-                                self._leases.pop(new_lease, None)
-                                self._leases[prior_lease] = slot.slot_id
-                                slot.service_lease_id = prior_lease
-                                slot.state = "active"
-                                self._preempted_leases.discard(prior_lease)
+                                veto_cleanup_slot = slot.slot_id
                             else:
-                                self._release_ephemeral(new_lease)
-                            saved["rewarmed"] = True
-                            rewarmed.append(saved["slot_id"])
+                                if prior_lease:
+                                    self._leases.pop(new_lease, None)
+                                    self._leases[prior_lease] = slot.slot_id
+                                    slot.service_lease_id = prior_lease
+                                    slot.state = "active"
+                                    self._preempted_leases.discard(prior_lease)
+                                else:
+                                    release_ephemeral = True
+                                saved["rewarmed"] = True
+                                rewarmed.append(saved["slot_id"])
+                    if veto_cleanup_slot is not None:
+                        with self._pool_lock:
+                            if not self._evict_slot(veto_cleanup_slot):
+                                pending.append({"slot_id": saved["slot_id"],
+                                                "reason": "vetoed_rewarm_cleanup_unverified"})
+                        continue
+                    if release_ephemeral:
+                        self._release_ephemeral(new_lease)
                 except (PermissionError, SupervisorError, TimeoutError, ValueError) as error:
                     if str(error) not in {"assistance_release_veto_active"}:
                         pending.append({"slot_id": saved["slot_id"], "reason": str(error)[:300]})
