@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import sys
 import threading
@@ -415,6 +416,97 @@ def _assert_source_packet_freshness(composition: Any, scope: Mapping[str, Any],
     return result
 
 
+def _resolve_finding_citations(composition: Any, packet_ids: list[str],
+                               scope: Mapping[str, Any], fixture_root: Path
+                               ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    """Resolve only finding-cited broker direct_cat packets to current fixture bytes."""
+    root = fixture_root.resolve(strict=True)
+    citations: list[dict[str, str]] = []
+    records: list[dict[str, Any]] = []
+    seen_packets: set[str] = set()
+    seen_sources: set[tuple[str, str]] = set()
+    for packet_id in packet_ids:
+        if not isinstance(packet_id, str) or packet_id in seen_packets:
+            continue
+        seen_packets.add(packet_id)
+        lookup = composition.store.lookup(packet_id, access_scope=scope)
+        record: dict[str, Any] = {"packet_id": packet_id, "status": "rejected"}
+        if lookup.status != "ok" or lookup.packet is None:
+            record["reason"] = f"scoped_lookup_{lookup.status}"
+            records.append(record)
+            continue
+        packet = lookup.packet
+        payload = packet.payload
+        reads = payload.get("source_reads") if packet.tool == "command" else None
+        if (payload.get("status") != "completed" or payload.get("exit_code") != 0
+                or payload.get("truncated") is True or payload.get("timed_out") is True):
+            record["reason"] = "command_not_completed_cleanly"
+            records.append(record)
+            continue
+        if not isinstance(reads, list) or len(reads) != 1:
+            record["reason"] = "source_read_count_not_one"
+            records.append(record)
+            continue
+        read = reads[0]
+        if not isinstance(read, dict) or read.get("method") != "direct_cat":
+            record["reason"] = "source_read_not_direct_cat"
+            records.append(record)
+            continue
+        raw_path, expected_hash, stdout = read.get("path"), read.get("content_sha256"), payload.get("stdout")
+        if (not isinstance(raw_path, str) or not Path(raw_path).is_absolute()
+                or not isinstance(expected_hash, str) or len(expected_hash) != 64
+                or not isinstance(stdout, str)):
+            record["reason"] = "source_read_identity_incomplete"
+            records.append(record)
+            continue
+        try:
+            source_path = Path(raw_path).resolve(strict=True)
+            if not source_path.is_file() or not source_path.is_relative_to(root):
+                raise ValueError("source is outside fixture")
+            source_bytes = source_path.read_bytes()
+            source_text = source_bytes.decode("utf-8", errors="strict")
+        except (OSError, UnicodeError, ValueError):
+            record["reason"] = "source_path_unavailable_or_outside_fixture"
+            records.append(record)
+            continue
+        actual_hash = hashlib.sha256(source_bytes).hexdigest()
+        try:
+            stdout_bytes = stdout.encode("utf-8", errors="strict")
+        except UnicodeError:
+            record["reason"] = "command_stdout_not_utf8"
+            records.append(record)
+            continue
+        if actual_hash != expected_hash or stdout_bytes != source_bytes:
+            record["reason"] = "source_bytes_hash_or_stdout_mismatch"
+            records.append(record)
+            continue
+        relative_path = source_path.relative_to(root).as_posix()
+        record.update({"status": "resolved", "path": relative_path,
+                       "sha256": actual_hash, "method": "broker_direct_cat_verified"})
+        records.append(record)
+        citation_key = (relative_path, actual_hash)
+        if citation_key not in seen_sources:
+            citations.append({"path": relative_path, "sha256": actual_hash,
+                              "excerpt": source_text})
+            seen_sources.add(citation_key)
+    return citations, records
+
+
+def _finding_packet_ids(findings: Any) -> list[str]:
+    refs: list[str] = []
+    if isinstance(findings, list):
+        for finding in findings:
+            if isinstance(finding, dict) and isinstance(finding.get("evidence_packets"), list):
+                refs.extend(ref for ref in finding["evidence_packets"] if isinstance(ref, str))
+    return list(dict.fromkeys(refs))
+
+
+def _extension_answer_errors(case_id: Any, answer: str) -> list[str]:
+    if case_id == "A31" and not re.search(r"```python\s*.*?```", answer, flags=re.DOTALL):
+        return ["required runnable Python code block missing"]
+    return []
+
+
 def _lookup_inquiry_job_linkage(composition: Any, *, case: Mapping[str, Any],
                                 scope: Mapping[str, Any]) -> dict[str, Any] | None:
     """Resolve a public inquiry to its isolated durable job without reading content.
@@ -532,6 +624,150 @@ def _owned_receipts(jobs: Any) -> list[dict[str, Any]]:
     return receipts
 
 
+def rescore_existing_report(report_path: Path, *, output_path: Path | None = None,
+                           case_set_path: Path | None = None) -> tuple[dict[str, Any], Path]:
+    """Rescore a terminal live report from its existing public result and packet store."""
+    report_path = report_path.expanduser().resolve(strict=True)
+    if not report_path.is_file() or report_path.is_symlink():
+        raise QualificationError("rescore input must be a regular report file")
+    artifact_root = report_path.parent.resolve(strict=True)
+    root_info = artifact_root.stat()
+    if root_info.st_uid != os.getuid() or root_info.st_mode & 0o077:
+        raise QualificationError("rescore artifact directory must be private and user-owned")
+    try:
+        source_report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise QualificationError(f"cannot read original report: {error}") from error
+    if not isinstance(source_report, dict) or source_report.get("format") != "pa1-live-source-qualification/1":
+        raise QualificationError("rescore input is not a live source qualification report")
+    if source_report.get("status") == "running":
+        raise QualificationError("cannot rescore while the isolated job service is running")
+    cleanup = source_report.get("cleanup")
+    if not isinstance(cleanup, dict) or cleanup.get("isolated_job_service_stopped") is not True:
+        raise QualificationError("rescore requires a terminal report with isolated job service stopped")
+    state_root_value = source_report.get("isolated_state_root")
+    if not isinstance(state_root_value, str):
+        raise QualificationError("original report has no isolated state root")
+    state_root = Path(state_root_value).expanduser().resolve(strict=True)
+    if state_root != (artifact_root / "as1-state").resolve(strict=True):
+        raise QualificationError("isolated packet store is not the report's private state directory")
+    fixture_value = source_report.get("fixture_root")
+    package_value = source_report.get("package_root")
+    if not isinstance(fixture_value, str) or not isinstance(package_value, str):
+        raise QualificationError("original report is missing fixture or evaluation contract identity")
+    fixture_root = Path(fixture_value).expanduser().resolve(strict=True)
+    package_root = Path(package_value).expanduser().resolve(strict=True)
+    contract, _ = load_eval_contract(package_root)
+    cases = {item["id"]: item for item in contract["cases"]}
+    case_set_sha256 = None
+    case_set_identity_status = "pinned_evaluation_contract"
+    if source_report.get("phase") == "extension":
+        if case_set_path is None:
+            case_set_path = REPO / "docs/pa1/live-extension-cases.json"
+        case_set_path = case_set_path.expanduser().resolve(strict=True)
+        try:
+            extension_payload = json.loads(case_set_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise QualificationError(f"cannot read extension rescore case set: {error}") from error
+        extension_cases = extension_payload.get("cases") if isinstance(extension_payload, dict) else None
+        if not isinstance(extension_cases, list) or any(
+                not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                or not isinstance(item.get("evidence_paths"), list)
+                for item in extension_cases):
+            raise QualificationError("extension rescore case set is malformed")
+        extension_by_id = {item["id"]: item for item in extension_cases}
+        report_ids = {row.get("case_id") for row in source_report.get("cases", [])
+                      if isinstance(row, dict)}
+        if report_ids - extension_by_id.keys():
+            raise QualificationError("extension rescore case set does not cover every report case")
+        cases.update(extension_by_id)
+        case_set_sha256 = sha256_file(case_set_path)
+        recorded_set = source_report.get("extension_case_set")
+        case_set_identity_status = (
+            "bound_by_original_report" if isinstance(recorded_set, dict)
+            and recorded_set.get("sha256") == case_set_sha256 else
+            "current_rescore_case_set_not_bound_to_original_report")
+    elif case_set_path is not None:
+        raise QualificationError("--rescore-case-set only applies to extension reports")
+
+    from project_control.app import Runtime
+    from project_control.config import load_config
+
+    class NoInferenceBackend:
+        available = False
+
+        def __init__(self):
+            self._state_root = Path("/")
+
+        def close(self):
+            return None
+
+    config = load_config()
+    if source_report.get("held_out") is True:
+        config = _ephemeral_fixture_config(config, fixture_root)
+    composition = _compose_isolated_surface(state_root, Runtime(config), NoInferenceBackend())
+    try:
+        project = None
+        workspace_meta = source_report.get("fixture_workspace")
+        if isinstance(workspace_meta, dict) and isinstance(workspace_meta.get("project"), str):
+            project = workspace_meta["project"]
+        if project is None:
+            project, _, _ = _fixture_repository(composition.control.registry, fixture_root)
+        scope = composition.scope(project)
+        rescored_cases = []
+        for row in source_report.get("cases", []):
+            if not isinstance(row, dict):
+                continue
+            case_id = row.get("case_id")
+            case = cases.get(case_id)
+            answer = row.get("answer")
+            if case is None or not isinstance(answer, str) or not answer.strip():
+                rescored_cases.append({"case_id": case_id, "status": "not_rescored",
+                                       "reason": "no_public_visible_answer_or_contract_case",
+                                       "original_score": row.get("score")})
+                continue
+            findings = row.get("findings", [])
+            citations, resolution = _resolve_finding_citations(
+                composition, _finding_packet_ids(findings), scope, fixture_root)
+            score = score_case(case, {"answer": answer, "citations": citations}, fixture_root)
+            extension_errors = _extension_answer_errors(case_id, answer)
+            if extension_errors:
+                score["citation_errors"].extend(extension_errors)
+                score["status"] = "failed"
+                score["qualified"] = False
+                score["failure_layer"] = "validation"
+            rescored_cases.append({"case_id": case_id, "public_status": row.get("status"),
+                                   "original_score": row.get("score"), "rescore": score,
+                                   "citation_packet_resolution": resolution,
+                                   "derived_citations": citations})
+        receipt = {
+            "format": "pa1-live-source-rescore/1", "status": "rescored",
+            "execution_mode": "existing_public_result_and_scoped_packet_store",
+            "model_calls": 0, "original_report": str(report_path),
+            "original_report_sha256": sha256_file(report_path),
+            "fixture_root": str(fixture_root), "isolated_state_root": str(state_root),
+            "scope_project": project, "cases": rescored_cases,
+            "case_set_sha256": case_set_sha256,
+            "case_set_identity_status": case_set_identity_status,
+            "limits": ["only finding-cited packet IDs considered",
+                       "only clean single-file broker direct_cat reads accepted",
+                       "current fixture bytes must equal broker stdout and source hash",
+                       "no original report fields overwritten"],
+            "completed_unix": time.time(),
+        }
+    finally:
+        composition.close()
+
+    if output_path is None:
+        output_path = artifact_root / "rescore-report.json"
+    output_path = output_path.expanduser().resolve()
+    if output_path == report_path or not output_path.is_relative_to(artifact_root):
+        raise QualificationError("rescore receipt must be a separate file inside the original private artifact root")
+    if output_path.exists() or output_path.is_symlink():
+        raise QualificationError("rescore receipt already exists; choose a new output path")
+    return receipt, output_path
+
+
 def _preflight_failure_report(report: dict[str, Any], error: Exception) -> dict[str, Any]:
     """Record a bounded pre-inquiry failure without implying model execution."""
     report["status"] = "preflight_failed"
@@ -589,6 +825,11 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
                  "prefill_and_reasoning_token_counts_not_exposed",
                  "two_preparation_inquiries_not_run", "request_scratch_not_applied"],
     }
+    if phase == "extension" and case_set is not None:
+        report["extension_case_set"] = {
+            "path": str(case_set.resolve(strict=True)),
+            "sha256": sha256_file(case_set),
+        }
     _atomic_json(private_root / "report.json", report)
     composition = None
     job_service_started = False
@@ -729,21 +970,17 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
                 row["answer"] = payload.get("answer", job.get("answer"))
                 row["findings"] = payload.get("findings", job.get("findings", []))
                 row["unresolved_questions"] = payload.get("unresolved_questions", job.get("unresolved_questions", []))
-                refs = {ref for finding in row["findings"] if isinstance(finding, dict)
-                        for ref in finding.get("evidence_packets", []) if isinstance(ref, str)}
-                if any(packet_id in refs for packet_id in item["packet_ids"]):
-                    row["broker_cited_fixture_sources"] = [
-                        {"path": source["path"], "sha256": source["sha256"],
-                         "excerpt": source["text"], "source_packet_ids": item["packet_ids"]}
-                        for source in item["evidence"]]
+                finding_refs = _finding_packet_ids(row["findings"])
+                citations, citation_resolution = _resolve_finding_citations(
+                    composition, finding_refs, item["scope"], fixture_root)
+                row["citation_packet_resolution"] = citation_resolution
+                row["broker_cited_fixture_sources"] = citations
                 row["inference_confirmed"] = _visible_inference_confirmed(
                     row["status"], row["answer"], row["findings"])
                 if row["inference_confirmed"]:
                     row["actual_inference_confirmed"] = True
                     row["actual_inference_evidence"] = "visible_public_answer_or_findings"
                 if row["inference_confirmed"] and isinstance(row["answer"], str) and row["answer"].strip():
-                    citations = [{"path": cite["path"], "sha256": cite["sha256"], "excerpt": cite["excerpt"]}
-                                 for cite in row.get("broker_cited_fixture_sources", [])]
                     row["score"] = score_case(case, {"answer": row["answer"], "citations": citations}, fixture_root)
                 elif not row["inference_confirmed"]:
                     failure = str(row.get("failure_class") or result.get("reason") or result.get("status") or "incomplete")
@@ -866,7 +1103,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--execute-live", action="store_true",
                         help="explicitly run the bounded live source cases")
     parser.add_argument("--output", type=Path, help="write the inert plan or final report here")
+    parser.add_argument("--rescore-report", type=Path,
+                        help="rescore an existing terminal live report without model calls")
+    parser.add_argument("--rescore-output", type=Path,
+                        help="write a separate rescore receipt inside the source artifact root")
+    parser.add_argument("--rescore-case-set", type=Path,
+                        help="reviewed extension case-set JSON for extension rescoring")
     args = parser.parse_args(argv)
+    if args.rescore_report is not None:
+        if args.execute_live or args.output is not None or args.artifact_root is not None:
+            raise QualificationError("rescore cannot be combined with live execution or --output")
+        receipt, receipt_path = rescore_existing_report(
+            args.rescore_report, output_path=args.rescore_output,
+            case_set_path=args.rescore_case_set)
+        _atomic_json(receipt_path, receipt)
+        sys.stdout.write(json.dumps({"status": receipt["status"],
+                                     "receipt_path": str(receipt_path),
+                                     "original_report_sha256": receipt["original_report_sha256"]},
+                                    sort_keys=True) + "\n")
+        return 0
+    if args.rescore_output is not None:
+        raise QualificationError("--rescore-output requires --rescore-report")
+    if args.rescore_case_set is not None:
+        raise QualificationError("--rescore-case-set requires --rescore-report")
     package_root = args.package.resolve(strict=True)
     source_root = args.source.resolve(strict=True)
     fixture_root = args.fixture.resolve(strict=True)

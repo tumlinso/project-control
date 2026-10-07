@@ -23,9 +23,10 @@
     "cpu_covered_source_scenarios": 16,
     "cpu_partial": 14,
     "cpu_unrun": 1,
-    "live_gpu_unqualified": 3,
+    "sandbox_covered": 1,
     "live_model_unqualified": 5,
-    "sandbox_covered": 1
+    "live_gpu_unqualified": 2,
+    "live_gpu_partial": 1
   },
   "cases": [
     {
@@ -889,7 +890,7 @@
     },
     {
       "evidence_status": "not_qualified",
-      "evidence_summary": "An owned resource binding recovery has scoped tests and one actual released-slot proof; it does not measure cooperative versus full eviction delay in the acceptance scenario.",
+      "evidence_summary": "A successful bounded GPU handoff retry is recorded, but this case specifically requires cooperative versus full eviction delay while a model turn is active. That measurement was not performed; the initial GPU preflight correctly failed closed on non-quiescence.",
       "expected": "Measured bounded cooperative delay is reported; no false instant release; owned-process quiescence precedes GPU handoff.",
       "final_acceptance": "pending_root_review",
       "id": "A16",
@@ -918,7 +919,11 @@
       ],
       "status": "planned_not_executed",
       "tier": "live_gpu",
-      "title": "Cooperative and full eviction are distinct"
+      "title": "Cooperative and full eviction are distinct",
+      "live_validation_evidence": {
+        "path": "docs/pa1/live-validation.json",
+        "record": "gpu"
+      }
     },
     {
       "evidence_status": "covered_cpu_source_scenario",
@@ -1815,8 +1820,8 @@
       "title": "Sandbox descendants and secrets"
     },
     {
-      "evidence_status": "not_qualified",
-      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "evidence_status": "failed_live_preflight_no_execution",
+      "evidence_summary": "A live model inquiry was performed, but the A31 bridge rejected the advisory before scratch test execution because it contained no Python test code block. No fallback test source, scratch tree, or canonical mutation was used. Citation/source qualification also failed because the named fixture files were absent. The earlier CPU odd-tail fixture probe is only overlap and does not close A31.",
       "expected": "New scratch odd-tail test exposes the defect with source/test evidence; no automatic canonical repair or claim baseline proves correctness.",
       "final_acceptance": "pending_root_review",
       "id": "A31",
@@ -1849,7 +1854,7 @@
         "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
       },
       "owner": "PC-PA1-LAB",
-      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "required_next_evidence": "Provide a valid exact A31 test-code input and current cited fixture source under root authority, rerun the bounded bridge, and retain model trace, scratch test, result packet, and source citation validation. Do not reuse the rejected answer as a pass.",
       "setup": "Give the fixture pairing implementation and passing incomplete baseline suite to an experiment.",
       "sources": [
         "S08",
@@ -1862,9 +1867,13 @@
         "O03",
         "O04"
       ],
-      "status": "planned_not_executed",
+      "status": "attempted_failed_no_execution",
       "tier": "live_model",
-      "title": "Generate a discriminating unit test"
+      "title": "Generate a discriminating unit test",
+      "live_validation_evidence": {
+        "path": "docs/pa1/live-validation.json",
+        "record": "live_model.extension.A31"
+      }
     },
     {
       "additional_receipt": {
@@ -1955,14 +1964,14 @@
       "title": "Negative or inconclusive results are useful"
     },
     {
-      "evidence_status": "not_qualified",
-      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "evidence_status": "partial_live_hardware_handoff",
+      "evidence_summary": "A retry verified both inference targets quiescent and released before a controller-leased non-model CUDA correctness smoke over four devices; all 4096-item checks passed, then the foreground owner terminal receipt showed released with no resources. This is bounded handoff evidence only. Parent-result resumption/current power-permission behavior is not established, and no benchmark or speedup is claimed.",
       "expected": "Parent suspends and frees inference; controller-leased non-model runner executes; results resume only after experiment release and current power permission.",
       "final_acceptance": "pending_root_review",
       "id": "A33",
       "mandatory": true,
       "owner": "PC-PA1-LAB",
-      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "required_next_evidence": "Root review the bounded handoff; if requiring full A33 closure, retain the exact parent suspension/resume-after-release and current-power-permission evidence. Keep A16 cooperative-delay measurement separate.",
       "setup": "Create an experiment requiring both inference GPU pairs.",
       "sources": [
         "S08",
@@ -1975,9 +1984,13 @@
         "O03",
         "O04"
       ],
-      "status": "planned_not_executed",
+      "status": "partial_hardware_handoff_pending_root_review",
       "tier": "live_gpu",
-      "title": "GPU experiment does not wait behind itself"
+      "title": "GPU experiment does not wait behind itself",
+      "live_validation_evidence": {
+        "path": "docs/pa1/live-validation.json",
+        "record": "gpu"
+      }
     },
     {
       "evidence_status": "covered_cpu_source_scenario",
@@ -2202,8 +2215,8 @@
       "title": "Exact public interface and denied authority"
     },
     {
-      "evidence_status": "not_qualified",
-      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "evidence_status": "partial_live_model_not_qualified",
+      "evidence_summary": "Four baseline inquiries completed or partially returned within 260.0469 seconds; two-slot same-model/binary/settings observation passed. E03 hit its deadline. Initial citations failed; post-hoc rescore used no model calls and provisionally qualified E01 only, left E02/E04 partial, and did not rescore E03. Extension report remains completed_with_gaps. Assessment and held-out work remain pending.",
       "expected": "Measured useful complete/partial results, valid evidence, separate reasoning/prefill/tool timings; no winner chosen just for token volume.",
       "final_acceptance": "pending_root_review",
       "id": "A37",
@@ -2223,7 +2236,7 @@
           "result": "public responses freshness_unverifiable; no grounded E01-E04 scored comparison accepted"
         }
       ],
-      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "required_next_evidence": "Complete the cited direct_cat resolver/post-hoc assessment with immutable original reports, verify all citations and scores, then run the separate held-out allowance without tuning on held-out labels. Keep all inquiry and time counters.",
       "setup": "Run selected direct/multi-hop/conflict/synthesis cases and held-out variants through candidate.",
       "sources": [
         "S01",
@@ -2236,20 +2249,24 @@
         "O03",
         "O04"
       ],
-      "status": "planned_not_executed",
+      "status": "partial_evidence_not_qualified",
       "tier": "live_model",
-      "title": "Finite grounded model-quality comparison"
+      "title": "Finite grounded model-quality comparison",
+      "live_validation_evidence": {
+        "path": "docs/pa1/live-validation.json",
+        "record": "live_model"
+      }
     },
     {
       "budget_note": "The live recovery plan reserves economics up to 6 inquiries/120 seconds inside root-approved budget; no measured paired foreground comparison is in reviewed receipts.",
-      "evidence_status": "not_qualified",
-      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "evidence_status": "in_progress_unqualified",
+      "evidence_summary": "The initial harness preflight failed before any inquiry (NameError, 0.436 seconds). Root reports a bounded retry is running within 6 inquiries/120 seconds; no completed economics receipt is yet available. Held-out work is separate and pending.",
       "expected": "Include preparation/refresh costs, context bytes/tokens, latency spread and sample size; meet predeclared practical envelope or leave feature off.",
       "final_acceptance": "pending_root_review",
       "id": "A38",
       "mandatory": true,
       "owner": "PC-PA1-QUALIFY",
-      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "required_next_evidence": "Record final paired measurements and exact source/model/config/resource identities within the 6-inquiry/120-second cap; pass both <=2-second added-wait and <=10% elapsed-overhead limits with no evidence degradation, or keep automatic work off.",
       "setup": "Compare equivalent foreground tasks with/without opted-in preparation and background work.",
       "sources": [
         "S01",
@@ -2262,9 +2279,13 @@
         "O03",
         "O04"
       ],
-      "status": "planned_not_executed",
+      "status": "in_progress_no_completed_receipt",
       "tier": "live_model",
-      "title": "Assistance economics and foreground interference"
+      "title": "Assistance economics and foreground interference",
+      "live_validation_evidence": {
+        "path": "docs/pa1/live-validation.json",
+        "record": "economics"
+      }
     },
     {
       "evidence_status": "partial",
@@ -2364,7 +2385,7 @@
       "title": "Final resource, permission and provenance report"
     }
   ],
-  "decision": "working_draft_for_root_review",
+  "decision": "partial_live_validation_root_review_required",
   "evidence_receipts": [
     {
       "case_count": 31,
@@ -2458,6 +2479,11 @@
       },
       "path": "docs/pa1/live-recovery-plan.json",
       "sha256": "ea5e7eaec27d5f0c3481bb7698882256ad0925d16324e665b097baf90bc5e3fd"
+    },
+    {
+      "path": "docs/pa1/live-validation.json",
+      "sha256": "11243cc1d8dd993e5ece1e750c56ab48269c5ecd0b7733969b6b29ee97ccafcc",
+      "scope": "candidate build, native LAB gate rerun, real model attempts, bounded GPU handoff, and pending economics/held-out status; evidence references carry external artifact hashes"
     }
   ],
   "final_acceptance": false,
@@ -2475,126 +2501,70 @@
   },
   "qualification_native_state": {
     "task_id": "PC-PA1-QUALIFY",
-    "state": "not_started_or_accepted_in_reviewed_receipts",
-    "status": "pending package case qualification and root decision",
-    "note": "LAB stage gate completion does not complete QUALIFY."
+    "state": "live_qualification_in_progress_not_accepted",
+    "status": "Candidate build and bounded live attempts exist; aggregate QUALIFY and root acceptance remain pending."
   },
   "required_before_final_acceptance": [
-    "Root records the native PC-PA1-LAB terminal finish_task result and acceptance reference; the five required stage-gate receipts are recorded above, but terminal completion is not yet evidenced here.",
+    "Root completes final PC-PA1-LAB task disposition after reviewing the five passed latest native gate receipts and the genuine A31 failed attempt; do not equate stage-gate success with product acceptance.",
+    "Resolve A31 with a valid model counterexample/test-generation input and executed scratch test, or record the explicit failure disposition; no CPU fixture overlap is a substitute.",
+    "Complete A37 citation/score assessment and held-out work under retained limits, and finish the bounded A38 economics run; leave automatic work off unless all thresholds pass.",
+    "Review A33 bounded hardware-handoff evidence; A16 cooperative eviction delay and A40 final lifecycle report remain separate and incomplete.",
     "Re-fetch current active claim, package contract, dirty/untracked source snapshot, receiver manifest/fingerprint, candidate release, model/weights/binary, permission and resource receipts; the CPU supplement predates later dirty root changes.",
     "Close A20 with the exact forced compaction and valid-evidence retention or source re-fetch scenario.",
-    "Complete currently authorized live model cases A03, A23, A31, A37 and A38 under updated retained inquiry/time budgets; keep all prior failed inquiry counts and stop rules.",
-    "Complete live GPU cases A16, A33 and A40 only with exact foreground interlock, ownership, quiescence, lease and physical release proof; lifecycle remains non-inference and within its own cap.",
     "Use already recorded A30 containment tests only within their tested sandbox grant and scope; preserve containment failure as fail-closed.",
     "Perform candidate cutover/rollback only under current native authorization; record activation choice and leave automatic assistance off unless measured A38 passes every predeclared envelope.",
     "After exact receipts exist, root reviews every case, replaces provisional evidence statuses with accepted/partial/failed/not-run dispositions, and sets final_acceptance only if native task gates and all mandatory acceptance conditions are met."
   ],
-  "scope": "Evidence map from reviewed receipts only. It does not replace Project Control native task gates, run-gate receipt, or root acceptance.",
+  "scope": "Current evidence digest only. Native LAB stage gates, a qualified build candidate, bounded live model/GPU attempts, and the 40 package cases are distinct evidence lanes. No blanket package acceptance, promotion, or activation is claimed.",
   "task_native_state": {
     "task_id": "PC-PA1-LAB",
     "owner": "root",
-    "state": "required_stage_gates_passed_pending_finish_task",
-    "status": "Root reports all five required native gates passed for runPC-PA1-RUN-1; finish_task and root acceptance remain pending.",
-    "acceptance_receipt": "pending native terminal task receipt"
+    "state": "five_required_stage_gates_passed_final_acceptance_pending",
+    "status": "Latest required native gate rerun passed all five gates. Root retains the task finish/final acceptance decision; A31 is a genuine failed package-case attempt.",
+    "acceptance_receipt": "docs/pa1/live-validation.json#native_lab"
   },
   "lab_native_stage_gates": {
     "task_id": "PC-PA1-LAB",
-    "run_id": "runPC-PA1-RUN-1",
-    "state": "all_required_stage_gates_passed_pending_finish_task_and_root_acceptance",
-    "recorded_by": "root report; receipt bytes independently checked by documentation pass",
-    "evidence_root": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence",
+    "run_id": "PC-PA1-RUN-1",
+    "state": "all_required_stage_gates_passed_final_acceptance_root_owned",
+    "evidence_root": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8f-c306fb7721a7/evidence",
     "receipts": [
       {
         "gate": "contained",
-        "evidence_id": "8dfb7622-0b6d-44d6-92ec-4ddb6fef0c52",
-        "scope": "tests/assistance/test_lab_runner.LabRunnerContractTests",
-        "summary": "9 passing tests; real bubblewrap/cgroup containment, host resource limits, fail-closed behavior, timeout and detached-descendant cleanup.",
-        "files": [
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8dfb7622-0b6d-44d6-92ec-4ddb6fef0c52/stderr.txt",
-            "sha256": "9ffbe55d117f6eee416d8c31b5ef84955607ac394c0c235e07383748d2e1bd47",
-            "bytes": 2033
-          },
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8dfb7622-0b6d-44d6-92ec-4ddb6fef0c52/stdout.txt",
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "bytes": 0
-          }
-        ]
+        "evidence_id": "449be020-20c2-4dfc-b646-4cb9bff4595f",
+        "test_count": 9,
+        "result": "passed",
+        "artifact_sha256": "8ccf14d3fca92068d821665f2814316f24c39884ed37039f5c80b5c128938cd0"
       },
       {
         "gate": "capture",
-        "evidence_id": "c75f051b-c598-42b6-a2d9-10f2f86618ee",
-        "scope": "focused pytest receipt",
-        "summary": "25 passed.",
-        "files": [
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/c75f051b-c598-42b6-a2d9-10f2f86618ee/stderr.txt",
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "bytes": 0
-          },
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/c75f051b-c598-42b6-a2d9-10f2f86618ee/stdout.txt",
-            "sha256": "bb4cef053b355422423e7792985a159930cae2ef8b9a3c3fdfd7db6d53a79fb1",
-            "bytes": 99
-          }
-        ]
+        "evidence_id": "c7b75513-3cb3-4b03-a3d3-a8dbe9d81cc2",
+        "test_count": 25,
+        "result": "passed",
+        "artifact_sha256": "d52de38b6b1980ebce75f1373f92491545b443aad38b55a2a03e3be0b9d7bdca"
       },
       {
         "gate": "CLI",
-        "evidence_id": "a28f6f04-d10f-48a9-9991-9b478330fc4a",
-        "scope": "focused CLI pytest receipt",
-        "summary": "8 passed.",
-        "files": [
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/a28f6f04-d10f-48a9-9991-9b478330fc4a/stderr.txt",
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "bytes": 0
-          },
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/a28f6f04-d10f-48a9-9991-9b478330fc4a/stdout.txt",
-            "sha256": "69175938ec95054a5988c7146e3aa5965d163ad9acef5185363648eb4544461e",
-            "bytes": 98
-          }
-        ]
+        "evidence_id": "794e16b9-d9e6-4b86-8ef3-4000412905ba",
+        "test_count": 8,
+        "result": "passed",
+        "artifact_sha256": "f48699aba7ea554509f17456af9d168e47185cd0ea331c29d43b522cd5863d0b"
       },
       {
         "gate": "sourceintegration",
-        "evidence_id": "8b2c95a5-8f6c-4886-8849-287b89704f0a",
-        "scope": "tests/assistance/test_lab.LabServiceTests",
-        "summary": "16 passing service integration tests.",
-        "files": [
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8b2c95a5-8f6c-4886-8849-287b89704f0a/stderr.txt",
-            "sha256": "8c92e8865021b2bd863c2417ab94b4ce7c66e057932735a386df1842f1ce48fa",
-            "bytes": 2909
-          },
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8b2c95a5-8f6c-4886-8849-287b89704f0a/stdout.txt",
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "bytes": 0
-          }
-        ]
+        "evidence_id": "813ffb9b-551e-48ed-baf4-f0dd78f343d0",
+        "test_count": 16,
+        "result": "passed",
+        "artifact_sha256": "f94510ecd35d3e8d94e8054290ff5b7b41c8009be9e4c14e6846a5d84926d8c2"
       },
       {
         "gate": "LABtest",
-        "evidence_id": "0374f673-93f5-4b2c-b4e7-bffc94327e07",
-        "scope": "tests/assistance/test_lab.LabServiceTests",
-        "summary": "16 passing LAB service tests.",
-        "files": [
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/0374f673-93f5-4b2c-b4e7-bffc94327e07/stderr.txt",
-            "sha256": "03285f6938f897bc70fd17b034403e2b5295cc5c5af68ea698464786760d38db",
-            "bytes": 2909
-          },
-          {
-            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/0374f673-93f5-4b2c-b4e7-bffc94327e07/stdout.txt",
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "bytes": 0
-          }
-        ]
+        "evidence_id": "1bc59b59-8221-49d9-8726-7264ce6a06fc",
+        "test_count": 16,
+        "result": "passed",
+        "artifact_sha256": "394b935def2803f40f58c611abdf8bd7f603d71827f7eeddcc3d8e8a0a99a12e"
       }
     ],
-    "scope_note": "These are native LAB task gate receipts. They establish stage gate completion for the no-code-integration LAB task only; they do not qualify the advisory 40 package cases, live model or GPU behavior, cutover, or product acceptance."
+    "scope_note": "Native task gate evidence; does not replace the mandatory product acceptance cases or root final decision."
   }
 }

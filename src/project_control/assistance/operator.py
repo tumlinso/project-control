@@ -192,7 +192,11 @@ class AssistanceOperator:
         db = self._open(create=True)
         try:
             db.execute("BEGIN IMMEDIATE")
-            policy = PowerPolicy(db, clock=self.clock)
+            # The bounded grant starts at the timestamp captured before
+            # validation and goal persistence. Use that same instant only for
+            # the transaction that creates the window; all later policy reads
+            # use the operator's live clock and therefore observe expiry.
+            policy = PowerPolicy(db, clock=lambda: now)
             controller = AttentionController(db, power_policy=policy,
                 trusted_roots={project: trusted_root},
                 repository_for=lambda item: trusted_repository if item == project else "",

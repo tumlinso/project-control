@@ -1,6 +1,6 @@
 {
   "format": "pa1-live-recovery-plan/1",
-  "recorded_at_utc": "2026-10-07T05:07:24.559609+00:00",
+  "recorded_at_utc": "2026-10-07T06:22:37.029084+00:00",
   "authorization": "User requested LAB and live qualification; profiler restriction explicitly cleared. Root owns finite qualification and recovery.",
   "observed_failure": {
     "attempt": "baseline-r4",
@@ -56,5 +56,22 @@
     "capability_lifetime_failure": "A bound turn in slot B cleared every closed capability, including unrelated closed slot A; no TTL was involved.",
     "capability_lifetime_fix": "Invalidate only the exact borrowed slot after validated bound turn admission; anonymous turns and packet analysis conservatively invalidate globally only on actual slot use.",
     "identity_guard": "Daemon status fingerprint must match Todo runtime context hash; receiver import and source hash independently match receiver manifest. These fingerprints are not interchangeable."
+  },
+  "economics_final_attempt": {
+    "prior_preflight_r1": {
+      "inquiries": 0,
+      "failure": "undefined SCRIPT before admission"
+    },
+    "prior_r2": {
+      "actual_inquiries": 1,
+      "elapsed_seconds": 40.8499,
+      "failure": "focus_window_invalid after foreground admission",
+      "accounting_correction": "Private durable job evidence supersedes initial zero-count report; original preserved.",
+      "owned_release": "one slot verified released on first supported attempt"
+    },
+    "production_fix": "Capture one timestamp for trusted focus grant transaction; all subsequent expiry and handoff checks retain advancing real time.",
+    "remaining_inquiry_cap": 5,
+    "remaining_wall_seconds": 79,
+    "stop_rule": "One final bounded attempt; no new allowance or retry. Automatic remains off unless all required economics measurements pass."
   }
 }

@@ -34,6 +34,12 @@ INTENT_FORMAT = "PC-PA1-GPU-EFFECT-INTENT/1"
 MAX_WALL_SECONDS = 60
 MAX_CPU_THREADS = 2
 MAX_CAPTURE_BYTES = 64 * 1024
+# The foreground controller performs each selected-GPU query synchronously.
+# On this host a sample can take several seconds, so leave enough time for the
+# unchanged three consecutive idle samples while retaining a finite bound.
+QUIESCENCE_TIMEOUT_SECONDS = 35.0
+QUIESCENCE_CONSECUTIVE_IDLE_SAMPLES = 3
+QUIESCENCE_INTERVAL_SECONDS = 0.2
 
 
 class ExperimentError(ValueError):
@@ -418,6 +424,9 @@ def build_controller_spec(request: ExperimentRequest, request_path: Path) -> dic
         "argv": argv,
         "resources": {"gpus": 4, "gpu_uuids": list(request.gpu_uuids),
                       "cpu_threads": request.cpu_threads, "ram_bytes": 1_073_741_824},
+        "quiescence": {"timeout_seconds": QUIESCENCE_TIMEOUT_SECONDS,
+                       "consecutive_idle_samples": QUIESCENCE_CONSECUTIVE_IDLE_SAMPLES,
+                       "interval_seconds": QUIESCENCE_INTERVAL_SECONDS},
         "timeout": request.wall_seconds,
         "build_timeout": 60,
         "paths": [],

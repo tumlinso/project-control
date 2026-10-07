@@ -1,0 +1,210 @@
+{
+  "format": "pa1-live-validation/1",
+  "decision": "partial_live_validation_root_review_required",
+  "final_acceptance": false,
+  "owner": "root",
+  "scope_note": "Evidence digest only. It does not turn advisory package cases into a blanket pass. Original public live reports and negative outcomes remain preserved; model output text is not duplicated here.",
+  "candidate": {
+    "receipt": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/receipt-final.json",
+      "sha256": "b22f5a4d9e26ef8c0a23b5693035f430c17a962f4efd05dd80326d9e9d0e5157"
+    },
+    "source_commit": "6ac6bec6e6311e715899ecdc3c291a3e210bdfed",
+    "source_worktree_clean": true,
+    "skills_commit": "5c69981f8d1755c3408e4f45adbf340c02c4dfe8",
+    "candidate_path": "/home/tumlinson/.local/share/project-control/releases/unified-20261007-pa1-qualified",
+    "candidate_manifest_sha256": "4a9afc1160885dd100c8b2005a99855b6869db56354bac6c18261939bee76bb5",
+    "release_manifest_sha256": "f0dbf88dc39f9042127de278809efb89fcfdc4276e8a6d6e4be013a95ca8171b",
+    "receiver_manifest_sha256": "c29de1b8f58f4804f159730ad46ab7141ee178bc51573feef31ab9da8aed1398",
+    "receiver_fingerprint": "d2376e6b05fc433046a1ee65f62a6813c658a89b7f73edb9e6130202497d28fb",
+    "smoke": "passed: isolated runtime binding/import checks, launcher help, and uv pip check (41 packages)",
+    "promotion_or_activation": "not performed; selected launcher and earlier candidates untouched",
+    "source_suite": "not rerun for this candidate receipt"
+  },
+  "native_lab": {
+    "task_id": "PC-PA1-LAB",
+    "run_id": "PC-PA1-RUN-1",
+    "required_stage_gates": "all five passed on latest rerun; root retains final task acceptance",
+    "evidence_root": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence",
+    "receipts": [
+      {
+        "gate": "contained",
+        "evidence_id": "449be020-20c2-4dfc-b646-4cb9bff4595f",
+        "test_count": 9,
+        "result": "passed",
+        "artifact_sha256": "8ccf14d3fca92068d821665f2814316f24c39884ed37039f5c80b5c128938cd0"
+      },
+      {
+        "gate": "capture",
+        "evidence_id": "c7b75513-3cb3-4b03-a3d3-a8dbe9d81cc2",
+        "test_count": 25,
+        "result": "passed",
+        "artifact_sha256": "d52de38b6b1980ebce75f1373f92491545b443aad38b55a2a03e3be0b9d7bdca"
+      },
+      {
+        "gate": "CLI",
+        "evidence_id": "794e16b9-d9e6-4b86-8ef3-4000412905ba",
+        "test_count": 8,
+        "result": "passed",
+        "artifact_sha256": "f48699aba7ea554509f17456af9d168e47185cd0ea331c29d43b522cd5863d0b"
+      },
+      {
+        "gate": "sourceintegration",
+        "evidence_id": "813ffb9b-551e-48ed-baf4-f0dd78f343d0",
+        "test_count": 16,
+        "result": "passed",
+        "artifact_sha256": "f94510ecd35d3e8d94e8054290ff5b7b41c8009be9e4c14e6846a5d84926d8c2"
+      },
+      {
+        "gate": "LABtest",
+        "evidence_id": "1bc59b59-8221-49d9-8726-7264ce6a06fc",
+        "test_count": 16,
+        "result": "passed",
+        "artifact_sha256": "394b935def2803f40f58c611abdf8bd7f603d71827f7eeddcc3d8e8a0a99a12e"
+      }
+    ],
+    "final_task_acceptance": "pending root decision; A31 remains a genuine failed case attempt"
+  },
+  "live_model": {
+    "baseline": {
+      "report": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r6/report.json",
+      "sha256": "383cd27b3190c07fe7e3af0a132986966105c62ad3be50d7e27a08d032d88494",
+      "attempted_inquiries": 4,
+      "elapsed_seconds": 260.0469,
+      "attempt_cap": 12,
+      "wall_cap_seconds": 900,
+      "model_id": "qwen3.6-35b-a3b-q4-k-m",
+      "model_sha256": "671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7",
+      "binary_sha256": "b42facfb93d85e1a581862c872615834223dc479871701c0b797aeee1fa11e9d",
+      "two_distinct_slots_same_model_binary_and_settings_observed": true,
+      "cases": [
+        {
+          "id": "E01",
+          "public_result": "completed",
+          "initial_score": "failed citation validation",
+          "posthoc_score": "qualified on cited source check; visible trace remains invalid; provisional"
+        },
+        {
+          "id": "E02",
+          "public_result": "partial",
+          "posthoc_score": "partial; one cited path remains missing; not qualified"
+        },
+        {
+          "id": "E03",
+          "public_result": "deadline exhausted; no result packet",
+          "posthoc_score": "not rescored"
+        },
+        {
+          "id": "E04",
+          "public_result": "completed",
+          "posthoc_score": "partial citation/result evidence; usefulness not established"
+        }
+      ],
+      "rescore": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r6/rescore-report.json",
+        "sha256": "bdcc12092cebd04a5b7c93d0abcb6de07fbc50159a7f73a1f41d33a41a6d6cd5",
+        "model_calls": 0,
+        "policy": "post-hoc only; original report not overwritten"
+      },
+      "release": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r6/release-report.json",
+        "sha256": "39498dcb954ff3821bb18cae12806a5f8169bd04f6a4eadd73d5cc672962cb50",
+        "result": "released_verified",
+        "request_id": "1ed3a1a01cbf8ec617a43d689c71ad31",
+        "sessions_verified": 2,
+        "first_attempt": true
+      }
+    },
+    "extension": {
+      "report": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/extension-r1/report.json",
+      "sha256": "de14a701eb16f44a10306aef7b4d6c3ce01a8597ccd044f9c08df5fcd7209d86",
+      "inquiries": 2,
+      "elapsed_seconds": 173.4195,
+      "status": "completed_with_gaps",
+      "release": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/extension-r1/release-report.json",
+        "sha256": "85b5ab962fedad9c7bf5d6b8925442258b854bbfff6c57a603d3d649a5ab30f7",
+        "result": "released_verified",
+        "request_id": "6ed0ea1ef772f96a3659ee5f71f82417",
+        "sessions_verified": 2,
+        "first_attempt": true
+      },
+      "A31": {
+        "preflight": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/extension-r1/model-counterexample-preflight.json",
+        "sha256": "af959ede3e5a5d4ffda50aa73f3d9a0c9d4516d99b719143277d58fa14646ef1",
+        "inference_performed": true,
+        "result": "failed_preflight_no_execution",
+        "reason": "Actual advisory contained no Python test code block; fallback forbidden. No CPU execution, scratch tree or canonical mutation. Source qualification failed due missing cited fixture files."
+      },
+      "A37": "A31 and A37 extension attempts were recorded; A37 is partial and not qualified pending accurate source citations/scoring and held-out evidence."
+    },
+    "held_out": {
+      "required_max_inquiries": 4,
+      "wall_seconds": 300,
+      "status": "pending"
+    },
+    "current_scoring_work": "Root reports a bounded implementation of a cited direct_cat resolver and post-hoc assessment in progress; preserve the original reports and do not count unreceipted rescoring."
+  },
+  "gpu": {
+    "initial_attempt": {
+      "controller_log": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/gpu-controller-command.log",
+      "sha256": "509c4e69d186ac762e236bd34da4991d74e362d512c67b44e1aa1433e0423143",
+      "result": "gpu_not_quiescent; idle observation timed out; no GPU execution"
+    },
+    "retry_quiescence": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/gpu-retry/gpu-quiescence.json",
+      "sha256": "288357605d0bd8748510d1cc7f7ad01a34ee0d81cb31b2e21a0580b2f532b766",
+      "state": "quiescent_verified",
+      "targets_checked": 2,
+      "release_request_id": "6ed0ea1ef772f96a3659ee5f71f82417",
+      "release_proof_digest": "9e6a0eabfd5ea238d512e3aabe51f214af938d74440d82e260ee37845fc92b09"
+    },
+    "effect": {
+      "intent": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/gpu-retry/gpu-attempt/effect-intent.json",
+      "intent_sha256": "8e9421f71fa7b7d5b54b8acc7d2129afee54ce48cb1a1b2747694f10db9abbed",
+      "result": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/gpu-retry/gpu-attempt/effect-result.json",
+      "result_sha256": "4385b013fd9251ce369295c46fe76ee0279f426f8cc189167e07a206f8b63222",
+      "status": "completed",
+      "returncode": 0,
+      "elapsed_seconds": 3.0723,
+      "devices": 4,
+      "items_per_device": 4096,
+      "sum_per_device": 25163776,
+      "binary_sha256": "6346b250f7d3057e50ecde4a6524e1050ef7dd30458a590ca86ff98810fa8c21",
+      "claim_limit": "correctness fixture only; no benchmark/speedup/production claim"
+    },
+    "foreground_owner_terminal": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/gpu-retry/foreground-owner-terminal.json",
+      "sha256": "7ce502d15eb97a10d7fbd49fa0949a736cb681cbeaf639762a83eb87dccd615d",
+      "state": "released",
+      "resources": []
+    },
+    "bounded_conclusion": "A verified inference-resource release preceded a controller-leased non-model GPU smoke, then the foreground owner was released with no resources. This supports a bounded hardware-handoff result; it does not establish A16 cooperative-delay measurements, full A33 parent-resume/current-power-permission behavior, benchmark performance, or all GPU acceptance.",
+    "A33_disposition": "partial_hardware_handoff_pending_root_review",
+    "A16_disposition": "unqualified; cooperative versus full eviction delay not measured"
+  },
+  "economics": {
+    "status": "root_reported_running; no completed receipt yet",
+    "initial_preflight": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r1/report.json",
+      "sha256": "19d1c2498cb33eff64eefb9fae467c1032f4c8650e4f734115d430965a245e74",
+      "result": "preflight_failed",
+      "inquiries": 0,
+      "elapsed_seconds": 0.436,
+      "failure": "NameError in initial harness preflight"
+    },
+    "authorized_cap": {
+      "inquiries": 6,
+      "wall_seconds": 120
+    },
+    "held_out_status": "pending; separate maximum 4 inquiries/300 seconds",
+    "automatic_mode": "keep disabled until measured case passes thresholds"
+  },
+  "root_blockers": [
+    "A31 live-model counterexample attempt failed before test execution because the advisory did not include exactly one Python code block and cited source files were missing.",
+    "A37 source citation/assessment and held-out work remain incomplete.",
+    "A38 economics run is in progress under its bounded allowance; no result receipt is indexed yet.",
+    "A16 cooperative eviction-delay case remains unmeasured; A33 evidence is bounded partial handoff only.",
+    "No final lifecycle report, cutover, selector change, or activation receipt is indexed."
+  ]
+}

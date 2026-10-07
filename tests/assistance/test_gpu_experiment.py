@@ -135,6 +135,11 @@ def test_typed_request_emits_exact_four_gpu_controller_spec_and_private_intent(t
     assert controller_spec["benchmark"]["build_argv"][5] == str(
         Path(json.loads((attempt / "request.json").read_text())["source_snapshot_path"]) / "scripts" / "pa1_gpu_smoke.cu")
     assert controller_spec["benchmark"]["build_argv"][-1] == str(attempt / "pa1_gpu_smoke")
+    assert controller_spec["quiescence"] == {
+        "timeout_seconds": 35.0,
+        "consecutive_idle_samples": 3,
+        "interval_seconds": 0.2,
+    }
     assert controller_spec["timeout"] == 60
     assert controller_spec["paths"] == []
     assert "--go-real" in controller_spec["argv"]

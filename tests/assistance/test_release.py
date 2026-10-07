@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+import json
 import unittest
 
 from scripts import qualify_assistance_live as live
@@ -104,6 +105,12 @@ class LiveQualificationPlanTests(unittest.TestCase):
         self.assertFalse(live._visible_inference_confirmed("completed", None, []))
         self.assertTrue(live._visible_inference_confirmed("completed", "visible answer", []))
         self.assertTrue(live._visible_inference_confirmed("partial", None, [{"text": "visible finding"}]))
+
+    def test_extension_rescore_preserves_a31_missing_codeblock_rejection(self):
+        self.assertEqual(live._extension_answer_errors("A31", "Explanation without a code sample."),
+                         ["required runnable Python code block missing"])
+        self.assertEqual(live._extension_answer_errors("A31", "```python\nimport unittest\n```"), [])
+        self.assertEqual(live._extension_answer_errors("A37", "No code block required."), [])
 
     def test_failure_stop_requires_two_failures_of_the_same_class(self):
         self.assertFalse(live._same_failure_stop({"runtime_mismatch": 1, "worker_failure": 1}))
@@ -309,6 +316,131 @@ class LiveQualificationPlanTests(unittest.TestCase):
                                                          [bad_packet.packet_id])
             finally:
                 self.assertTrue(composition.close())
+
+    def test_finding_citation_resolver_accepts_only_clean_exact_direct_cat_packets(self):
+        from project_control.app import Runtime
+        from project_control.config import load_config
+        import hashlib
+
+        class StubBackend:
+            available = False
+
+            def __init__(self, state_root):
+                self._state_root = state_root
+
+            def close(self):
+                return None
+
+        with tempfile.TemporaryDirectory(prefix="pa1-cited-packet-") as temporary:
+            area = Path(temporary)
+            fixture = area / "fixture"
+            source = fixture / "demo" / "budgets.py"
+            source.parent.mkdir(parents=True)
+            raw = (b'MAX_STEPS = 6\nINQUIRY_SECONDS = 300\n'
+                   b'TURN_SECONDS = 60\nLEASE_SECONDS = 120\n')
+            source.write_bytes(raw)
+            runtime = Runtime(load_config())
+            composition = live._compose_isolated_surface(
+                area / "as1-state", runtime, StubBackend(area / "canonical-state"))
+            try:
+                scope = composition.scope("project-control")
+                source_path = str(source.resolve())
+
+                def packet(*, path=source_path, stdout=raw.decode(), digest=None, reads=None):
+                    read = {"method": "direct_cat", "path": path,
+                            "content_sha256": digest or hashlib.sha256(raw).hexdigest()}
+                    return composition.store.create(
+                        tool="command", access_scope=scope,
+                        payload={"status": "completed", "exit_code": 0,
+                                 "truncated": False, "timed_out": False, "stdout": stdout,
+                                 "source_reads": reads if reads is not None else [read]},
+                        freshness={"volatile": True, "max_age_seconds": 0}).packet_id
+
+                exact = packet()
+                wrong_hash = packet(digest="0" * 64)
+                ambiguous = packet(reads=[
+                    {"method": "direct_cat", "path": source_path,
+                     "content_sha256": hashlib.sha256(raw).hexdigest()},
+                    {"method": "direct_cat", "path": source_path,
+                     "content_sha256": hashlib.sha256(raw).hexdigest()}])
+                outside_file = area / "outside.txt"
+                outside_file.write_bytes(raw)
+                outside = packet(path=str(outside_file.resolve()))
+                not_cited = packet()
+
+                citations, records = live._resolve_finding_citations(
+                    composition, [exact, wrong_hash, ambiguous, outside], scope, fixture)
+                self.assertEqual([item["path"] for item in citations], ["demo/budgets.py"])
+                by_id = {item["packet_id"]: item for item in records}
+                self.assertEqual(by_id[exact]["status"], "resolved")
+                self.assertEqual(by_id[wrong_hash]["reason"], "source_bytes_hash_or_stdout_mismatch")
+                self.assertEqual(by_id[ambiguous]["reason"], "source_read_count_not_one")
+                self.assertEqual(by_id[outside]["reason"], "source_path_unavailable_or_outside_fixture")
+                self.assertNotIn(not_cited, by_id)
+                score = live.score_case(
+                    {"id": "E01", "evidence_paths": ["demo/budgets.py"]},
+                    {"answer": "MAX_STEPS = 6 and INQUIRY_SECONDS = 300", "citations": citations},
+                    fixture)
+                self.assertEqual(score["status"], "complete")
+            finally:
+                self.assertTrue(composition.close())
+
+    def test_rescore_writes_separate_receipt_without_changing_original_report(self):
+        from project_control.app import Runtime
+        from project_control.config import load_config
+        import hashlib
+
+        class StubBackend:
+            available = False
+
+            def __init__(self, state_root):
+                self._state_root = state_root
+
+            def close(self):
+                return None
+
+        with tempfile.TemporaryDirectory(prefix="pa1-rescore-") as temporary:
+            artifact = Path(temporary)
+            artifact.chmod(0o700)
+            fixture = artifact / "fixture"
+            source = fixture / "demo" / "budgets.py"
+            source.parent.mkdir(parents=True)
+            raw = (b'MAX_STEPS = 6\nINQUIRY_SECONDS = 300\n'
+                   b'TURN_SECONDS = 60\nLEASE_SECONDS = 120\n')
+            source.write_bytes(raw)
+            state_root = artifact / "as1-state"
+            composition = live._compose_isolated_surface(
+                state_root, Runtime(load_config()), StubBackend(artifact / "canonical-state"))
+            try:
+                scope = composition.scope("project-control")
+                packet = composition.store.create(
+                    tool="command", access_scope=scope,
+                    payload={"status": "completed", "exit_code": 0, "truncated": False,
+                             "timed_out": False, "stdout": raw.decode(),
+                             "source_reads": [{"method": "direct_cat", "path": str(source.resolve()),
+                                               "content_sha256": hashlib.sha256(raw).hexdigest()}]},
+                    freshness={"volatile": True, "max_age_seconds": 0})
+            finally:
+                self.assertTrue(composition.close())
+            report_path = artifact / "report.json"
+            original = {"format": "pa1-live-source-qualification/1", "status": "partial",
+                        "cleanup": {"isolated_job_service_stopped": True},
+                        "isolated_state_root": str(state_root), "fixture_root": str(fixture),
+                        "package_root": str(PACKAGE), "held_out": False,
+                        "fixture_workspace": {"project": "project-control"},
+                        "cases": [{"case_id": "E01", "status": "completed",
+                                   "answer": "MAX_STEPS = 6 and INQUIRY_SECONDS = 300",
+                                   "findings": [{"evidence_packets": [packet.packet_id]}],
+                                   "score": {"status": "failed", "qualified": False}}]}
+            report_path.write_text(json.dumps(original), encoding="utf-8")
+            report_path.chmod(0o600)
+            original_bytes = report_path.read_bytes()
+            receipt, receipt_path = live.rescore_existing_report(report_path)
+            self.assertEqual(receipt["model_calls"], 0)
+            self.assertEqual(receipt["cases"][0]["rescore"]["status"], "complete")
+            self.assertNotEqual(receipt_path, report_path)
+            self.assertFalse(receipt_path.exists())
+            self.assertEqual(report_path.read_bytes(), original_bytes)
 
 
 if __name__ == "__main__":

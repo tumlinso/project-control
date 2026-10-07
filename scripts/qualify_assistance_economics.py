@@ -21,6 +21,7 @@ import uuid
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
+SCRIPT = Path(__file__).resolve()
 if str(REPO / "src") not in sys.path:
     sys.path.insert(0, str(REPO / "src"))
 FIXTURE = REPO / "planning/project-assistance-v1/fixtures/repository"
@@ -52,7 +53,8 @@ def _private_dir(path: Path) -> Path:
     return path
 
 
-def plan() -> dict[str, Any]:
+def plan(max_inquiries: int = MAX_INQUIRIES,
+         wall_seconds: int = MAX_WALL_SECONDS) -> dict[str, Any]:
     return {
         "format": "pa1-assistance-economics/1",
         "status": "planned_not_executed",
@@ -62,10 +64,10 @@ def plan() -> dict[str, Any]:
             "disposable_source_change", "automatic_refresh_2", "refreshed_foreground",
             "control_foreground_if_budget_allows",
         ],
-        "budget": {"max_new_inquiries": MAX_INQUIRIES,
+        "budget": {"max_new_inquiries": max_inquiries,
                    "foreground_inquiries": 4, "automatic_roots": MAX_AUTO_ROOTS,
                    "max_reserved_turns": MAX_RESERVED_TURNS,
-                   "wall_seconds": MAX_WALL_SECONDS},
+                   "wall_seconds": wall_seconds},
         "source_paths": list(SOURCE_PATHS),
         "thresholds": {"max_added_wait_seconds": 2.0,
                        "max_elapsed_overhead_fraction": 0.10,
@@ -243,7 +245,12 @@ def _fixture_attention_tick(composition: Any, *, repository_root: Path,
         return controller.dispatch_next(control)
 
 
-def _execute(root: Path) -> dict[str, Any]:
+def _execute(root: Path, *, max_inquiries: int = MAX_INQUIRIES,
+             wall_seconds: int = MAX_WALL_SECONDS) -> dict[str, Any]:
+    if isinstance(max_inquiries, bool) or not isinstance(max_inquiries, int) or not 1 <= max_inquiries <= MAX_INQUIRIES:
+        raise ValueError(f"max_inquiries must be between 1 and {MAX_INQUIRIES}")
+    if isinstance(wall_seconds, bool) or not isinstance(wall_seconds, int) or not 1 <= wall_seconds <= MAX_WALL_SECONDS:
+        raise ValueError(f"wall_seconds must be between 1 and {MAX_WALL_SECONDS}")
     if Path(os.environ.get("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR", "")).expanduser().resolve() != CENTRAL_STATE.resolve():
         raise ValueError("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR must identify the verified central observer state")
 
@@ -257,6 +264,7 @@ def _execute(root: Path) -> dict[str, Any]:
     from project_control.runtime_binding import bind_local_runtime
     from project_control.assistance import attention as attention_module
 
+    root = _private_dir(Path(root))
     original_config = load_config()
     repo = _disposable_repository(root)
     ephemeral_config = _ephemeral_fixture_config(original_config, repo)
@@ -265,14 +273,14 @@ def _execute(root: Path) -> dict[str, Any]:
         raise ValueError("isolated state already exists; choose a fresh artifact root")
     composition = None
     operator = None
-    report = plan()
+    report = plan(max_inquiries, wall_seconds)
     report.update({"status": "preflight", "fixture_root": str(repo),
                    "config_mode": "in_memory_ephemeral_repository_alias",
                    "semantic_project": SEMANTIC_PROJECT,
                    "fixture_repository_alias": FIXTURE_REPOSITORY_ALIAS,
                    "isolated_state_root": str(state_root),
-                   "inquiry_count": 0, "automatic_root_count": 0, "foreground": [],
-                   "automatic": [], "owned_receipts": [], "source_shadow_denied": False})
+                   "inquiry_count": 0, "automatic_root_count": 0, "attempts": [], "foreground": [],
+                   "automatic": [], "omitted_stages": [], "owned_receipts": [], "source_shadow_denied": False})
     started = time.monotonic()
     original_turn_cap = attention_module.MAX_RESERVED_TURNS
     attention_module.MAX_RESERVED_TURNS = MAX_RESERVED_TURNS
@@ -297,7 +305,6 @@ def _execute(root: Path) -> dict[str, Any]:
         composition = compose_surface(runtime, MCPProfile.OBSERVER, state_directory=state_root,
                                       backend=backend)
         scope = composition.scope(SEMANTIC_PROJECT)
-        composition.jobs.start()
         operator = AssistanceOperator(state_root=state_root)
         try:
             _validate_source_paths((".env",))
@@ -305,6 +312,26 @@ def _execute(root: Path) -> dict[str, Any]:
             report["source_shadow_denied"] = True
         if not report["source_shadow_denied"]:
             raise ValueError("private .env was not denied by the source-selection seal")
+
+        focus = operator.set_focus(project=SEMANTIC_PROJECT,
+            text="Track fixture budget and controller changes.",
+            trusted_projects=composition.host.projects, trusted_root=repo,
+            trusted_repository=FIXTURE_REPOSITORY_ALIAS,
+            source_paths=SOURCE_PATHS, automatic_seconds=wall_seconds)
+        focus_id = focus["focus_id"]
+        policy_db = operator._open(create=True)
+        try:
+            policy = PowerPolicy(policy_db, clock=composition.jobs.clock)
+            snapshot = policy.snapshot()
+            if (snapshot.get("automatic_enabled") is not True
+                    or snapshot.get("automatic_focus") != focus_id
+                    or snapshot.get("automatic_project") != SEMANTIC_PROJECT):
+                raise ValueError("real focus and power policy did not grant the exact fixture focus")
+            report["focus_preflight"] = {"status": "validated", "focus_id": focus_id,
+                "automatic_enabled": True, "focus_window_seconds": wall_seconds}
+        finally:
+            policy_db.close()
+        composition.jobs.start()
 
         def packet_and_inquire(label: str, question: str, *, use_handoff: bool = False) -> dict[str, Any]:
             packet_ids, evidence_rows, freshness = _read_public_sources(
@@ -332,17 +359,56 @@ def _execute(root: Path) -> dict[str, Any]:
                         sources=handoff_sources, ttl_seconds=None)
                     packet_ids.append(handoff_packet.packet_id)
                     freshness = _assert_source_packet_freshness(composition, scope, packet_ids)
+            if report["inquiry_count"] >= max_inquiries:
+                raise ValueError("inquiry budget exhausted before inquiry admission")
             before = time.monotonic()
-            remaining = max(0.0, started + MAX_WALL_SECONDS - time.monotonic())
+            remaining = max(0.0, started + wall_seconds - time.monotonic())
             if remaining <= 0:
                 raise TimeoutError("120-second economics wall budget exhausted")
-            result = composition.jobs.inquire(question, access_scope=scope, hints=packet_ids,
-                request_id="pa1-econ-" + uuid.uuid4().hex,
-                foreground_timeout=min(12.0, remaining))
+            from project_control.as1_contracts import canonical_digest
+            inquiry_context = composition.jobs.inquiry_context(scope, composition.jobs.analysis_runtime_identity)
+            identity = canonical_digest({"question": question, "context": inquiry_context,
+                                         "mode": "investigate", "skill": None})
+            attempt = {"attempt_id": uuid.uuid4().hex, "kind": "foreground", "label": label,
+                       "request_sha256": _hash(question.encode()), "status": "admitted",
+                       "inquiry_identity_sha256": _hash(identity.encode()), "job_id": None,
+                       "actual_inference_confirmed": False}
+            report["inquiry_count"] += 1
+            report["attempts"].append(attempt)
+            _write_report(root, report)
+            request_id = "pa1-econ-" + uuid.uuid4().hex
+            deadline = min(started + wall_seconds, time.monotonic() + min(12.0, remaining))
+            result = {"status": "thinking"}
+            linkage = None
+            while time.monotonic() < deadline:
+                result = composition.jobs.inquire(question, access_scope=scope, hints=packet_ids,
+                    request_id=request_id, foreground_timeout=max(0.1, deadline-time.monotonic()))
+                with composition.jobs._db() as db:
+                    found = db.execute("SELECT jobs.id FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job "
+                                       "WHERE inquiry_index.identity=?", (identity,)).fetchone()
+                if found:
+                    snapshot = composition.jobs.lookup(found["id"], access_scope=scope)
+                    durable_job = snapshot.get("job") if snapshot.get("status") == "ok" else None
+                    if isinstance(durable_job, dict):
+                        output_observed = bool((isinstance(durable_job.get("answer"), str) and durable_job["answer"].strip())
+                            or (isinstance(durable_job.get("findings"), list) and durable_job["findings"]))
+                        linkage = {"job_id": found["id"], "job_status": durable_job.get("status"),
+                                   "actual_inference_confirmed": durable_job.get("status") in {"completed", "partial"} and output_observed}
+                        if durable_job.get("status") in {"completed", "partial", "failed", "cancelled"}:
+                            break
+                if result.get("status") in {"completed", "partial", "failed", "cancelled", "unavailable"}:
+                    break
+                time.sleep(0.25)
             elapsed = time.monotonic() - before
             job = result.get("job") if isinstance(result.get("job"), dict) else {}
             answer = job.get("answer")
-            report["inference_performed"] = report["inference_performed"] or bool(job.get("job_id"))
+            if job.get("job_id"):
+                linkage = {"job_id": job["job_id"], "job_status": result.get("status"),
+                           "actual_inference_confirmed": result.get("status") in {"completed", "partial"} and bool(answer)}
+            attempt.update(linkage or {})
+            attempt["status"] = result.get("status") or "unknown"
+            report["inference_performed"] = report["inference_performed"] or bool(attempt.get("actual_inference_confirmed"))
+            _write_report(root, report)
             return {"label": label, "status": result.get("status"), "job_id": job.get("job_id"),
                     "request_sha256": _hash(question.encode()), "elapsed_seconds": round(elapsed, 4),
                     "answer": answer, "source_revision": revision,
@@ -366,13 +432,25 @@ def _execute(root: Path) -> dict[str, Any]:
                                    f"INQUIRY_SECONDS = {expected_timeout}" in answer and
                                    "controller.py" in answer)
             report["foreground"].append(row)
-            report["inquiry_count"] += int(bool(row.get("job_id")))
             return row
 
         def await_preparation(label: str) -> dict[str, Any]:
+            if report["inquiry_count"] >= max_inquiries:
+                row = {"label": label, "status": "omitted_budget_cap"}
+                report["automatic"].append(row)
+                return row
+            # Reserve/count this automatic root before the first tick can admit
+            # work. A tick may return only a content-free dispatch state.
+            report["inquiry_count"] += 1
+            report["automatic_root_count"] += 1
+            attempt = {"attempt_id": uuid.uuid4().hex, "kind": "automatic",
+                       "label": label, "status": "reserved_before_attention_tick",
+                       "job_id": None, "actual_inference_confirmed": False}
+            report["attempts"].append(attempt)
+            _write_report(root, report)
             preparation_started = time.monotonic()
             counted_jobs: set[str] = set()
-            end = min(started + MAX_WALL_SECONDS, preparation_started + 25)
+            end = min(started + wall_seconds, preparation_started + 25)
             last = {"status": "pending"}
             while time.monotonic() < end:
                 tick = _fixture_attention_tick(composition, repository_root=repo,
@@ -387,13 +465,17 @@ def _execute(root: Path) -> dict[str, Any]:
                 if candidate and candidate.get("job_id"):
                     if candidate["job_id"] not in counted_jobs:
                         counted_jobs.add(candidate["job_id"])
-                        report["automatic_root_count"] += 1
-                        report["inquiry_count"] += 1
-                        report["inference_performed"] = True
-                        if report["automatic_root_count"] > MAX_AUTO_ROOTS or report["inquiry_count"] > MAX_INQUIRIES:
+                        attempt["job_id"] = candidate["job_id"]
+                        attempt["status"] = "admitted"
+                        _write_report(root, report)
+                        if report["automatic_root_count"] > MAX_AUTO_ROOTS or report["inquiry_count"] > max_inquiries:
                             raise ValueError("automatic root or inquiry budget was exceeded")
                     lookup = composition.jobs.preparation_lookup(candidate["job_id"], access_scope=scope)
                     if lookup.get("status") in {"completed", "partial", "failed", "cancelled", "unavailable"}:
+                        attempt["status"] = lookup.get("status")
+                        attempt["actual_inference_confirmed"] = lookup.get("status") in {"completed", "partial"}
+                        report["inference_performed"] = report["inference_performed"] or attempt["actual_inference_confirmed"]
+                        _write_report(root, report)
                         _fixture_attention_tick(composition, repository_root=repo,
                             access_scope=scope, control=operator.control)
                         row = {"label": label, "status": lookup.get("status"),
@@ -425,24 +507,18 @@ def _execute(root: Path) -> dict[str, Any]:
 
         # Initial foreground answer is the point-in-time baseline.
         first = foreground("baseline", 6, 300, False)
-        if report["inquiry_count"] >= MAX_INQUIRIES:
-            raise ValueError("inquiry budget exhausted before preparation")
-        focus = operator.set_focus(project=SEMANTIC_PROJECT,
-            text="Track fixture budget and controller changes.",
-            trusted_projects=composition.host.projects, trusted_root=repo,
-            trusted_repository=FIXTURE_REPOSITORY_ALIAS,
-            source_paths=SOURCE_PATHS, automatic_seconds=MAX_WALL_SECONDS)
-        focus_id = focus["focus_id"]
         _mutate_fixture(repo, 1)
         auto1 = await_preparation("automatic_preparation_1")
-        if report["inquiry_count"] >= MAX_INQUIRIES:
+        if report["inquiry_count"] >= max_inquiries:
             raise ValueError("inquiry budget exhausted after first preparation")
         foreground("prepared_foreground", 7, 240, True)
         _mutate_fixture(repo, 2)
         auto2 = await_preparation("automatic_refresh_2")
         foreground("refreshed_foreground", 8, 180, True)
-        if report["inquiry_count"] < MAX_INQUIRIES and time.monotonic() < started + MAX_WALL_SECONDS:
+        if report["inquiry_count"] < max_inquiries and time.monotonic() < started + wall_seconds:
             foreground("control_foreground", 8, 180, False)
+        else:
+            report["omitted_stages"].append("control_foreground_due_to_inquiry_cap_or_wall_budget")
         report["source_identity"] = {"project": SEMANTIC_PROJECT,
             "repository": FIXTURE_REPOSITORY_ALIAS,
             "root": str(repo), "git_revision": subprocess.check_output(
@@ -454,9 +530,11 @@ def _execute(root: Path) -> dict[str, Any]:
         report["comparison"] = _compare(report["foreground"])
         report["automatic_remains_disabled"] = True
         report["result"] = _economics_result(report, first, auto1, auto2)
-        report["status"] = "completed" if report["inquiry_count"] == MAX_INQUIRIES else "partial"
+        report["status"] = "completed" if report["inquiry_count"] == max_inquiries else "partial"
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)
-        report["inference_performed"] = report["inquiry_count"] > 0
+        report["inference_confirmed_count"] = sum(
+            bool(attempt.get("actual_inference_confirmed")) for attempt in report["attempts"])
+        report["inference_performed"] = report["inference_confirmed_count"] > 0
         return report
     except Exception as error:
         report.update({"status": "partial" if report["inference_performed"] else "preflight_failed",
@@ -527,17 +605,27 @@ def _compare(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def _economics_result(report: dict[str, Any], baseline: dict[str, Any],
                       auto1: dict[str, Any], auto2: dict[str, Any]) -> dict[str, Any]:
     comparisons = report.get("comparison", {}).get("comparisons", [])
-    measured = len(comparisons) >= 2 and all(isinstance(row.get("elapsed_delta_seconds"), (int, float))
-                                              for row in comparisons)
+    latency_measured = len(comparisons) >= 2 and all(
+        isinstance(row.get("elapsed_delta_seconds"), (int, float)) for row in comparisons)
+    overhead = report.get("elapsed_overhead_fraction_observed")
+    overhead_measured = isinstance(overhead, (int, float)) and not isinstance(overhead, bool)
+    measured = latency_measured and overhead_measured
     max_delta = max((row["elapsed_delta_seconds"] for row in comparisons), default=None)
     quality_ok = all(row.get("quality_equal") for row in comparisons) if comparisons else False
     wait_ok = all(row.get("status") in {"completed", "partial"} for row in (auto1, auto2))
+    overhead_pass = bool(overhead_measured and overhead <= 0.10)
     pass_all = bool(measured and wait_ok and quality_ok and max_delta is not None and
-                    max_delta <= 2.0 and report.get("elapsed_seconds", 0) <= MAX_WALL_SECONDS)
-    return {"thresholds_measured": measured, "max_added_wait_seconds": 2.0,
+                    max_delta <= 2.0 and overhead_pass and
+                    report.get("elapsed_seconds", 0) <= MAX_WALL_SECONDS)
+    return {"thresholds_measured": measured, "latency_thresholds_measured": latency_measured,
+            "elapsed_overhead_threshold_measured": overhead_measured,
+            "max_elapsed_overhead_fraction": 0.10,
+            "elapsed_overhead_fraction": overhead if overhead_measured else
+                "not_measured_with_single_sample_per_condition",
+            "elapsed_overhead_pass": overhead_pass,
+            "max_added_wait_seconds": 2.0,
             "observed_max_added_wait_seconds": max_delta,
             "added_wait_pass": bool(max_delta is not None and max_delta <= 2.0),
-            "elapsed_overhead_fraction": "not_comparable_without_repeated_control_samples",
             "quality_degradation": not quality_ok, "automatic_root_completion_pass": wait_ok,
             "all_thresholds_passed": pass_all,
             "automatic_permanently_enabled": False,
@@ -548,10 +636,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute-live", action="store_true",
                         help="run bounded live inquiries through the verified existing supervisor")
+    parser.add_argument("--max-inquiries", type=int, default=MAX_INQUIRIES,
+                        help=f"hard cap on foreground plus automatic attempts (1-{MAX_INQUIRIES})")
+    parser.add_argument("--wall-seconds", type=int, default=MAX_WALL_SECONDS,
+                        help=f"hard wall-clock limit in seconds (1-{MAX_WALL_SECONDS})")
     parser.add_argument("--artifact-root", type=Path,
                         default=Path.home() / ".local/state/project-control/assistance-economics")
     args = parser.parse_args(argv)
-    report = plan()
+    if isinstance(args.max_inquiries, bool) or not 1 <= args.max_inquiries <= MAX_INQUIRIES:
+        parser.error(f"--max-inquiries must be between 1 and {MAX_INQUIRIES}")
+    if isinstance(args.wall_seconds, bool) or not 1 <= args.wall_seconds <= MAX_WALL_SECONDS:
+        parser.error(f"--wall-seconds must be between 1 and {MAX_WALL_SECONDS}")
+    report = plan(args.max_inquiries, args.wall_seconds)
     if not args.execute_live:
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0
@@ -559,7 +655,8 @@ def main(argv: list[str] | None = None) -> int:
         root = _private_dir(args.artifact_root)
         if any(root.iterdir()):
             raise ValueError("artifact root must be empty; use a fresh private directory")
-        report = _execute(root)
+        report = _execute(root, max_inquiries=args.max_inquiries,
+                          wall_seconds=args.wall_seconds)
         _write_report(root, report)
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0 if report.get("status") == "completed" else 2

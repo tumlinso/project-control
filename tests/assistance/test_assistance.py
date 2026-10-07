@@ -19,6 +19,12 @@ class Clock:
         return self.value
 
 
+class AdvancingClock(Clock):
+    def __call__(self):
+        self.value += 0.01
+        return self.value
+
+
 class AssistanceOperatorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -156,6 +162,39 @@ class AssistanceOperatorTests(unittest.TestCase):
         self.assertEqual(state["power"]["automatic_focus"], result["focus_id"])
         self.assertEqual(state["power"]["automatic_project"], "pc")
         self.assertEqual(state["power"]["automatic_until"], 1060.0)
+
+    def test_automatic_focus_uses_live_operator_clock_and_expires_after_grant(self):
+        clock = AdvancingClock(1000.0)
+        operator = AssistanceOperator(state_root=self.root / "advancing-state" / "as1", clock=clock)
+        focus = operator.set_focus(project="pc", text="Track this source",
+            trusted_projects={"pc"}, trusted_root=self.checkout, trusted_repository="repo",
+            source_paths=("source.py",), automatic_seconds=60)
+        self.assertTrue(focus["automatic"])
+        self.assertGreater(focus["expires_at"], clock.value)
+
+        db = operator._open(create=True)
+        try:
+            policy = PowerPolicy(db, clock=clock)
+            allowed = policy.allow_dispatch("automatic_root", True,
+                operator.control.permission("dispatch_automatic"),
+                focus_id=focus["focus_id"], project="pc")
+            self.assertTrue(allowed.allowed)
+            clock.value = focus["expires_at"] + 0.01
+            expired = policy.allow_dispatch("automatic_root", True,
+                operator.control.permission("dispatch_automatic"),
+                focus_id=focus["focus_id"], project="pc")
+            self.assertFalse(expired.allowed)
+            self.assertEqual(expired.reason, "automatic_work_disabled")
+        finally:
+            db.close()
+
+    def test_invalid_automatic_focus_window_still_fails_before_grant(self):
+        with self.assertRaisesRegex(ValueError, "automatic_window"):
+            self.operator.set_focus(project="pc", text="Invalid window",
+                trusted_projects={"pc"}, trusted_root=self.checkout,
+                trusted_repository="repo", source_paths=("source.py",), automatic_seconds=0.5)
+        self.assertFalse(self.operator.status()["power"]["automatic_enabled"])
+        self.assertIsNone(self.operator.status()["focus"])
 
     def test_invalid_focus_source_leaves_existing_goal_and_controller_state_unchanged(self):
         existing = self.operator.set_goal(project="pc", text="Keep current goal",
