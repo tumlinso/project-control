@@ -138,6 +138,51 @@ class DemandRuntimeTests(unittest.TestCase):
         self.assertEqual(calls, ["start"])
         self.assertEqual(provider.central_status.call_count, 2)
 
+    def test_startup_retries_wrapped_cold_supervisor_transport_then_verifies_ready(self):
+        expected = pin()
+        provider = Mock()
+        provider.central_status.side_effect = [
+            RuntimeError("central_supervisor_unavailable"),
+            RuntimeError("central_supervisor_transport_timeout"),
+            status(expected),
+        ]
+        runtime = self.runtime(provider=provider, sleeper=lambda _: None)
+
+        result = runtime.ensure_ready(provider=provider, deadline_epoch=time.time() + 10)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(provider.central_status.call_count, 3)
+
+    def test_unknown_and_identity_runtime_errors_fail_without_readiness_retry(self):
+        for reason in ("unexpected_status_error", "central_supervisor_process_identity_mismatch"):
+            with self.subTest(reason=reason):
+                provider = Mock()
+                provider.central_status.side_effect = RuntimeError(reason)
+                runtime = self.runtime(provider=provider, sleeper=lambda _: None)
+
+                with self.assertRaisesRegex(RuntimeError, reason):
+                    runtime.ensure_ready(provider=provider, deadline_epoch=time.time() + 10)
+
+                self.assertEqual(provider.central_status.call_count, 1)
+
+    def test_constant_wrapped_cold_transport_is_bounded_by_request_deadline(self):
+        now = [100.0]
+        provider = Mock()
+        provider.central_status.side_effect = RuntimeError("central_supervisor_unavailable")
+
+        def start(action, **kwargs):
+            now[0] += 0.1
+            return Mock(returncode=0, stdout="", stderr="")
+
+        runtime = self.runtime(provider=provider, systemctl=start,
+            clock=lambda: now[0], sleeper=lambda seconds: now.__setitem__(0, now[0] + seconds))
+
+        with self.assertRaisesRegex(DemandRuntimeError, "inference_supervisor_readiness_timeout"):
+            runtime.ensure_ready(provider=provider, deadline_epoch=100.6)
+
+        self.assertLessEqual(now[0], 100.6)
+        self.assertEqual(provider.central_status.call_count, 2)
+
     def test_explicit_start_returns_verified_readiness(self):
         expected = pin()
         provider = Mock()
@@ -185,6 +230,16 @@ class DemandRuntimeTests(unittest.TestCase):
         self.assertEqual(observed["active_leases"], 1)
         self.assertNotIn("endpoint", str(observed))
         systemctl.assert_not_called()
+
+    def test_status_classifies_wrapped_cold_transport_as_unavailable(self):
+        provider = Mock()
+        provider.central_status.side_effect = RuntimeError("central_supervisor_unavailable")
+        runtime = self.runtime(provider=provider)
+
+        observed = runtime.status()
+
+        self.assertEqual(observed["readiness"], "unavailable")
+        self.assertEqual(observed["readiness_reason"], "inference_supervisor_unavailable")
 
     def test_startup_serializes_concurrent_demands_and_uses_one_service(self):
         expected = pin()

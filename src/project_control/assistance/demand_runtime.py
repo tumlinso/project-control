@@ -22,10 +22,21 @@ from ..runtime_identity import bind_runtime
 INFERENCE_SERVICE = "project-control-inference.service"
 DEFAULT_STARTUP_SECONDS = 120.0
 _START_LOCK = threading.RLock()
+_TRANSIENT_SUPERVISOR_TRANSPORT_ERRORS = frozenset({
+    "central_supervisor_unavailable",
+    "central_supervisor_timeout",
+    "central_supervisor_transport_timeout",
+    "central_supervisor_transport_error",
+})
 
 
 class DemandRuntimeError(RuntimeError):
     """A demand could not safely start or use the selected inference runtime."""
+
+
+def _is_transient_supervisor_transport_error(error: BaseException) -> bool:
+    """Recognize only the supervisor's documented transient transport codes."""
+    return isinstance(error, RuntimeError) and str(error) in _TRANSIENT_SUPERVISOR_TRANSPORT_ERRORS
 
 
 @dataclass(frozen=True)
@@ -285,7 +296,8 @@ class DemandRuntime:
                 result["readiness_reason"] = str(error)[:120]
             elif identity_failure:
                 result["readiness_reason"] = "inference_runtime_identity_mismatch"
-            elif isinstance(error, (FileNotFoundError, ConnectionRefusedError, TimeoutError, OSError)):
+            elif (isinstance(error, (FileNotFoundError, ConnectionRefusedError, TimeoutError, OSError))
+                  or _is_transient_supervisor_transport_error(error)):
                 result["readiness_reason"] = "inference_supervisor_unavailable"
             else:
                 result["readiness_reason"] = "inference_supervisor_status_invalid"
@@ -387,6 +399,10 @@ class DemandRuntime:
             except DemandRuntimeError:
                 raise
             except (FileNotFoundError, ConnectionRefusedError, TimeoutError, OSError) as error:
+                last_transient = str(error)[:200] or last_transient
+            except RuntimeError as error:
+                if not _is_transient_supervisor_transport_error(error):
+                    raise
                 last_transient = str(error)[:200] or last_transient
             if self._clock() >= deadline:
                 break
