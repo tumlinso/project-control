@@ -17,7 +17,7 @@
     "sha256": "ea5e7eaec27d5f0c3481bb7698882256ad0925d16324e665b097baf90bc5e3fd",
     "source": "docs/pa1/live-recovery-plan.json",
     "successful_comparison_extension_and_economics_cap": 12,
-    "warning": "Snapshot from root-owned recovery plan; re-fetch before further admission."
+    "warning": "Historic recovery-plan snapshot predates economics r1-r3 receipts. Those records show three attempts/85.4405 seconds across r2/r3, one owned process in each corrected admission, and no terminal answer in r3. Use preserved reports and an updated finite plan for any continuation."
   },
   "case_status_counts": {
     "cpu_covered_source_scenarios": 16,
@@ -25,8 +25,9 @@
     "cpu_unrun": 1,
     "sandbox_covered": 1,
     "live_model_unqualified": 5,
-    "live_gpu_unqualified": 2,
-    "live_gpu_partial": 1
+    "live_gpu_unqualified": 1,
+    "live_gpu_partial": 1,
+    "live_gpu_bounded_receipt_qualified": 1
   },
   "cases": [
     {
@@ -1971,7 +1972,7 @@
       "id": "A33",
       "mandatory": true,
       "owner": "PC-PA1-LAB",
-      "required_next_evidence": "Root review the bounded handoff; if requiring full A33 closure, retain the exact parent suspension/resume-after-release and current-power-permission evidence. Keep A16 cooperative-delay measurement separate.",
+      "required_next_evidence": "Root may accept only the bounded handoff scope supported by the effect/quiescence receipts; do not extend this to A16 delay, benchmarks or complete aggregate GPU/product qualification.",
       "setup": "Create an experiment requiring both inference GPU pairs.",
       "sources": [
         "S08",
@@ -2260,13 +2261,13 @@
     {
       "budget_note": "The live recovery plan reserves economics up to 6 inquiries/120 seconds inside root-approved budget; no measured paired foreground comparison is in reviewed receipts.",
       "evidence_status": "incomplete_unqualified",
-      "evidence_summary": "Economics r1 failed before inference. R2 reported focus_window_invalid/40.8499 seconds and zero public inquiries, but the admission correction confirms one durable job and a model process started; one-slot release verified first try. R3 passed focus preflight, then stopped after two attempts/44.5906 seconds on a production TypeError. Its inference=false report flag is contradicted by root-reported one actual model process; the admission correction is pending. A queued automatic job was cancelled via supported cleanup with history retained.",
+      "evidence_summary": "R1 failed before inference. R2 report status was focus_window_invalid/40.8499s and zero public inquiries, but its correction proves one owned model process started. R3 stopped after two attempts/44.5906s on the production preparation_lookup call mismatch; its report inference=false flag is not proof of no inference. The exact correction proves one owned model server, but no terminal answer completion. Supported exact preparation and job cancellations retained history; final quiescence later found all isolated jobs terminal and no resident model.",
       "expected": "Include preparation/refresh costs, context bytes/tokens, latency spread and sample size; meet predeclared practical envelope or leave feature off.",
       "final_acceptance": "pending_root_review",
       "id": "A38",
       "mandatory": true,
       "owner": "PC-PA1-QUALIFY",
-      "required_next_evidence": "No further economics inference in this branch. Preserve all three attempts and 85.4405 seconds; complete the exact-source fix and strict stub regression, rebuild a new delivery candidate, and require new root authorization before any future live trial. Keep automatic work off.",
+      "required_next_evidence": "This finite sequence stopped; any continuation must begin from the saved reports/corrections with an updated bounded plan. Preserve three attempts/85.4405 seconds and keep automatic work off.",
       "setup": "Compare equivalent foreground tasks with/without opted-in preparation and background work.",
       "sources": [
         "S01",
@@ -2279,7 +2280,7 @@
         "O03",
         "O04"
       ],
-      "status": "stopped_incomplete_production_bug",
+      "status": "stopped_incomplete_no_terminal_answer",
       "tier": "live_model",
       "title": "Assistance economics and foreground interference",
       "live_validation_evidence": {
@@ -2352,8 +2353,8 @@
       "title": "Versioned state and reversible candidate"
     },
     {
-      "evidence_status": "not_qualified",
-      "evidence_summary": "A reboot recovery regression suite passed 22 tests; physical recovery remains pending verified candidate retry and no final authorized lifecycle report is present.",
+      "evidence_status": "bounded_noninference_lifecycle_receipt_qualified",
+      "evidence_summary": "Final read-only census reports all 13 declared checks true: zero NVIDIA compute processes/residency markers, inference units and known supervisor stopped, candidate-bound HTTP observer allowed, isolated jobs terminal with dispatchers stopped, and exact foreground GPU owner terminally released with no resources. This qualifies the bounded lifecycle report only, not aggregate product behavior.",
       "expected": "Tests have nonzero counts, exact source/binary/model identities, actual permitted resource proof, omissions and activation choices; no fixture result relabeled production.",
       "final_acceptance": "pending_root_review",
       "id": "A40",
@@ -2367,7 +2368,7 @@
           "tests_passed": 22
         }
       ],
-      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "required_next_evidence": "Root records this bounded A40 disposition while keeping A16, A33 full lifecycle, and aggregate QUALIFY separate.",
       "setup": "Run applicable acceptance suites and one authorized real lifecycle demonstration.",
       "sources": [
         "S01",
@@ -2380,9 +2381,13 @@
         "O03",
         "O04"
       ],
-      "status": "planned_not_executed",
+      "status": "bounded_lifecycle_receipt_qualified_pending_root_matrix_review",
       "tier": "live_gpu",
-      "title": "Final resource, permission and provenance report"
+      "title": "Final resource, permission and provenance report",
+      "live_validation_evidence": {
+        "path": "docs/pa1/live-validation.json",
+        "record": "final_lifecycle"
+      }
     }
   ],
   "decision": "partial_live_validation_root_review_required",
@@ -2482,7 +2487,7 @@
     },
     {
       "path": "docs/pa1/live-validation.json",
-      "sha256": "1693dbf2d809eb3de0fec9743f6626dc2a4e0e90b790531505596f0ffa938f06",
+      "sha256": "a5c8c0f261e71f09ab801c5afc534115c7a61bdbfe9896be9c7fac546d46278c",
       "scope": "candidate build, native LAB gate rerun, real model attempts, bounded GPU handoff, and pending economics/held-out status; evidence references carry external artifact hashes"
     }
   ],
@@ -2501,71 +2506,41 @@
   },
   "qualification_native_state": {
     "task_id": "PC-PA1-QUALIFY",
-    "state": "in_progress_not_accepted",
-    "status": "Candidate-local build passed; production economics bug requires source correction and new delivery build before cutover. Product cases and root final decision remain pending."
+    "state": "partial_not_accepted",
+    "status": "A31/A37/A38 remain incomplete; A40 has a bounded non-inference lifecycle receipt only. Root retains aggregate decision."
   },
   "required_before_final_acceptance": [
-    "Root records the final PC-PA1-LAB disposition after reviewing the five passed native gates and the A31 failed product-case attempt; do not treat gate passage as matrix acceptance.",
-    "A31 remains failed: no Python test executed. Preserve that evidence; do not retry without the remaining-authority update and a valid input.",
-    "Review A37 baseline and held-out scores: only E01 in each has a qualified source assessment; other held-out cases are partial/unqualified and the four-inquiry held-out cap is consumed.",
-    "Root reports the planned A38 r3 economics result and reconciles it with the one actual r2 durable job; retain the 6-inquiry/120-second cap and automatic-off thresholds.",
-    "Complete/review the source-57105ac final candidate build before any root-owned cutover; keep A16/A40 and broader lifecycle acceptance separate from the bounded A33 probe.",
-    "Re-fetch current active claim, package contract, dirty/untracked source snapshot, receiver manifest/fingerprint, candidate release, model/weights/binary, permission and resource receipts; the CPU supplement predates later dirty root changes.",
-    "Close A20 with the exact forced compaction and valid-evidence retention or source re-fetch scenario.",
-    "Use already recorded A30 containment tests only within their tested sandbox grant and scope; preserve containment failure as fail-closed.",
-    "Perform candidate cutover/rollback only under current native authorization; record activation choice and leave automatic assistance off unless measured A38 passes every predeclared envelope.",
-    "After exact receipts exist, root reviews every case, replaces provisional evidence statuses with accepted/partial/failed/not-run dispositions, and sets final_acceptance only if native task gates and all mandatory acceptance conditions are met."
+    "Root records aggregate PC-PA1-QUALIFY disposition; PC-PA1-LAB is already terminally handed off with five passing delivery gates.",
+    "A31 remains failed: no Python test executed and no fallback was used. Preserve that result; any continuation must use saved evidence and an updated finite plan.",
+    "Review A37 original and post-hoc reports. Baseline and held-out E01 have qualified source assessments; remaining cases are partial/unqualified and the four-inquiry held-out cap is consumed.",
+    "A38 stopped with the production call-site failure; one owned server is proven but terminal answer completion is not. Any continuation requires an updated bounded plan; keep automatic work off.",
+    "Keep A16 unqualified, A33 scoped to bounded hardware handoff, and A40 scoped to its receipt-qualified non-inference lifecycle report. Do not generalize these results to aggregate case acceptance.",
+    "Delivery manifest 068e395439b4b6122add2f17c2ff0588552a57f0ea7b700ea2aaf43b3d927b7e is selected; rollback/reselection, fresh HTTP/MCP checks, and final quiescence are receipted. Existing MCP clients should reconnect.",
+    "Keep automatic assistance off because A38 has not demonstrated the full practical envelope."
   ],
-  "scope": "Current evidence digest through economics r3. The 40 mandatory package cases remain individually partial, unqualified, failed or not run. Native implementation gates and candidate-local smoke do not imply product acceptance, cutover or activation.",
+  "scope": "Delivery build, selector rollback/reselection, fresh entrypoint, terminal native LAB handoff and final resource census are recorded. The 40 mandatory product cases remain individually partial, unqualified, failed or not run; no blanket acceptance or automatic activation is claimed.",
   "task_native_state": {
     "task_id": "PC-PA1-LAB",
     "owner": "root",
-    "state": "five_required_native_gates_passed_final_handoff_planned",
-    "status": "Root reports native-gates-final.json5 has five passes on source 57105ac; the named packet was not located in the expected evidence roots here. Final handoff remains planned because A31, A37 and A38 are incomplete.",
-    "acceptance_receipt": "root-reported native-gates-final.json5; latest digest/path pending"
+    "state": "terminal_handoff_released",
+    "status": "Implementation task finished and terminal handoff recorded; all five delivery gates passed. This does not complete QUALIFY or the product acceptance matrix.",
+    "handoff_id": "4c152a62-2913-4873-915c-8e2d30ac4cf9",
+    "project_revision": 1111,
+    "acceptance_receipt": "docs/pa1/live-validation.json#native_lab"
   },
   "lab_native_stage_gates": {
     "task_id": "PC-PA1-LAB",
     "run_id": "PC-PA1-RUN-1",
-    "state": "all_required_stage_gates_passed_final_acceptance_root_owned",
-    "evidence_root": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8f-c306fb7721a7/evidence",
-    "receipts": [
-      {
-        "gate": "contained",
-        "evidence_id": "449be020-20c2-4dfc-b646-4cb9bff4595f",
-        "test_count": 9,
-        "result": "passed",
-        "artifact_sha256": "8ccf14d3fca92068d821665f2814316f24c39884ed37039f5c80b5c128938cd0"
-      },
-      {
-        "gate": "capture",
-        "evidence_id": "c7b75513-3cb3-4b03-a3d3-a8dbe9d81cc2",
-        "test_count": 25,
-        "result": "passed",
-        "artifact_sha256": "d52de38b6b1980ebce75f1373f92491545b443aad38b55a2a03e3be0b9d7bdca"
-      },
-      {
-        "gate": "CLI",
-        "evidence_id": "794e16b9-d9e6-4b86-8ef3-4000412905ba",
-        "test_count": 8,
-        "result": "passed",
-        "artifact_sha256": "f48699aba7ea554509f17456af9d168e47185cd0ea331c29d43b522cd5863d0b"
-      },
-      {
-        "gate": "sourceintegration",
-        "evidence_id": "813ffb9b-551e-48ed-baf4-f0dd78f343d0",
-        "test_count": 16,
-        "result": "passed",
-        "artifact_sha256": "f94510ecd35d3e8d94e8054290ff5b7b41c8009be9e4c14e6846a5d84926d8c2"
-      },
-      {
-        "gate": "LABtest",
-        "evidence_id": "1bc59b59-8221-49d9-8726-7264ce6a06fc",
-        "test_count": 16,
-        "result": "passed",
-        "artifact_sha256": "394b935def2803f40f58c611abdf8bd7f603d71827f7eeddcc3d8e8a0a99a12e"
-      }
-    ],
-    "scope_note": "Native task gate evidence; does not replace the mandatory product acceptance cases or root final decision."
+    "source_commit": "5a302b153aa6e941f78b65bb3b821ba40fc21957",
+    "receipt_path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/native-gates-delivery.json",
+    "receipt_sha256": "b655ab9f29eb7bd5f63f8a2b12960208f54f44b8eaa7a06a88598d83c04b4df7",
+    "state": "all_five_required_gates_passed",
+    "evidence_ids": [
+      "4f9acb48-c62b-4676-9c60-9dad11604eea",
+      "0ab8ea11-e03a-40b5-8937-bc060bf41719",
+      "8f4e62f9-b830-4823-ac79-cde7b3051fb6",
+      "e126dbc0-9828-425e-a2bc-da67ac11ec10",
+      "19068171-63bf-47e5-8432-30886445f3c4"
+    ]
   }
 }

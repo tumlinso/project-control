@@ -5,82 +5,87 @@
   "owner": "root",
   "scope_note": "Evidence digest only. It does not turn advisory package cases into a blanket pass. Original public live reports and negative outcomes remain preserved; model output text is not duplicated here.",
   "candidate": {
-    "latest_build": {
+    "selected_delivery": {
       "receipt": {
-        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/receipt-final-r2.json",
-        "sha256": "47a220680b7a6fc070c5efded50d1edfa68ac21a3260545eb240422099a34924"
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/receipt-final-r3.json",
+        "sha256": "acb6898f8bb5139c4dfd2ffbed7eef31309ce7783b95a3d0ba380d52ad631d2c"
       },
-      "source_commit": "57105ac814d8de8f28123d12874e1a9fa3b78e3d",
-      "source_worktree_clean": true,
+      "source_commit": "5a302b153aa6e941f78b65bb3b821ba40fc21957",
       "skills_commit": "5c69981f8d1755c3408e4f45adbf340c02c4dfe8",
-      "skills_worktree_clean": true,
-      "candidate_path": "/home/tumlinson/.local/share/project-control/releases/unified-20261007-pa1-final",
-      "candidate_manifest_sha256": "a3d273a85d8d2f1120cf33ba78375aff869a9ca3113aa19f28b87cbe4eba08c8",
-      "release_manifest_sha256": "b63b8d1ca2f8dae0c0e50b5c39e2997fff74f7795ef0454ee27375a67661bc6c",
+      "candidate_path": "/home/tumlinson/.local/share/project-control/releases/unified-20261007-pa1-delivery",
+      "release_manifest_sha256": "068e395439b4b6122add2f17c2ff0588552a57f0ea7b700ea2aaf43b3d927b7e",
+      "candidate_manifest_sha256": "229ff97b7dc0d823670d82b6a9a6ed8375a55b4e937d87849e3b03f35c58c3de",
       "receiver_manifest_sha256": "c29de1b8f58f4804f159730ad46ab7141ee178bc51573feef31ab9da8aed1398",
-      "runtime_and_dependencies": "passed candidate-local isolated verification; 41 packages checked",
-      "scope_limits": "No service endpoint check, tests, service, model, GPU, cutover, selector change, or promotion was performed by build receipt"
+      "verification": "candidate-local runtime identity/import checks, launcher help, and uv dependency check passed; 41 packages; no service endpoint check in build receipt",
+      "source_worktree_inventory_sha256": "5ef88a36a60b685e49a3d8df5d9ac6cfd90f3bfba44f139f5b27ab0bc9856f61",
+      "source_worktree_note": "Builder preserved and recorded a docs-only worktree change; frozen production source commit is 5a302b153aa6e941f78b65bb3b821ba40fc21957."
     },
-    "previous_build": {
-      "source_commit": "6ac6bec6e6311e715899ecdc3c291a3e210bdfed",
-      "release_manifest_sha256": "f0dbf88dc39f9042127de278809efb89fcfdc4276e8a6d6e4be013a95ca8171b",
-      "receiver_manifest_sha256": "c29de1b8f58f4804f159730ad46ab7141ee178bc51573feef31ab9da8aed1398",
-      "status": "preserved historical build; not activated"
+    "source_fix": {
+      "commit": "5a302b153aa6e941f78b65bb3b821ba40fc21957",
+      "change": "AttentionController.record_result now calls the keyword-only JobService.preparation_lookup contract",
+      "attention_tests": "16 passed, 6 subtests passed",
+      "economics_tests": "10 passed"
     },
-    "post_build_source_fix": "A production AttentionController.record_result call-site mismatch was found during economics r3; implementer is fixing source and strict stub regression, after which root will build a new delivery candidate.",
-    "cutover": "not performed; root retains candidate selection, selector/service changes and activation",
+    "older_candidates_preserved": [
+      {
+        "source_commit": "6ac6bec6e6311e715899ecdc3c291a3e210bdfed",
+        "release_manifest_sha256": "f0dbf88dc39f9042127de278809efb89fcfdc4276e8a6d6e4be013a95ca8171b"
+      },
+      {
+        "source_commit": "57105ac814d8de8f28123d12874e1a9fa3b78e3d",
+        "release_manifest_sha256": "b63b8d1ca2f8dae0c0e50b5c39e2997fff74f7795ef0454ee27375a67661bc6c"
+      }
+    ],
+    "delivery_state": "selected by selector-only cutover; rollback was exercised to the previous candidate, then delivery was reselected and verified",
     "automatic_work": "off"
   },
   "native_lab": {
     "task_id": "PC-PA1-LAB",
     "run_id": "PC-PA1-RUN-1",
-    "required_stage_gates": "all five passed on latest rerun; root retains final task acceptance",
-    "evidence_root": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence",
-    "receipts": [
+    "latest_gate_receipt": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/native-gates-delivery.json",
+      "sha256": "b655ab9f29eb7bd5f63f8a2b12960208f54f44b8eaa7a06a88598d83c04b4df7",
+      "source_commit": "5a302b153aa6e941f78b65bb3b821ba40fc21957",
+      "operation_status": "passed"
+    },
+    "gates": [
       {
-        "gate": "contained",
-        "evidence_id": "449be020-20c2-4dfc-b646-4cb9bff4595f",
-        "test_count": 9,
-        "result": "passed",
-        "artifact_sha256": "8ccf14d3fca92068d821665f2814316f24c39884ed37039f5c80b5c128938cd0"
+        "gate_id": "PC-PA1-LAB-CONTAINED-RUNNER",
+        "status": "passed",
+        "evidence_id": "4f9acb48-c62b-4676-9c60-9dad11604eea"
       },
       {
-        "gate": "capture",
-        "evidence_id": "c7b75513-3cb3-4b03-a3d3-a8dbe9d81cc2",
-        "test_count": 25,
-        "result": "passed",
-        "artifact_sha256": "d52de38b6b1980ebce75f1373f92491545b443aad38b55a2a03e3be0b9d7bdca"
+        "gate_id": "PC-PA1-LAB-DETACHED-CAPTURE",
+        "status": "passed",
+        "evidence_id": "0ab8ea11-e03a-40b5-8937-bc060bf41719"
       },
       {
-        "gate": "CLI",
-        "evidence_id": "794e16b9-d9e6-4b86-8ef3-4000412905ba",
-        "test_count": 8,
-        "result": "passed",
-        "artifact_sha256": "f48699aba7ea554509f17456af9d168e47185cd0ea331c29d43b522cd5863d0b"
+        "gate_id": "PC-PA1-LAB-OPERATOR-CLI",
+        "status": "passed",
+        "evidence_id": "8f4e62f9-b830-4823-ac79-cde7b3051fb6"
       },
       {
-        "gate": "sourceintegration",
-        "evidence_id": "813ffb9b-551e-48ed-baf4-f0dd78f343d0",
-        "test_count": 16,
-        "result": "passed",
-        "artifact_sha256": "f94510ecd35d3e8d94e8054290ff5b7b41c8009be9e4c14e6846a5d84926d8c2"
+        "gate_id": "PC-PA1-LAB-SOURCE-INTEGRATION",
+        "status": "passed",
+        "evidence_id": "e126dbc0-9828-425e-a2bc-da67ac11ec10"
       },
       {
-        "gate": "LABtest",
-        "evidence_id": "1bc59b59-8221-49d9-8726-7264ce6a06fc",
-        "test_count": 16,
-        "result": "passed",
-        "artifact_sha256": "394b935def2803f40f58c611abdf8bd7f603d71827f7eeddcc3d8e8a0a99a12e"
+        "gate_id": "PC-PA1-LAB-TEST",
+        "status": "passed",
+        "evidence_id": "19068171-63bf-47e5-8432-30886445f3c4"
       }
     ],
-    "final_task_acceptance": "pending root decision; A31 remains a genuine failed case attempt",
-    "latest_gate_receipt": {
-      "name": "native-gates-final.json5",
-      "path": "not located in this checkout or qualification artifact directory during this documentation pass",
-      "status": "root reports all five required gates passed on source 57105ac814d8de8f28123d12874e1a9fa3b78e3d",
-      "hash": "not independently indexed; prior exact gate packet IDs remain as earlier gate evidence",
-      "scope_note": "Native implementation gates pass; final PC-PA1-LAB handoff/acceptance remains root-owned and planned because product cases A31, A37 and A38 are incomplete."
-    }
+    "terminal_handoff": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/native-lab-handoff.json",
+      "sha256": "0791e346bad2bae146dffe1365aae031dc941c7cc30d14ed4f86990bf05e989b",
+      "handoff_id": "4c152a62-2913-4873-915c-8e2d30ac4cf9",
+      "status": "idle",
+      "terminal": true,
+      "operation_status": "finished",
+      "project_revision": 1111,
+      "claim": "released"
+    },
+    "scope_note": "PC-PA1-LAB implementation task is handed off. This does not complete PC-PA1-QUALIFY or accept the 40 product cases; A31/A37/A38 remain incomplete."
   },
   "live_model": {
     "baseline": {
@@ -293,7 +298,14 @@
       "admission_interpretation": "Not proof of no inference; root reports one actual model process in r3 and researcher is preparing an admission correction.",
       "foreground_attempts": 1,
       "automatic_job": "queued at attempt 0; supported exact preparation cancellation recorded; dispatcher did not start",
-      "automatic_remains_disabled": true
+      "automatic_remains_disabled": true,
+      "admission_correction": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r3/admission-correction.json",
+        "sha256": "5ac0700db7f3bb3651a102fdc9079a55b35093e3444962fb3059e2153065d929",
+        "owned_model_servers_proved": 1,
+        "terminal_answer_completion_proved": false,
+        "interpretation": "Foreground job is terminal cancelled with one observation and no result packet/answer. Automatic preparation was queued at attempt 0, then cancelled. Report inference_performed=false is not evidence of no inference."
+      }
     },
     "r3_release": {
       "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/economics-r3/release-report.json",
@@ -323,18 +335,22 @@
       },
       "elapsed_seconds": 85.4405,
       "planned_r3_allowance": "5 inquiries/79 seconds; stopped before using it fully; root closed further economics execution after the production bug",
-      "no_more_live_retry": true
+      "no_more_live_retry": "This finite qualification sequence stopped after the production API failure; resume only from saved case evidence under an updated finite plan."
     },
-    "source_fix": "Implementer fixing exact source call-site and adding strict full-stub regression; root will rebuild a new delivery candidate before any cutover.",
+    "source_fix": {
+      "commit": "5a302b153aa6e941f78b65bb3b821ba40fc21957",
+      "targeted_attention_tests": "16 passed + 6 subtests",
+      "targeted_economics_tests": "10 passed",
+      "delivery_candidate": "unified-20261007-pa1-delivery built after fix"
+    },
     "automatic_mode": "off"
   },
   "root_blockers": [
-    "A31 live model answer contained no executable Python test; no CPU execution or fallback was used.",
-    "A37 remains partial: baseline and held-out E01 source assessments qualify, while other cases are partial/unqualified; extension citations fail. Held-out cap is consumed.",
-    "A38 economics is incomplete and stopped after 3 attempts/85.4405 seconds because of a production TypeError; preserve the admission corrections, cancellations, and release evidence. No more live retries are authorized in this branch.",
-    "Source-57105ac candidate build passed immutable candidate-local checks, but an economics runtime bug now requires source correction and a new delivery build before root cutover.",
-    "Native five-gate implementation pass is separate from final LAB handoff/product acceptance; A31/A37/A38 remain incomplete.",
-    "A16 remains unqualified; A33 remains bounded hardware-handoff evidence only; A40 final lifecycle and final resource census remain root-owned/pending."
+    "A31 remains a failed model-generated test case: no Python test executed and no fallback was used.",
+    "A37 remains partial despite baseline/held-out E01 qualifying; remaining cases and extension evidence are incomplete, and held-out cap is consumed.",
+    "A38 stopped with the production call-site failure; one owned model server is proved but no terminal answer. Any follow-on requires an updated finite plan, not reinterpretation of false report flags.",
+    "The 5a302b1 delivery candidate is selected and rollback-tested. Fresh client reconnect is needed for existing MCP sessions to discover its tool surface.",
+    "A16 remains unqualified; A33 is bounded hardware handoff; A40 has a bounded final lifecycle report. Overall QUALIFY and the 40-case matrix remain partial."
   ],
   "source_update": {
     "source_commit": "57105ac814d8de8f28123d12874e1a9fa3b78e3d",
@@ -348,5 +364,88 @@
       "source": "root-reported targeted receipt"
     },
     "new_source_scope": "cited direct_cat resolver and post-hoc source assessment; baseline E01 citation score now qualifies, originals retained"
+  },
+  "delivery_and_cutover": {
+    "transactions": [
+      {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cutover-delivery-first.json",
+        "sha256": "f2f9c98ae84fe1cd3b89f539ebbb2dda00f2a9e9ba9034f08dc3850ae3ef6a9d",
+        "direction": "candidate",
+        "target_manifest": "068e395439b4b6122add2f17c2ff0588552a57f0ea7b700ea2aaf43b3d927b7e"
+      },
+      {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/rollback-delivery.json",
+        "sha256": "142b7b688394ce82322c72247c0677eec88e8546a75474856d2171cb22b71cdf",
+        "direction": "rollback",
+        "target_manifest": "942fb4766cb6a9442ec9614ebf8e6405fd3268b4dd7a693aa42106f582b2db7d"
+      },
+      {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cutover-delivery-final.json",
+        "sha256": "1757d3249408686cda4c71d1438a11377b0f69763ceaf5fa8cbf9a0110282401",
+        "direction": "candidate",
+        "target_manifest": "068e395439b4b6122add2f17c2ff0588552a57f0ea7b700ea2aaf43b3d927b7e"
+      }
+    ],
+    "mutation_scope": "Atomic current-symlink replacement only; no workspace/config/Todo/state restore or deletion. Older candidates retained."
+  },
+  "fresh_entrypoints": {
+    "first_probe": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/entrypoints-delivery-first.json",
+      "sha256": "d7ae10c0516d931991935f19f8ab7b1388508829818fc15d66fb9c527cca2a76",
+      "result": "MCP discovery passed but all HTTP probes initially returned connection refused before startup; retained as transient failure evidence"
+    },
+    "delivery_ready": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/entrypoints-delivery-ready.json",
+      "sha256": "852f9921b0f7db4ff77e5773afaa91c6ee729b230cbaa1e674618d57042e5a38"
+    },
+    "rollback_ready": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/entrypoints-rollback-ready.json",
+      "sha256": "53fc5154ecd1a834c830c42790e381be71319e7c27f391f83b24e5bd15533e0e"
+    },
+    "delivery_final": {
+      "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/entrypoints-delivery-final.json",
+      "sha256": "6d8ab81386eea5e39b700bdf1bfe5f6e3c89c8f90821bc696c32fa54e53ce575"
+    },
+    "verified_behavior": {
+      "delivery_http": {
+        "healthz": 200,
+        "version": 200,
+        "readyz": 503
+      },
+      "readyz_explanation": "Expected while inference is disabled; not a health/version failure.",
+      "fresh_mcp_tools": 12,
+      "mcp_schema_sha256": "9223c29700eac956491b838388ba3a1da20caa68951bfc0a0d361c8d2b13595e",
+      "scope": "fresh MCP initialize/tools/list and HTTP GET only; no tool method or inference request"
+    },
+    "reconnect": "An already-open MCP client connection may remain on its prior runtime. Disconnect/reconnect the client to establish a fresh transport on the current selector, then verify the manifest and 12-tool schema."
+  },
+  "operator_status": {
+    "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/operator-status-final.json",
+    "sha256": "00b42fc71e853c837b81e79897cb3cccdda6eae1d3a8950a1f803b0cc8d2d04c",
+    "status": "ok",
+    "demand_only": true,
+    "notifications": "off",
+    "focus": null,
+    "automatic_enabled": false,
+    "limitation": "The status projection reports canonical power physical_state=pending and zero verified sessions; that field is not physical-release proof. Use owned release receipts and the independent quiescence census below."
+  },
+  "final_lifecycle": {
+    "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/final-quiescence.json",
+    "sha256": "feb9a852e84bfb075bd0375cd202a66e8617a924785e50a927971b75f2743b5b",
+    "status": "quiescent",
+    "declared_checks_all_true": 13,
+    "nvidia_compute_processes": 0,
+    "residency_markers": 0,
+    "optional_and_staging_inference_units": "stopped",
+    "known_supervisor_pid": "absent",
+    "allowed_process": "exact HTTP observer is candidate-bound",
+    "isolated_job_stores": "all inspected; all jobs terminal and dispatchers stopped",
+    "foreground_gpu_owner": "terminal released; zero resources; matches completed effect lease",
+    "scope": "bounded non-inference final lifecycle/resource report; not full product qualification or biological/production validation"
+  },
+  "A40_disposition": "bounded_noninference_lifecycle_receipt_qualified_pending_root_matrix_review",
+  "root_integration_ownership": {
+    "direct_integration_reason": "The production API fix crossed AttentionController and JobService; candidate build identity, selector cutover/rollback, live HTTP/MCP entrypoint verification, native task handoff, and final quiescence had to be reconciled to one delivery candidate. Root retained this integration/lifecycle decision chain while implementation and focused tests stayed bounded.",
+    "current_boundary": "Implementation task is terminally handed off; PC-PA1-QUALIFY and aggregate 40-case product acceptance remain open."
   }
 }
