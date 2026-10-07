@@ -137,6 +137,8 @@ class TurnPolicyTests(unittest.TestCase):
         def transport(_method, url, payload, _timeout):
             nonlocal completion_number
             if url.endswith("/apply-template"):
+                self.assertEqual([message["role"] for message in payload["messages"]].count("system"), 1)
+                self.assertEqual(payload["messages"][0]["role"], "system")
                 captured_messages.append(payload["messages"])
                 prompt = "\n".join(f"{item['role']}:{item['content']}" for item in payload["messages"])
                 if payload.get("chat_template_kwargs", {}).get("enable_thinking"):
@@ -177,7 +179,10 @@ class TurnPolicyTests(unittest.TestCase):
         }
         original = [
             {"role": "system", "content": "Use only the evidence supplied."},
+            {"role": "system", "content": "Cite each factual claim."},
             {"role": "user", "content": "Summarize this evidence."},
+            {"role": "assistant", "content": "I will summarize the evidence."},
+            {"role": "user", "content": "Keep it brief."},
         ]
         original_copy = json.loads(json.dumps(original))
 
@@ -198,14 +203,12 @@ class TurnPolicyTests(unittest.TestCase):
             outputs[policy_id] = adapter._run_observer_generation("fake", internal, internal["observer_generation"])
 
         self.assertEqual(original, original_copy)
-        expected_instructions = {policy_for(policy_id).instruction for policy_id in outputs}
-        seen_instructions = set()
-        for captured in captured_messages:
-            self.assertEqual(captured[0], original[0])
-            self.assertEqual(captured[1]["role"], "system")
-            seen_instructions.add(captured[1]["content"])
-            self.assertEqual(captured[2], original[1])
-        self.assertEqual(seen_instructions, expected_instructions)
+        expected_non_system_messages = [message for message in original if message["role"] != "system"]
+        for captured, policy_id in zip(captured_messages, outputs):
+            self.assertEqual(captured[0]["content"], "\n\n".join([
+                original[0]["content"], original[1]["content"], policy_for(policy_id).instruction,
+            ]))
+            self.assertEqual(captured[1:], expected_non_system_messages)
 
         for policy_id, result in outputs.items():
             selected = policy_for(policy_id)

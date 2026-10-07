@@ -598,13 +598,20 @@ class LlamaCppServerAdapter:
                 raise AdapterError("observer_turn_policy_mismatch")
             if selected_turn_policy.instruction:
                 # The registry owns behavioral guidance as well as budgets.
-                # Copy the messages and place the trusted instruction after
-                # existing leading system messages, before any user content.
+                # llama.cpp chat templates require one system message at the
+                # start. Fold leading caller system messages into it in
+                # caller order, then append the trusted policy so it remains
+                # the final system instruction.
                 messages = copy.deepcopy(messages)
-                insert_at = 0
-                while insert_at < len(messages) and messages[insert_at].get("role") == "system":
-                    insert_at += 1
-                messages.insert(insert_at, {"role": "system", "content": selected_turn_policy.instruction})
+                leading_system_count = 0
+                system_contents: list[str] = []
+                while (leading_system_count < len(messages) and
+                       messages[leading_system_count].get("role") == "system"):
+                    system_contents.append(messages[leading_system_count]["content"])
+                    leading_system_count += 1
+                system_contents.append(selected_turn_policy.instruction)
+                messages = ([{"role": "system", "content": "\n\n".join(system_contents)}] +
+                            messages[leading_system_count:])
         elif logical_context_tokens is not None or "turn_policy_instruction" in request:
             raise AdapterError("observer_turn_policy_mismatch")
         request_id = str(request.get("request_id") or uuid.uuid4())
