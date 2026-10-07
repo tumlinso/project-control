@@ -10,7 +10,8 @@ read their native results and run history for the final completion revision.
 The project UUID remains `76dc6bf0-1223-4dda-bf8b-c306fb7721a7`.
 
 LAB is deferred entirely. Its lane entry was skipped using the supported
-transaction; its task, implementation, sessions, receipts and historical
+transaction, and its current parent relationship was detached from the revised
+PA1 aggregate (the original parent is retained in task notes and history); its task, implementation, sessions, receipts and historical
 acceptance remain. The original PA1/A01–A40 contract has **not** passed.
 Autonomous CPU LAB, CUDA lifecycle qualification, broad cancellation/crash
 campaigns, performance/model-quality studies and frozen-release qualification

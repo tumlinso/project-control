@@ -145,7 +145,13 @@ def validate(root: Path, native: bool) -> dict[str, Any]:
             if t['id'] == epic:
                 continue
             o = outcomes[t['id']]
-            require(t['parent_id'] == epic, 'Wrong aggregate parent')
+            if repo == 'project-control' and t['id'] == 'PC-PA1-LAB':
+                deferred = json.loads(t['notes'])
+                require(t['parent_id'] is None and deferred.get('deferred_follow_up') is True
+                        and deferred.get('historical_parent_id') == epic,
+                        'Deferred LAB must retain historical parent without blocking revised aggregate')
+            else:
+                require(t['parent_id'] == epic, 'Wrong aggregate parent')
             require(t['title'] == o['title'] and t['objective'] == o['objective'], 'Outcome prose mismatch')
             require(t['scope']['exclusive_paths'] == o['scopes'], 'Outcome scope mismatch')
             note = json.loads(t['notes'])

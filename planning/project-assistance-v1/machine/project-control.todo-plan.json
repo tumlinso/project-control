@@ -414,7 +414,7 @@
     },
     {
       "id": "PC-PA1-LAB",
-      "parent_id": "PC-PA1-0000",
+      "parent_id": null,
       "kind": "task",
       "title": "Turn permitted questions into isolated tests and mechanism experiments",
       "objective": "Deferred follow-up: autonomous CPU/GPU experiments and scratch-laboratory qualification are outside the current PA1 delivery. Preserve implementation, existing task state, sessions, receipts, and historical evidence. Do not run or qualify LAB as a delivery prerequisite.",
@@ -450,7 +450,7 @@
         "PC-PA1-MODULAR",
         "PC-PA1-USEFUL"
       ],
-      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-LAB\",\"difficulty\":\"high\",\"sources\":[\"S08\",\"S10\",\"S11\",\"S12\",\"S14\",\"S15\",\"S19\",\"O03\",\"O04\"],\"deliverables\":[\"Preserve existing LAB implementation and historical experiment evidence for a separately authorized follow-up.\"],\"acceptance\":\"Deferred from current PA1 completion. No LAB experiment, implementation repair, or LAB test gate is required or performed for the coordination-server and on-demand-assistance delivery.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\",\"deferred_follow_up\":true}",
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-LAB\",\"difficulty\":\"high\",\"sources\":[\"S08\",\"S10\",\"S11\",\"S12\",\"S14\",\"S15\",\"S19\",\"O03\",\"O04\"],\"deliverables\":[\"Preserve existing LAB implementation and historical experiment evidence for a separately authorized follow-up.\"],\"acceptance\":\"Deferred from current PA1 completion. No LAB experiment, implementation repair, or LAB test gate is required or performed for the coordination-server and on-demand-assistance delivery.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\",\"deferred_follow_up\":true,\"historical_parent_id\":\"PC-PA1-0000\",\"deferral_reason\":\"Removed from revised PA1 aggregate completion prerequisites; original task identity/state/receipts retained for separately authorized follow-up.\"}",
       "result_policy": {
         "allowed_dispositions": [
           "validated",
