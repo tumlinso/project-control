@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,7 @@ from unittest.mock import patch
 import pytest
 
 from project_control import cli
-from project_control.assistance.lab import LabService
+from project_control.assistance.lab import LabProject, LabScope, LabService, LabSessionService
 from project_control.assistance import lab_cli
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 
@@ -417,6 +418,8 @@ def test_experiment_planner_uses_trusted_policy_and_strict_json(monkeypatch):
     proposal = planner(request)
     assert proposal["argv"] == ["python3", "test_boundary.py"]
     assert provider.request["turn_policy_id"] == "experiment-plan-v1"
+    assert provider.request["compute_profile"] == "narrow"
+    assert provider.request["parallelism"] == "layer"
     assert "max_tokens" not in provider.request and "reasoning_mode" not in provider.request
     assert provider.request["response_format"]["schema"]["additionalProperties"] is False
     prompt = provider.request["messages"][0]["content"]
@@ -428,6 +431,177 @@ def test_experiment_planner_uses_trusted_policy_and_strict_json(monkeypatch):
     }
     with pytest.raises(ValueError, match="lab_planner_invalid_json"):
         planner(request)
+
+
+@pytest.mark.parametrize("use_gpu", [False, True], ids=["cpu", "gpu"])
+def test_scoped_cli_composition_uses_narrow_planner_and_runs_one_fake_effect(
+        tmp_path, monkeypatch, capsys, use_gpu):
+    """Exercise the installed command composition without model or device work."""
+    from project_control.assistance import demand_runtime, lab_runner
+
+    repo = tmp_path / "repo"
+    source = repo / "src" / "pairs.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def pair_sum(values):\n    return sum(values)\n", encoding="utf-8")
+    _git(repo, "init", "-q")
+    _git(repo, "add", "src/pairs.py")
+    subprocess.run(
+        ["git", "-c", "user.name=LAB CLI", "-c", "user.email=lab@example.invalid",
+         "commit", "-qm", "initial"], cwd=repo, check=True, capture_output=True, text=True,
+    )
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    gpu_uuid = "GPU-00000000-0000-0000-0000-000000000001"
+    tools = ("python3", "cuda") if use_gpu else ("python3",)
+    scope = LabScope(
+        project="sample", source_paths=("src/pairs.py",),
+        goal="exercise trusted planner and one contained adapter effect",
+        tools=tools, gpu_uuids=(gpu_uuid,) if use_gpu else (),
+    )
+    service = LabService(
+        projects={"sample": LabProject("sample", repo, "source")},
+        state_root=tmp_path / "private-lab-state",
+    )
+    setup = LabSessionService(service, planner=lambda _request: {})
+    preview = setup.preview(service.operator(), scope)
+    setup.authorize(service.operator(), preview["session_id"])
+
+    class FakeProvider:
+        def __init__(self):
+            self.requests = []
+            self.client = SimpleNamespace(
+                quiesce_for_foreground=self.quiesce,
+                resume_after_foreground=self.resume,
+            )
+
+        def investigate_turn(self, request):
+            self.requests.append(request)
+            assert request["turn_policy_id"] == "experiment-plan-v1"
+            assert request["compute_profile"] == "narrow"
+            assert request["parallelism"] == "layer"
+            assert "max_tokens" not in request and "reasoning_mode" not in request
+            assert self.allowed_profiles == {"narrow"}
+            if len(self.requests) > 1:
+                proposal = {"hypothesis": "", "source_citations": [], "artifacts": [],
+                            "argv": [], "measurements": [], "stop_rule": "", "done": True}
+            elif use_gpu:
+                proposal = {
+                    "hypothesis": "exercise the approved CUDA adapter path",
+                    "source_citations": [{"path": "src/pairs.py", "sha256": digest}],
+                    "artifacts": [{"path": "probe.cu", "content": "// offline adapter fixture\n"}],
+                    "argv": ["cuda", "run"], "measurements": ["receipt"],
+                    "stop_rule": "one fake adapter call", "done": False,
+                }
+            else:
+                proposal = {
+                    "hypothesis": "exercise the approved Python adapter path",
+                    "source_citations": [{"path": "src/pairs.py", "sha256": digest}],
+                    "artifacts": [{"path": "probe.py", "content": "print('fixture')\n"}],
+                    "argv": ["python3", "probe.py"], "measurements": ["exit status"],
+                    "stop_rule": "one fake adapter call", "done": False,
+                }
+            return {"status": "available", "text": json.dumps(proposal)}
+
+        def _checked_client(self, *, deadline_epoch):
+            assert deadline_epoch > time.time()
+            return self.client
+
+        def quiesce(self, *, request_id, resource_ids, deadline_epoch):
+            assert deadline_epoch > time.time()
+            return {"format": "PC-MODEL-FOREGROUND-HANDOFF/1", "status": "quiesced",
+                    "request_id": request_id, "resource_ids": resource_ids,
+                    "continuation_id": "fixture-continuation", "slots": []}
+
+        def resume(self, *, request_id, continuation_id, resource_ids, deadline_epoch, veto):
+            assert continuation_id == "fixture-continuation" and veto is False
+            assert deadline_epoch > time.time()
+            return {"status": "resumed", "request_id": request_id,
+                    "continuation_id": continuation_id, "resource_ids": resource_ids}
+
+        allowed_profiles = {"narrow"}
+
+    provider = FakeProvider()
+
+    class FakeGpuLabExecutor:
+        def __init__(self, *, project_roots, cuda_controller, quiesce, resume, owner_reader):
+            assert project_roots == {"sample": repo}
+            assert cuda_controller == runtime_root / "runtime-skills" / "cuda" / "scripts" / "cuda_controller.py"
+            assert callable(owner_reader)
+            self.quiesce, self.resume = quiesce, resume
+
+        def __call__(self, active_scope, proposal, _snapshot_root, _proposal_root, *,
+                     session_id, effect_id, deadline, cancelled):
+            assert active_scope.gpu_uuids == (gpu_uuid,)
+            assert proposal.argv == ("cuda", "run")
+            assert session_id == preview["session_id"] and not cancelled()
+            resource_ids = [f"accelerator:{gpu_uuid}"]
+            quiet = self.quiesce(request_id=effect_id, resource_ids=resource_ids,
+                                 deadline_epoch=deadline)
+            assert quiet["status"] == "quiesced"
+            resumed = self.resume(request_id=effect_id,
+                continuation_id=quiet["continuation_id"], resource_ids=resource_ids,
+                deadline_epoch=deadline, veto=False)
+            artifact = proposal.artifacts[0]
+            return {
+                "format": "PC-GPU-LAB-RESULT/1", "status": "completed",
+                "effect_id": effect_id, "scope_project": active_scope.project,
+                "gpu_uuids": [gpu_uuid], "cleanup_verified": True,
+                "proposal_artifacts": [{"path": artifact.path,
+                    "sha256": hashlib.sha256(artifact.content.encode()).hexdigest(),
+                    "bytes": len(artifact.content.encode())}],
+                "foreground_terminal": {"verified": True, "state": "released",
+                    "resources": [], "gpu_uuids": [gpu_uuid]},
+                "probe": {"cleanup_verified": True, "cgroup_removed": True},
+                "build": {"status": "ok", "cleanup_verified": True, "cgroup_removed": True},
+                "run": {"status": "ok", "cleanup_verified": True, "cgroup_removed": True},
+                "resume": resumed,
+            }
+
+    runtime_root = tmp_path / "selected-runtime"
+    controller = runtime_root / "runtime-skills" / "cuda" / "scripts" / "cuda_controller.py"
+    controller.parent.mkdir(parents=True)
+    controller.write_text("# fake selected controller\n", encoding="utf-8")
+    fake_config = _registered_project(repo)
+    demand_providers = []
+
+    monkeypatch.setattr(cli, "_scoped_lab_service", lambda _project: service)
+    monkeypatch.setattr(cli, "_scoped_lab_in_transient_unit", lambda _command, _scope_id: -1)
+    monkeypatch.setattr(cli, "load_config", lambda: fake_config)
+    monkeypatch.setattr(cli, "_assistance_repository", lambda _config, _project: ("source", repo))
+    monkeypatch.setattr("project_control.observer_analysis.SkillsObserverAnalysisProvider",
+                        lambda: provider)
+    monkeypatch.setattr(demand_runtime, "ensure_demand_runtime_ready",
+                        lambda **kwargs: demand_providers.append(kwargs["provider"]) or {"status": "ready"})
+    monkeypatch.setattr(demand_runtime, "capture_runtime_pin",
+                        lambda: SimpleNamespace(release_root=runtime_root))
+    monkeypatch.setattr("project_control.assistance.lab_gpu.GpuLabExecutor", FakeGpuLabExecutor)
+
+    cpu_calls = []
+    if use_gpu:
+        def unexpected_cpu(*_args, **_kwargs):
+            pytest.fail("GPU planner composition must not invoke the CPU runner")
+        monkeypatch.setattr(lab_runner, "run_cpu", unexpected_cpu)
+    else:
+        from project_control.assistance.lab_runner import ExecutionResult
+
+        def fake_cpu(snapshot_root, argv, grant, *, attempt_root, effect_id, **kwargs):
+            cpu_calls.append((Path(snapshot_root), tuple(argv), grant.timeout_seconds, effect_id))
+            return ExecutionResult(status="ok", returncode=0, stdout=b"fixture\n", stderr=b"",
+                elapsed_ms=1.0, artifact_path=None, artifact_sha256=None, artifact_bytes=0,
+                containment_backend="offline-test-double", effect_id=effect_id,
+                process_identity=None, cleanup_verified=True)
+        monkeypatch.setattr(lab_runner, "run_cpu", fake_cpu)
+
+    result = cli._assistance_scoped_lab_command(SimpleNamespace(
+        lab_command="run", scope_id=preview["session_id"], project=None,
+    ))
+    response = json.loads(capsys.readouterr().out)
+    assert result == 0 and response["state"] == "completed"
+    assert len(provider.requests) == 2
+    assert demand_providers == [provider]
+    if use_gpu:
+        assert not cpu_calls
+    else:
+        assert len(cpu_calls) == 1 and cpu_calls[0][1] == ("python3", "probe.py")
 
 
 def test_experiment_planner_bounds_prompt_and_discloses_source_and_history_omissions():
