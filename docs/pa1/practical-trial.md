@@ -30,6 +30,12 @@ selected release or runtime identities do not match. The service stays warm
 while resources are available. Status and operator controls do not start
 inference.
 
+Foreground `ask` and chat questions wait up to five minutes for a terminal
+result. If still incomplete, the CLI requests cancellation of that exact
+inquiry and waits up to two minutes for worker cleanup. An unconfirmed
+cancellation or cleanup returns `unavailable`; the CLI does not submit another
+inquiry after its deadline. Treat timeout as incomplete work, not as an answer.
+
 ## Preview and authorize one LAB scope
 
 Choose a registered workspace, one or more repository-relative source paths,

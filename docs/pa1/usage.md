@@ -128,6 +128,13 @@ inference; new or stale work uses verified demand startup. Choose CLI `start`
 and `stop` for explicit service controls; ordinary model-free controls remain
 available while inference is stopped.
 
+The foreground `ask` command and questions entered in `chat` wait up to five
+minutes for a terminal inquiry result. If the inquiry is still incomplete,
+the CLI requests cancellation for that exact question and waits up to two
+minutes for its worker cleanup. It reports `unavailable` when cancellation or
+cleanup is unconfirmed and does not submit another inquiry after the deadline.
+A timeout is not evidence that an answer completed.
+
 Request a proposed handoff for the current or named focus:
 
 ```sh
