@@ -1437,14 +1437,61 @@ class JobService:
         except (sqlite3.Error, OSError):
             return {'status': 'unavailable', 'reason': 'storage_unavailable'}
 
+    def cancel_inquiry(self, question, access_scope, mode='investigate', skill=None):
+        """Cancel only the exact active inquiry identified by its public inputs.
+
+        The lookup deliberately uses the same digest as ``inquire`` and never
+        returns a durable job identifier.  Full scope and inquiry fields are
+        checked again under the write transaction before applying the ordinary
+        cancellation transition.
+        """
+        scope = dict(access_scope)
+        if not scope.get('principal') or not scope.get('profile'):
+            return False
+        identity = self._inquiry_identity(question, scope, mode, skill)
+        wake_parents = False
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            frames = FrameStore(db)
+            row = db.execute('''SELECT jobs.* FROM inquiry_index
+                JOIN jobs ON jobs.id=inquiry_index.job
+                WHERE inquiry_index.identity=? AND jobs.inquiry=1''', (identity,)).fetchone()
+            if not row:
+                return False
+            job = DurableJob.model_validate_json(row['record'])
+            if (row['scope'] != wire(scope) or job.question != question
+                    or job.mode != mode or job.skill != skill
+                    or job.status in TERMINAL or frames.is_private(job.job_id)):
+                return False
+            job.attempt += 1
+            job.status = 'cancelled'
+            db.execute('UPDATE jobs SET record=?,lease=0,updated=? WHERE id=?',
+                (job.model_dump_json(), self.clock(), job.job_id))
+            frame = frames.get_frame(job.job_id)
+            if frame is not None:
+                self._cancel_descendants(db, frames, job.job_id, self.clock())
+                frames.record_terminal(job.job_id, frame.generation, 'cancelled',
+                    {'status': 'cancelled', 'reason': 'operator_cancelled'}, now=self.clock())
+                wake_parents = frame.parent_id is not None
+            self._trim_index(db, job.scope)
+        self.reconcile()
+        self._consume_pending_frame_acks()
+        if wake_parents:
+            self._wake_ready_parents()
+        self._wake.set()
+        return True
+
+    def _inquiry_identity(self, question, scope, mode, skill):
+        return canonical_digest({'question': question,
+            'context': self.inquiry_context(scope, self.analysis_runtime_identity),
+            'mode': mode, 'skill': skill})
+
     def _inquire(self, question, access_scope, mode, skill, hints, request_id,
                  execution_question, foreground_timeout):
         scope = dict(access_scope)
         if not scope.get('principal') or not scope.get('profile'):
             raise ValueError('trusted principal/profile scope required')
-        identity = canonical_digest({'question': question,
-            'context': self.inquiry_context(scope, self.analysis_runtime_identity),
-            'mode': mode, 'skill': skill})
+        identity = self._inquiry_identity(question, scope, mode, skill)
         # Read-only fast path: a duplicate does not validate new hints, touch order,
         # mutate TTL, or require a live dispatcher.
         with self._db() as db:

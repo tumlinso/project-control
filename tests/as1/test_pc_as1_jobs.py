@@ -167,6 +167,36 @@ def test_scoped_idempotency_exact_lookup_related_questions_and_no_gpu_poll(tmp_p
         release.set(); s.shutdown()
 
 
+@pytest.mark.as1_case('JOB-03')
+def test_cancel_inquiry_uses_exact_inquiry_identity_without_exposing_job_id(tmp_path):
+    entered, release = threading.Event(), threading.Event()
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                entered.set(); release.wait(30)
+                return {'status': 'completed', 'answer': 'late result'}
+        return Worker()
+    s = make(tmp_path, worker_factory=factory).start()
+    question = 'read the configured startup timeout'
+    try:
+        identity = s._inquiry_identity(question, SCOPE, 'investigate', None)
+        admitted = s.submit(question=question, access_scope=SCOPE,
+                            mode='investigate', _identity=identity)
+        assert admitted['accepted']
+        assert entered.wait(2)
+
+        # Near matches and a same inquiry from another full scope are safe no-ops.
+        assert not s.cancel_inquiry(question + ' ', SCOPE)
+        assert not s.cancel_inquiry(question, {**SCOPE, 'principal': 'bob'})
+        assert not s.cancel_inquiry(question, SCOPE, mode='skill', skill='cuda')
+
+        assert s.cancel_inquiry(question, SCOPE) is True
+        assert not s.cancel_inquiry(question, SCOPE)
+        assert s.lookup(admitted['job_id'], access_scope=SCOPE)['job']['status'] == 'cancelled'
+    finally:
+        release.set(); s.shutdown()
+
+
 @pytest.mark.as1_case('JOB-04')
 def test_real_sqlite_restart_eviction_cancellation_and_fenced_late_writes(tmp_path):
     now = [1000.0]
