@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import json
 import sqlite3
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -190,6 +191,43 @@ class LabServiceTests(unittest.TestCase):
                     with self.assertRaisesRegex(lab.LabError, "captured source"):
                         self.service.run(self.operator, grant)
                     runner.assert_not_called()
+
+    def test_real_nested_fixture_capture_keeps_every_directory_private_under_umask_022(self):
+        source_root = Path(__file__).resolve().parents[2]
+        relative = "planning/project-assistance-v1/fixtures/repository/demo/pairs.py"
+        canonical_file = source_root / relative
+        canonical_bytes = canonical_file.read_bytes()
+        canonical_directories = [canonical_file.parents[index]
+                                 for index in range(len(Path(relative).parts) - 1)]
+        canonical_modes = [stat.S_IMODE(path.stat().st_mode) for path in canonical_directories]
+
+        previous_umask = os.umask(0o022)
+        try:
+            snapshot = lab.Snapshot.capture(source_root, (relative,), self.root / "real-fixture-capture")
+        finally:
+            os.umask(previous_umask)
+
+        directories = [snapshot.destination, *(
+            path for path in snapshot.destination.rglob("*") if path.is_dir())]
+        self.assertGreater(len(directories), 1)
+        self.assertTrue(all(stat.S_IMODE(path.stat().st_mode) == 0o700 for path in directories))
+        manifest_path = snapshot.destination / ".lab-snapshot.json"
+        manifest_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        manifest = lab._verify_snapshot(snapshot.destination, manifest_digest)
+        self.assertEqual(manifest["files"], [{
+            "path": relative,
+            "mode": stat.S_IMODE(canonical_file.stat().st_mode),
+            "size": len(canonical_bytes),
+            "sha256": hashlib.sha256(canonical_bytes).hexdigest(),
+        }])
+
+        (snapshot.destination / relative).write_bytes(canonical_bytes + b"# tampered capture\n")
+        with self.assertRaisesRegex(lab.LabError, f"captured source file changed: {relative}"):
+            lab._verify_snapshot(snapshot.destination, manifest_digest)
+
+        self.assertEqual(canonical_file.read_bytes(), canonical_bytes)
+        self.assertEqual([stat.S_IMODE(path.stat().st_mode) for path in canonical_directories],
+                         canonical_modes)
 
     def test_post_selection_hardlink_in_snapshot_blocks_runner_without_sentinel_change(self):
         grant = self.service.select(self.operator, _selection())

@@ -179,8 +179,7 @@ class Snapshot:
                 source = _safe_source_path(root, relative)
                 expected = planned[relative]
                 _assert_same_stat(expected, source.lstat())
-                output = staging.joinpath(*PurePosixPath(relative).parts)
-                output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                output = _ensure_private_capture_parent(staging, relative)
                 mode = stat.S_IMODE(expected.st_mode) & 0o777
                 digest = hashlib.sha256()
                 size = _copy_regular_file(source, output, mode, digest, max_bytes - copied_bytes)
@@ -324,6 +323,23 @@ def _assert_same_stat(expected: os.stat_result, actual: os.stat_result) -> None:
     fields = ("st_dev", "st_ino", "st_mode", "st_size", "st_nlink", "st_mtime_ns", "st_ctime_ns")
     if any(getattr(expected, field) != getattr(actual, field) for field in fields):
         raise SnapshotError("source changed during capture")
+
+
+def _ensure_private_capture_parent(staging: Path, relative: str) -> Path:
+    """Create every detached parent explicitly so pathlib's implicit parents do not inherit 0777."""
+    parts = PurePosixPath(relative).parts
+    parent = staging
+    for part in parts[:-1]:
+        parent = parent / part
+        try:
+            parent.mkdir(mode=0o700)
+        except FileExistsError:
+            info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode):
+                raise SnapshotError("captured source parent is not a private directory")
+        if stat.S_IMODE(parent.lstat().st_mode) != 0o700:
+            raise SnapshotError("captured source parent directory mode changed")
+    return parent / parts[-1]
 
 
 def _copy_regular_file(source: Path, output: Path, mode: int, digest, remaining: int) -> int:
