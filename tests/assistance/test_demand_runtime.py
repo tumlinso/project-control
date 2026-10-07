@@ -841,6 +841,75 @@ class DemandRuntimeTests(unittest.TestCase):
         self.assertNotIn("stop_status", runtime.status())
         systemctl.assert_not_called()
 
+    def test_repeated_stop_accepts_zero_work_after_verified_no_owned_census(self):
+        systemctl = Mock()
+        runtime = self.runtime(systemctl=systemctl,
+            state_reader=lambda **_: {"status": "ok", "LoadState": "loaded",
+                "ActiveState": "inactive", "SubState": "dead", "MainPID": "0"},
+            release_request=lambda: {"release_veto_active": True, "physical_state": "pending"},
+            owned_resource_status=lambda: {"status": "no_owned_resources",
+                "session_count": 8, "current_sessions": 0, "release_pending": False,
+                "states": {"released_verified": 4, "superseded": 4}})
+        calls = []
+
+        def coordinate():
+            calls.append(True)
+            return {"active_work_cancelled": True, "owned_resources_released": False,
+                    "active_jobs": 0, "execution_slots": 0}
+
+        first = runtime.stop(coordinate_stop=coordinate)
+        second = runtime.stop(coordinate_stop=coordinate)
+
+        self.assertEqual(first["status"], "already_stopped_no_owned_resources")
+        self.assertEqual(second["status"], "already_stopped_no_owned_resources")
+        self.assertEqual(first["physical_state"], "pending")
+        self.assertEqual(calls, [True, True])
+        systemctl.assert_not_called()
+
+    def test_repeated_stop_rejects_missing_or_noninteger_zero_work_census(self):
+        invalid_proofs = [
+            {"active_work_cancelled": True, "owned_resources_released": False,
+             "active_jobs": 0},
+            {"active_work_cancelled": True, "owned_resources_released": False,
+             "execution_slots": 0},
+            {"active_work_cancelled": True, "owned_resources_released": False,
+             "active_jobs": "0", "execution_slots": 0},
+            {"active_work_cancelled": True, "owned_resources_released": False,
+             "active_jobs": 0, "execution_slots": False},
+        ]
+        service_state = {"status": "ok", "LoadState": "loaded",
+            "ActiveState": "inactive", "SubState": "dead", "MainPID": "0"}
+        owned = {"status": "no_owned_resources", "current_sessions": 0,
+                 "release_pending": False}
+        for proof in invalid_proofs:
+            with self.subTest(proof=proof):
+                systemctl = Mock()
+                runtime = self.runtime(systemctl=systemctl,
+                    state_reader=lambda **_: service_state,
+                    release_request=lambda: {"release_veto_active": True},
+                    owned_resource_status=lambda: owned)
+                result = runtime.stop(coordinate_stop=lambda proof=proof: proof)
+                self.assertEqual(result["status"], "not_stopped")
+                self.assertEqual(result["reason"], "owned_work_not_quiescent")
+                systemctl.assert_not_called()
+
+    def test_repeated_stop_requires_main_pid_zero_for_inactive_service_census(self):
+        systemctl = Mock()
+        runtime = self.runtime(systemctl=systemctl,
+            state_reader=lambda **_: {"status": "ok", "LoadState": "loaded",
+                "ActiveState": "inactive", "SubState": "dead", "MainPID": "123"},
+            release_request=lambda: {"release_veto_active": True},
+            owned_resource_status=lambda: {"status": "no_owned_resources",
+                "current_sessions": 0, "release_pending": False})
+
+        result = runtime.stop(coordinate_stop=lambda: {
+            "active_work_cancelled": True, "owned_resources_released": False,
+            "active_jobs": 0, "execution_slots": 0})
+
+        self.assertEqual(result["status"], "not_stopped")
+        self.assertEqual(result["reason"], "owned_work_not_quiescent")
+        systemctl.assert_not_called()
+
     def test_inactive_service_and_empty_resource_table_still_require_work_coordination(self):
         systemctl = Mock()
         runtime = self.runtime(systemctl=systemctl,

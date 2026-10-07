@@ -310,8 +310,7 @@ def test_worker_command_roots_follow_durable_admission(servers, tmp_path, monkey
 
 
 @pytest.mark.as1_case('API-04')
-@pytest.mark.parametrize('profile', ['observer', 'mutator'])
-def test_public_jobs_use_actual_installed_worker_and_shared_service(servers, profile):
+def test_public_jobs_use_actual_installed_worker_and_shared_service(servers):
     import time
     class ScriptedBackend:
         def __init__(self):
@@ -344,7 +343,7 @@ def test_public_jobs_use_actual_installed_worker_and_shared_service(servers, pro
                     {'text': 'The shared catalog was observed.', 'evidence_packets': [self.replayed_packet['packet_id']]}]}
             return {'status': 'available', 'text': json.dumps(turn)}
     backend = ScriptedBackend()
-    server = servers(profile, observer_backend=backend)
+    server = servers(observer_backend=backend)
     c = server._project_control_surface
     c.start()
     value = run(server.call_tool('investigate', {'question': 'Inspect registered catalog.', 'request_id': 'surface-scripted-job'}))

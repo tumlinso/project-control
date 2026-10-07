@@ -653,8 +653,7 @@ class DemandRuntime:
                     "next_action": next_action}
         owned_resources = self._read_owned_resources()
         proof = coordinate_stop()
-        if (not isinstance(proof, Mapping) or proof.get("active_work_cancelled") is not True
-                or proof.get("owned_resources_released") is not True):
+        if (not isinstance(proof, Mapping) or proof.get("active_work_cancelled") is not True):
             return {"status": "not_stopped", "reason": "owned_work_not_quiescent",
                     "release_veto_active": True, "owned_resources": owned_resources,
                     "next_action": next_action}
@@ -663,10 +662,24 @@ class DemandRuntime:
         service_state = self._state_reader()
         owned_resources = self._read_owned_resources()
         if self._already_stopped_without_owned_resources(service_state, owned_resources):
-            return {"status": "already_stopped_no_owned_resources",
-                    "service": INFERENCE_SERVICE, "release_veto_active": True,
-                    "physical_state": release.get("physical_state", "pending"),
-                    "owned_resources": owned_resources,
+            # A previous successful owner release can leave the service fully
+            # stopped before a repeated CLI stop. Its coordinator may then be
+            # unable to obtain another central-owner proof. Accept only an
+            # explicit zero-work census from that coordinator; this is an
+            # idempotent no-resources result, not a new physical-release proof.
+            if (proof.get("owned_resources_released") is True or
+                    self._coordinator_reports_no_active_work(proof)):
+                return {"status": "already_stopped_no_owned_resources",
+                        "service": INFERENCE_SERVICE, "release_veto_active": True,
+                        "physical_state": release.get("physical_state", "pending"),
+                        "owned_resources": owned_resources,
+                        "next_action": next_action}
+            return {"status": "not_stopped", "reason": "owned_work_not_quiescent",
+                    "release_veto_active": True, "owned_resources": owned_resources,
+                    "next_action": next_action}
+        if proof.get("owned_resources_released") is not True:
+            return {"status": "not_stopped", "reason": "owned_work_not_quiescent",
+                    "release_veto_active": True, "owned_resources": owned_resources,
                     "next_action": next_action}
         if owned_resources.get("release_pending") is not False:
             return {"status": "not_stopped", "reason": "owned_resource_census_unsettled",
@@ -690,10 +703,24 @@ class DemandRuntime:
     @staticmethod
     def _already_stopped_without_owned_resources(service_state: Mapping[str, Any],
                                                   owned_resources: Mapping[str, Any]) -> bool:
+        main_pid = service_state.get("MainPID")
+        main_pid_zero = ((type(main_pid) is int and main_pid == 0) or
+                         (isinstance(main_pid, str) and main_pid == "0"))
         return (service_state.get("status") == "ok"
+                and service_state.get("LoadState") == "loaded"
                 and service_state.get("ActiveState") == "inactive"
+                and main_pid_zero
+                and owned_resources.get("status") == "no_owned_resources"
                 and owned_resources.get("release_pending") is False
+                and type(owned_resources.get("current_sessions")) is int
                 and owned_resources.get("current_sessions") == 0)
+
+    @staticmethod
+    def _coordinator_reports_no_active_work(proof: Mapping[str, Any]) -> bool:
+        active_jobs = proof.get("active_jobs")
+        execution_slots = proof.get("execution_slots")
+        return (type(active_jobs) is int and active_jobs == 0 and
+                type(execution_slots) is int and execution_slots == 0)
 
 
 def _int_or_none(value: object) -> int | None:
