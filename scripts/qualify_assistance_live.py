@@ -220,7 +220,8 @@ def _request(case: Mapping[str, Any], evidence: list[dict[str, Any]], session_id
     return request
 
 
-def _isolated_composition(state_root: Path, supervisor_state_root: Path | None = None):
+def _isolated_composition(state_root: Path, supervisor_state_root: Path | None = None,
+                          private_fixture_root: Path | None = None):
     from project_control.app import Runtime
     from project_control.config import load_config
     from project_control.observer_analysis import SkillsObserverAnalysisProvider
@@ -243,7 +244,29 @@ def _isolated_composition(state_root: Path, supervisor_state_root: Path | None =
                 os.environ.pop("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR", None)
             else:
                 os.environ["PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR"] = previous_state_root
-    return identity, Runtime(load_config()), backend
+    config = load_config()
+    if private_fixture_root is not None:
+        config = _ephemeral_fixture_config(config, private_fixture_root)
+    return identity, Runtime(config), backend
+
+
+def _ephemeral_fixture_config(config: Any, fixture_root: Path):
+    """Add a private fixture alias under the existing authoritative workspace."""
+    from project_control.config import RepositoryConfig
+
+    fixture_root = fixture_root.resolve(strict=True)
+    if not fixture_root.is_dir():
+        raise QualificationError("held-out fixture root is not a directory")
+    private_config = config.model_copy(deep=True)
+    project = "project-control"
+    if project not in private_config.workspaces:
+        raise QualificationError("held-out fixture requires the existing project-control authority")
+    workspace = private_config.workspaces[project]
+    alias = "pa1-heldout-fixture"
+    if alias in workspace.repositories:
+        raise QualificationError("temporary held-out repository alias already exists")
+    workspace.repositories[alias] = RepositoryConfig(root=fixture_root)
+    return private_config
 
 
 def _compose_isolated_surface(state_root: Path, runtime: Any, backend: Any):
@@ -308,8 +331,7 @@ def _slot_identity(status: Mapping[str, Any], receipts: list[dict[str, Any]]) ->
             "binary_sha256": next(iter(binary_hashes)) if len(binary_hashes) == 1 else None}
 
 
-def _fixture_source_locators(registry: Any, evidence: list[dict[str, Any]],
-                             fixture_root: Path) -> list[dict[str, Any]]:
+def _fixture_repository(registry: Any, fixture_root: Path) -> tuple[str, str, Path]:
     fixture_root = fixture_root.resolve(strict=True)
     registered = []
     for project in sorted(registry.config.workspaces):
@@ -321,6 +343,13 @@ def _fixture_source_locators(registry: Any, evidence: list[dict[str, Any]],
     if not registered:
         raise QualificationError("fixture is outside every registered repository root")
     _, project, alias, repository_root = max(registered)
+    return project, alias, repository_root
+
+
+def _fixture_source_locators(registry: Any, evidence: list[dict[str, Any]],
+                             fixture_root: Path) -> list[dict[str, Any]]:
+    fixture_root = fixture_root.resolve(strict=True)
+    project, alias, repository_root = _fixture_repository(registry, fixture_root)
     locators = []
     for item in evidence:
         source_path = (fixture_root / item["path"]).resolve(strict=True)
@@ -332,17 +361,58 @@ def _fixture_source_locators(registry: Any, evidence: list[dict[str, Any]],
     return locators
 
 
-def _insert_fixture_packet(composition: Any, scope: Mapping[str, Any], case: Mapping[str, Any],
-                           fixture_root: Path) -> tuple[str, str, list[dict[str, Any]]]:
+def _insert_fixture_packet(composition: Any, case: Mapping[str, Any],
+                           fixture_root: Path) -> tuple[dict[str, Any], list[str], list[dict[str, Any]]]:
     evidence = _source_packet(case, fixture_root)
-    locators = _fixture_source_locators(composition.control.registry, evidence, fixture_root)
-    text = "\n\n".join(f"SOURCE {item['path']} sha256={item['sha256']}\n{item['text']}"
-                         for item in evidence)
-    packet = composition.store.create(tool="read", access_scope=scope,
-        payload={"text": text, "source_files": [{"path": item["path"],
-                  "sha256": item["sha256"], "text": item["text"]} for item in evidence]},
-        sources=locators, ttl_seconds=None)
-    return packet.alias, packet.packet_id, evidence
+    project, repository, repository_root = _fixture_repository(
+        composition.control.registry, fixture_root)
+    case_scope = composition.scope(project)
+    packet_ids = []
+    for item in evidence:
+        source_path = (fixture_root / item["path"]).resolve(strict=True)
+        if not source_path.is_relative_to(repository_root):
+            raise QualificationError("fixture source escaped its registered repository")
+        relative_path = source_path.relative_to(repository_root).as_posix()
+        response = composition.information.call(
+            "read", project=project, repository=repository,
+            paths=[relative_path], detail="standard")
+        packet_id = response.get("packet") if isinstance(response, dict) else None
+        if response.get("status") != "ok" or not isinstance(packet_id, str):
+            raise QualificationError(f"public source read failed for {item['path']}")
+        packet_result = composition.store.lookup(packet_id, access_scope=case_scope)
+        if packet_result.status != "ok" or packet_result.packet is None:
+            raise QualificationError(f"public source read packet is unavailable for {item['path']}")
+        packet = packet_result.packet
+        if (len(packet.sources) != 1 or packet.sources[0].project != project
+                or packet.sources[0].repository != repository
+                or packet.sources[0].path != relative_path
+                or packet.sources[0].content_sha256 != item["sha256"]):
+            raise QualificationError(f"public source read identity mismatch for {item['path']}")
+        packet_ids.append(packet.packet_id)
+    return case_scope, packet_ids, evidence
+
+
+def _assert_source_packet_freshness(composition: Any, scope: Mapping[str, Any],
+                                   packet_ids: list[str]) -> dict[str, Any]:
+    """Require source hints to pass the production freshness verifier pre-inquiry."""
+    if not packet_ids:
+        raise QualificationError("source case has no public read packets")
+    probe = {
+        "scope": dict(scope), "mode": "investigate", "hints": list(packet_ids),
+        "evidence_packets": list(packet_ids), "findings": [
+            {"text": "source freshness probe", "evidence_packets": list(packet_ids)}],
+        # The verifier only checks result existence when source citations exist;
+        # reuse the actual read packet instead of inventing a result artifact.
+        "result_packet": packet_ids[0],
+    }
+    result = composition.jobs.freshness_provider(probe)
+    if not isinstance(result, dict) or result.get("fresh") is not True:
+        changes = result.get("changed_sources", []) if isinstance(result, dict) else []
+        compact = [{key: item.get(key) for key in ("reference", "path", "reason", "dependency")
+                    if key in item} for item in changes[:8] if isinstance(item, dict)]
+        raise QualificationError("public source read packets fail current freshness verification: "
+                                 + json.dumps(compact, sort_keys=True)[:500])
+    return result
 
 
 def _lookup_inquiry_job_linkage(composition: Any, *, case: Mapping[str, Any],
@@ -372,6 +442,20 @@ def _lookup_inquiry_job_linkage(composition: Any, *, case: Mapping[str, Any],
         return {"lookup_method": "isolated_inquiry_index_then_scoped_lookup",
                 "lookup_status": snapshot.get("status"), "job_id": job_id}
     job = snapshot["job"]
+    answer = job.get("answer")
+    findings = job.get("findings")
+    result_ref = job.get("result_packet")
+    if isinstance(result_ref, str):
+        result = composition.store.lookup(result_ref, access_scope=scope)
+        if result.status == "ok" and result.packet is not None:
+            payload = result.packet.payload
+            if answer is None:
+                answer = payload.get("answer")
+            if findings is None:
+                findings = payload.get("findings")
+    answer_observed = isinstance(answer, str) and bool(answer.strip())
+    finding_count = len(findings) if isinstance(findings, list) else 0
+    output_observed = answer_observed or finding_count > 0
     diagnostic = None
     if job.get("status") in {"completed", "partial", "failed", "cancelled"}:
         diagnostic = next((item for item in jobs.inquiry_failure_diagnostics(limit=50)
@@ -381,11 +465,16 @@ def _lookup_inquiry_job_linkage(composition: Any, *, case: Mapping[str, Any],
         "lookup_status": "ok", "job_id": job_id,
         "job_status": job.get("status"), "attempt": job.get("attempt"),
         "failure_class": diagnostic.get("failure_class") if diagnostic else None,
+        "private_job_answer_observed": answer_observed,
+        "private_job_findings_count": finding_count,
+        "actual_inference_confirmed": (job.get("status") in {"completed", "partial"}
+                                        and output_observed),
+        "actual_inference_evidence": "isolated_scoped_job_answer_or_findings" if output_observed else None,
     }
 
 
 def _inquire_to_terminal(composition: Any, *, case: Mapping[str, Any], scope: Mapping[str, Any],
-                         hint_alias: str, deadline: float,
+                         hint_aliases: list[str], deadline: float,
                          on_attempt: Any | None = None) -> dict[str, Any]:
     attempted = False
     linkage = None
@@ -397,7 +486,7 @@ def _inquire_to_terminal(composition: Any, *, case: Mapping[str, Any], scope: Ma
                 on_attempt()
         try:
             last_result = composition.jobs.inquire(
-                case["question"], access_scope=scope, hints=[hint_alias],
+                case["question"], access_scope=scope, hints=hint_aliases,
                 foreground_timeout=min(30, max(0, deadline - time.monotonic())))
         except Exception as error:
             last_result = {"status": "unavailable",
@@ -491,6 +580,10 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
         "inquiry_count_semantics": "distinct public inquiry calls attempted",
         "inference_performed_semantics": "visible successful answer or findings observed",
         "confirmed_inference_count": 0,
+        "actual_inference_confirmed": False,
+        "actual_inference_count": 0,
+        "actual_inference_case_ids": [],
+        "actual_inference_confirmation_source": "isolated_scoped_job_answer_or_findings; content not copied",
         "model_turn_count": "not_exposed_by_public_job_result",
         "gaps": ["model_turn_usage_not_exposed_by_public_job_result",
                  "prefill_and_reasoning_token_counts_not_exposed",
@@ -498,25 +591,35 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
     }
     _atomic_json(private_root / "report.json", report)
     composition = None
+    job_service_started = False
     try:
         # Query canonical owner metadata before constructing or starting any
         # isolated AS1 service. central_status is read-only and never starts a daemon.
-        identity, runtime, backend = _isolated_composition(state_root, supervisor_state_root)
+        identity, runtime, backend = _isolated_composition(
+            state_root, supervisor_state_root,
+            private_fixture_root=fixture_root if phase == "heldout" else None)
         report["runtime"] = _runtime_report(identity, backend)
+        if phase == "heldout":
+            report["fixture_workspace"] = {
+                "project": "project-control", "repository": "pa1-heldout-fixture",
+                "root": str(fixture_root.resolve(strict=True)),
+                "registration": "in_memory_only_under_existing_authority",
+            }
         status = backend.central_status(deadline_epoch=time.time() + 5)
         report["runtime"] = _runtime_report(identity, backend, status)
         if expected_runtime_fingerprint and status.get("runtime_fingerprint") != expected_runtime_fingerprint:
             raise QualificationError("supervisor runtime fingerprint differs from the required live identity")
         composition = _compose_isolated_surface(state_root, runtime, backend)
-        scope = composition.scope(None)
-        composition.jobs.start()
-        report["status"] = "running"
-        report["cleanup"] = {"isolated_job_service_started": True}
         packets = []
         for case in cases:
-            alias, packet_id, evidence = _insert_fixture_packet(composition, scope, case, fixture_root)
-            packets.append({"case": case, "alias": alias, "packet_id": packet_id,
-                            "evidence": evidence})
+            case_scope, packet_ids, evidence = _insert_fixture_packet(composition, case, fixture_root)
+            source_freshness = _assert_source_packet_freshness(composition, case_scope, packet_ids)
+            packets.append({"case": case, "scope": case_scope, "packet_ids": packet_ids,
+                            "evidence": evidence, "source_freshness": source_freshness})
+        composition.jobs.start()
+        job_service_started = True
+        report["status"] = "running"
+        report["cleanup"] = {"isolated_job_service_started": True}
         report["started_unix"] = time.time()
         _atomic_json(private_root / "report.json", report)
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -525,8 +628,8 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
         request_rows = {}
         for item in packets:
             request_material = {"question": item["case"]["question"],
-                                "scope": scope, "hint_packet_id": item["packet_id"],
-                                "hint_alias": item["alias"], "mode": "investigate"}
+                                "scope": item["scope"], "hint_packet_ids": item["packet_ids"],
+                                "mode": "investigate"}
             request_rows[item["case"]["id"]] = {
                 "request_sha256": _json_hash(request_material),
                 "attempt_id": "pa1-live-" + uuid.uuid4().hex,
@@ -552,8 +655,8 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
             with ThreadPoolExecutor(max_workers=INITIAL_BUDGET["max_parallel_executions"],
                                     thread_name_prefix="pa1-live-case") as pool:
                 futures = {
-                    pool.submit(_inquire_to_terminal, composition, case=item["case"], scope=scope,
-                                hint_alias=item["alias"], deadline=deadline,
+                    pool.submit(_inquire_to_terminal, composition, case=item["case"], scope=item["scope"],
+                                hint_aliases=item["packet_ids"], deadline=deadline,
                                 on_attempt=lambda ident=item["case"]["id"]: mark_attempt(ident)): item
                     for item in wave
                 }
@@ -590,7 +693,7 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
                 if not linkage.get("job_id"):
                     try:
                         linkage = _lookup_inquiry_job_linkage(
-                            composition, case=case, scope=scope) or linkage
+                            composition, case=case, scope=item["scope"]) or linkage
                     except Exception as error:
                         linkage = {**linkage,
                                    "lookup_method": "isolated_inquiry_index_then_scoped_lookup",
@@ -616,21 +719,28 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
                 }
                 if linkage.get("failure_class"):
                     row["failure_class"] = linkage["failure_class"]
+                row["private_job_answer_observed"] = bool(linkage.get("private_job_answer_observed"))
+                row["private_job_findings_count"] = int(linkage.get("private_job_findings_count", 0) or 0)
+                row["actual_inference_confirmed"] = bool(linkage.get("actual_inference_confirmed"))
+                row["actual_inference_evidence"] = linkage.get("actual_inference_evidence")
                 result_ref = job.get("result_packet")
-                result_packet = composition.store.lookup(result_ref, access_scope=scope) if result_ref else None
+                result_packet = composition.store.lookup(result_ref, access_scope=item["scope"]) if result_ref else None
                 payload = result_packet.packet.payload if result_packet and result_packet.status == "ok" else {}
                 row["answer"] = payload.get("answer", job.get("answer"))
                 row["findings"] = payload.get("findings", job.get("findings", []))
                 row["unresolved_questions"] = payload.get("unresolved_questions", job.get("unresolved_questions", []))
                 refs = {ref for finding in row["findings"] if isinstance(finding, dict)
                         for ref in finding.get("evidence_packets", []) if isinstance(ref, str)}
-                if item["packet_id"] in refs:
+                if any(packet_id in refs for packet_id in item["packet_ids"]):
                     row["broker_cited_fixture_sources"] = [
                         {"path": source["path"], "sha256": source["sha256"],
-                         "excerpt": source["text"], "source_packet_id": item["packet_id"]}
+                         "excerpt": source["text"], "source_packet_ids": item["packet_ids"]}
                         for source in item["evidence"]]
                 row["inference_confirmed"] = _visible_inference_confirmed(
                     row["status"], row["answer"], row["findings"])
+                if row["inference_confirmed"]:
+                    row["actual_inference_confirmed"] = True
+                    row["actual_inference_evidence"] = "visible_public_answer_or_findings"
                 if row["inference_confirmed"] and isinstance(row["answer"], str) and row["answer"].strip():
                     citations = [{"path": cite["path"], "sha256": cite["sha256"], "excerpt": cite["excerpt"]}
                                  for cite in row.get("broker_cited_fixture_sources", [])]
@@ -647,6 +757,11 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
             report["confirmed_inference_case_ids"] = confirmed_ids
             report["confirmed_inference_count"] = len(confirmed_ids)
             report["inference_performed"] = bool(confirmed_ids)
+            actual_ids = [row["case_id"] for row in report["cases"]
+                          if row.get("actual_inference_confirmed")]
+            report["actual_inference_case_ids"] = actual_ids
+            report["actual_inference_count"] = len(actual_ids)
+            report["actual_inference_confirmed"] = bool(actual_ids)
             with progress_lock:
                 _atomic_json(private_root / "report.json", report)
             if _same_failure_stop(failures):
@@ -691,7 +806,7 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
                             else "partial")
         report["completed_unix"] = time.time()
     except Exception as error:
-        if composition is None:
+        if composition is None or not job_service_started:
             _preflight_failure_report(report, error)
         else:
             report["status"] = "partial"
@@ -700,11 +815,11 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
     finally:
         if composition is not None:
             stopped = composition.close()
-            report["cleanup"] = {"isolated_job_service_started": True,
-                                 "isolated_job_service_stopped": bool(stopped),
+            report["cleanup"] = {"isolated_job_service_started": job_service_started,
+                                 "isolated_job_service_stopped": bool(stopped) if job_service_started else None,
                                  "isolated_cache_retained_for_review": True,
                                  "central_supervisor_stopped": False}
-            if report["cleanup"]["isolated_job_service_stopped"] is not True:
+            if job_service_started and report["cleanup"]["isolated_job_service_stopped"] is not True:
                 report["status"] = "partial_cleanup_pending"
         report["inference_performed"] = bool(report.get("inference_performed"))
         _atomic_json(private_root / "report.json", report)

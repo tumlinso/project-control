@@ -1,0 +1,26 @@
+{
+  "format": "pa1-owned-release-binding-validation/1",
+  "tests_passed": 23,
+  "subtests_passed": 20,
+  "elapsed_seconds": 6.76,
+  "fix": "Use manifest-verified receiver identity independently from Todo identity; reject imported origin outside the receiver.",
+  "source_sha256": {
+    "src/project_control/local_runtime/local_worker/supervisor.py": "c235f15c505c5af976d1d262869d21f44c1a9ebe7c9df5738c62aa74cac2d60e",
+    "src/project_control/local_runtime/receiver-manifest.json": "817cfe4c42e44d4586305c3d3552aacb1ce1aa5a4aac26fcb502035d9b76c752",
+    "tests/local_runtime/test_observer_supervisor.py": "ffa010e7c8d6e6558fd8e1a370f9d5fe1d270196d11a2e98ed879af1ca10a426"
+  },
+  "actual_released_slot_proof": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r5/release-verified-binding-recovery-r1.json",
+  "second_slot": "stale capability; ordinary owned daemon shutdown, no forged public acknowledgement",
+  "final_focused_validation": {
+    "tests_passed": 27,
+    "subtests_passed": 21,
+    "elapsed_seconds": 8.21,
+    "command": "scripts/pa1_source_tests.sh -m pytest tests/local_runtime/test_observer_supervisor.py -q",
+    "independent_review": "No blocker in identity separation, lock ordering or per-slot invalidation; deterministic threaded close/reopen interleaving remains source-inspected."
+  },
+  "final_source_sha256": {
+    "src/project_control/local_runtime/local_worker/supervisor.py": "17bcb2d42775a0812eec8a53ea211e0e7b9244dd1816bfde4da0e68dfe31ac8a",
+    "src/project_control/local_runtime/receiver-manifest.json": "c29de1b8f58f4804f159730ad46ab7141ee178bc51573feef31ab9da8aed1398",
+    "tests/local_runtime/test_observer_supervisor.py": "8c2afb97d77fdb9e32bfa789b7400ba99fe5d1e278ae3d370de63abbf432b198"
+  }
+}

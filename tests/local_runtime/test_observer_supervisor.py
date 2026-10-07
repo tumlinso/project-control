@@ -15,11 +15,13 @@ import threading
 import time
 from types import SimpleNamespace
 import unittest
+import uuid
 from unittest.mock import Mock, patch
 
 from local_runtime import assert_receiver_module, receiver_runtime_path
 from local_runtime.test_supervisor import _Adapter, _Cache, _Host, _PoolBackend, _Service, _profile
 RECEIVER = receiver_runtime_path()
+from project_control.runtime_binding import RuntimeBindingError, local_runtime_identity
 from local_worker import supervisor as _supervisor_module
 assert_receiver_module(_supervisor_module)
 from local_worker.supervisor import (RPC_FRAME_BYTES, SupervisorClient, SupervisorError,
@@ -35,7 +37,7 @@ class CentralBackend(_PoolBackend):
 class CentralSupervisorTests(unittest.TestCase):
     def setUp(self):
         context = {"fixture": "canonical-runtime"}
-        identity = SimpleNamespace(public=lambda: context)
+        identity = SimpleNamespace(root=Path("/todo-authority/runtime"), public=lambda: context)
         binding = patch("local_worker.supervisor.bind_canonical_runtime", return_value=(identity, context))
         validation = patch("local_worker.supervisor.validate_canonical_runtime")
         binding.start()
@@ -268,7 +270,7 @@ class CentralSupervisorTests(unittest.TestCase):
         self.assertEqual(self.raw(b"x" * (RPC_FRAME_BYTES + 1))["error"], "supervisor_frame_too_large")
         with self.assertRaisesRegex(SupervisorError, "frame_too_large"):
             self.client.run_observer_turn({"text": "x" * RPC_FRAME_BYTES})
-        self.backend.run_observer_turn = lambda request: {"text": "x" * RPC_FRAME_BYTES}
+        self.backend.run_observer_turn = lambda request, **kwargs: {"text": "x" * RPC_FRAME_BYTES}
         with self.assertRaisesRegex(SupervisorError, "frame_too_large"):
             self.client.run_observer_turn(self.turn())
 
@@ -363,10 +365,10 @@ class CentralSupervisorTests(unittest.TestCase):
         original = self.backend.run_observer_turn
         entered, resume = threading.Event(), threading.Event()
         self.addCleanup(resume.set)
-        def delayed(request):
+        def delayed(request, **kwargs):
             entered.set()
             resume.wait(timeout=2)
-            return original({**request, "deadline_epoch": time.time() + 1})
+            return original({**request, "deadline_epoch": time.time() + 1}, **kwargs)
         self.backend.run_observer_turn = delayed
         with self.assertRaisesRegex(SupervisorError, "central_supervisor_timeout"):
             self.client.run_observer_turn(self.turn(sessions[0], deadline_epoch=time.time() + .05))
@@ -414,6 +416,129 @@ class CentralSupervisorTests(unittest.TestCase):
                 self.client.observer_status()
         finally:
             self.server.runtime_context = original
+
+    def test_owned_release_source_uses_distinct_manifest_pinned_receiver_root(self):
+        receiver = local_runtime_identity()
+        self.assertNotEqual(self.client.runtime_identity.root.resolve(), receiver.root.resolve())
+        todo_fingerprint = hashlib.sha256(json.dumps(
+            self.client.runtime_context, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+        self.assertNotEqual(todo_fingerprint, receiver.fingerprint)
+        expected = receiver.root.joinpath("local_worker/supervisor.py").read_bytes()
+        manifest = json.loads((receiver.root / "receiver-manifest.json").read_text())
+        status = {"source_sha256": hashlib.sha256(expected).hexdigest(),
+                  "runtime_identity": self.client.runtime_context,
+                  "runtime_fingerprint": todo_fingerprint,
+                  "supervisor_pid": os.getpid(), "supervisor_process_start": process_start_time(os.getpid()),
+                  "daemon_epoch": "e" * 64}
+        self.client._validate_owned_release_status(status)
+
+        with self.subTest("receiver fingerprint is not Todo runtime fingerprint"):
+            status["runtime_fingerprint"] = receiver.fingerprint
+            with self.assertRaisesRegex(SupervisorError, "receiver_source_identity_mismatch"):
+                self.client._validate_owned_release_status(status)
+            status["runtime_fingerprint"] = todo_fingerprint
+
+        with self.subTest("tampered daemon source digest"):
+            status["source_sha256"] = "0" * 64
+            with self.assertRaisesRegex(SupervisorError, "receiver_source_identity_mismatch"):
+                self.client._validate_owned_release_status(status)
+        status["source_sha256"] = manifest["files"]["local_worker/supervisor.py"]
+
+        with self.subTest("tampered receiver rejected by binding"):
+            with patch("local_worker.supervisor.bind_local_runtime",
+                       side_effect=RuntimeBindingError("receiver_file_hash_mismatch")):
+                with self.assertRaisesRegex(SupervisorError, "receiver_source_identity_unavailable"):
+                    self.client._validate_owned_release_status(status)
+
+        with self.subTest("missing receiver rejected by binding"):
+            with patch("local_worker.supervisor.bind_local_runtime",
+                       side_effect=FileNotFoundError("receiver source missing")):
+                with self.assertRaisesRegex(SupervisorError, "receiver_source_identity_unavailable"):
+                    self.client._validate_owned_release_status(status)
+
+        with self.subTest("foreign imported origin rejected"):
+            with tempfile.TemporaryDirectory() as foreign_dir:
+                foreign = Path(foreign_dir) / "supervisor.py"
+                foreign.write_text("# foreign receiver\n")
+                with patch.object(_supervisor_module, "__spec__", SimpleNamespace(origin=str(foreign))):
+                    with self.assertRaisesRegex(SupervisorError, "receiver_source_identity_mismatch"):
+                        self.client._validate_owned_release_status(status)
+
+    def _close_owned_receipt(self, session_id):
+        def process_identity_for_fixture(pid):
+            if pid == os.getpid():
+                return process_identity(pid)
+            return {"pid": pid, "process_start": f"fixture-{pid}", "boot_id": "fixture"}
+        with patch("local_worker.supervisor.process_identity", side_effect=process_identity_for_fixture):
+            result = self.client.close_observer_session(session_id)
+        self.assertTrue(result["released"])
+        receipt = result.get("owned_resource_receipt")
+        self.assertIsInstance(receipt, dict)
+        return receipt
+
+    def _release_receipts(self, receipts):
+        def process_identity_for_fixture(pid):
+            if pid == os.getpid():
+                return process_identity(pid)
+            return {"pid": pid, "process_start": f"fixture-{pid}", "boot_id": "fixture"}
+        with patch("local_worker.supervisor.process_identity", side_effect=process_identity_for_fixture):
+            return self.client.release_owned_observer_resources(
+                receipts, request_id=uuid.uuid4().hex, deadline_epoch=time.time() + 10)
+
+    def test_bound_turn_invalidates_only_its_slot_and_preserves_other_closed_capability(self):
+        sessions = self.client.open_observer_sessions(2)["session_ids"]
+        receipt_a = self._close_owned_receipt(sessions[0])
+
+        invalid = self.client.run_observer_turn({"format": "invalid", "session_id": sessions[1]})
+        self.assertEqual(invalid["status"], "unavailable")
+        self.assertEqual(invalid["reason"], "investigator_turn_invalid_request")
+
+        self.assertEqual(self.client.run_observer_turn(self.turn(sessions[1]))["status"], "available")
+        receipt_b = self._close_owned_receipt(sessions[1])
+        released = self._release_receipts([receipt_a, receipt_b])
+        self.assertEqual(released["status"], "released")
+        self.assertTrue(all(item["released"] is True for item in released["sessions"]))
+
+    def test_reopening_a_slot_invalidates_its_old_close_capability(self):
+        sessions = self.client.open_observer_sessions(2)["session_ids"]
+        receipt_a = self._close_owned_receipt(sessions[0])
+        slot_a = receipt_a["slot_id"]
+        reopened = self.client.open_observer_sessions(1)["session_ids"][0]
+        with self.backend._pool_lock:
+            self.assertEqual(self.backend._leases[reopened], slot_a)
+
+        stale = self._release_receipts([receipt_a])
+        self.assertEqual(stale["status"], "stale")
+        self.assertEqual(stale["sessions"][0]["reason"], "owned_capability_unavailable")
+        receipt_reopened = self._close_owned_receipt(reopened)
+        receipt_b = self._close_owned_receipt(sessions[1])
+        released = self._release_receipts([receipt_reopened, receipt_b])
+        self.assertEqual(released["status"], "released")
+
+    def test_unbound_turn_keeps_conservative_global_invalidation(self):
+        sessions = self.client.open_observer_sessions(2)["session_ids"]
+        receipt_a = self._close_owned_receipt(sessions[0])
+        receipt_b = self._close_owned_receipt(sessions[1])
+
+        self.assertEqual(self.client.run_observer_turn(self.turn())["status"], "available")
+        released = self._release_receipts([receipt_a, receipt_b])
+        self.assertEqual(released["status"], "stale")
+        self.assertTrue(all(item["reason"] == "owned_capability_unavailable"
+                            for item in released["sessions"]))
+
+    def test_packet_analysis_keeps_conservative_global_invalidation(self):
+        sessions = self.client.open_observer_sessions(2)["session_ids"]
+        receipt_a = self._close_owned_receipt(sessions[0])
+        receipt_b = self._close_owned_receipt(sessions[1])
+
+        packet = {"source_identity": {"project": "fixture"},
+                  "evidence": [{"id": "fixture-evidence"}], "query": "fixture"}
+        self.client.analyze_observer_packet(packet)
+        released = self._release_receipts([receipt_a, receipt_b])
+        self.assertEqual(released["status"], "stale")
+        self.assertTrue(all(item["reason"] == "owned_capability_unavailable"
+                            for item in released["sessions"]))
 
     def test_owner_binding_between_status_and_operation_and_deadline_cap(self):
         self.client.observer_status()

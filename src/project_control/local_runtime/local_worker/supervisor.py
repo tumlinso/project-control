@@ -21,11 +21,12 @@ import uuid
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 from project_control.assistance.policies import generation_settings, policy_for
+from project_control.runtime_binding import RuntimeBindingError, bind_local_runtime
 
 from .observer_runtime import remaining_seconds
 from .model_cache import ModelCache
@@ -1148,7 +1149,8 @@ class ProductionBackend:
     def close_observer_session(self, session_id: str) -> dict[str, Any]:
         return self.release(session_id)
 
-    def analyze_observer_packet(self, packet: dict[str, Any]) -> dict[str, Any]:
+    def analyze_observer_packet(self, packet: dict[str, Any], *,
+                                on_slot_use: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Summarize an already-authorized immutable observer packet.
 
         The service never receives a repository path, workflow handle, or
@@ -1201,7 +1203,7 @@ class ProductionBackend:
                         "temperature": 0, "max_tokens": 1024,
                         "timeout_seconds": min(90, remaining_seconds(deadline_epoch)) if deadline_epoch is not None else 90,
                         **({"deadline_epoch": deadline_epoch} if deadline_epoch is not None else {}),
-                    })
+                    }, on_slot_use=on_slot_use)
                     if raw.get("response_metadata", {}).get("finish_reason") == "length":
                         raise SupervisorError("observer_provider_output_incomplete")
                     try:
@@ -1233,7 +1235,8 @@ class ProductionBackend:
             return {"status": "unavailable", "authoritative": False, "provider": "llama-server",
                     "reason": str(error)[:500], "fallback": "authoritative_compact_envelope"}
 
-    def run_observer_turn(self, request: dict[str, Any]) -> dict[str, Any]:
+    def run_observer_turn(self, request: dict[str, Any], *,
+                          on_slot_use: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Run one broker-authorized investigator turn against the local model.
 
         This is deliberately a text-only transport.  Project Control owns the
@@ -1321,11 +1324,11 @@ class ProductionBackend:
                         "reasoning_state_key": service_lease_id,
                         **({"turn_policy_id": selected_policy.policy_id,
                             "turn_policy_instruction": selected_policy.instruction,
-                            "logical_context_tokens": selected_policy.logical_context_tokens}
+                           "logical_context_tokens": selected_policy.logical_context_tokens}
                            if selected_policy is not None else {}),
                         **({"response_format": response_format} if response_format is not None else {}),
                         **({"deadline_epoch": deadline_epoch} if deadline_epoch is not None else {}),
-                    })
+                    }, on_slot_use=on_slot_use)
                     if not isinstance(raw, dict) or not isinstance(raw.get("text"), str):
                         raise SupervisorError("investigator_provider_malformed_output")
                     usage = raw.get("usage")
@@ -1369,12 +1372,15 @@ class ProductionBackend:
         except Exception:
             return False
 
-    def _run_slot(self, slot: _ServiceSlot, request: dict[str, Any]) -> dict[str, Any]:
+    def _run_slot(self, slot: _ServiceSlot, request: dict[str, Any], *,
+                  on_slot_use: Callable[[str], None] | None = None) -> dict[str, Any]:
         with self._pool_lock:
             if slot.state == "draining" or self.runtime.host.preempt_requested(slot.owner_id):
                 raise SupervisorError("observer_session_preempt_requested")
             slot.active_turns += 1
         try:
+            if on_slot_use is not None:
+                on_slot_use(slot.slot_id)
             return self.service.run("llama", slot.handle, request)
         finally:
             with self._pool_lock:
@@ -1428,7 +1434,7 @@ class ProductionBackend:
                 "format": "CORE4-RESIDENCY-QUIESCENCE/1", "owner_id": slot.owner_id,
                 "owned_pid": owned_pid, "observed_unix": observation["observed_unix"], "observation": observation})
             self._marker_path(slot.slot_id).unlink(missing_ok=True)
-        except Exception as error:
+        except (RuntimeBindingError, OSError, ValueError, TypeError, AttributeError) as error:
             slot.last_cleanup = {"released": False, "reason": str(error)[:500]}
             return False
         if slot.service_lease_id is not None:
@@ -1595,11 +1601,6 @@ class SupervisorServer:
                     return result
             if operation == "observer-release-owned":
                 return self._release_owned_observer_resources(request)
-            if operation in {"observer-analyze", "observer-turn"}:
-                # These paths may borrow/reuse a resident slot internally. A
-                # prior close capability must not survive that access.
-                with self._borrowers_lock:
-                    self._closed_owned.clear()
             key = "packet" if operation == "observer-analyze" else "request"
             if not isinstance(request.get(key), dict):
                 raise SupervisorError("supervisor_observer_parameters_invalid")
@@ -1607,13 +1608,17 @@ class SupervisorServer:
             if payload.get("deadline_epoch") is not None:
                 remaining_seconds(payload["deadline_epoch"])
             payload["deadline_epoch"] = min(time.time() + 300, payload.get("deadline_epoch") or time.time() + 300)
+            if operation == "observer-analyze":
+                on_slot_use = self._all_closed_capabilities_on_slot_use
+            else:
+                on_slot_use = self._observer_turn_slot_use(payload, peer_pid, peer_process_start)
             if not self._observer_executions.acquire(blocking=False):
                 return {"status": "unavailable", "authoritative": False, "provider": "llama-server",
                         "reason": "observer_provider_busy", "fallback": "project_control_read_broker"}
             try:
                 if operation == "observer-analyze":
-                    return self.backend.analyze_observer_packet(payload)
-                return self.backend.run_observer_turn(payload)
+                    return self.backend.analyze_observer_packet(payload, on_slot_use=on_slot_use)
+                return self.backend.run_observer_turn(payload, on_slot_use=on_slot_use)
             finally:
                 self._observer_executions.release()
         if self.observer_only and operation != "stop":
@@ -1683,6 +1688,57 @@ class SupervisorServer:
         for session_id, item in list(self._closed_owned.items()):
             if item.get("slot_id") in slot_ids:
                 self._closed_owned.pop(session_id, None)
+
+    def _all_closed_capabilities_on_slot_use(self, slot_id: str) -> None:
+        # Anonymous turns and packet analysis can select an internal slot, so
+        # retain the conservative invalidation rule for those paths.
+        with self._borrowers_lock:
+            self._closed_owned.clear()
+
+    def _observer_turn_slot_use(self, request: dict[str, Any], peer_pid: int | None,
+                                peer_process_start: str | None) -> Callable[[str], None] | None:
+        session_id = request.get("session_id")
+        if session_id is None:
+            return self._all_closed_capabilities_on_slot_use
+        # Invalid, foreign, expired, or otherwise unbound session requests do
+        # not invalidate unrelated closed-slot capabilities. The backend will
+        # still validate the turn's complete request contract.
+        if not isinstance(session_id, str) or not 1 <= len(session_id) <= 128:
+            return None
+        if (type(peer_pid) is not int or peer_pid <= 0 or
+                not isinstance(peer_process_start, str) or not peer_process_start):
+            raise SupervisorError("observer_session_owner_mismatch")
+        with self._borrowers_lock:
+            pool_lock = getattr(self.backend, "_pool_lock", None)
+            if pool_lock is None:
+                raise SupervisorError("observer_owned_release_lock_unavailable")
+            with pool_lock:
+                borrower = self._borrowers.get(session_id)
+                slot_id = getattr(self.backend, "_leases", {}).get(session_id)
+                slot = getattr(self.backend, "_slots", {}).get(slot_id)
+                if (borrower is None or borrower.get("pid") != peer_pid or
+                        borrower.get("process_start") != peer_process_start or
+                        borrower.get("daemon_epoch") != self._daemon_epoch or
+                        borrower.get("slot_id") != slot_id or slot is None or
+                        slot.service_lease_id != session_id):
+                    raise SupervisorError("observer_session_owner_mismatch")
+
+        def invalidate_used_slot(used_slot_id: str) -> None:
+            with self._borrowers_lock:
+                with pool_lock:
+                    borrower = self._borrowers.get(session_id)
+                    current_slot_id = getattr(self.backend, "_leases", {}).get(session_id)
+                    slot = getattr(self.backend, "_slots", {}).get(current_slot_id)
+                    if (used_slot_id != slot_id or current_slot_id != slot_id or
+                            borrower is None or borrower.get("pid") != peer_pid or
+                            borrower.get("process_start") != peer_process_start or
+                            borrower.get("daemon_epoch") != self._daemon_epoch or
+                            borrower.get("slot_id") != slot_id or slot is None or
+                            slot.service_lease_id != session_id):
+                        raise SupervisorError("observer_session_owner_mismatch")
+                    self._invalidate_owned_slots({slot_id})
+
+        return invalidate_used_slot
 
     def _release_owned_observer_resources(self, request: dict[str, Any]) -> dict[str, Any]:
         request_id = request.get("request_id")
@@ -2005,20 +2061,34 @@ class SupervisorClient:
             )
 
     def _validate_owned_release_status(self, status: dict[str, Any]) -> None:
-        # The daemon reports the exact receiver file it started with. Check it
-        # against the manifest-backed local source before using a transferred
-        # close capability; a same-UID stale/foreign receiver is not enough.
+        # Todo's canonical runtime identity governs Todo state and authority.
+        # The receiver is a separate Project Control runtime; bind it
+        # independently before trusting a transferred close capability.
         try:
-            manifest_path = self.runtime_identity.root / "receiver-manifest.json"
+            receiver = bind_local_runtime()
+            module = sys.modules.get(__name__)
+            if module is None:
+                raise RuntimeBindingError("receiver_import_origin_missing")
+            origin = getattr(getattr(module, "__spec__", None), "origin", None)
+            if not isinstance(origin, str) or not origin:
+                raise RuntimeBindingError("receiver_import_origin_missing")
+            imported_path = Path(origin).resolve(strict=True)
+            module_file = Path(module.__file__).resolve(strict=True)
+            expected_path = (receiver.package_root / "supervisor.py").resolve(strict=True)
+            manifest_path = receiver.root / "receiver-manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             expected = manifest.get("files", {}).get("local_worker/supervisor.py")
-            local_source = hashlib.sha256(
-                (self.runtime_identity.root / "local_worker/supervisor.py").read_bytes()
-            ).hexdigest()
-        except (AttributeError, OSError, ValueError, TypeError) as error:
+            local_source = hashlib.sha256(expected_path.read_bytes()).hexdigest()
+            todo_fingerprint = hashlib.sha256(json.dumps(
+                self.runtime_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                default=str).encode("utf-8")).hexdigest()
+        except Exception as error:
             raise SupervisorError("receiver_source_identity_unavailable") from error
-        if (not isinstance(expected, str) or len(expected) != 64 or expected != local_source or
-                status.get("source_sha256") != expected):
+        if (imported_path != expected_path or module_file != expected_path or
+                not isinstance(expected, str) or len(expected) != 64 or
+                expected != local_source or status.get("source_sha256") != expected or
+                status.get("runtime_identity") != self.runtime_context or
+                status.get("runtime_fingerprint") != todo_fingerprint):
             raise SupervisorError("receiver_source_identity_mismatch")
         if (type(status.get("supervisor_pid")) is not int or status["supervisor_pid"] <= 0 or
                 not isinstance(status.get("supervisor_process_start"), str) or

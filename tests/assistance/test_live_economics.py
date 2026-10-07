@@ -42,16 +42,37 @@ def test_execute_live_requires_the_exact_existing_supervisor_state_path(monkeypa
     assert not (tmp_path / "artifacts").exists()
 
 
-def test_real_runtime_config_composes_observer_with_stub_backend(monkeypatch, tmp_path):
+def test_ephemeral_fixture_alias_preserves_existing_workspace_authority(tmp_path):
+    from project_control.config import load_config
+
+    original = load_config()
+    assert economics.SEMANTIC_PROJECT in original.workspaces
+    original_authority = original.workspaces[economics.SEMANTIC_PROJECT].authority_repository
+    original_repositories = set(original.workspaces[economics.SEMANTIC_PROJECT].repositories)
+    repo = economics._disposable_repository(tmp_path)
+    config = economics._ephemeral_fixture_config(original, repo)
+    workspace = config.workspaces[economics.SEMANTIC_PROJECT]
+    assert workspace.authority_repository == original_authority
+    assert workspace.repositories[original_authority].root == original.workspaces[
+        economics.SEMANTIC_PROJECT].repositories[original_authority].root
+    assert set(workspace.repositories) == original_repositories | {economics.FIXTURE_REPOSITORY_ALIAS}
+    assert economics.FIXTURE_REPOSITORY_ALIAS not in original.workspaces[
+        economics.SEMANTIC_PROJECT].repositories
+
+
+def test_real_runtime_reads_fresh_fixture_sources_under_existing_authority(tmp_path):
     from project_control.app import Runtime
     from project_control.as1_surface import compose_surface
     from project_control.config import load_config
     from project_control.profiles import MCPProfile
 
-    repo = economics._disposable_repository(tmp_path)
     original = load_config()
-    config_home = economics._private_config(repo, tmp_path, original)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    original_authority = original.workspaces[economics.SEMANTIC_PROJECT].authority_repository
+    repo = economics._disposable_repository(tmp_path)
+    config = economics._ephemeral_fixture_config(original, repo)
+    assert config.workspaces[economics.SEMANTIC_PROJECT].authority_repository == original_authority
+    assert economics.FIXTURE_REPOSITORY_ALIAS in config.workspaces[economics.SEMANTIC_PROJECT].repositories
+    assert economics.FIXTURE_REPOSITORY_ALIAS not in original.workspaces[economics.SEMANTIC_PROJECT].repositories
 
     class StubBackend:
         available = True
@@ -63,15 +84,27 @@ def test_real_runtime_config_composes_observer_with_stub_backend(monkeypatch, tm
             self.closed = True
 
     backend = StubBackend()
-    runtime = Runtime(load_config())
-    assert runtime.config.workspaces["economics"].repositories["fixture"].root == repo
+    runtime = Runtime(config)
     composition = compose_surface(runtime, MCPProfile.OBSERVER,
                                   state_directory=tmp_path / "isolated-state",
                                   backend=backend)
     try:
-        assert composition.scope("economics")["project"] == "economics"
+        scope = composition.scope(economics.SEMANTIC_PROJECT)
+        assert scope["project"] == economics.SEMANTIC_PROJECT
         assert composition.jobs.worker_factory is not None
         assert not backend.closed
+        packet_ids, rows, freshness = economics._read_public_sources(
+            composition, repo, scope)
+        assert len(packet_ids) == 2
+        assert {row["path"] for row in rows} == set(economics.SOURCE_PATHS)
+        assert freshness["fresh"] is True
+        packets = [composition.store.lookup(packet_id, access_scope=scope).packet
+                   for packet_id in packet_ids]
+        assert all(packet is not None for packet in packets)
+        assert all(source.project == economics.SEMANTIC_PROJECT and
+                   source.repository == economics.FIXTURE_REPOSITORY_ALIAS
+                   for packet in packets for source in packet.sources)
+        assert all(source.path != ".env" for packet in packets for source in packet.sources)
     finally:
         assert composition.close() is True
     assert backend.closed

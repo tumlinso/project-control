@@ -20,8 +20,9 @@ import time
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
-if str(REPO / "src") not in sys.path:
-    sys.path.insert(0, str(REPO / "src"))
+for _import_root in (REPO, REPO / "src"):
+    if str(_import_root) not in sys.path:
+        sys.path.insert(0, str(_import_root))
 
 from project_control.assistance.power import trusted_operator_control  # noqa: E402
 
@@ -185,11 +186,19 @@ def _atomic_persist_release(root: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
-def _current_supervisor_identity(backend, expected_state_root: Path) -> dict[str, Any]:
+def _current_supervisor_identity(backend, expected_state_root: Path,
+                                 expected_runtime: dict[str, Any] | None = None) -> dict[str, Any]:
     status = backend.central_status(deadline_epoch=time.time() + 5)
     observed = status.get("service_state_root")
     if not isinstance(observed, str) or Path(observed).resolve(strict=False) != expected_state_root:
         raise ReleaseError("live supervisor does not match the explicit canonical state root")
+    expected_runtime = expected_runtime or {}
+    expected_fingerprint = expected_runtime.get("supervisor_runtime_fingerprint")
+    expected_source = expected_runtime.get("supervisor_source_sha256")
+    if expected_fingerprint and status.get("runtime_fingerprint") != expected_fingerprint:
+        raise ReleaseError("live supervisor runtime fingerprint differs from the qualification observation")
+    if expected_source and status.get("source_sha256") != expected_source:
+        raise ReleaseError("live supervisor source hash differs from the qualification observation")
     return {
         "service_state_root": str(expected_state_root),
         "supervisor_pid": status.get("supervisor_pid"),
@@ -216,7 +225,10 @@ def run_release(*, artifact_root: Path, as1_state_root: Path,
     close_failure: dict[str, str] | None = None
     try:
         _identity, runtime, backend = _isolated_composition(as1_state_root, supervisor_state_root)
-        supervisor_identity = _current_supervisor_identity(backend, supervisor_state_root)
+        expected_runtime = qualification.get("runtime")
+        supervisor_identity = _current_supervisor_identity(
+            backend, supervisor_state_root,
+            expected_runtime if isinstance(expected_runtime, dict) else None)
         runtime_root = Path(str(getattr(backend, "_state_root", supervisor_state_root))).resolve(strict=False)
         if runtime_root != supervisor_state_root:
             raise ReleaseError("recomposed backend is not bound to the canonical supervisor state root")

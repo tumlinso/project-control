@@ -30,6 +30,8 @@ MAX_INQUIRIES = 6
 MAX_AUTO_ROOTS = 2
 MAX_RESERVED_TURNS = 12
 SOURCE_PATHS = ("demo/budgets.py", "demo/controller.py")
+SEMANTIC_PROJECT = "project-control"
+FIXTURE_REPOSITORY_ALIAS = "pa1-economics-fixture"
 
 
 def _hash(data: bytes) -> str:
@@ -111,24 +113,73 @@ def _disposable_repository(root: Path) -> Path:
     return repo.resolve(strict=True)
 
 
-def _private_config(repo: Path, root: Path, original):
-    """Build a one-project configuration without changing canonical config."""
-    from project_control.config import RepositoryConfig, WorkspaceConfig, save_config
+def _ephemeral_fixture_config(original, repo: Path):
+    """Add a disposable source alias under the existing semantic authority."""
+    from project_control.config import RepositoryConfig
 
+    if SEMANTIC_PROJECT not in original.workspaces:
+        raise ValueError("economics fixture requires the existing project-control authority")
     config = original.model_copy(deep=True)
-    prior = next(iter(original.workspaces.values()), None)
-    config.workspaces = {
-        "economics": WorkspaceConfig(
-            display_name="Disposable economics fixture", authority_repository="fixture",
-            repositories={"fixture": RepositoryConfig(root=repo)},
-            deny_patterns=list(prior.deny_patterns if prior else []),
-        )
-    }
-    config.programs = {}
-    config_root = root / "private-config"
-    (config_root / "project-control").mkdir(parents=True, mode=0o700)
-    save_config(config, config_root / "project-control/config.toml")
-    return config_root
+    workspace = config.workspaces[SEMANTIC_PROJECT]
+    if FIXTURE_REPOSITORY_ALIAS in workspace.repositories:
+        raise ValueError("economics fixture alias already exists in the registered workspace")
+    authority = workspace.authority_repository
+    if authority is None or authority not in workspace.repositories:
+        raise ValueError("project-control authority repository is unavailable")
+    workspace.repositories[FIXTURE_REPOSITORY_ALIAS] = RepositoryConfig(root=repo)
+    if workspace.authority_repository != authority:
+        raise ValueError("ephemeral fixture must not change workspace authority")
+    return config
+
+
+def _read_public_sources(composition: Any, repo: Path, scope: dict[str, Any]
+                         ) -> tuple[list[str], list[dict[str, str]], dict[str, Any]]:
+    """Read each reviewed input through InformationService and verify identity."""
+    packet_ids = []
+    rows = []
+    for relative in _validate_source_paths(SOURCE_PATHS):
+        expected = (repo / relative).read_bytes()
+        expected_hash = _hash(expected)
+        result = composition.information.call("read", project=SEMANTIC_PROJECT,
+            repository=FIXTURE_REPOSITORY_ALIAS, paths=[relative], detail="standard")
+        packet_id = result.get("packet") if isinstance(result, dict) else None
+        if not isinstance(result, dict) or result.get("status") != "ok" or not isinstance(packet_id, str):
+            raise ValueError(f"public source read failed for {relative}")
+        loaded = composition.store.lookup(packet_id, access_scope=scope)
+        packet = loaded.packet if loaded.status == "ok" else None
+        if packet is None or len(packet.sources) != 1:
+            raise ValueError(f"public source packet missing for {relative}")
+        source = packet.sources[0]
+        if (source.project != SEMANTIC_PROJECT or
+                source.repository != FIXTURE_REPOSITORY_ALIAS or
+                source.path != relative or source.content_sha256 != expected_hash):
+            raise ValueError(f"public source packet identity mismatch for {relative}")
+        packet_ids.append(packet.packet_id)
+        payload_text = packet.payload.get("text") if isinstance(packet.payload, dict) else None
+        rows.append({"path": relative, "sha256": expected_hash,
+                     "text": payload_text if isinstance(payload_text, str) else
+                             expected.decode("utf-8", errors="strict")})
+    freshness = _assert_source_packet_freshness(composition, scope, packet_ids)
+    return packet_ids, rows, freshness
+
+
+def _assert_source_packet_freshness(composition: Any, scope: dict[str, Any],
+                                   packet_ids: list[str]) -> dict[str, Any]:
+    """Use the production inquiry freshness provider before admitting a root."""
+    if not packet_ids:
+        raise ValueError("source case has no public read packets")
+    probe = {"scope": dict(scope), "mode": "investigate", "hints": list(packet_ids),
+        "evidence_packets": list(packet_ids),
+        "findings": [{"text": "source freshness probe", "evidence_packets": list(packet_ids)}],
+        "result_packet": packet_ids[0]}
+    result = composition.jobs.freshness_provider(probe)
+    if not isinstance(result, dict) or result.get("fresh") is not True:
+        changes = result.get("changed_sources", []) if isinstance(result, dict) else []
+        compact = [{key: item.get(key) for key in ("reference", "path", "reason", "dependency")
+                    if key in item} for item in changes[:8] if isinstance(item, dict)]
+        raise ValueError("public source packets fail current freshness verification: " +
+                         json.dumps(compact, sort_keys=True)[:500])
+    return result
 
 
 def _mutate_fixture(repo: Path, version: int) -> None:
@@ -149,20 +200,47 @@ def _mutate_fixture(repo: Path, version: int) -> None:
                     f"scripted source edit {version}"], check=True)
 
 
-def _source_evidence(repo: Path) -> tuple[str, list[dict[str, str]]]:
-    rows = []
-    for relative in _validate_source_paths(SOURCE_PATHS):
-        data = (repo / relative).read_bytes()
-        rows.append({"path": relative, "sha256": _hash(data),
-                     "text": data.decode("utf-8", errors="strict")})
-    content = "\n\n".join(f"SOURCE {item['path']} sha256={item['sha256']}\n{item['text']}"
-                           for item in rows)
-    return content, rows
+def _fixture_attention_tick(composition: Any, *, repository_root: Path,
+                            access_scope: dict[str, Any], control: Any) -> dict[str, Any]:
+    """Run a production attention tick bound to only this disposable alias."""
+    from project_control.assistance.attention import AttentionController
+    from project_control.assistance.power import PowerPolicy
 
-
-def _locators(rows: list[dict[str, str]], revision: str) -> list[dict[str, str]]:
-    return [{"project": "economics", "repository": "fixture", "path": row["path"],
-             "content_sha256": row["sha256"], "revision": revision} for row in rows]
+    project = SEMANTIC_PROJECT
+    with composition.jobs._db() as db:
+        policy = PowerPolicy(db, clock=composition.jobs.clock)
+        state = policy.snapshot()
+        if (not state["automatic_enabled"] or state["automatic_project"] != project or
+                state["quiet_active"] or
+                state["release_veto_active"]):
+            return {"status": "demand_only"}
+        def scoped(selected: str) -> dict[str, Any]:
+            if selected != project:
+                raise PermissionError("automatic source scope is outside the fixture project")
+            return dict(access_scope)
+        controller = AttentionController(db, power_policy=policy,
+            trusted_roots={project: repository_root},
+            repository_for=lambda _project: FIXTURE_REPOSITORY_ALIAS,
+            access_scope=scoped,
+            broker=composition.jobs, notebook=composition.store,
+            clock=composition.jobs.clock)
+        matching = [item for item in controller.active_focuses(permit_automatic=True)
+                    if item["focus_id"] == state["automatic_focus"]
+                    and item["project"] == project]
+        if not matching:
+            return {"status": "no_active_automatic_focus"}
+        focus_ids = {item["focus_id"] for item in matching}
+        for candidate in controller.candidates():
+            if candidate.focus_id not in focus_ids:
+                continue
+            if candidate.status == "admitting":
+                controller.reconcile_admission(candidate.candidate_id)
+            elif candidate.status == "dispatched":
+                controller.record_result(candidate_id=candidate.candidate_id,
+                                         control=control)
+        for focus in matching:
+            controller.scan(focus["focus_id"])
+        return controller.dispatch_next(control)
 
 
 def _execute(root: Path) -> dict[str, Any]:
@@ -181,17 +259,18 @@ def _execute(root: Path) -> dict[str, Any]:
 
     original_config = load_config()
     repo = _disposable_repository(root)
-    config_home = _private_config(repo, root, original_config)
+    ephemeral_config = _ephemeral_fixture_config(original_config, repo)
     state_root = root / "isolated-as1-state"
     if state_root.exists():
         raise ValueError("isolated state already exists; choose a fresh artifact root")
-    previous_xdg = os.environ.get("XDG_CONFIG_HOME")
-    os.environ["XDG_CONFIG_HOME"] = str(config_home)
     composition = None
     operator = None
     report = plan()
     report.update({"status": "preflight", "fixture_root": str(repo),
-                   "private_config": str(config_home), "isolated_state_root": str(state_root),
+                   "config_mode": "in_memory_ephemeral_repository_alias",
+                   "semantic_project": SEMANTIC_PROJECT,
+                   "fixture_repository_alias": FIXTURE_REPOSITORY_ALIAS,
+                   "isolated_state_root": str(state_root),
                    "inquiry_count": 0, "automatic_root_count": 0, "foreground": [],
                    "automatic": [], "owned_receipts": [], "source_shadow_denied": False})
     started = time.monotonic()
@@ -202,7 +281,7 @@ def _execute(root: Path) -> dict[str, Any]:
         runtime_identity = bind_local_runtime()
         if not runtime_identity.manifest_sha256 or not runtime_identity.root.is_dir():
             raise ValueError("canonical source/runtime identity is incomplete")
-        runtime = Runtime(load_config())
+        runtime = Runtime(ephemeral_config)
         backend = SkillsObserverAnalysisProvider()
         status = backend.central_status(deadline_epoch=time.time() + 5)
         if isinstance(status.get("supervisor_pid"), bool) or not isinstance(status.get("supervisor_pid"), int):
@@ -210,14 +289,14 @@ def _execute(root: Path) -> dict[str, Any]:
         report["runtime"] = {"root": str(runtime_identity.root),
                              "manifest_sha256": runtime_identity.manifest_sha256,
                              "fingerprint": runtime_identity.fingerprint,
-                             "source_commit": runtime.source_commit,
+                             "source_commit": runtime_identity.source_commit,
                              "source_sha256": _hash(SCRIPT.read_bytes()),
                              "supervisor_runtime_fingerprint": status.get("runtime_fingerprint"),
                              "supervisor_source_sha256": status.get("source_sha256"),
                              "supervisor_state_root": status.get("service_state_root")}
         composition = compose_surface(runtime, MCPProfile.OBSERVER, state_directory=state_root,
                                       backend=backend)
-        scope = composition.scope("economics")
+        scope = composition.scope(SEMANTIC_PROJECT)
         composition.jobs.start()
         operator = AssistanceOperator(state_root=state_root)
         try:
@@ -228,29 +307,36 @@ def _execute(root: Path) -> dict[str, Any]:
             raise ValueError("private .env was not denied by the source-selection seal")
 
         def packet_and_inquire(label: str, question: str, *, use_handoff: bool = False) -> dict[str, Any]:
-            evidence_text, evidence_rows = _source_evidence(repo)
+            packet_ids, evidence_rows, freshness = _read_public_sources(
+                composition, repo, scope)
             revision = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
-            packet_text = evidence_text
-            packet_sources = _locators(evidence_rows, revision)
+            packet_text = "\n\n".join(f"SOURCE {item['path']} sha256={item['sha256']}\n{item['text']}"
+                                      for item in evidence_rows)
             handoff_record = None
             if use_handoff:
-                proposal = operator.handoff(project="economics", focus_id=focus_id,
-                    trusted_projects={"economics"}, trusted_root=repo, trusted_repository="fixture")
+                proposal = operator.handoff(project=SEMANTIC_PROJECT, focus_id=focus_id,
+                    trusted_projects=composition.host.projects, trusted_root=repo,
+                    trusted_repository=FIXTURE_REPOSITORY_ALIAS)
                 suggestions = proposal.get("suggestions", [])
                 handoff_record = suggestions[0] if suggestions else None
                 if handoff_record:
+                    handoff_sources = handoff_record.get("sources")
+                    if not isinstance(handoff_sources, list) or not handoff_sources:
+                        raise ValueError("prepared handoff lacks source-backed evidence")
                     packet_text += "\n\nSOURCE-BACKED PREPARED HANDOFF\n" + json.dumps(
                         {key: handoff_record.get(key) for key in
                          ("note_id", "claim", "reason_matters", "sources", "uncertainty", "next_action")},
                         sort_keys=True, ensure_ascii=False)
-            packet = composition.store.create(tool="read", access_scope=scope,
-                payload={"text": packet_text, "source_files": evidence_rows},
-                sources=packet_sources, ttl_seconds=None)
+                    handoff_packet = composition.store.create(tool="read", access_scope=scope,
+                        payload={"text": packet_text, "source_files": evidence_rows},
+                        sources=handoff_sources, ttl_seconds=None)
+                    packet_ids.append(handoff_packet.packet_id)
+                    freshness = _assert_source_packet_freshness(composition, scope, packet_ids)
             before = time.monotonic()
             remaining = max(0.0, started + MAX_WALL_SECONDS - time.monotonic())
             if remaining <= 0:
                 raise TimeoutError("120-second economics wall budget exhausted")
-            result = composition.jobs.inquire(question, access_scope=scope, hints=[packet.alias],
+            result = composition.jobs.inquire(question, access_scope=scope, hints=packet_ids,
                 request_id="pa1-econ-" + uuid.uuid4().hex,
                 foreground_timeout=min(12.0, remaining))
             elapsed = time.monotonic() - before
@@ -261,6 +347,8 @@ def _execute(root: Path) -> dict[str, Any]:
                     "request_sha256": _hash(question.encode()), "elapsed_seconds": round(elapsed, 4),
                     "answer": answer, "source_revision": revision,
                     "context_bytes": len(packet_text.encode("utf-8")),
+                    "source_packet_ids": packet_ids,
+                    "source_freshness": freshness,
                     "context_tokens": "not_exposed_by_public_job_result",
                     "model_turns": "not_exposed_by_public_job_result",
                     "reasoning_tokens": "not_exposed_by_public_job_result",
@@ -287,7 +375,8 @@ def _execute(root: Path) -> dict[str, Any]:
             end = min(started + MAX_WALL_SECONDS, preparation_started + 25)
             last = {"status": "pending"}
             while time.monotonic() < end:
-                tick = composition.attention_tick()
+                tick = _fixture_attention_tick(composition, repository_root=repo,
+                    access_scope=scope, control=operator.control)
                 candidates = operator.status().get("focus")
                 # The tick dispatches once stable and reconciles completed work on
                 # the following tick. The private candidate table is read only.
@@ -305,7 +394,8 @@ def _execute(root: Path) -> dict[str, Any]:
                             raise ValueError("automatic root or inquiry budget was exceeded")
                     lookup = composition.jobs.preparation_lookup(candidate["job_id"], access_scope=scope)
                     if lookup.get("status") in {"completed", "partial", "failed", "cancelled", "unavailable"}:
-                        composition.attention_tick()
+                        _fixture_attention_tick(composition, repository_root=repo,
+                            access_scope=scope, control=operator.control)
                         row = {"label": label, "status": lookup.get("status"),
                                "job_id": candidate["job_id"],
                                "elapsed_seconds": round(time.monotonic() - preparation_started, 4),
@@ -337,8 +427,10 @@ def _execute(root: Path) -> dict[str, Any]:
         first = foreground("baseline", 6, 300, False)
         if report["inquiry_count"] >= MAX_INQUIRIES:
             raise ValueError("inquiry budget exhausted before preparation")
-        focus = operator.set_focus(project="economics", text="Track fixture budget and controller changes.",
-            trusted_projects={"economics"}, trusted_root=repo, trusted_repository="fixture",
+        focus = operator.set_focus(project=SEMANTIC_PROJECT,
+            text="Track fixture budget and controller changes.",
+            trusted_projects=composition.host.projects, trusted_root=repo,
+            trusted_repository=FIXTURE_REPOSITORY_ALIAS,
             source_paths=SOURCE_PATHS, automatic_seconds=MAX_WALL_SECONDS)
         focus_id = focus["focus_id"]
         _mutate_fixture(repo, 1)
@@ -351,11 +443,14 @@ def _execute(root: Path) -> dict[str, Any]:
         foreground("refreshed_foreground", 8, 180, True)
         if report["inquiry_count"] < MAX_INQUIRIES and time.monotonic() < started + MAX_WALL_SECONDS:
             foreground("control_foreground", 8, 180, False)
-        report["source_identity"] = {"project": "economics", "repository": "fixture",
+        report["source_identity"] = {"project": SEMANTIC_PROJECT,
+            "repository": FIXTURE_REPOSITORY_ALIAS,
             "root": str(repo), "git_revision": subprocess.check_output(
                 ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
             "selected_source_paths": list(SOURCE_PATHS),
-            "foreign_env_denied": report["source_shadow_denied"]}
+            "foreign_env_denied": report["source_shadow_denied"],
+            "workspace_authority_repository":
+                ephemeral_config.workspaces[SEMANTIC_PROJECT].authority_repository}
         report["comparison"] = _compare(report["foreground"])
         report["automatic_remains_disabled"] = True
         report["result"] = _economics_result(report, first, auto1, auto2)
@@ -390,12 +485,13 @@ def _execute(root: Path) -> dict[str, Any]:
                 report["cleanup_failure"] = type(error).__name__
         if composition is not None:
             try:
+                stopped = bool(composition.close())
                 with composition.jobs._db() as db:
                     rows = db.execute("SELECT session_id,state,close_receipt FROM pa1_owned_resource_sessions "
                                       "WHERE state <> 'superseded' ORDER BY updated,session_id").fetchall()
                 report["owned_receipts"] = [{"session_id": row[0], "state": row[1],
                     "close_receipt": json.loads(row[2]) if row[2] else {}} for row in rows]
-                report["cleanup"] = {"isolated_job_service_stopped": bool(composition.close()),
+                report["cleanup"] = {"isolated_job_service_stopped": stopped,
                                       "central_supervisor_stopped": False,
                                       "isolated_state_retained": True}
             except Exception as error:
@@ -403,10 +499,6 @@ def _execute(root: Path) -> dict[str, Any]:
                                       "cleanup_error": type(error).__name__,
                                       "central_supervisor_stopped": False}
         attention_module.MAX_RESERVED_TURNS = original_turn_cap
-        if previous_xdg is None:
-            os.environ.pop("XDG_CONFIG_HOME", None)
-        else:
-            os.environ["XDG_CONFIG_HOME"] = previous_xdg
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)
 
 

@@ -29,5 +29,32 @@
     "automatic_reserved_turns_max": 12,
     "stop_rule": "Stop new admissions after two failures of the same class; stop on safety/authority/provenance regression. No further recovery allowance without a new concrete hypothesis."
   },
-  "end_state": "Automatic work off unless measured economics passes. Verified release of all qualification-owned models, experiment lease and processes; no background inference. Preserve all historical attempts and durable workspace state."
+  "end_state": "Automatic work off unless measured economics passes. Verified release of all qualification-owned models, experiment lease and processes; no background inference. Preserve all historical attempts and durable workspace state.",
+  "public_fixture_recovery": {
+    "observed_failure": "baseline-r5 admitted 2 public inquiries; real models ran but public responses were freshness_unverifiable. Remaining cases stopped.",
+    "exact_cause": "The harness used catalog scope. Model command observations then lacked durable source provenance and expired immediately; cited command packets failed execution or mount checks.",
+    "hypothesis": "Actual project scope and supported read packets with current authority/file dependencies will make source-backed public results available without weakening freshness or injecting assessor answers.",
+    "additional_recovery_allowance_inquiries": 2,
+    "total_initial_cap_including_all_failed_inquiries": 18,
+    "retained_failed_public_inquiries": 6,
+    "successful_comparison_extension_and_economics_cap": 12,
+    "execution_wall_allocations_seconds": {
+      "historical_failed_residency_attempt": 44.7,
+      "historical_source_scope_attempt": 194.9,
+      "remaining_baseline": 260,
+      "extension": 180,
+      "economics": 120
+    },
+    "total_max_active_execution_seconds": 799.6,
+    "stop_rule": "After another pair of same-class failures, stop that branch and retain negative evidence; do not relabel private findings as public freshness-qualified results."
+  },
+  "owned_release_recovery": {
+    "observed_failure": "Todo runtime identity was used to locate the receiver manifest; it has no receiver root.",
+    "hypothesis": "Separate verified receiver identity/root from Todo identity/context while preserving imported-origin, manifest, source, runtime and exact close-receipt checks.",
+    "old_epoch_recovery": "One exact tracked slot released with daemon physical proof; second close capability was unavailable. Normal owned-daemon shutdown cleared remaining model and native lease; preserve partial release attempt rather than forge two-target proof.",
+    "final_candidate": "Rebuild with permanent receiver identity fix before final qualification.",
+    "capability_lifetime_failure": "A bound turn in slot B cleared every closed capability, including unrelated closed slot A; no TTL was involved.",
+    "capability_lifetime_fix": "Invalidate only the exact borrowed slot after validated bound turn admission; anonymous turns and packet analysis conservatively invalidate globally only on actual slot use.",
+    "identity_guard": "Daemon status fingerprint must match Todo runtime context hash; receiver import and source hash independently match receiver manifest. These fingerprints are not interchangeable."
+  }
 }

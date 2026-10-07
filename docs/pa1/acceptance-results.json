@@ -1,0 +1,2600 @@
+{
+  "attempt_accounting": {
+    "economics_max_inquiries": 6,
+    "economics_max_seconds": 120,
+    "failed_inquiry_split": {
+      "owned_residency_recovery": 4,
+      "public_source_scope": 2
+    },
+    "held_out_max_inquiries": 4,
+    "held_out_wall_seconds": 300,
+    "historical_failed_initial_inquiries": 6,
+    "initial_wall_seconds": 900,
+    "maximum_active_execution_seconds": 799.6,
+    "maximum_initial_total_including_failures": 18,
+    "maximum_parallel_model_executions": 2,
+    "remaining_additional_recovery_allowance_inquiries": 2,
+    "sha256": "ea5e7eaec27d5f0c3481bb7698882256ad0925d16324e665b097baf90bc5e3fd",
+    "source": "docs/pa1/live-recovery-plan.json",
+    "successful_comparison_extension_and_economics_cap": 12,
+    "warning": "Snapshot from root-owned recovery plan; re-fetch before further admission."
+  },
+  "case_status_counts": {
+    "cpu_covered_source_scenarios": 16,
+    "cpu_partial": 14,
+    "cpu_unrun": 1,
+    "live_gpu_unqualified": 3,
+    "live_model_unqualified": 5,
+    "sandbox_covered": 1
+  },
+  "cases": [
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "Receiver identity and source-mode isolation are tested: source manifests are validated; ambient supplier modules, root overrides, stale manifests and preloaded modules fail closed. The FastLoop harness also binds imports to repository source and isolates job/packet databases under a temporary directory. The combined tests do not execute the exact acceptance setup with an installed sibling plus all broker/cache/artifact isolation checks in one trial.",
+      "expected": "Imported module paths and content hashes identify the candidate; broker/cache/artifacts are isolated; no production change.",
+      "final_acceptance": "pending_root_review",
+      "id": "A01",
+      "mandatory": true,
+      "owner": "PC-PA1-FAST",
+      "remaining_gap": "No single case receipt combines an installed sibling, candidate path/hash proof, broker/cache/artifact isolation, and no-production-change sentinel. Does not establish installed runtime identity.",
+      "setup": "Run the source-mode harness with an installed sibling present.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+          "src/project_control/assistance/lab_snapshot.py": "296230d657fa237af416c493bd384b4aaacc6d0830f19ca31cc28ec33316f7a7",
+          "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Manifest source identity is read without importing the runtime.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_source_identity_validates_receiver_manifest_without_importing_runtime"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Only the checked receiver root is exposed.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_binding_exposes_only_the_checked_root_without_importing_runtime"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Ambient supplier root is rejected.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_ambient_supplier_module_is_rejected_without_mixing_roots"
+          },
+          {
+            "path": "tests/assistance/test_fast_loop.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Actual JobService uses private temporary SQLite and each imported module path/hash is checked against repository source.",
+            "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+            "test": "test_runs_actual_job_service_with_private_sqlite_and_source_identity"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Candidate source, not ambient deployment"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "The source-mode FastLoop drives the actual JobService/SQLite controller using scripted observations; visible replay contains only worker request, accepted observation and worker result, with no hidden reasoning. Citation validator tests reject forged/stale/out-of-root excerpts. The exact combined context/legal-citation/refusal scenario is not one end-to-end case.",
+      "expected": "Correct context, legal citations and refusal paths are checked without model inference; no claim of model quality.",
+      "final_acceptance": "pending_root_review",
+      "id": "A02",
+      "mandatory": true,
+      "owner": "PC-PA1-FAST",
+      "remaining_gap": "Scripted providers do not test model answer quality; no single replay covers all required context, legal citations, and refusal branches together.",
+      "setup": "Replay fixed visible calls/observations through production controller code.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_fast_loop.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Scripted source observation and completion traverse actual JobService; inference/backend/production state are false.",
+            "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+            "test": "test_runs_actual_job_service_with_private_sqlite_and_source_identity"
+          },
+          {
+            "path": "tests/assistance/test_fast_loop.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Checks exact public event sequence, excludes hidden-reasoning fields, and retains source path.",
+            "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+            "test": "test_visible_replay_contains_only_public_events_and_no_hidden_reasoning"
+          },
+          {
+            "path": "tests/assistance/test_quality.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Valid source excerpt completes; forged citation fails validation.",
+            "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+            "test": "test_citation_requires_real_excerpt_current_hash_and_in_root_source"
+          },
+          {
+            "path": "tests/assistance/test_quality.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Instruction-like fixture content yields unqualified/no policy-execution proof.",
+            "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+            "test": "test_suspicious_source_instruction_does_not_grant_authority"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Replay is real orchestration, not fake product logic"
+    },
+    {
+      "evidence_status": "not_qualified",
+      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "expected": "Record unchanged server identity and no full release rebuild; isolated trial state and actual effective budgets.",
+      "final_acceptance": "pending_root_review",
+      "id": "A03",
+      "mandatory": true,
+      "owner": "PC-PA1-FAST",
+      "recovery_attempts": [
+        {
+          "attempt": "baseline-r4",
+          "inquiries_attempted": 4,
+          "model_processes_started": 0,
+          "result": "owned_residency_recovery_blocked: orphan_marker_identity_mismatch"
+        },
+        {
+          "attempt": "baseline-r5",
+          "inquiries_attempted": 2,
+          "model_processes_started": true,
+          "result": "responses freshness_unverifiable; no package case accepted"
+        }
+      ],
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Use an exclusively leased compatible real evaluation server for baseline and request-policy variants.",
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_model",
+      "title": "Request-only variants keep weights warm"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "Failure classification, finite case/entry/wall budgets, and the two-consecutive-non-improvement stop rule are directly asserted by source-mode evaluation tests.",
+      "expected": "Each failure is classified correctly; finite branch/case budget and two non-improving-iteration stop are enforced in the evaluation workflow.",
+      "final_acceptance": "pending_root_review",
+      "id": "A04",
+      "mandatory": true,
+      "owner": "PC-PA1-FAST",
+      "remaining_gap": "Source-proof, timeout/deadline, unknown failure-layer, finite-cap, and two-nonimprovement stop behaviors are asserted; the protocol-failure injection/classification branch named in the acceptance setup is not explicit in this receipt.",
+      "setup": "Inject protocol, source-proof, timeout and non-improving quality cases.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/evaluation.py": "c229b8ee9db614bd284b5d2e61d58eb6afd7440d5e702bdfffd7f75b487a9ba2",
+          "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_fast_loop.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Deadline exhaustion classifies empty and evidence-bearing outcomes separately.",
+            "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+            "test": "test_deadline_exhaustion_classifies_empty_and_evidence_bearing_results"
+          },
+          {
+            "path": "tests/assistance/test_fast_loop.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Case and entry caps reject excess records.",
+            "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+            "test": "test_experiment_ledger_enforces_declared_entry_and_case_caps"
+          },
+          {
+            "path": "tests/assistance/test_fast_loop.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Branch stops on second successive non-improving score.",
+            "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+            "test": "test_experiment_ledger_stops_branch_after_two_non_improving_scores"
+          },
+          {
+            "path": "tests/assistance/test_fast_loop.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Unknown failure layer is rejected.",
+            "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+            "test": "test_unknown_failure_layer_is_rejected"
+          },
+          {
+            "path": "tests/assistance/test_quality.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Evaluator shares ledger and rejects third attempt after two misses.",
+            "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+            "test": "test_evaluator_shared_ledger_stops_before_third_nonimproving_trial"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S13",
+        "S15",
+        "S22",
+        "S23",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Layer-specific failure diagnosis and stop rule"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "A bounded supplier-to-receiver handoff exists and consumer tests bind the trusted observer and worker factories to the verified canonical receiver namespace.",
+      "expected": "Hashed bounded handoff identifies preserved independent kernel/interlock/domain ownership and proposed compatibility seam.",
+      "final_acceptance": "pending_root_review",
+      "id": "A05",
+      "mandatory": true,
+      "owner": "SK-PA1-HANDOFF",
+      "remaining_gap": "The handoff is historical and bound to an earlier receiver manifest; current active-edit inventory, independent kernel/interlock/domain ownership, and the proposed compatibility seam need fresh hashed handoff evidence.",
+      "setup": "Enumerate runtime imports, policies, test/qualification entry points and active edits.",
+      "source_cpu_digest": {
+        "document_evidence": [
+          {
+            "path": "docs/pa1/handoffs/skills-retire-to-pc-qualify.json",
+            "scenario_assertions": "Historical supplier/consumer transition; scope explicitly says current QUALIFY must reverify receiver.",
+            "sha256": "f4da4bf1938fa9dae967c45c147ed9d8a2c8b079915612b1a41df04d6c8fdf1a"
+          }
+        ],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {},
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_runtime_consumers.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Factory digest equals receiver manifest entry and root/path/runtime identity.",
+            "source_sha256": "94e61c61381d2dca0be684bab182f421179f154cac3e9dfd53f182c9242dca6f",
+            "test": "test_trusted_observer_factory_uses_receiver_manifest_and_observer_digest"
+          },
+          {
+            "path": "tests/assistance/test_runtime_consumers.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Supervisor/worker imports resolve below the checked receiver; foreign namespace absent.",
+            "source_sha256": "94e61c61381d2dca0be684bab182f421179f154cac3e9dfd53f182c9242dca6f",
+            "test": "test_worker_factory_imports_only_the_canonical_receiver_namespace"
+          }
+        ]
+      },
+      "sources": [
+        "S08",
+        "S09",
+        "S10",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Supplier dependency and consumer inventory"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "Parity tests exercise supplier and receiver policy imports against the same fixture; import-order tests ensure package/job-service imports converge without an import cycle.",
+      "expected": "One canonical implementation and one owner; no duplicate pool, import cycle or permission widening.",
+      "final_acceptance": "pending_root_review",
+      "id": "A06",
+      "mandatory": true,
+      "owner": "PC-PA1-RUNTIME",
+      "remaining_gap": "Shared policy fixture and import-order/canonical namespace checks cover parity and import cycles, but no old-compatibility/new-receiver protocol exchange is replayed through the same protocol fixture, and no direct duplicate-pool assertion is cited.",
+      "setup": "Exercise old compatibility imports and new receiver imports against the same fake/real protocol fixtures.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Supplier/receiver policy behavior is compared on a shared fixture.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_supplier_and_receiver_policy_imports_match_on_the_same_fixture"
+          },
+          {
+            "path": "tests/assistance/test_package_imports.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Fresh process supports JobService-first import order.",
+            "source_sha256": "928fc46d33e477629a1f52acdc7d9a1d19b1fba9b5818a84bca639a0b4b49668",
+            "test": "test_job_service_import_first_then_package_exports_in_fresh_process"
+          },
+          {
+            "path": "tests/assistance/test_package_imports.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Fresh process supports package-export-first import order.",
+            "source_sha256": "928fc46d33e477629a1f52acdc7d9a1d19b1fba9b5818a84bca639a0b4b49668",
+            "test": "test_package_exports_first_then_job_service_import_in_fresh_process"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Transferred receiver inventory/layout stays exact.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_receiver_manifest_preserves_transferred_supplier_files_and_layout"
+          }
+        ]
+      },
+      "sources": [
+        "S01",
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S23"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "One implementation, baseline protocol parity"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Source/release binding rejects absent or stale release identity, changed source, ambient supplier modules, root overrides, and cached modules after manifest refresh.",
+      "expected": "Fail closed or park before dispatch; no relaxation of production identity for source-mode convenience.",
+      "final_acceptance": "pending_root_review",
+      "id": "A07",
+      "mandatory": true,
+      "owner": "PC-PA1-RUNTIME",
+      "remaining_gap": "Identity/refusal behavior is source-test evidence, not an installed-release acceptance or live dispatch exercise.",
+      "setup": "Present absent, stale or ambient runtime packages/manifests.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Missing/stale install binding fails closed.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_stale_or_missing_installed_release_binding_fails_closed"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Non-checkout install requires digest pin.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_non_checkout_install_requires_a_digest_pinned_release_manifest"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Modified source is rejected before binding.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_modified_receiver_file_is_rejected_before_binding"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Mixed ambient root rejected.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_ambient_supplier_module_is_rejected_without_mixing_roots"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Stale imported modules rejected after manifest change.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_cached_modules_are_rejected_after_same_root_manifest_refresh"
+          }
+        ]
+      },
+      "sources": [
+        "S01",
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S23"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Release identity and incompatible source binding"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "Public delegated/coding mutation paths are denied in the CLI; runtime consumers bind only the canonical receiver. Existing transition record provides inactive delegation context.",
+      "expected": "Consumers resolve agreed runtime; dormant delegate tools remain absent and denied unless separately approved.",
+      "final_acceptance": "pending_root_review",
+      "id": "A08",
+      "mandatory": true,
+      "owner": "SK-PA1-RETIRE",
+      "remaining_gap": "No exact current run exercises both CUDA qualification and native-maintenance adapters plus observer/coder/mutator public tool counts together; no device work is covered.",
+      "setup": "Exercise updated CUDA qualification/native-maintenance adapters and public tool guards.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+          "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_inactive_coding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "CLI blocks coding/mutation before handler execution.",
+            "source_sha256": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+            "test": "test_actual_cli_main_denies_coding_and_mutation_before_handlers"
+          },
+          {
+            "path": "tests/assistance/test_runtime_consumers.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Worker factory uses canonical receiver namespace.",
+            "source_sha256": "94e61c61381d2dca0be684bab182f421179f154cac3e9dfd53f182c9242dca6f",
+            "test": "test_worker_factory_imports_only_the_canonical_receiver_namespace"
+          }
+        ]
+      },
+      "sources": [
+        "S08",
+        "S09",
+        "S14",
+        "S15",
+        "S19",
+        "S23"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Preserved consumers and explicit inactive delegation"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Actual JobService starts two parents, suspends/releases both parent slots, runs two children concurrently in the two slots while six public roots exist, then resumes each parent with only its own child result and source provenance.",
+      "expected": "Both parent leases are released; children run within two slots; each parent resumes from its own results without deadlock.",
+      "final_acceptance": "pending_root_review",
+      "id": "A09",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "remaining_gap": "Uses scripted CPU workers and temporary source files; this is source scheduling/provenance coverage only.",
+      "setup": "Run two parents that each request bounded dependent work.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_frames.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Checks two child starts, both parent slots absent, child frames running, two active slots, six public roots, per-parent scoped result, no hidden reasoning, and parent resumes after its own child.",
+            "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+            "test": "test_two_parents_release_before_children_and_children_run_in_two_slots"
+          }
+        ]
+      },
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Two parents, two children, two slots"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "A child terminal result is persisted while parent wake is suppressed, service is reopened, reconciliation recovers the exact parent, duplicate wake calls are delivered, and one durable wake is consumed once.",
+      "expected": "Reconciliation wakes the exact parent generation once; result cannot be lost or committed twice.",
+      "final_acceptance": "pending_root_review",
+      "id": "A10",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "remaining_gap": "Simulated lost notification/restart; no process crash or real service restart.",
+      "setup": "Complete child around parent wait registration; deliver terminal event twice.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_frames.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Fresh JobService reopens same databases, parent resumes once, wake version/consumed tuple is (1,1), and answer is stable.",
+            "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+            "test": "test_restart_reconciles_lost_wake_and_duplicate_delivery_once"
+          },
+          {
+            "path": "tests/assistance/test_frame_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Store reconciliation and duplicate terminal delivery are idempotent.",
+            "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+            "test": "test_lost_wake_reconciliation_and_duplicate_terminal_delivery"
+          }
+        ]
+      },
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Lost wake-up and duplicate delivery"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Frame store refuses cycle/scope/deadline violations, exhausted child credits, a third descendant depth, and global private-frame overflow; actual JobService test also exercises bounded descendant dispatch.",
+      "expected": "Refuse boundedly without consuming all admission capacity or losing accepted foreground roots.",
+      "final_acceptance": "pending_root_review",
+      "id": "A11",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "remaining_gap": "Fixture-level admission only; no contention measurement on an installed service.",
+      "setup": "Submit self/cyclic waits and attempts to exceed internal credits/depth.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_frame_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Asserts invalid waits refuse, credits remain spent, descendants stop at depth limit, and capacity bounds hold.",
+            "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+            "test": "test_scope_deadline_cycle_credit_depth_and_global_capacity_fail_closed"
+          },
+          {
+            "path": "tests/assistance/test_frame_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Eight roots fill private capacity; ninth root cannot add another child.",
+            "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+            "test": "test_global_private_frame_limit_spans_roots"
+          },
+          {
+            "path": "tests/assistance/test_frames.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Actual JobService path bounds descendant depth.",
+            "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+            "test": "test_private_descendant_depth_is_bounded_by_actual_job_service"
+          }
+        ]
+      },
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Cycle and descendant bounds"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "With fake time, two real JobService worker threads block past inquiry deadlines; watchdog terminalizes public work while physical slots stay occupied, retries keep original deadline, and late results cannot replace terminal state.",
+      "expected": "Public inquiry terminalizes within watchdog grace from retained evidence; cleanup remains accounted until verified; retries do not extend expiry.",
+      "final_acceptance": "pending_root_review",
+      "id": "A12",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "remaining_gap": "Deadline advancement is fake-clock and the workers are scripted CPU fixtures.",
+      "setup": "Block model/transport/tool or cleanup beyond the inquiry deadline using fake time.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_frames.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Checks terminal status, retained slot/active backend, same retry identity/deadline, verified cleanup before slot release, and late-result fence.",
+            "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+            "test": "test_independent_watchdog_expires_two_blocked_workers_without_releasing_slots"
+          },
+          {
+            "path": "tests/assistance/test_worker_slices.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Expired deadline rejects dispatch.",
+            "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+            "test": "test_expired_deadline_is_terminal_and_does_not_call_backend"
+          }
+        ]
+      },
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Public expiry independent of blocked execution"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "One interrupted outbox window and logical restart, not actual OS crash or every before/after checkpoint window; supersession and late-child generation interleavings remain uncovered.",
+        "observed": {
+          "interrupted_outbox_put": "OSError after accepted observation committed",
+          "late_finish": "False after production cancel; cancelled frame/public answer unchanged",
+          "restart": "fresh JobService instance reconciles same packet ID and checkpoint"
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_frames.py",
+            "sha256": "6e1847366d232018ed9107ef55db88de0a7a5fd5b7e300344913097b58509712",
+            "tests": [
+              "test_restart_replays_unmaterialized_outbox_around_checkpoint",
+              "test_cancel_fences_a_late_attempt_from_current_frame_and_public_result"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "partial",
+      "evidence_summary": "Focused controller test adds an outbox-put interruption after accepted observation, logical restart/reconciliation, and cancellation fence against late finish.",
+      "expected": "Resume only accepted visible state; late attempts cannot update current results or authority.",
+      "final_acceptance": "pending_root_review",
+      "id": "A13",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "remaining_gap": "Does not cover actual OS crash or every before/after checkpoint/outbox window and supersession interleavings.",
+      "setup": "Crash before/after checkpoint or outbox materialization, then supersede/cancel parent.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_frames.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Simulates committed child plus lost wake and service reopen.",
+            "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+            "test": "test_restart_reconciles_lost_wake_and_duplicate_delivery_once"
+          },
+          {
+            "path": "tests/assistance/test_frame_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Stale frame generation is rejected.",
+            "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+            "test": "test_cumulative_turns_and_stale_generation_are_fenced"
+          },
+          {
+            "path": "tests/assistance/test_frame_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Cancelled parent does not resurrect and late work is charged.",
+            "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+            "test": "test_cancelled_parent_ack_cleans_without_resurrection_and_late_turn_is_charged"
+          },
+          {
+            "path": "tests/assistance/test_worker_slices.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Late generation output is rejected.",
+            "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+            "test": "test_generation_fence_rejects_late_model_result"
+          }
+        ]
+      },
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Restart and late generation fence"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "Private DB fixtures establish suspended/running state. Child claim is proven; child completion, multiple suspended parents, starvation and combined automatic/reserved foreground sequence remain uncovered.",
+        "observed": {
+          "eligible_private_child": "production claim reserves slot while parent remains suspended",
+          "public_roots": 6,
+          "seventh_root": "admission_limit",
+          "suspended_parents": 1
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_frames.py",
+            "sha256": "6e1847366d232018ed9107ef55db88de0a7a5fd5b7e300344913097b58509712",
+            "tests": [
+              "test_saturated_public_roots_keep_suspended_parent_and_allow_child_dispatch"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "partial",
+      "evidence_summary": "Saturated six-root fixture retains a suspended parent, refuses seventh public root and dispatches an eligible private child.",
+      "expected": "Existing public busy meaning retained; bounded child credits allow progress; automatic work cannot consume reserved demand admission.",
+      "final_acceptance": "pending_root_review",
+      "id": "A14",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "remaining_gap": "Child completion, multiple suspended parents, starvation and automatic-plus-reserved-demand combined sequence remain uncovered.",
+      "setup": "Fill public capacity with roots including suspended work, then add eligible internal dependencies and foreground demand.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301",
+          "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_frames.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Runs two suspended roots and children; six public roots coexist with two active execution slots.",
+            "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+            "test": "test_two_parents_release_before_children_and_children_run_in_two_slots"
+          },
+          {
+            "path": "tests/assistance/test_frame_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Private child capacity is bounded across roots.",
+            "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+            "test": "test_global_private_frame_limit_spans_roots"
+          },
+          {
+            "path": "tests/assistance/test_power.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Explicit demand stays admissible during quiet.",
+            "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+            "test": "test_quiet_suppresses_automatic_work_but_explicit_public_demand_runs"
+          },
+          {
+            "path": "tests/assistance/test_automatic_broker.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Automatic work shares one slot and public demand uses the second.",
+            "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+            "test": "test_automatic_descendant_shares_one_auto_slot_and_demand_uses_second"
+          }
+        ]
+      },
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Busy admission, internal children and starvation"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "Worker and broker tests bind trusted policy IDs/scopes to individual frame and automatic work, and prevent dependency scope widening.",
+      "expected": "Actual policy/visible context is frame-specific; no shared-global setter race, hidden-state dependence or source leakage.",
+      "final_acceptance": "pending_root_review",
+      "id": "A15",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "remaining_gap": "No explicit concurrent test alternates two frames with different policies and disjoint source sets to expose a shared-global setter race or hidden-state dependence.",
+      "setup": "Alternate two frames with different permitted policies and disjoint source sets.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301",
+          "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_frames.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Two projects retain distinct child scope/policy and parent-specific results.",
+            "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+            "test": "test_two_parents_release_before_children_and_children_run_in_two_slots"
+          },
+          {
+            "path": "tests/assistance/test_worker_slices.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Trusted policy ID is validated; raw budget override is rejected.",
+            "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+            "test": "test_trusted_policy_id_is_validated_and_sent_without_raw_budget_overrides"
+          },
+          {
+            "path": "tests/assistance/test_automatic_broker.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Automatic frame dependency scope remains sealed.",
+            "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+            "test": "test_automatic_scope_is_sealed_from_dependencies_and_fails_closed"
+          }
+        ]
+      },
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Frame-local budgets and isolation"
+    },
+    {
+      "evidence_status": "not_qualified",
+      "evidence_summary": "An owned resource binding recovery has scoped tests and one actual released-slot proof; it does not measure cooperative versus full eviction delay in the acceptance scenario.",
+      "expected": "Measured bounded cooperative delay is reported; no false instant release; owned-process quiescence precedes GPU handoff.",
+      "final_acceptance": "pending_root_review",
+      "id": "A16",
+      "mandatory": true,
+      "owner": "PC-PA1-FRAMES",
+      "recovery_attempts": [
+        {
+          "proof_path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r5/release-verified-binding-recovery-r1.json",
+          "receipt": "docs/pa1/owned-release-binding-validation.json",
+          "second_slot": "stale capability; ordinary owned daemon shutdown, no forged public acknowledgement",
+          "sha256": "85cdd7406479ace8cdb68cd8e0a3a9e3005f795b42d5ba6bbea5cc21640ac3a8",
+          "subtests_passed": 20,
+          "tests_passed": 23
+        }
+      ],
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Request foreground work and GPU release while a model turn is active.",
+      "sources": [
+        "S04",
+        "S05",
+        "S13",
+        "S14",
+        "S15",
+        "S17",
+        "S18"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_gpu",
+      "title": "Cooperative and full eviction are distinct"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Per-record freshness tests invalidate changed determinants while an unrelated HEAD change alone stays current; source deletion and partial coverage are explicit.",
+      "expected": "Relevant determinants invalidate; unrelated HEAD change alone does not; deleted/renamed inputs and partial coverage remain explicit.",
+      "final_acceptance": "pending_root_review",
+      "id": "A17",
+      "mandatory": true,
+      "owner": "PC-PA1-KNOWLEDGE",
+      "remaining_gap": "Source/config mutation uses controlled test fixtures, not live repositories.",
+      "setup": "Create a note, then change a relevant source/config and an unrelated file separately.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_knowledge_provider.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Relevant record determinants control freshness; unrelated HEAD is ignored.",
+            "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+            "test": "test_material_determinants_are_per_record_and_head_is_irrelevant"
+          },
+          {
+            "path": "tests/assistance/test_knowledge.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Relevant file changes stale the note; denial/symlink is not bypassed.",
+            "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+            "test": "test_material_file_change_marks_note_stale_and_deny_or_symlink_is_not_bypassed"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_provider.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Deleted/unmapped source does not become evidence.",
+            "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+            "test": "test_source_deletion_and_absent_material_map_do_not_turn_into_proof"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_provider.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Partial coverage is visible under bounds.",
+            "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+            "test": "test_budget_and_limit_are_honored_with_visible_partial_coverage"
+          }
+        ]
+      },
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Material freshness versus unrelated changes"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "Scripted worker/session adapter, actual JobService and packet/note SQLite stores; no model inference or production-store retention trial.",
+        "observed": {
+          "completed_distinct_public_inquiries": 52,
+          "expired_unpinned_control": "collected and lookup expired",
+          "packet_clock_advance_days": 8,
+          "recent_inquiry_index_size": 50,
+          "retained_note_source": "expired-by-TTL packet remains pinned, referenced and lookup ok after gc"
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_retention.py",
+            "sha256": "fe722dd92ab11c073cfe2b06761b105d20b97c5dd9c9745de10e186cad03a962",
+            "tests": [
+              "test_note_owned_evidence_survives_more_than_fifty_public_inquiries_and_gc"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "covered_cpu",
+      "evidence_summary": "52 distinct public inquiries plus GC; note-owned source packet remains pinned after TTL while unpinned control expires.",
+      "expected": "Note-owned supporting artifacts remain pinned or are explicitly unavailable; no orphaned authoritative-looking assertion.",
+      "final_acceptance": "pending_root_review",
+      "id": "A18",
+      "mandatory": true,
+      "owner": "PC-PA1-KNOWLEDGE",
+      "remaining_gap": null,
+      "setup": "Retain a useful note, then answer more than 50 unrelated inquiries and run retention.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_knowledge_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Note pins persist across the terminal window and independent pins are retained.",
+            "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+            "test": "test_atomic_note_pins_survive_terminal_window_and_delete_only_own_pins"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Failed note updates preserve prior note/pin state.",
+            "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+            "test": "test_failed_update_rolls_back_note_and_pin_replacement"
+          }
+        ]
+      },
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Retention outlives recent-answer window"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "Scripted backend and injected freshness classifications exercise actual public inquiry cache/controller; actual file freshness resolver and model quality are not evaluated.",
+        "observed": {
+          "empty_failure": "unavailable exact repeat with one call; freshness provider never invoked",
+          "exact_duplicate": "same job, one worker call",
+          "historical_observation": "partial freshness warning in unresolved_questions, original stdout retained, no new worker call",
+          "stale_supported_answer": "one explicit refresh with new answer",
+          "whitespace_variant": "distinct job"
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_retention.py",
+            "sha256": "fe722dd92ab11c073cfe2b06761b105d20b97c5dd9c9745de10e186cad03a962",
+            "tests": [
+              "test_exact_identity_whitespace_refresh_historical_warning_and_negative_cache"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "covered_cpu",
+      "evidence_summary": "Exact repeat coalesces, whitespace variant differs, stale answer refreshes once, historical answer retains freshness warning, empty failure remains negatively cached without freshness-provider call.",
+      "expected": "Exact identity and negative-cache semantics preserved; historical evidence carries freshness warning in unresolved_questions.",
+      "final_acceptance": "pending_root_review",
+      "id": "A19",
+      "mandatory": true,
+      "owner": "PC-PA1-KNOWLEDGE",
+      "remaining_gap": null,
+      "setup": "Repeat identical and whitespace-varied questions; refresh a stale supported answer and an empty failure.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_knowledge.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Typed exact routing and request identity remain unchanged.",
+            "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+            "test": "test_typed_exact_routing_and_existing_request_identity_are_unchanged"
+          },
+          {
+            "path": "tests/assistance/test_knowledge.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Retrieved notes stay advisory.",
+            "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+            "test": "test_search_and_evidence_return_shared_packet_store_notes_as_advisory"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_provider.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Unavailable material does not become proof.",
+            "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+            "test": "test_source_deletion_and_absent_material_map_do_not_turn_into_proof"
+          }
+        ]
+      },
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Exact public cache and historical warning"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "No bounded forced skill-context compaction/re-fetch driver was exercised. Existing worker-slice/provenance tests do not substitute for the requested pressure scenario.",
+        "observed": {},
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": []
+      },
+      "evidence_status": "unrun",
+      "evidence_summary": "Current CPU supplement explicitly records the requested compaction/re-fetch scenario as uncovered.",
+      "expected": "Retain required proof or re-fetch valid references; omitted/unread/truncated evidence cannot support selected excerpts.",
+      "final_acceptance": "pending_root_review",
+      "id": "A20",
+      "mandatory": true,
+      "owner": "PC-PA1-KNOWLEDGE",
+      "remaining_gap": null,
+      "setup": "Force bounded context pressure after reading skill entry and decisive resources.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_worker_slices.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Entry and selected source proof are retained over four slices.",
+            "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+            "test": "test_skill_entry_and_selected_source_proof_survive_four_slices"
+          },
+          {
+            "path": "tests/assistance/test_knowledge.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Truncation/limits result in visible partial coverage.",
+            "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+            "test": "test_budget_and_limit_are_honored_with_visible_partial_coverage"
+          }
+        ]
+      },
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Foundational evidence survives compaction"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "No direct attempted automatic canonical-publication endpoint was exercised; tested surface exposes unpromoted review candidates and advisory notes only. This does not complete the direct-denial acceptance branch.",
+        "observed": {
+          "LAB_candidate": "unpromoted, canonical_applied false, todo_mutated false",
+          "model_note": "original provenance retained, independent_proof false, authoritative false"
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_boundaries.py",
+            "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+            "tests": [
+              "test_a21_model_repetition_stays_advisory_and_candidate_unpromoted"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "partial",
+      "evidence_summary": "Boundary test confirms model repetition remains advisory and candidate remains unpromoted; LAB candidate reports canonical_applied=false and todo_mutated=false.",
+      "expected": "Original provenance remains visible; model repetition is not new proof; publication is denied without current canonical capability.",
+      "final_acceptance": "pending_root_review",
+      "id": "A21",
+      "mandatory": true,
+      "owner": "PC-PA1-KNOWLEDGE",
+      "remaining_gap": "No direct attempted automatic canonical-publication endpoint with absent current canonical capability.",
+      "setup": "Feed model-produced notes and request automatic canonical publication.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_knowledge_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Evidence must refer to original matching packet; prepared context is not proof.",
+            "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+            "test": "test_source_test_require_original_matching_packet_and_prepared_context_is_not_evidence"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Integrated preparation shape is rejected as authority.",
+            "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+            "test": "test_integrated_prepared_context_packet_shape_is_rejected_but_original_notes_are_allowed"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_store.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Model note cannot claim authority; limits are explicit.",
+            "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+            "test": "test_model_notes_cannot_claim_authority_and_record_limits_are_explicit"
+          }
+        ]
+      },
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "No self-corroboration or canonical impersonation"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Per-project source identity and freshness are retained across registered projects; unauthorized/inaccessible segments remain explicit and partial coverage is not promoted to global atomicity.",
+      "expected": "Per-project identity/freshness preserved; unavailable segment explicit; no global atomic-snapshot or inferred-access claim.",
+      "final_acceptance": "pending_root_review",
+      "id": "A22",
+      "mandatory": true,
+      "owner": "PC-PA1-KNOWLEDGE",
+      "remaining_gap": "Uses registered and fixture projects; no claim of global atomic snapshot.",
+      "setup": "Retrieve evidence from multiple registered projects and one unauthorized or unresolved project.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_knowledge.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Cross-project results preserve identity and partial status.",
+            "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+            "test": "test_cross_project_source_freshness_keeps_project_identity_and_partial_coverage"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_provider.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Unauthorized/inaccessible source is explicit.",
+            "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+            "test": "test_scope_denial_and_inaccessible_material_are_explicit"
+          },
+          {
+            "path": "tests/assistance/test_knowledge_provider.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Actual SQLite store preserves cross-project identity/freshness.",
+            "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+            "test": "test_actual_store_cross_project_source_freshness_keeps_project_identity"
+          }
+        ]
+      },
+      "sources": [
+        "S05",
+        "S06",
+        "S07",
+        "S19",
+        "S20",
+        "S25"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Trusted cross-project access"
+    },
+    {
+      "evidence_status": "not_qualified",
+      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "expected": "One coalesced relevant preparation is reused or refreshed; answer gives source-backed decision help rather than generic summary.",
+      "final_acceptance": "pending_root_review",
+      "id": "A23",
+      "mandatory": true,
+      "owner": "PC-PA1-ASSIST",
+      "recovery_attempts": [
+        {
+          "attempt": "baseline-r4",
+          "inquiries_attempted": 4,
+          "model_processes_started": 0,
+          "result": "owned_residency_recovery_blocked: orphan_marker_identity_mismatch"
+        },
+        {
+          "attempt": "baseline-r5",
+          "inquiries_attempted": 2,
+          "model_processes_started": true,
+          "result": "public responses freshness_unverifiable; no bounded change-shadowing usefulness scenario accepted"
+        }
+      ],
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Enable a bounded focus, mutate disposable source through a scripted external-agent sequence, then ask a relevant question.",
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_model",
+      "title": "Change shadowing gives useful prepared context"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "No focus/default or unchanged-state trigger dispatches by default; edit bursts coalesce, broker roots are private, and completed output is rechecked before retaining original evidence.",
+      "expected": "No model calls for unchanged inputs; no note-triggered investigation loop; edit burst coalesces within caps.",
+      "final_acceptance": "pending_root_review",
+      "id": "A24",
+      "mandatory": true,
+      "owner": "PC-PA1-ASSIST",
+      "remaining_gap": "The no-change poll + generated notes/logs + edit burst acceptance journey is not a single end-to-end test; no live model calls are measured.",
+      "setup": "Replay no-change polls plus generated notes/logs and an edit burst.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_attention.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Defaults/restart do not dispatch automatic work.",
+            "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+            "test": "test_focus_defaults_and_restart_reconciliation_do_not_dispatch"
+          },
+          {
+            "path": "tests/assistance/test_attention.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Burst is coalesced and waits for debounce.",
+            "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+            "test": "test_edit_burst_coalesces_and_dispatches_only_after_debounce"
+          },
+          {
+            "path": "tests/assistance/test_attention.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Completion rechecks source and stores only original packet evidence.",
+            "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+            "test": "test_broker_completion_is_rechecked_and_only_original_packets_are_written"
+          },
+          {
+            "path": "tests/assistance/test_automatic_broker.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Operational feedback does not create public evidence or recursive inquiry rows.",
+            "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+            "test": "test_protocol_feedback_is_scoped_operational_state_not_public_evidence"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Stable code and self-trigger suppression"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Fake-time tests persist quiet and focus expiry across restart, enforce expiry and quiet in separate orders, and confirm expired focus cannot resurrect work.",
+      "expected": "Automatic roots and descendants remain blocked as required; expired focus never resurrects; explicit demand and status behavior remains clear.",
+      "final_acceptance": "pending_root_review",
+      "id": "A25",
+      "mandatory": true,
+      "owner": "PC-PA1-ASSIST",
+      "remaining_gap": "Fake clock/store tests; no persistent production watcher or service behavior claimed.",
+      "setup": "Enable a window, quiet until a time, restart and advance time past both expiries in different orders.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+          "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_attention.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Expired focus/quiet/release veto block automatic dispatch.",
+            "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+            "test": "test_focus_expiry_quiet_and_release_veto_block_dispatch"
+          },
+          {
+            "path": "tests/assistance/test_power.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Quiet expiry survives restart and focus cannot undo veto.",
+            "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+            "test": "test_quiet_expiry_is_persisted_and_focus_cannot_resurrect_it"
+          },
+          {
+            "path": "tests/assistance/test_attention.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Restart reconciliation stays cold.",
+            "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+            "test": "test_focus_defaults_and_restart_reconciliation_do_not_dispatch"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Persistent quiet and focus expiry"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Release veto blocks automatic enqueue across status/restart/change-trigger paths while explicit demand remains separately available and requires resume or expiry before automatic resumption.",
+      "expected": "No automatic reload; demand reports required resume/permission; release veto persists until its declared end.",
+      "final_acceptance": "pending_root_review",
+      "id": "A26",
+      "mandatory": true,
+      "owner": "PC-PA1-ASSIST",
+      "remaining_gap": "Source/CPU state tests do not start, release, or observe a physical inference process and therefore do not establish live no-rewarming.",
+      "setup": "Release inference, then poll status, deliver change events, restart controller and submit demand.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+          "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_power.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Veto persists through restart/status/demand.",
+            "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+            "test": "test_release_veto_survives_restart_status_and_new_demand"
+          },
+          {
+            "path": "tests/assistance/test_automatic_broker.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Automatic enqueue refuses under release veto and expired/invalid focus.",
+            "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+            "test": "test_focus_quiet_release_expiry_and_scope_bound_each_enqueue"
+          },
+          {
+            "path": "tests/assistance/test_power.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Only declared end or explicit resume clears logical veto.",
+            "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+            "test": "test_declared_release_end_or_explicit_resume_clears_logical_veto_only"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "GPU-release veto prevents rewarming"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "No paused conversational UI or actual model idle-lease sequence was exercised.",
+        "observed": {
+          "instruction_like_source": "captured as source data with experiment selected only",
+          "raw_dict_grant": "typed source-bound LAB grant required; denied",
+          "untrusted_operator": "PermissionError before state creation"
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_boundaries.py",
+            "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+            "tests": [
+              "test_a27_instruction_like_source_cannot_mint_or_run_a_scratch_grant"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "partial",
+      "evidence_summary": "Instruction-like source stays data; only typed source-bound grant is accepted and untrusted operator is denied before state creation.",
+      "expected": "No idle model lease; typed trusted controller validates action/grant; source text cannot create authority.",
+      "final_acceptance": "pending_root_review",
+      "id": "A27",
+      "mandatory": true,
+      "owner": "PC-PA1-ASSIST",
+      "remaining_gap": "No paused conversational UI or actual model idle-lease sequence.",
+      "setup": "Pause at user input and request a scratch action using chat; include instruction-like source data.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+          "src/project_control/assistance/operator.py": "dfaf6821fc4105ffb6400030f8f57f4923e5771aa907b6c983424f9864d20b7c"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_attention_surface.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "No idle lease; opt-in queues private work.",
+            "source_sha256": "f9d7b2d3880113cd26b895fd494ee1baf8611757db54b912eb81a022fd60ff3a",
+            "test": "test_composed_attention_is_cold_until_opted_in_then_queues_private_work_without_lease"
+          },
+          {
+            "path": "tests/assistance/test_assistance.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Source prose/user goal alone do not grant automatic work.",
+            "source_sha256": "50411f745586bf331af0e5b75b3ff8531f1b311534951cea9fe4b87598900f0d",
+            "test": "test_user_goal_and_source_prose_do_not_grant_automatic_inference"
+          },
+          {
+            "path": "tests/assistance/test_inactive_coding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Untrusted action is denied before handler.",
+            "source_sha256": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+            "test": "test_actual_cli_main_denies_coding_and_mutation_before_handlers"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Nonresident conversational UI and grants"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "Trusted user goals retain priority/provenance; conflicting notes preserve original witness; dismissals suppress same finding and changed focus can nominate again.",
+      "expected": "User goal retains provenance/priority; relevant tradeoff can be surfaced; dismissals and changed focus suppress repeated nagging.",
+      "final_acceptance": "pending_root_review",
+      "id": "A28",
+      "mandatory": true,
+      "owner": "PC-PA1-ASSIST",
+      "remaining_gap": "Repetitive findings are deterministic fixture inputs; no user study or live notification quality claim.",
+      "setup": "Supply a user goal plus conflicting inferred suggestion and repetitive findings.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+          "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_knowledge_provider.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "User goal ranks first and contradiction keeps original witness.",
+            "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+            "test": "test_user_goals_rank_before_notes_and_contradictions_keep_original_witness"
+          },
+          {
+            "path": "tests/assistance/test_attention.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "User goal precedes inferred suggestion.",
+            "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+            "test": "test_user_goal_precedes_inference_and_ui_proposals_do_not_create_goals"
+          },
+          {
+            "path": "tests/assistance/test_attention.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Dismissal suppresses repeat; changed focus can nominate.",
+            "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+            "test": "test_fingerprint_dismissal_suppresses_repeat_and_changed_focus_can_nominate"
+          }
+        ]
+      },
+      "sources": [
+        "S02",
+        "S03",
+        "S07",
+        "S14",
+        "S23",
+        "O01",
+        "O02"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Goal relevance and dismissal"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "Disposable Git canonical fixture with exact sentinel comparison; no external edit race was injected and live project canonical tree was not captured while other authorized workers edited it.",
+        "observed": {
+          "capture_refusals": [
+            ".git",
+            "todos.md"
+          ],
+          "dirty_tracked_and_untracked": "both exact captured bytes retained",
+          "sentinels_unchanged": [
+            "source bytes",
+            "Todo Markdown",
+            "Todo state snapshot",
+            "Git HEAD",
+            "Git index SHA256",
+            "Git full porcelain status"
+          ]
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_boundaries.py",
+            "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+            "tests": [
+              "test_a29_dirty_and_untracked_capture_preserves_git_and_todo_sentinels"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "partial",
+      "evidence_summary": "Disposable Git fixture compares dirty tracked/untracked capture plus source, Todo Markdown/state, HEAD, index hash and porcelain sentinels; refuses .git/todo capture.",
+      "expected": "Use a consistent captured identity or defer; no reset/clean; canonical files, Git administrative state and Todo unchanged.",
+      "final_acceptance": "pending_root_review",
+      "id": "A29",
+      "mandatory": true,
+      "owner": "PC-PA1-LAB",
+      "remaining_gap": "No external edit race; no concurrent live project canonical tree capture.",
+      "setup": "Materialize tracked dirty and untracked files while an external edit races capture.",
+      "source_cpu_digest": {
+        "document_evidence": [
+          {
+            "path": "docs/pa1/lab-integration-tests.json",
+            "scenario_assertions": "Disposable fixture source unchanged; canonical fixture template unchanged; authority_mutated=false and project_control_todo_mutated=false.",
+            "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+          }
+        ],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+          "src/project_control/assistance/lab_snapshot.py": "296230d657fa237af416c493bd384b4aaacc6d0830f19ca31cc28ec33316f7a7"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_lab_snapshot.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Checks captured bytes/modes/paths/hash manifest and unchanged Git HEAD sentinel.",
+            "source_sha256": "3ff1435a5a631544786e94ca5325884ad5d24e3078c04f064909c8a5c90519ab",
+            "test": "test_captures_dirty_tracked_and_selected_untracked_with_deterministic_manifest"
+          },
+          {
+            "path": "tests/assistance/test_lab_snapshot.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Racing edit defers and removes partial destination.",
+            "source_sha256": "3ff1435a5a631544786e94ca5325884ad5d24e3078c04f064909c8a5c90519ab",
+            "test": "test_racing_edit_defers_capture_and_removes_partial_detached_copy"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Mutated/extra snapshot contents block execution.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_snapshot_mutation_and_extra_files_block_execution"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Hardlink escape rejected without sentinel mutation.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_post_selection_hardlink_in_snapshot_blocks_runner_without_sentinel_change"
+          }
+        ]
+      },
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Dirty snapshot and canonical sentinel integrity"
+    },
+    {
+      "additional_receipt": {
+        "focused_run": {
+          "argv": [
+            "scripts/pa1_source_tests.sh",
+            "-m",
+            "pytest",
+            "-q",
+            "tests/assistance/test_lab_runner.py",
+            "--tb=short"
+          ],
+          "duration_seconds": 1.016,
+          "exit_code": 0,
+          "invocation_id": "343b77e5b7a34c6fbe861da284e586e7",
+          "passed": 9,
+          "passed_subtests": 0,
+          "private_log": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/source-tests/lab-runner-swap-cap.log",
+          "private_log_sha256": "3a67b88103be509e15b57643280e2ad0ecf5ec9a9f99325e2b0c7a3fef1a36b7",
+          "resource_cap": "memory.swap.max read back as 0 before launch; callback integration test also verifies configured cpu, memory, pids, and swap controls",
+          "scope": "runner module after mandatory memory.swap.max=0 enforcement; combined suite not repeated by controller instruction",
+          "unit": "run-u35.service",
+          "updated_source_sha256": "310542628282d476841669b15c48c54c4d63f72ac590e7b4c7a9661cabb982b9",
+          "updated_test_sha256": "02d6309abf12acc35f89bad5f757ad1674310c332a6caecdb626d7e81681fa10"
+        },
+        "integration_probe": {
+          "backend": "bubblewrap+cgroup-v2",
+          "cleanup_verified": true,
+          "path": "docs/pa1/lab-integration-tests.json",
+          "resource_grant": {
+            "artifact_bytes": 67108864,
+            "cpu_cores": 1.0,
+            "memory_bytes": 1073741824,
+            "output_bytes": 65536,
+            "pids": 32,
+            "timeout_seconds": 30.0
+          },
+          "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+        },
+        "path": "docs/pa1/current-source-tests.json",
+        "runner_source_sha256": "310542628282d476841669b15c48c54c4d63f72ac590e7b4c7a9661cabb982b9",
+        "runner_test_sha256": "02d6309abf12acc35f89bad5f757ad1674310c332a6caecdb626d7e81681fa10",
+        "sha256": "2736ce9dba438f3465f344da0370f7dde4769fd1ace86a623e3ead8b5f32b697",
+        "tests": [
+          {
+            "path": "tests/assistance/test_lab_runner.py",
+            "sha256": "02d6309abf12acc35f89bad5f757ad1674310c332a6caecdb626d7e81681fa10",
+            "test": "test_real_bubblewrap_denies_host_paths_network_and_bounds_artifact_file"
+          },
+          {
+            "path": "tests/assistance/test_lab_runner.py",
+            "sha256": "02d6309abf12acc35f89bad5f757ad1674310c332a6caecdb626d7e81681fa10",
+            "test": "test_detached_descendant_is_killed_when_leader_exits"
+          }
+        ]
+      },
+      "evidence_status": "covered_sandbox",
+      "evidence_summary": "The focused runner evidence checks writes to the read-only snapshot and temporary host-secret path, visibility of /root/.ssh and /dev/nvidia0, host loopback access, artifact-size bounds, and detached-descendant cleanup.",
+      "expected": "All denied or bounded; missing containment fails closed; no host credential/device leakage.",
+      "final_acceptance": "pending_root_review",
+      "id": "A30",
+      "mandatory": true,
+      "owner": "PC-PA1-LAB",
+      "remaining_gap": "Coverage is the delegated local user cgroup/bubblewrap implementation and tested host paths/loopback; no broader external-network exchange or installed production sandbox deployment is claimed.",
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Run a disposable test attempting writes outside scratch, forbidden network, sockets, credentials and uncontrolled descendants.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "sandbox",
+      "title": "Sandbox descendants and secrets"
+    },
+    {
+      "evidence_status": "not_qualified",
+      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "expected": "New scratch odd-tail test exposes the defect with source/test evidence; no automatic canonical repair or claim baseline proves correctness.",
+      "final_acceptance": "pending_root_review",
+      "id": "A31",
+      "mandatory": true,
+      "nonqualifying_overlap": {
+        "note": "CPU fixture exposed odd-tail defect. Does not show a model generated the test; it is not A31 acceptance.",
+        "observed": {
+          "attempt_id": "attempt_338da01b75354a5e9e02e23597ae5f71",
+          "effect_id": "effect_3a7816bd080e4b88a3c45fc6dfbd490d",
+          "elapsed_ms": 86.207,
+          "expected": 10,
+          "experiment_id": "lab_cd985d884a4247549836ad9d0a81bdd9",
+          "generation": 1,
+          "hypothesis": "pair_sum must include the final unpaired item",
+          "input": [
+            2,
+            3,
+            5
+          ],
+          "observed": 5,
+          "outcome": "negative",
+          "reference": "direct Python sum over [2, 3, 5]",
+          "returncode": 1,
+          "status": "command_failed",
+          "stderr": "",
+          "stdout": "{\"defect_exposed\": true, \"expected\": 10, \"input\": [2, 3, 5], \"observed\": 5}\n",
+          "uncertainty": "One deterministic input only; this demonstrates the fixture's odd-tail defect, not a general or production correctness claim."
+        },
+        "path": "docs/pa1/lab-integration-tests.json",
+        "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+      },
+      "owner": "PC-PA1-LAB",
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Give the fixture pairing implementation and passing incomplete baseline suite to an experiment.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_model",
+      "title": "Generate a discriminating unit test"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "Synthetic mechanism does deliberately more CPU work; this is one contained negative measurement and durable receipt behavior, not a performance benchmark, general mechanism ranking or production promotion.",
+        "observed": {
+          "candidate_ms": 22.58193299985578,
+          "cleanup_verified": true,
+          "exit_code": 2,
+          "measurement_backend": "actual bubblewrap+cgroup-v2",
+          "outcome": "negative",
+          "reference_ms": 1.981768999939959,
+          "samples": 1,
+          "speedup_claim": false,
+          "uncertainty": "variance cannot be estimated from n=1; selected command/captured source only"
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f",
+        "test_evidence": [
+          {
+            "path": "tests/assistance/test_acceptance_boundaries.py",
+            "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+            "tests": [
+              "test_a32_failed_comparison_retains_measurement_and_uncertainty"
+            ]
+          }
+        ]
+      },
+      "evidence_status": "covered_cpu",
+      "evidence_summary": "Contained CPU comparison records reference 1.982ms versus candidate 22.582ms, one sample, negative outcome, exit 2, cleanup verified and no speedup claim.",
+      "expected": "Report applicable negative/inconclusive result and missing evidence; no invented speedup or task promotion.",
+      "final_acceptance": "pending_root_review",
+      "id": "A32",
+      "mandatory": true,
+      "owner": "PC-PA1-LAB",
+      "remaining_gap": null,
+      "setup": "Run a synthetic mechanism comparison that loses or has noisy/failed measurement.",
+      "source_cpu_digest": {
+        "document_evidence": [
+          {
+            "path": "docs/pa1/lab-integration-tests.json",
+            "scenario_assertions": "Experiment recorded negative, expected 10, observed 5, 86.207 ms; uncertainty explicitly says one deterministic input only; artifact state partial/qualified=false.",
+            "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+          }
+        ],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+          "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Negative/timeouts/containment failures remain distinct and unpromoted.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_negative_timeout_and_containment_failure_are_not_promoted"
+          },
+          {
+            "path": "tests/assistance/test_quality.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Qualitative answer remains requires_review/unqualified.",
+            "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+            "test": "test_qualitative_case_is_advisory_even_when_checklist_terms_match"
+          },
+          {
+            "path": "tests/assistance/test_quality.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Self-report fields do not become evidence.",
+            "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+            "test": "test_model_self_report_cannot_claim_reasoning_or_hidden_trace_evidence"
+          }
+        ]
+      },
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Negative or inconclusive results are useful"
+    },
+    {
+      "evidence_status": "not_qualified",
+      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "expected": "Parent suspends and frees inference; controller-leased non-model runner executes; results resume only after experiment release and current power permission.",
+      "final_acceptance": "pending_root_review",
+      "id": "A33",
+      "mandatory": true,
+      "owner": "PC-PA1-LAB",
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Create an experiment requiring both inference GPU pairs.",
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_gpu",
+      "title": "GPU experiment does not wait behind itself"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "LAB intent persists before execution; interrupted or ambiguous effects become unknown and are reconciled against exact PID/start identity without blind replay. Unverified cleanup remains pending; the integration receipt includes exact effect, process, artifact hash and cleanup_verified=true.",
+      "expected": "Reconcile exact process/effect receipt; no blind duplicate execution or partial artifact claimed as completed test.",
+      "final_acceptance": "pending_root_review",
+      "id": "A34",
+      "mandatory": true,
+      "owner": "PC-PA1-LAB",
+      "remaining_gap": "Source-level interruptions are simulated; the one integrated CPU probe was completed and cleaned up, not itself interrupted between effect and commit.",
+      "setup": "Crash while a permitted scratch process is active or after artifact write but before result commit.",
+      "source_cpu_digest": {
+        "document_evidence": [
+          {
+            "path": "docs/pa1/lab-integration-tests.json",
+            "scenario_assertions": "Exact effect/process identity and artifact SHA recorded; cleanup verified; artifact remains partial/unqualified.",
+            "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+          }
+        ],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+          "src/project_control/assistance/lab_runner.py": "01bdab8f7c8975454400b3f82b94bc399b73cc05c26970ad596f4089adbb334d"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Intent is durable before effect and receipt survives reopen.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_run_persists_intent_before_execution_and_reopens_receipt"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Interrupted effect stays unknown and is not rerun.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_interrupted_intent_is_marked_unknown_and_never_replayed"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Restart reconciles exact process identity, no replay.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_restart_checks_persisted_exact_process_identity_without_replay"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Cleanup is pending until exact proof.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_unverified_cleanup_remains_pending_until_exact_reconcile"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Ambiguous restart reconciles state rather than duplicate execution.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_ambiguous_restart_reconciles_without_replay"
+          }
+        ]
+      },
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Interrupted effect reconciliation"
+    },
+    {
+      "evidence_status": "covered_cpu_source_scenario",
+      "evidence_summary": "A candidate remains unpromoted when the current source changes after capture; verification detects stale current source and snapshot file/mode tampering.",
+      "expected": "Candidate remains unpromoted; existing explicit parent acceptance detects stale source; no commits, pushes or task completion from scratch.",
+      "final_acceptance": "pending_root_review",
+      "id": "A35",
+      "mandatory": true,
+      "owner": "PC-PA1-LAB",
+      "remaining_gap": "The tests enforce candidate/source freshness within fixtures; no actual canonical patch acceptance, git commit, or push occurred.",
+      "setup": "Produce a valid scratch patch then change canonical source before requesting promotion.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Candidate stays unpromoted and changed canonical source is detected.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_candidate_stays_unpromoted_and_detects_current_source_change"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Snapshot tampering invalidates candidate.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_candidate_verification_detects_snapshot_file_tampering"
+          },
+          {
+            "path": "tests/assistance/test_lab.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Mode change invalidates candidate.",
+            "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+            "test": "test_candidate_verification_detects_file_mode_change"
+          }
+        ]
+      },
+      "sources": [
+        "S08",
+        "S10",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S19",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Patch and canonical acceptance remain separate"
+    },
+    {
+      "additional_receipt": {
+        "coverage_limit": "Fresh actual create_mcp composition in isolated private stores; no network/stdio transport exchange, persistent server state, or Todo kernel invocation. Read port factory is absent; no inquiry submitted. Current contract includes observer, coder, mutator, investigator and skill_assembler profiles.",
+        "evidence": [
+          {
+            "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/protocol-source.json",
+            "sha256": "0ec63cb36b98e5abc00118f25ea4bbca480bc0d1560ad8510f651b5e9ca42e26"
+          },
+          {
+            "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/protocol-candidate.json",
+            "sha256": "7982e7f673ee15d0270a13f1d4cc791ae45b446b99c02623617bca6831d535fd"
+          },
+          {
+            "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/enumerate_protocol.py",
+            "sha256": "b6c995396ab2935a0815bafd5c5adf4a6302e43b674f627ac50480bece0b1847"
+          }
+        ],
+        "observed": {
+          "all_profiles_equal": true,
+          "candidate_app": "/home/tumlinson/.local/share/project-control/releases/unified-20261007-pa1-lab/lib/python3.12/site-packages/project_control/app.py",
+          "forbidden_invocations_denied_each_runtime": 132,
+          "schema_hashes": {
+            "coder": "7b03703e850a135d6d53e000d73fda05b3773b579ecc937b7261cb448301b6a1",
+            "investigator": "fb45e721cfb1ee8dea26cac8a851dbee268562cbffa5c493c8344fe7fdb65292",
+            "mutator": "9f2a547a04f6dfb98169c9dca127a71ae76be3c6d38f1f61f9c5f1c1fafc1454",
+            "observer": "fca58e1b921fce9117dcf22a02dc190624ae3d9a9ae69881fae239002d1f1b27",
+            "skill_assembler": "fb45e721cfb1ee8dea26cac8a851dbee268562cbffa5c493c8344fe7fdb65292"
+          },
+          "source_app": "/home/tumlinson/project-control/src/project_control/app.py",
+          "tool_counts": {
+            "coder": 12,
+            "investigator": 10,
+            "mutator": 16,
+            "observer": 11,
+            "skill_assembler": 10
+          }
+        },
+        "path": "docs/pa1/acceptance-cpu-supplement.json",
+        "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f"
+      },
+      "evidence_status": "covered_cpu",
+      "evidence_summary": "Fresh actual create_mcp source/candidate composition records observer11/coder12/mutator16 plus investigator/skill_assembler10, exact schema hashes and 132 denied forbidden invocations across runtimes.",
+      "expected": "Observer11, coder12, mutator16 and current semantics preserved unless recorded approved narrow amendment; no public scheduler concepts.",
+      "final_acceptance": "pending_root_review",
+      "id": "A36",
+      "mandatory": true,
+      "owner": "PC-PA1-QUALIFY",
+      "remaining_gap": null,
+      "setup": "Compare current schema/discovery fixtures and invoke hidden/forbidden operations across profiles.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+          "src/project_control/assistance/operator.py": "dfaf6821fc4105ffb6400030f8f57f4923e5771aa907b6c983424f9864d20b7c"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Recorded current observer/coder/mutator counts are checked.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_recorded_public_mcp_schemas_keep_the_current_profile_counts"
+          },
+          {
+            "path": "tests/assistance/test_inactive_coding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Forbidden operations are denied before dispatch.",
+            "source_sha256": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+            "test": "test_actual_cli_main_denies_coding_and_mutation_before_handlers"
+          }
+        ]
+      },
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Exact public interface and denied authority"
+    },
+    {
+      "evidence_status": "not_qualified",
+      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "expected": "Measured useful complete/partial results, valid evidence, separate reasoning/prefill/tool timings; no winner chosen just for token volume.",
+      "final_acceptance": "pending_root_review",
+      "id": "A37",
+      "mandatory": true,
+      "owner": "PC-PA1-QUALIFY",
+      "recovery_attempts": [
+        {
+          "attempt": "baseline-r4",
+          "inquiries_attempted": 4,
+          "model_processes_started": 0,
+          "result": "owned_residency_recovery_blocked: orphan_marker_identity_mismatch"
+        },
+        {
+          "attempt": "baseline-r5",
+          "inquiries_attempted": 2,
+          "model_processes_started": true,
+          "result": "public responses freshness_unverifiable; no grounded E01-E04 scored comparison accepted"
+        }
+      ],
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Run selected direct/multi-hop/conflict/synthesis cases and held-out variants through candidate.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_model",
+      "title": "Finite grounded model-quality comparison"
+    },
+    {
+      "budget_note": "The live recovery plan reserves economics up to 6 inquiries/120 seconds inside root-approved budget; no measured paired foreground comparison is in reviewed receipts.",
+      "evidence_status": "not_qualified",
+      "evidence_summary": "No qualifying exact package-case result appears in the reviewed receipts; earlier failed/recovery observations remain diagnostic evidence only.",
+      "expected": "Include preparation/refresh costs, context bytes/tokens, latency spread and sample size; meet predeclared practical envelope or leave feature off.",
+      "final_acceptance": "pending_root_review",
+      "id": "A38",
+      "mandatory": true,
+      "owner": "PC-PA1-QUALIFY",
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Compare equivalent foreground tasks with/without opted-in preparation and background work.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_model",
+      "title": "Assistance economics and foreground interference"
+    },
+    {
+      "evidence_status": "partial",
+      "evidence_summary": "Release tests cover inert candidate records, budget rejection, evidence boundaries and source-only composition; runtime-binding tests preserve strict old/new identity fences.",
+      "expected": "No mixed incompatible dispatcher claims or restored old Todo DB; retained evidence/history and explicit disabled automatic work at cutover.",
+      "final_acceptance": "pending_root_review",
+      "id": "A39",
+      "mandatory": true,
+      "owner": "PC-PA1-QUALIFY",
+      "remaining_gap": "No quiescent installed source/runtime cutover, old-client isolation, actual rollback, or persisted activation-choice transition was executed by this CPU suite.",
+      "setup": "Exercise quiescent source/runtime transition, old-client isolation and rollback.",
+      "source_cpu_digest": {
+        "document_evidence": [],
+        "path": "docs/pa1/acceptance-cpu-evidence.json",
+        "relevant_source_sha256": {
+          "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+          "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+        },
+        "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2",
+        "tests": [
+          {
+            "path": "tests/assistance/test_release.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Candidate plan remains inert and no inference is claimed.",
+            "source_sha256": "49485d7be338510526142e9563c983d32172a241e5cf36d3ea8556156b6799e6",
+            "test": "test_inert_plan_is_explicitly_planned_and_does_not_claim_inference"
+          },
+          {
+            "path": "tests/assistance/test_release.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Release plan respects budgets.",
+            "source_sha256": "49485d7be338510526142e9563c983d32172a241e5cf36d3ea8556156b6799e6",
+            "test": "test_initial_budget_rejects_over_cap_and_case_underfunding"
+          },
+          {
+            "path": "tests/assistance/test_release.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Runtime composition with stub backend is source-only.",
+            "source_sha256": "49485d7be338510526142e9563c983d32172a241e5cf36d3ea8556156b6799e6",
+            "test": "test_real_runtime_composes_public_as1_surface_with_private_state_and_stub_backend"
+          },
+          {
+            "path": "tests/assistance/test_runtime_binding.py",
+            "receipt": "current-source-tests",
+            "scenario_assertions": "Old/stale binding fails closed.",
+            "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+            "test": "test_stale_or_missing_installed_release_binding_fails_closed"
+          }
+        ]
+      },
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "cpu",
+      "title": "Versioned state and reversible candidate"
+    },
+    {
+      "evidence_status": "not_qualified",
+      "evidence_summary": "A reboot recovery regression suite passed 22 tests; physical recovery remains pending verified candidate retry and no final authorized lifecycle report is present.",
+      "expected": "Tests have nonzero counts, exact source/binary/model identities, actual permitted resource proof, omissions and activation choices; no fixture result relabeled production.",
+      "final_acceptance": "pending_root_review",
+      "id": "A40",
+      "mandatory": true,
+      "owner": "PC-PA1-QUALIFY",
+      "recovery_attempts": [
+        {
+          "physical_recovery": "pending verified candidate retry; no marker or lease manually removed",
+          "receipt": "docs/pa1/reboot-recovery-validation.json",
+          "sha256": "669579e122aa25491f8741c58f5ebffc7ddd5f95191c0653f62844956ae48f6d",
+          "tests_passed": 22
+        }
+      ],
+      "required_next_evidence": "Execute exact package setup within current root-owned authorization and retain case-level source/model/binary/resource/timing/provenance receipt; otherwise leave unqualified.",
+      "setup": "Run applicable acceptance suites and one authorized real lifecycle demonstration.",
+      "sources": [
+        "S01",
+        "S03",
+        "S04",
+        "S05",
+        "S15",
+        "S22",
+        "S23",
+        "O03",
+        "O04"
+      ],
+      "status": "planned_not_executed",
+      "tier": "live_gpu",
+      "title": "Final resource, permission and provenance report"
+    }
+  ],
+  "decision": "working_draft_for_root_review",
+  "evidence_receipts": [
+    {
+      "case_count": 31,
+      "coverage_counts": {
+        "covered_cpu_source_scenario": 12,
+        "overlap_only": 1,
+        "partial": 18
+      },
+      "path": "docs/pa1/acceptance-cpu-evidence.json",
+      "sha256": "66b783d73f3d2eb19d4ae108f12f767ec8d446e4adb312ce6a46f07dfaf10ac2"
+    },
+    {
+      "additional_tests": 9,
+      "final_acceptance": false,
+      "path": "docs/pa1/acceptance-cpu-supplement.json",
+      "proposed_counts": {
+        "covered_cpu_scenario": 16,
+        "note": "Prior digest 12 covered,18 partial,1 overlap plus four scoped CPU scenario closures; root must review this proposed classification. It is not final product acceptance.",
+        "overlap_only": 0,
+        "partial": 15,
+        "total": 31
+      },
+      "scope": "Bounded CPU scenario additions under root PC-PA1-LAB claim; live inference, GPU, service cutover, workflow mutation and final acceptance excluded.",
+      "sha256": "fccaee91ba6b3b933905a5bc489b7b815723adaa69396978026d99a6df7dc05f"
+    },
+    {
+      "path": "docs/pa1/current-source-tests.json",
+      "receiver_manifest_sha256": "9e60122d80dd57c045226df9180ba676099b879137d3359975c8a1302c4b78fb",
+      "result": {
+        "failed": 0,
+        "passed": 320,
+        "passed_subtests": 54,
+        "skipped": 0,
+        "total": 320
+      },
+      "scope": "Source-mode CPU unit tests with mocked inference providers; no live model, GPU, persistent service, or production acceptance was performed by this suite. The combined source group included source-mode tests only; the runner follow-up was a focused real cgroup test in a delegated transient systemd unit. No live model, GPU, persistent service, or production acceptance was performed.",
+      "sha256": "2736ce9dba438f3465f344da0370f7dde4769fd1ace86a623e3ead8b5f32b697",
+      "source_head": "ceabc21507a89163b0c55253180bf5fcc175e857",
+      "working_tree": "dirty_uncommitted"
+    },
+    {
+      "acceptance_claim": "not an A31 live-model acceptance result",
+      "path": "docs/pa1/lab-integration-tests.json",
+      "scope": "LAB service integration mechanics and one disposable CPU fixture probe",
+      "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+    },
+    {
+      "actual_slot_proof": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/baseline-r5/release-verified-binding-recovery-r1.json",
+      "passed": 23,
+      "path": "docs/pa1/owned-release-binding-validation.json",
+      "sha256": "85cdd7406479ace8cdb68cd8e0a3a9e3005f795b42d5ba6bbea5cc21640ac3a8",
+      "subtests_passed": 20
+    },
+    {
+      "path": "docs/pa1/reboot-recovery-validation.json",
+      "physical_recovery": "pending verified candidate retry; no marker or lease manually removed",
+      "sha256": "669579e122aa25491f8741c58f5ebffc7ddd5f95191c0653f62844956ae48f6d",
+      "tests": {
+        "elapsed_seconds": 6.322,
+        "failed": 0,
+        "passed": 22,
+        "scenarios": [
+          "cold registry recovery ordering",
+          "wrong domain rejected",
+          "unapproved GPU rejected"
+        ],
+        "source_wrapper": "scripts/pa1_source_tests.sh"
+      }
+    },
+    {
+      "authorization_and_budget_snapshot": {
+        "economics_max_inquiries": 6,
+        "economics_max_seconds": 120,
+        "failed_inquiry_split": {
+          "owned_residency_recovery": 4,
+          "public_source_scope": 2
+        },
+        "held_out_max_inquiries": 4,
+        "held_out_wall_seconds": 300,
+        "historical_failed_initial_inquiries": 6,
+        "initial_wall_seconds": 900,
+        "maximum_active_execution_seconds": 799.6,
+        "maximum_initial_total_including_failures": 18,
+        "maximum_parallel_model_executions": 2,
+        "recorded_at_utc": "2026-10-07T05:07:24.559609+00:00",
+        "remaining_additional_recovery_allowance_inquiries": 2,
+        "sha256": "ea5e7eaec27d5f0c3481bb7698882256ad0925d16324e665b097baf90bc5e3fd",
+        "source": "nested public_fixture_recovery block in root recovery plan; retain every prior failed inquiry",
+        "successful_comparison_extension_and_economics_cap": 12,
+        "warning": "Root is actively updating this plan; re-fetch before any further admission."
+      },
+      "path": "docs/pa1/live-recovery-plan.json",
+      "sha256": "ea5e7eaec27d5f0c3481bb7698882256ad0925d16324e665b097baf90bc5e3fd"
+    }
+  ],
+  "final_acceptance": false,
+  "format": "pa1-acceptance-results-draft/1",
+  "package_contract": {
+    "mandatory_case_count": 40,
+    "path": "planning/project-assistance-v1/machine/acceptance.json",
+    "qualification_note": "All cases are planned. Package checks are not executions of these product cases. Live GPU/model cases require current explicit resource/authority grants.",
+    "sha256": "8db435add7f875ec96c5a6758b0a7122029515ea2c61689de43fe6a22e8826d6"
+  },
+  "plan": {
+    "budget_authority": "See current docs/pa1/live-recovery-plan.json for approved recovery amendments; no changes made here.",
+    "path": "docs/pa1/live-qualification-plan.json",
+    "sha256": "3e5bc66dac388ebddcc22e0760543c21c752d675881fa6a3d941b5c446b917ea"
+  },
+  "qualification_native_state": {
+    "task_id": "PC-PA1-QUALIFY",
+    "state": "not_started_or_accepted_in_reviewed_receipts",
+    "status": "pending package case qualification and root decision",
+    "note": "LAB stage gate completion does not complete QUALIFY."
+  },
+  "required_before_final_acceptance": [
+    "Root records the native PC-PA1-LAB terminal finish_task result and acceptance reference; the five required stage-gate receipts are recorded above, but terminal completion is not yet evidenced here.",
+    "Re-fetch current active claim, package contract, dirty/untracked source snapshot, receiver manifest/fingerprint, candidate release, model/weights/binary, permission and resource receipts; the CPU supplement predates later dirty root changes.",
+    "Close A20 with the exact forced compaction and valid-evidence retention or source re-fetch scenario.",
+    "Complete currently authorized live model cases A03, A23, A31, A37 and A38 under updated retained inquiry/time budgets; keep all prior failed inquiry counts and stop rules.",
+    "Complete live GPU cases A16, A33 and A40 only with exact foreground interlock, ownership, quiescence, lease and physical release proof; lifecycle remains non-inference and within its own cap.",
+    "Use already recorded A30 containment tests only within their tested sandbox grant and scope; preserve containment failure as fail-closed.",
+    "Perform candidate cutover/rollback only under current native authorization; record activation choice and leave automatic assistance off unless measured A38 passes every predeclared envelope.",
+    "After exact receipts exist, root reviews every case, replaces provisional evidence statuses with accepted/partial/failed/not-run dispositions, and sets final_acceptance only if native task gates and all mandatory acceptance conditions are met."
+  ],
+  "scope": "Evidence map from reviewed receipts only. It does not replace Project Control native task gates, run-gate receipt, or root acceptance.",
+  "task_native_state": {
+    "task_id": "PC-PA1-LAB",
+    "owner": "root",
+    "state": "required_stage_gates_passed_pending_finish_task",
+    "status": "Root reports all five required native gates passed for runPC-PA1-RUN-1; finish_task and root acceptance remain pending.",
+    "acceptance_receipt": "pending native terminal task receipt"
+  },
+  "lab_native_stage_gates": {
+    "task_id": "PC-PA1-LAB",
+    "run_id": "runPC-PA1-RUN-1",
+    "state": "all_required_stage_gates_passed_pending_finish_task_and_root_acceptance",
+    "recorded_by": "root report; receipt bytes independently checked by documentation pass",
+    "evidence_root": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence",
+    "receipts": [
+      {
+        "gate": "contained",
+        "evidence_id": "8dfb7622-0b6d-44d6-92ec-4ddb6fef0c52",
+        "scope": "tests/assistance/test_lab_runner.LabRunnerContractTests",
+        "summary": "9 passing tests; real bubblewrap/cgroup containment, host resource limits, fail-closed behavior, timeout and detached-descendant cleanup.",
+        "files": [
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8dfb7622-0b6d-44d6-92ec-4ddb6fef0c52/stderr.txt",
+            "sha256": "9ffbe55d117f6eee416d8c31b5ef84955607ac394c0c235e07383748d2e1bd47",
+            "bytes": 2033
+          },
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8dfb7622-0b6d-44d6-92ec-4ddb6fef0c52/stdout.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          }
+        ]
+      },
+      {
+        "gate": "capture",
+        "evidence_id": "c75f051b-c598-42b6-a2d9-10f2f86618ee",
+        "scope": "focused pytest receipt",
+        "summary": "25 passed.",
+        "files": [
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/c75f051b-c598-42b6-a2d9-10f2f86618ee/stderr.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          },
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/c75f051b-c598-42b6-a2d9-10f2f86618ee/stdout.txt",
+            "sha256": "bb4cef053b355422423e7792985a159930cae2ef8b9a3c3fdfd7db6d53a79fb1",
+            "bytes": 99
+          }
+        ]
+      },
+      {
+        "gate": "CLI",
+        "evidence_id": "a28f6f04-d10f-48a9-9991-9b478330fc4a",
+        "scope": "focused CLI pytest receipt",
+        "summary": "8 passed.",
+        "files": [
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/a28f6f04-d10f-48a9-9991-9b478330fc4a/stderr.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          },
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/a28f6f04-d10f-48a9-9991-9b478330fc4a/stdout.txt",
+            "sha256": "69175938ec95054a5988c7146e3aa5965d163ad9acef5185363648eb4544461e",
+            "bytes": 98
+          }
+        ]
+      },
+      {
+        "gate": "sourceintegration",
+        "evidence_id": "8b2c95a5-8f6c-4886-8849-287b89704f0a",
+        "scope": "tests/assistance/test_lab.LabServiceTests",
+        "summary": "16 passing service integration tests.",
+        "files": [
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8b2c95a5-8f6c-4886-8849-287b89704f0a/stderr.txt",
+            "sha256": "8c92e8865021b2bd863c2417ab94b4ce7c66e057932735a386df1842f1ce48fa",
+            "bytes": 2909
+          },
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/8b2c95a5-8f6c-4886-8849-287b89704f0a/stdout.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          }
+        ]
+      },
+      {
+        "gate": "LABtest",
+        "evidence_id": "0374f673-93f5-4b2c-b4e7-bffc94327e07",
+        "scope": "tests/assistance/test_lab.LabServiceTests",
+        "summary": "16 passing LAB service tests.",
+        "files": [
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/0374f673-93f5-4b2c-b4e7-bffc94327e07/stderr.txt",
+            "sha256": "03285f6938f897bc70fd17b034403e2b5295cc5c5af68ea698464786760d38db",
+            "bytes": 2909
+          },
+          {
+            "path": ".git/todo-orchestrator/76dc6bf0-1223-4dda-bf8b-c306fb7721a7/evidence/0374f673-93f5-4b2c-b4e7-bffc94327e07/stdout.txt",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "bytes": 0
+          }
+        ]
+      }
+    ],
+    "scope_note": "These are native LAB task gate receipts. They establish stage gate completion for the no-code-integration LAB task only; they do not qualify the advisory 40 package cases, live model or GPU behavior, cutover, or product acceptance."
+  }
+}

@@ -171,9 +171,21 @@ class LiveQualificationPlanTests(unittest.TestCase):
         self.assertEqual(composition.jobs.db.parameters, (expected_identity,))
         self.assertEqual(composition.jobs.lookup_args[0], "job_actual_17")
 
+        composition.jobs.lookup = lambda job_id, *, access_scope: {
+            "status": "ok", "job": {"job_id": job_id, "status": "completed", "attempt": 2,
+                                       "answer": "private answer", "findings": [{"text": "private finding"}]}}
+        observed = live._lookup_inquiry_job_linkage(composition, case=case, scope=scope)
+        self.assertTrue(observed["actual_inference_confirmed"])
+        self.assertTrue(observed["private_job_answer_observed"])
+        self.assertEqual(observed["private_job_findings_count"], 1)
+        self.assertEqual(observed["actual_inference_evidence"],
+                         "isolated_scoped_job_answer_or_findings")
+        self.assertNotIn("answer", observed)
+        self.assertNotIn("findings", observed)
+
         attempts = []
         outcome = live._inquire_to_terminal(
-            composition, case=case, scope=scope, hint_alias="fixture-source",
+            composition, case=case, scope=scope, hint_aliases=["fixture-source"],
             deadline=live.time.monotonic() + 2, on_attempt=lambda: attempts.append("attempted"))
         self.assertEqual(attempts, ["attempted"])
         self.assertEqual(composition.jobs.inquiry_calls, 1)
@@ -212,6 +224,89 @@ class LiveQualificationPlanTests(unittest.TestCase):
                 self.assertEqual(report["root"], str(identity.root))
                 self.assertEqual(report["fingerprint"], identity.fingerprint)
                 self.assertEqual(report["supervisor_runtime_fingerprint"], identity.fingerprint)
+            finally:
+                self.assertTrue(composition.close())
+
+    def test_heldout_fixture_uses_ephemeral_workspace_and_fresh_source_locator(self):
+        from project_control.app import Runtime
+        from project_control.config import load_config
+
+        class StubBackend:
+            available = True
+
+            def __init__(self, state_root):
+                self._state_root = state_root
+
+        canonical_config = load_config()
+        canonical_before = canonical_config.model_dump()
+        with tempfile.TemporaryDirectory(prefix="pa1-heldout-compose-") as temporary:
+            area = Path(temporary)
+            fixture = area / "heldout-fixture"
+            source = fixture / "demo" / "budgets.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("INQUIRY_SECONDS = 240\n", encoding="utf-8")
+            private_config = live._ephemeral_fixture_config(canonical_config, fixture)
+            self.assertEqual(set(private_config.workspaces), set(canonical_config.workspaces))
+            workspace = private_config.workspaces["project-control"]
+            self.assertEqual(workspace.authority_repository,
+                             canonical_config.workspaces["project-control"].authority_repository)
+            self.assertEqual(workspace.repositories["pa1-heldout-fixture"].root, fixture.resolve())
+            self.assertEqual(workspace.repositories[workspace.authority_repository].root,
+                             canonical_config.workspaces["project-control"].repositories[
+                                 workspace.authority_repository].root)
+
+            backend = StubBackend(area / "canonical-supervisor-state")
+            composition = live._compose_isolated_surface(
+                area / "isolated-as1-state", Runtime(private_config), backend)
+            try:
+                case_scope, packet_ids, evidence = live._insert_fixture_packet(
+                    composition, {"id": "H01", "evidence_paths": ["demo/budgets.py"]}, fixture)
+                packet_id = packet_ids[0]
+                self.assertEqual(case_scope["project"], "project-control")
+                located = composition.store.lookup(packet_id, access_scope=case_scope)
+                self.assertEqual(located.status, "ok")
+                locator = located.packet.sources[0]
+                self.assertEqual((locator.project, locator.repository, locator.path),
+                                 ("project-control", "pa1-heldout-fixture", "demo/budgets.py"))
+                self.assertEqual(locator.content_sha256, evidence[0]["sha256"])
+                freshness = live._assert_source_packet_freshness(composition, case_scope, packet_ids)
+                self.assertTrue(freshness["fresh"])
+                self.assertEqual(composition.jobs.directory, area / "isolated-as1-state" / "jobs-v2")
+            finally:
+                self.assertTrue(composition.close())
+        self.assertEqual(load_config().model_dump(), canonical_before)
+
+    def test_supported_read_packet_passes_real_freshness_and_wrong_hash_fails(self):
+        from project_control.app import Runtime
+        from project_control.config import load_config
+
+        class StubBackend:
+            available = True
+
+            def __init__(self, state_root):
+                self._state_root = state_root
+
+        with tempfile.TemporaryDirectory(prefix="pa1-read-freshness-") as temporary:
+            area = Path(temporary)
+            runtime = Runtime(load_config())
+            backend = StubBackend(area / "canonical-supervisor-state")
+            composition = live._compose_isolated_surface(area / "as1-state", runtime, backend)
+            try:
+                case_scope, packet_ids, _ = live._insert_fixture_packet(
+                    composition, {"id": "F01", "evidence_paths": ["demo/budgets.py"]}, FIXTURE)
+                self.assertEqual(case_scope["project"], "project-control")
+                self.assertTrue(live._assert_source_packet_freshness(
+                    composition, case_scope, packet_ids)["fresh"])
+
+                source_packet = composition.store.lookup(packet_ids[0], access_scope=case_scope).packet
+                bad_locator = source_packet.sources[0].model_copy(
+                    update={"content_sha256": "0" * 64})
+                bad_packet = composition.store.create(
+                    tool="read", access_scope=case_scope, payload=source_packet.payload,
+                    sources=[bad_locator], freshness=source_packet.freshness, ttl_seconds=None)
+                with self.assertRaisesRegex(live.QualificationError, "freshness verification"):
+                    live._assert_source_packet_freshness(composition, case_scope,
+                                                         [bad_packet.packet_id])
             finally:
                 self.assertTrue(composition.close())
 
