@@ -290,7 +290,12 @@ class DemandRuntime:
                                    expected_main_pid=result["main_pid"])
             raw_slots = owner.get("slots", [])
             slots = [{"state": slot.get("state"), "leased": bool(slot.get("leased")),
-                      "resident": slot.get("state") in {"ready", "warm"}}
+                      # The observer contract reports pool slots as idle or
+                      # active, with a server PID only while a model process
+                      # is resident. Keep the raw owner identity private.
+                      "resident": (slot.get("state") in {"idle", "active"}
+                                   and type(slot.get("server_pid")) is int
+                                   and slot["server_pid"] > 0)}
                      for slot in raw_slots if isinstance(slot, dict)] if isinstance(raw_slots, list) else []
             result.update({
                 "readiness": "verified_ready",

@@ -237,8 +237,11 @@ class DemandRuntimeTests(unittest.TestCase):
         provider = Mock()
         provider.central_status.return_value = {**status(expected), "healthy": True, "draining": False,
             "capacity": 2, "active_leases": 1, "active_admissions": 0,
-            "slots": [{"state": "ready", "leased": True, "endpoint": "/private", "gpu_uuids": ["x"]},
-                      {"state": "empty", "leased": False, "endpoint": "/private2"}]}
+            "slots": [{"slot_id": "slot-a", "state": "idle", "leased": False,
+                       "server_pid": 4242, "owner_id": "private-owner", "gpu_uuids": ["private-gpu"]},
+                      {"slot_id": "slot-b", "state": "active", "leased": True,
+                       "server_pid": 4343, "owner_id": "private-owner-2", "gpu_uuids": ["private-gpu-2"]},
+                      {"slot_id": "slot-c", "state": "empty", "leased": False}]}
         systemctl = Mock()
         runtime = DemandRuntime(provider_factory=lambda: provider, pin_factory=lambda: expected,
             systemctl=systemctl,
@@ -247,10 +250,32 @@ class DemandRuntimeTests(unittest.TestCase):
             release_veto=lambda: False, process_matches=lambda pid, selected: True)
         observed = runtime.status()
         self.assertEqual(observed["readiness"], "verified_ready")
-        self.assertEqual(observed["resident_slots"], 1)
+        self.assertEqual(observed["resident_slots"], 2)
+        self.assertEqual(observed["slots"], [
+            {"state": "idle", "leased": False, "resident": True},
+            {"state": "active", "leased": True, "resident": True},
+            {"state": "empty", "leased": False, "resident": False},
+        ])
         self.assertEqual(observed["active_leases"], 1)
-        self.assertNotIn("endpoint", str(observed))
+        self.assertNotIn("server_pid", str(observed))
+        self.assertNotIn("private-owner", str(observed))
+        self.assertNotIn("private-gpu", str(observed))
         systemctl.assert_not_called()
+
+    def test_status_keeps_unknown_or_pidless_slots_cold(self):
+        expected = pin()
+        provider = Mock()
+        provider.central_status.return_value = {**status(expected), "healthy": True,
+            "draining": False, "capacity": 3, "active_leases": 0, "active_admissions": 0,
+            "slots": [{"state": "idle", "server_pid": 0},
+                      {"state": "active", "server_pid": "4242"},
+                      {"state": "warming", "server_pid": 4242}]}
+        runtime = self.runtime(provider=provider)
+
+        observed = runtime.status()
+
+        self.assertEqual(observed["resident_slots"], 0)
+        self.assertEqual([slot["resident"] for slot in observed["slots"]], [False, False, False])
 
     def test_status_classifies_wrapped_cold_transport_as_unavailable(self):
         provider = Mock()
