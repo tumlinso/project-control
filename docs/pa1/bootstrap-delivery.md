@@ -121,3 +121,28 @@ lifecycle issue, not evidence that all collected source tests pass. The actual
 CLI, public investigate and chat requests above completed successfully.
 Repeated stop's inactive/no-owned case has separate strict-zero-census
 regressions (42 demand-runtime tests passed); it does not mint a new owner proof.
+
+## Authoritative completion
+
+Native `PC-PA1-RUN-1` is **completed** at revision **1173** under charter version
+2. `PC-PA1-QUALIFY` completed with disposition `validated` at revision **1170**;
+`PC-PA1-0000` completed `validated` at revision **1173**, completion commit
+`41027f5003119abe91b166b93477765dfe59eeca`. The execution lane is closed and
+these tasks have no active or orphaned claims. The exact native records are in
+`authoritative-pa1-completion.json` in the evidence directory.
+
+Deferred `PC-PA1-LAB` remains uncompleted and unclaimed. Its current native
+status is `attention_required`, with the preserved recovery reason
+`recovery preserved dirty scope`; its lane entry remains skipped. Review that
+record when separately resuming LAB. The deferral amendment at revision 1171
+preserved task states/results, claims and the LAB queue byte-for-byte at that
+transaction boundary. Subsequent native recovery/state computation is recorded
+in history; this document does not assert an unchanged lifecycle label.
+
+Final live cold-stop retry returned `already_stopped_no_owned_resources`.
+Final HTTP PID **1563244**, process start **5912569**, remained ready with the
+inference service inactive. Final executable PC fingerprint is
+`6f7451de1b35dfdd4e95930fad48b1a4d3fd1d41a372b70c4c2e42b350fab8d4`;
+executable-source commit is `f850136330e9062a0819ec9c8e3f3f04ed66c2f5`.
+Later commits record planning and documentation only. Default source smoke:
+**23 passed**. Final changed-boundary selection: **50 passed, 8 subtests**.
