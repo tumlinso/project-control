@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openai.local/core4/evidence-summary-v1.schema.json",
+  "title": "CORE4 compact evidence summary v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "valid",
+    "contaminated",
+    "severity",
+    "summary",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "result_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "preempted",
+        "canceled",
+        "skipped",
+        "completed",
+        "needs_codex",
+        "no_change"
+      ]
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "contaminated": {
+      "type": "boolean"
+    },
+    "severity": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "classification": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parser_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "summary": {
+      "type": "object"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "artifact-ref-v1.schema.json"
+      }
+    },
+    "source_identity": {
+      "$ref": "source-identity-v1.schema.json"
+    }
+  },
+  "additionalProperties": false
+}

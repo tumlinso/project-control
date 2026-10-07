@@ -46,9 +46,11 @@ def plan_digest(plan: Mapping[str, Any]) -> str:
 def _runtime_environment(config: ProjectControlConfig) -> dict[str, str]:
     environment = dict(os.environ)
     root = configured_skills_root(config, environment)
-    if root is None:
-        raise MutationRejected("skills_root_unavailable", "Todo runtime root is not configured")
-    environment["PROJECT_CONTROL_SKILLS_ROOT"] = str(root)
+    # Skills identify optional content only. Keep explicitly configured content
+    # visible to legacy readers, but let the verified bundled package establish
+    # workflow executable identity even when no content root is configured.
+    if root is not None:
+        environment["PROJECT_CONTROL_SKILLS_ROOT"] = str(root)
     environment.pop("CODING_WORKFLOW_SKILLS_ROOT", None)
     return environment
 

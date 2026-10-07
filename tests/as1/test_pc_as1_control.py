@@ -12,7 +12,7 @@ import textwrap
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILLS = Path('/home/tumlinson/.agents/skills')
+TODO_PACKAGE = ROOT / 'src' / 'todo_orchestrator'
 COMMON = '''
 import hashlib, json, os, subprocess, tempfile
 from pathlib import Path
@@ -25,10 +25,11 @@ from project_control import mutation, admin
 from todo_orchestrator.service import Service
 from todo_orchestrator.models import TodoError
 assert Path(__import__('project_control.as1_control',fromlist=['']).__file__).resolve() == Path.cwd()/'src/project_control/as1_control.py'
-assert Path(__import__('todo_orchestrator.service',fromlist=['']).__file__).resolve() == Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT'])/'todo-orchestrator/todo_orchestrator/service.py'
+assert Path(__import__('todo_orchestrator.service',fromlist=['']).__file__).resolve() == Path.cwd()/'src/todo_orchestrator/service.py'
 tmp = tempfile.TemporaryDirectory()
 root = Path(tmp.name)/'source'; root.mkdir()
 os.environ.pop('TODO_ORCHESTRATOR_STATE_DIR',None)
+os.environ['XDG_STATE_HOME'] = str(Path(tmp.name)/'state')
 os.environ['XDG_CACHE_HOME'] = str(Path(tmp.name)/'cache')
 def git(*args):
     return subprocess.check_output(['git','-C',str(root),*args],text=True).strip()
@@ -37,7 +38,7 @@ git('init','-q','-b','main'); git('config','user.name','Fixture'); git('config',
 (root/'.gitignore').write_text('runtime/\\n.todo-orchestrator/\\ntodos/\\ntodos.md\\ntodo-status.md\\n')
 git('add','.'); git('commit','-qm','fixture')
 service,_ = Service.bootstrap(root,'Fixture')
-config = ProjectControlConfig(skills_root=Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT']),workspaces={'demo':WorkspaceConfig(authority_repository='source',repositories={'source':RepositoryConfig(root=root)})})
+config = ProjectControlConfig(observer_skills_root=Path(tmp.name)/'absent-skills',workspaces={'demo':WorkspaceConfig(authority_repository='source',repositories={'source':RepositoryConfig(root=root)})})
 host = ContextHost('mutator','fixture-mutator',frozenset({'demo'}))
 control = ControlService(config,host)
 def revision(): return Service(root,read_only=True).db.revision()
@@ -57,16 +58,14 @@ def refused(fn):
 
 
 def scenario(source, *, inherited_environment=None):
-    assert (SKILLS/'todo-orchestrator/todo_orchestrator/project_amendments.py').is_file(), 'paired source kernel unavailable'
-    from project_control.runtime_identity import package_fingerprint
+    assert (TODO_PACKAGE/'project_amendments.py').is_file(), 'bundled source kernel unavailable'
     environment = dict(os.environ if inherited_environment is None else inherited_environment)
     for key in ('PROJECT_CONTROL_RELEASE_MANIFEST','PROJECT_CONTROL_RELEASE_DIGEST',
                 'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT','CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                'PROJECT_CONTROL_SKILLS_ROOT','PROJECT_CONTROL_OBSERVER_SKILLS_ROOT','OBSERVER_SKILLS_ROOT',
                 'CODING_WORKFLOW_SKILLS_ROOT','TODO_ORCHESTRATOR_READ_ONLY','TODO_ORCHESTRATOR_STATE_DIR'):
         environment.pop(key,None)
-    environment['PROJECT_CONTROL_SKILLS_ROOT'] = str(SKILLS)
-    environment['PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT'] = package_fingerprint(SKILLS/'todo-orchestrator/todo_orchestrator')
-    environment['PYTHONPATH'] = os.pathsep.join([str(ROOT/'src'),str(SKILLS/'todo-orchestrator')])
+    environment['PYTHONPATH'] = os.pathsep.join([str(ROOT/'src'),str(ROOT)])
     result = subprocess.run([sys.executable,'-c',COMMON+textwrap.dedent(source)],cwd=ROOT,env=environment,text=True,capture_output=True)
     assert result.returncode == 0, result.stdout+'\n'+result.stderr
 
@@ -205,8 +204,7 @@ def test_model_flags_and_repository_prose_do_not_grant_authority():
 def test_exact_supersession_receipt_dirty_handoff_and_current_continuation():
     scenario('''
     import sys
-    sys.path.insert(0,str(Path.cwd()/'tests'))
-    from test_supersession_journey import SupersessionJourneyTests
+    from tests.test_supersession_journey import SupersessionJourneyTests
     service=SupersessionJourneyTests()._fixture(root)
     before_bytes=(root/'retained.txt').read_bytes()
     intent={'source_run_id':'OLD-RUN','successor_run_id':'NEW-RUN','reason':'preserve replacement',
@@ -239,8 +237,7 @@ def test_exact_supersession_receipt_dirty_handoff_and_current_continuation():
 def test_retire_derived_request_stale_refusal_and_canonical_apply():
     scenario('''
     import sys
-    sys.path.insert(0,str(Path.cwd()/'tests'))
-    from test_supersession_journey import SupersessionJourneyTests
+    from tests.test_supersession_journey import SupersessionJourneyTests
     service=SupersessionJourneyTests()._fixture(root)
     git('add','retained.txt'); git('commit','-qm','retained fixture')
     # Old workspace source identity stays bound to the original base. Retirement
@@ -261,9 +258,7 @@ def test_retire_derived_request_stale_refusal_and_canonical_apply():
 @pytest.mark.as1_case('MUT-05')
 def test_stopped_execution_diagnose_prepare_execute_and_live_refusal():
     scenario('''
-    import sys
-    sys.path.insert(0,str(Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT'])/'todo-orchestrator/tests'))
-    from test_workflow_recovery import WorkflowRecoveryTests
+    from tests.todo.test_workflow_recovery import WorkflowRecoveryTests
     from todo_orchestrator.git_state import scope_manifest
     fixture=WorkflowRecoveryTests('test_expired_readonly_coordinator_requeues_atomically_with_live_process')
     fixture.setUp()
@@ -274,7 +269,7 @@ def test_stopped_execution_diagnose_prepare_execute_and_live_refusal():
             conn.execute("UPDATE claims SET state='released',released_at='now',expires_at='2000',baseline_manifest_json=? WHERE id=?",(json.dumps(scope_manifest(fixture.repo.root,['src/a'])),fixture.claim_id)),
             conn.execute("UPDATE tasks SET status='planned' WHERE id='A'"),
             conn.execute("UPDATE lock_leases SET state='released' WHERE claim_id=?",(fixture.claim_id,))))
-        config=ProjectControlConfig(skills_root=Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT']),workspaces={'demo':WorkspaceConfig(authority_repository='source',repositories={'source':RepositoryConfig(root=fixture.repo.root)})})
+        config=ProjectControlConfig(observer_skills_root=Path(tmp.name)/'absent-skills',workspaces={'demo':WorkspaceConfig(authority_repository='source',repositories={'source':RepositoryConfig(root=fixture.repo.root)})})
         control=ControlService(config,host)
         diagnosed=control.maintain_execution({'project':'demo','action':'diagnose','task_id':'A'})
         assert diagnosed
@@ -455,7 +450,7 @@ def test_foreign_source_broker_keeps_authorities_separate_and_reviews_exact_iden
     subprocess.run(['git','-C',str(other_root),'init','-q','-b','main'],check=True)
     (other_root/'interface.md').write_text('Foreign interface proof')
     foreign,_=Service.bootstrap(other_root,'Foreign')
-    config=ProjectControlConfig(skills_root=Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT']),workspaces={
+    config=ProjectControlConfig(observer_skills_root=config.observer_skills_root,workspaces={
         **config.workspaces,'other':WorkspaceConfig(authority_repository='foreignsource',repositories={'foreignsource':RepositoryConfig(root=other_root)})})
     host=ContextHost('mutator','fixture-mutator',frozenset({'demo','other'}))
     control=ControlService(config,host)

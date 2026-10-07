@@ -22,9 +22,9 @@ Investigation/skill admission -> durable PC broker -> installed read-only worker
 
 Registration and dispatch both enforce startup-bound profile policy. Caller role
 strings, client metadata, annotations and hidden-name invocation cannot broaden
-access. Delegate/collect are temporarily inactive at discovery and dispatch.
-The broker retains jobs independently of model residency; the Skills supervisor
-and resource interlock own inference. The worker reads installed SKILL.md and
+access. Project Control exposes no delegation tools. The broker retains jobs
+independently of model residency; the Project Control observer runtime and
+resource interlock own inference. The worker reads registered SKILL.md content and
 follows authored navigation; PC verifies selected source authority and freshness.
 
 Project Control binds once to the canonical Todo Orchestrator distribution in a

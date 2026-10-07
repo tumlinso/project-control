@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+venv_path="$repo_root/.venv"
+python="$venv_path/bin/python"
+
+usage() {
+  cat >&2 <<'EOF'
+usage:
+  scripts/pc-dev setup
+  scripts/pc-dev run <project-control arguments...>
+  scripts/pc-dev test [pytest selectors and options...]
+  scripts/pc-dev python <Python arguments...>  # internal source passthrough
+
+Examples:
+  scripts/pc-dev setup
+  scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768
+  scripts/pc-dev run serve mutator
+  scripts/pc-dev test tests/test_workflow_binding.py -q
+EOF
+}
+
+action="${1:-}"
+if [[ -z "$action" ]]; then
+  usage
+  exit 2
+fi
+shift
+
+check_venv_target() {
+  if [[ -L "$venv_path" ]]; then
+    local resolved
+    resolved="$(readlink -f "$venv_path" 2>/dev/null || true)"
+    case "$resolved" in
+      "$repo_root"/*) ;;
+      *)
+        echo "refusing to use .venv symlink outside this checkout: $venv_path -> ${resolved:-unresolved}" >&2
+        exit 2
+        ;;
+    esac
+  fi
+}
+
+source_environment() {
+  local mode="${1:-run}"
+  unset PYTHONHOME PYTHONPATH
+  unset PROJECT_CONTROL_RELEASE_MANIFEST PROJECT_CONTROL_RELEASE_DIGEST
+  unset PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT CODING_WORKFLOW_RUNTIME_FINGERPRINT
+  unset PROJECT_CONTROL_RUNTIME_PYTHON CODING_WORKFLOW_RUNTIME_PYTHON
+  unset CODING_WORKFLOW_SKILLS_ROOT PROJECT_CONTROL_TEST_SKILLS_ROOT
+  unset PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256
+  unset PROJECT_CONTROL_LOCAL_RUNTIME_ROOT PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256
+  if [[ "$mode" == test || "$mode" == test_helpers ]]; then
+    unset PROJECT_CONTROL_SKILLS_ROOT
+    unset TODO_ORCHESTRATOR_STATE_DIR PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR
+  fi
+  if [[ "$mode" == test ]]; then
+    export PYTHONPATH="$repo_root/src:$repo_root"
+  elif [[ "$mode" == test_helpers ]]; then
+    export PYTHONPATH="$repo_root/src:$repo_root/tests/todo"
+  else
+    export PYTHONPATH="$repo_root/src"
+  fi
+  export PYTHONNOUSERSITE=1
+  export PYTHONDONTWRITEBYTECODE=1
+}
+
+case "$action" in
+  setup)
+    if [[ $# -ne 0 ]]; then
+      echo "setup takes no arguments" >&2
+      exit 2
+    fi
+    if ! command -v uv >/dev/null 2>&1; then
+      echo "uv is unavailable; install uv, then run scripts/pc-dev setup" >&2
+      exit 2
+    fi
+    check_venv_target
+    cd "$repo_root"
+    cache_dir="${UV_CACHE_DIR:-$repo_root/.cache/uv}"
+    mkdir -p "$cache_dir"
+    export UV_CACHE_DIR="$cache_dir"
+    export UV_PROJECT_ENVIRONMENT="$venv_path"
+    uv sync --frozen --group dev
+    ;;
+  run)
+    check_venv_target
+    if [[ ! -x "$python" ]]; then
+      echo "Project Control development environment is missing at $venv_path; run scripts/pc-dev setup" >&2
+      exit 2
+    fi
+    source_environment
+    if [[ ! -f "$repo_root/src/project_control/cli.py" || ! -f "$repo_root/src/todo_orchestrator/__init__.py" ]]; then
+      echo "Project Control source tree is incomplete under $repo_root/src" >&2
+      exit 2
+    fi
+    exec "$python" -m project_control.cli "$@"
+    ;;
+  test)
+    check_venv_target
+    if [[ ! -x "$python" ]]; then
+      echo "Project Control development environment is missing at $venv_path; run scripts/pc-dev setup" >&2
+      exit 2
+    fi
+    source_environment test
+    cd "$repo_root"
+    if ! "$python" -c 'import pytest' >/dev/null 2>&1; then
+      echo "pytest is missing from $venv_path; run scripts/pc-dev setup" >&2
+      exit 2
+    fi
+    if [[ ! -f "$repo_root/src/project_control/cli.py" || ! -f "$repo_root/src/todo_orchestrator/__init__.py" ]]; then
+      echo "Project Control source tree is incomplete under $repo_root/src" >&2
+      exit 2
+    fi
+    if [[ $# -eq 0 ]]; then
+      set -- \
+        tests/test_dev_tests_runner.py \
+        tests/test_runtime_identity.py \
+        tests/test_workflow_binding.py \
+        tests/test_readiness.py \
+        tests/as1/test_pc_as1_control.py::test_mutator_independent_plan_and_role_boundary
+    fi
+    exec "$python" -m pytest "$@"
+    ;;
+  python)
+    check_venv_target
+    if [[ ! -x "$python" ]]; then
+      echo "Project Control development environment is missing at $venv_path; run scripts/pc-dev setup" >&2
+      exit 2
+    fi
+    if [[ "${1:-}" == "--with-test-helpers" ]]; then
+      shift
+      source_environment test_helpers
+      cd "$repo_root"
+    else
+      source_environment
+    fi
+    exec "$python" "$@"
+    ;;
+  *)
+    echo "unknown pc-dev command: $action" >&2
+    usage
+    exit 2
+    ;;
+esac

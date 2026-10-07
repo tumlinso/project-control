@@ -8,6 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = Path('/home/tumlinson/.agents/skills')
+TODO_PACKAGE = ROOT / 'src/todo_orchestrator'
 REPORTS = ROOT / 'planning/adaptive-surface-v1/validation/qualification'
 PRIVATE_REPORTS = Path('/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private')
 BEARER_FIELDS = frozenset({'workflow_handle', 'capability_id', 'delegation_handle',
@@ -52,19 +53,18 @@ def persist_report(record, name, *, original_bytes=None):
 
 
 def child(source, name, *, environment=None, interpreter=None):
-    from project_control.runtime_identity import package_fingerprint
     env = dict(os.environ)
     for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
                 'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                'PROJECT_CONTROL_SKILLS_ROOT', 'PROJECT_CONTROL_OBSERVER_SKILLS_ROOT', 'OBSERVER_SKILLS_ROOT',
                 'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_READ_ONLY', 'TODO_ORCHESTRATOR_STATE_DIR'):
         env.pop(key, None)
-    native = SKILLS / 'todo-orchestrator'
-    env.update(PROJECT_CONTROL_SKILLS_ROOT=str(SKILLS),
-               PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT=package_fingerprint(native / 'todo_orchestrator'),
-               PYTHONPATH=os.pathsep.join([str(ROOT / 'src'), str(ROOT / 'tests/as1'), str(ROOT / 'tests'), str(native), str(native / 'tests')]),
+    native = ROOT / 'src'
+    env.update(PROJECT_CONTROL_OBSERVER_SKILLS_ROOT=str(SKILLS),
+               PYTHONPATH=os.pathsep.join([str(ROOT / 'src'), str(ROOT)]),
                PYTHONDONTWRITEBYTECODE='1')
     source_paths=list((ROOT/'src/project_control').glob('as1_*.py'))
-    source_paths += [native/'todo_orchestrator'/p for p in ('project_amendments.py','workflow/protocol.py','workflow/service.py','workflow/capabilities.py','workflow/roles.py')]
+    source_paths += [TODO_PACKAGE/p for p in ('project_amendments.py','workflow/protocol.py','workflow/service.py','workflow/capabilities.py','workflow/roles.py')]
     env['AS1_QUALIFY_SOURCE_HASHES']=json.dumps({str(p):sha(p) for p in source_paths})
     if environment:
         env.update(environment)
@@ -84,7 +84,7 @@ from project_control.config import ProjectControlConfig, WorkspaceConfig, Reposi
 from project_control.profiles import enumerate_tool_schemas
 from project_control.as1_context import ContextHost
 from todo_orchestrator.service import Service
-from v2_helpers import base_plan, safe_task
+from tests.todo.v2_helpers import base_plan, safe_task
 import project_control.as1_surface, todo_orchestrator.workflow.protocol
 def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 source_identity = {str(Path(m.__file__).resolve()):digest(m.__file__) for m in (project_control.as1_surface,todo_orchestrator.workflow.protocol)}
@@ -92,7 +92,7 @@ expected_source_identity=json.loads(os.environ['AS1_QUALIFY_SOURCE_HASHES'])
 assert all(digest(path)==expected for path,expected in expected_source_identity.items())
 source_identity.update(expected_source_identity)
 assert Path(project_control.as1_surface.__file__).resolve() == Path.cwd()/'src/project_control/as1_surface.py'
-assert Path(todo_orchestrator.workflow.protocol.__file__).resolve() == Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT'])/'todo-orchestrator/todo_orchestrator/workflow/protocol.py'
+assert Path(todo_orchestrator.workflow.protocol.__file__).resolve() == Path.cwd()/'src/todo_orchestrator/workflow/protocol.py'
 tmp = tempfile.TemporaryDirectory(); home=Path(tmp.name)
 os.environ['XDG_STATE_HOME']=str(home/'state'); os.environ['XDG_CACHE_HOME']=str(home/'cache')
 def git(root,*args): return subprocess.check_output(['git','-C',str(root),*args],text=True).strip()

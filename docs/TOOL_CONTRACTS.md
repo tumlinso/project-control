@@ -5,7 +5,8 @@ bound to [surface.json](../planning/adaptive-surface-v1/contracts/surface.json).
 Observer has 11 tools, coder/codex 12, mutator 16; both internal modes have 10.
 Profile checks guard discovery and dispatch; only observer supports extended.
 `search` accepts discovery or exact typed entities; no public `find` exists.
-Delegate/collect remain temporarily inactive until explicit operator reenable.
+Project Control exposes no delegation workflow tools; delegated assignments use
+configured Codex subagents under the owning root's active task claim.
 
 ## Historical contracts and preserved backends
 
@@ -19,16 +20,14 @@ Project Control exposes three exact profile-specific tool sets. No profile
 publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
 or a generic shell.
 
-The **observer** profile exposes exactly 20 tools over loopback Streamable HTTP:
-eighteen read-only tools, one registered measurement aperture, and
-`terminal_capture`. It registers no workflow mutation tool. The **codex** profile
-exposes exactly 25 tools over stdio: seventeen read-only tools, the measurement
-aperture, six canonical workflow tools (`next_task`, `inspect_task`,
-`coordinate_task`, `delegate_task`, `collect_delegation`, `finish_task`), and
-`maintain_execution`. The **mutator** profile exposes exactly 25 tools over local
-stdio: seventeen read-only tools, the measurement aperture, six canonical
-workflow tools, and `apply_plan`. Neither stdio profile exposes
-`terminal_capture`; `local_investigate` is observer-only.
+The **observer** profile exposes exactly 11 tools over loopback Streamable HTTP:
+eight shared information tools plus `read`, `investigate`, and `skill`. The
+**codex** profile exposes exactly 12 tools over stdio: the eight shared tools
+plus four workflow tools (`next_task`, `inspect_task`, `coordinate_task`,
+`finish_task`). The **mutator** profile exposes exactly 16 tools over stdio:
+the eight shared tools, `investigate`, four workflow tools, and the three
+mutation tools. Investigator and skill-assembler profiles each expose ten
+internal tools.
 
 Both registration and invocation are allowlisted. A name hidden from a profile
 cannot be invoked directly. Trusted startup configuration selects the profile;
@@ -212,9 +211,7 @@ canonical Todo `WorkflowProtocol`:
 2. `inspect_task` returns bounded, scope-aware current-task context.
 3. `coordinate_task` performs role- and scope-validated typed coordination,
    including authorized `publish_context` of non-authoritative reusable findings.
-4. `delegate_task` optionally starts one bounded subordinate local child.
-5. `collect_delegation` nonblockingly collects only the returned opaque handle.
-6. `finish_task` completes, hands off, blocks, or releases the parent task.
+4. `finish_task` completes, hands off, blocks, or releases the parent task.
 
 The adapter contains no scheduler, claim, recovery, capability, transaction, or
 completion business logic. It calls the in-process canonical protocol, never an

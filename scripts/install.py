@@ -16,7 +16,11 @@ from installer import InstallError, build_candidate, candidate_manifest_digest  
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build an isolated Project Control candidate")
     parser.add_argument("--project-control-root", type=Path, required=True)
-    parser.add_argument("--skills-root", type=Path, required=True)
+    parser.add_argument(
+        "--skills-root",
+        type=Path,
+        help="optional Skills content root to freeze (Todo is bundled in Project Control)",
+    )
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--offline", action="store_true", help="install only from the supplied uv cache")
     parser.add_argument("--uv-cache-dir", type=Path, help="explicit writable uv cache directory for offline builds")

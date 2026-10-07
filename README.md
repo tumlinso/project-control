@@ -1,5 +1,29 @@
 # project-control
 
+## Development quickstart
+
+Prepare the repository-local Python environment once, then run this checkout:
+
+```sh
+scripts/pc-dev setup
+scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768
+scripts/pc-dev run serve mutator
+scripts/pc-dev test
+scripts/pc-dev test tests/test_workflow_binding.py -q
+systemctl --user restart project-control-inference.service project-control.service
+```
+
+The default smoke covers launcher sanitation, runtime identity, workflow
+binding, readiness, and one focused mutator case using bundled Todo source. It
+does not start the Project Control service or inference/model processes.
+Foreground servers pick up source edits when rerun. Both this host's
+`project-control-inference.service` and
+`project-control.service` use the checkout; restart them after edits to the
+embedded runtime or HTTP service with the command above. The inference
+supervisor remains demand-driven. Installed-release deployments keep using
+their selected release until switched. See [development notes](docs/development.md)
+for setup, test selection, and the reduced CI scope.
+
 `project-control` observes and coordinates registered engineering workspaces
 through startup-bound MCP profiles over one implementation. The adaptive AS1
 surface exposes eight shared tools: `overview`, `delta`, `frontier`, `search`,
@@ -21,9 +45,7 @@ for routing, exact typed search, packets, durable jobs, examples, and release sc
 Todo Orchestrator remains the sole transactional workflow kernel and SQLite
 semantic authority. Project Control verifies and imports that canonical runtime
 in-process; it neither calls another MCP server nor copies scheduling, claim,
-capability, transaction, completion, or recovery logic. The old
-`coding-workflow` name is a temporary forwarding compatibility alias, not a
-second product, backend, or live registration.
+capability, transaction, completion, or recovery logic.
 
 For a completed run whose `contract_split` branches were merged into `main`,
 the owner can preview the missing workspace integration receipt with:
@@ -69,11 +91,15 @@ Normal Codex work starts with the bounded workflow protocol:
    `publish_context` findings.
 4. `finish_task` records disposition and runs required gates.
 
-`delegate_task` and `collect_delegation` retain implementation/history but are
-absent from discovery and rejected at dispatch as `temporarily_inactive`.
-Reenable requires an explicit operator decision; no timer reactivates them.
-Use configured Codex subagents for bounded assignments under the root's claim.
+Delegated work uses configured Codex subagents under the root's active task
+claim; delegation is not exposed through Project Control workflow tools.
 The eight shared information tools supply additional context when needed.
+
+## Source checks
+
+Use `scripts/pc-dev test` for the checked-out Project Control and bundled Todo
+sources. `scripts/dev_tests.sh` and `scripts/pa1_source_tests.sh` remain thin
+compatibility wrappers. See [development notes](docs/development.md).
 
 ## Bulk plan ingestion
 
@@ -99,18 +125,10 @@ translated into local Todo dependencies.
 
 ## Local development
 
-Python 3.11 or newer and `uv` are required for the locked workflow:
-
-```bash
-uv sync --frozen
-uv run python -m unittest discover -s tests -v
-uv run project-control config init
-uv run project-control config migrate --dry-run
-# Apply only when explicitly intended:
-uv run project-control config migrate --apply
-uv run project-control doctor --json
-uv run project-control serve
-```
+Python 3.11 or newer and `uv` are required. Use `scripts/pc-dev setup` once,
+then use `scripts/pc-dev run ...` and `scripts/pc-dev test ...` for source
+commands. The environment is reused; tests do not trigger a package rebuild or
+service restart.
 
 Configuration lives at `$XDG_CONFIG_HOME/project-control/config.toml` or
 `~/.config/project-control/config.toml`, with mode `0600`. Register repositories

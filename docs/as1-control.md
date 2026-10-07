@@ -30,11 +30,19 @@ match exactly. Missing ports return explicit unavailable/partial results.
   freshness. The broker verifies configured project/repository IDs and actual
   registered bytes when the kernel's read binding lacks the configured alias.
   This changes only the returned freshness view.
-* `maintain_execution(request)`: typed `project`/`action` with `task_id` and
-  optional exact `run_id` for `diagnose`/`prepare`; `execute` accepts only an
-  `authorization_id`. The server derives repository and recipient principal.
-  Native grants preserve dirty work and successful proof, refuse live owners,
-  and replay canonical receipts with current continuation assessment.
+* `maintain_execution(request)`: the mutator's direct rescue path; the Todo
+  workflow engine is bundled with Project Control, so this does not depend on
+  Todo Orchestrator skill discovery or a separate source checkout. Diagnose
+  with `{project, action: "diagnose", task_id}`; review blockers, then prepare
+  the same task with `{project, action: "prepare", task_id, run_id?}`. Provide
+  `run_id` when necessary to select the exact active run. Execute only the
+  returned principal-bound grant with
+  `{project, action: "execute", authorization_id}`. The server derives the
+  repository and recipient principal. Native grants preserve dirty work and
+  successful proof, refuse live owners, and replay canonical receipts with
+  current continuation assessment. Project/principal access checks remain
+  active; unsafe, ambiguous, or corrupt authorities may require separate owner
+  repair.
 * `publish_context(project, request)`: a coder/codex host may supply a startup
   `coder_claim_provider(principal, project)`; the native kernel authenticates the
   returned canonical claim and task source scope. Wire objects contain only

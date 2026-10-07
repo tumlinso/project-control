@@ -1,0 +1,119 @@
+{
+  "schema_version": 2,
+  "project": {"name": "Generic Parallel Project"},
+  "invariants": [
+    {"id": "contract-stable", "rule": "Frozen contracts change only through an explicit revision.", "severity": "error"},
+    {"id": "baseline-before-promotion", "rule": "A baseline evaluation must precede promotion decisions.", "severity": "error"},
+    {"id": "validate-before-integrate", "rule": "Required validation gates pass before integration.", "severity": "error"}
+  ],
+  "decisions": [
+    {"id": "strategy", "title": "Implementation strategy", "allowed": ["portable", "specialized"], "value": "portable"}
+  ],
+  "locks": [
+    {"name": "build-manifest"},
+    {"name": "integration-registry"}
+  ],
+  "interfaces": [
+    {"id": "public-contract", "owner_task_id": "FOUNDATION-API", "state": "draft", "version": "0", "contract_paths": ["include/public_contract.txt"]}
+  ],
+  "resource_classes": [
+    {
+      "id": "accelerator",
+      "mode": "exclusive",
+      "instances": [
+        {"id": "accelerator:0", "capacity": 1, "metadata": {"slot": "0"}},
+        {"id": "accelerator:1", "capacity": 1, "metadata": {"slot": "1"}}
+      ]
+    }
+  ],
+  "barriers": [
+    {
+      "id": "PARALLEL-FANIN",
+      "title": "Parallel implementation fan-in",
+      "mode": "all",
+      "requirements": [
+        {"type": "task", "id": "COMPONENT-A", "state": "done"},
+        {"type": "task", "id": "COMPONENT-B", "state": "done"},
+        {"type": "task", "id": "COMPONENT-C", "state": "done"},
+        {"type": "task", "id": "BASELINE-A", "state": "done", "dispositions": ["validated", "evaluated_not_promoted"]},
+        {"type": "task", "id": "BASELINE-B", "state": "done", "dispositions": ["validated", "evaluated_not_promoted"]}
+      ]
+    },
+    {
+      "id": "OPTIMIZATION-FANIN",
+      "title": "Optimization evaluation fan-in",
+      "mode": "all",
+      "requirements": [
+        {"type": "task", "id": "EXPERIMENT-A", "state": "done", "dispositions": ["implemented", "evaluated_not_promoted"]},
+        {"type": "task", "id": "EXPERIMENT-B", "state": "done", "dispositions": ["implemented", "evaluated_not_promoted"]}
+      ]
+    }
+  ],
+  "tasks": [
+    {"id": "PROJECT-00", "kind": "epic", "title": "Generic parallel project", "objective": "Coordinate a producer, parallel consumers, evaluation, experiments, and integration.", "parallel_policy": "serial"},
+    {
+      "id": "FOUNDATION-API", "parent_id": "PROJECT-00", "kind": "workstream", "title": "Define public contract",
+      "objective": "Publish a stable contract while internal work may continue.", "priority": 100, "parallel_policy": "parallel_safe",
+      "scope": {"exclusive_paths": ["include"], "read_paths": ["docs"], "shared_locks": ["build-manifest"]},
+      "invariants": ["contract-stable"],
+      "checkpoints": [{"id": "CONTRACT-FROZEN", "title": "Public contract frozen", "publishes_interfaces": [{"id": "public-contract", "version": "1"}]}],
+      "gates": [{"id": "CONTRACT-EXISTS", "checkpoint_id": "CONTRACT-FROZEN", "type": "file_exists", "path": "include/public_contract.txt", "required": true}]
+    },
+    {
+      "id": "FOUNDATION-RUNTIME", "parent_id": "PROJECT-00", "kind": "workstream", "title": "Build runtime foundation",
+      "objective": "Provide independent runtime foundations.", "priority": 90, "parallel_policy": "parallel_safe",
+      "scope": {"exclusive_paths": ["src/runtime"]}
+    },
+    {
+      "id": "COMPONENT-A", "parent_id": "PROJECT-00", "kind": "workstream", "title": "Implement component A", "priority": 80,
+      "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "CONTRACT-FROZEN"}],
+      "scope": {"exclusive_paths": ["src/component_a"], "read_paths": ["include/public_contract.txt"]},
+      "consumes_interfaces": [{"id": "public-contract", "required_state": "frozen", "required_version": "1"}], "invariants": ["contract-stable"]
+    },
+    {
+      "id": "COMPONENT-B", "parent_id": "PROJECT-00", "kind": "workstream", "title": "Implement component B", "priority": 79,
+      "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "CONTRACT-FROZEN"}],
+      "scope": {"exclusive_paths": ["src/component_b"], "read_paths": ["include/public_contract.txt"]},
+      "consumes_interfaces": [{"id": "public-contract", "required_state": "frozen", "required_version": "1"}], "invariants": ["contract-stable"]
+    },
+    {
+      "id": "COMPONENT-C", "parent_id": "PROJECT-00", "kind": "workstream", "title": "Implement optional component C", "priority": 78,
+      "parallel_policy": "parallel_safe", "depends_on": [
+        {"type": "checkpoint", "checkpoint_id": "CONTRACT-FROZEN"},
+        {"type": "decision", "decision_id": "strategy", "operator": "in", "value": ["portable", "specialized"]}
+      ],
+      "scope": {"exclusive_paths": ["src/component_c"], "read_paths": ["include/public_contract.txt"]},
+      "consumes_interfaces": [{"id": "public-contract", "required_state": "frozen", "required_version": "1"}]
+    },
+    {
+      "id": "BASELINE-A", "parent_id": "PROJECT-00", "kind": "validation_task", "title": "Evaluate baseline A", "priority": 70,
+      "parallel_policy": "parallel_safe", "scope": {"exclusive_paths": ["results/baseline_a"]},
+      "result_policy": {"allowed_dispositions": ["validated", "evaluated_not_promoted", "failed"]},
+      "gates": [{"id": "BASELINE-A-EVAL", "type": "benchmark", "argv": ["python", "-c", "import json; print(json.dumps({'score': 1.0}))"], "resources": ["accelerator:any"], "metric_path": "score", "operator": ">=", "threshold": 1.0, "required": true}]
+    },
+    {
+      "id": "BASELINE-B", "parent_id": "PROJECT-00", "kind": "validation_task", "title": "Evaluate baseline B", "priority": 69,
+      "parallel_policy": "parallel_safe", "scope": {"exclusive_paths": ["results/baseline_b"]},
+      "result_policy": {"allowed_dispositions": ["validated", "evaluated_not_promoted", "failed"]},
+      "gates": [{"id": "BASELINE-B-EVAL", "type": "benchmark", "argv": ["python", "-c", "import json; print(json.dumps({'score': 0.5}))"], "resources": ["accelerator:any"], "metric_path": "score", "operator": ">=", "threshold": 1.0, "evaluation_required": true, "required": true}]
+    },
+    {
+      "id": "EXPERIMENT-A", "parent_id": "PROJECT-00", "kind": "workstream", "title": "Optimization experiment A", "priority": 50,
+      "parallel_policy": "parallel_safe", "depends_on": [{"type": "barrier", "barrier_id": "PARALLEL-FANIN"}],
+      "scope": {"exclusive_paths": ["experiments/a"]}, "invariants": ["baseline-before-promotion"],
+      "result_policy": {"allowed_dispositions": ["implemented", "evaluated_not_promoted", "failed"]}
+    },
+    {
+      "id": "EXPERIMENT-B", "parent_id": "PROJECT-00", "kind": "workstream", "title": "Optimization experiment B", "priority": 49,
+      "parallel_policy": "parallel_safe", "depends_on": [{"type": "barrier", "barrier_id": "PARALLEL-FANIN"}],
+      "scope": {"exclusive_paths": ["experiments/b"]}, "invariants": ["baseline-before-promotion"],
+      "result_policy": {"allowed_dispositions": ["implemented", "evaluated_not_promoted", "failed"]}
+    },
+    {
+      "id": "INTEGRATION", "parent_id": "PROJECT-00", "kind": "integration_task", "title": "Integrate evaluated project", "priority": 40,
+      "parallel_policy": "integration_exclusive", "depends_on": [{"type": "barrier", "barrier_id": "OPTIMIZATION-FANIN"}],
+      "scope": {"exclusive_paths": ["integration"], "shared_locks": ["integration-registry", "build-manifest"]},
+      "invariants": ["validate-before-integrate"]
+    }
+  ]
+}

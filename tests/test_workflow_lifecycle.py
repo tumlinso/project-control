@@ -2,12 +2,8 @@
 import asyncio
 import os
 from pathlib import Path
-import sys
 import unittest
-import todo_orchestrator
-
-sys.path.insert(0, str(Path(todo_orchestrator.__file__).resolve().parents[1] / 'tests'))
-import test_workflow_isolated_claims as fixtures
+import tests.todo.test_workflow_isolated_claims as fixtures
 from todo_orchestrator.interfaces import interface_hash
 from project_control.workflow_tools import create_workflow_mcp
 

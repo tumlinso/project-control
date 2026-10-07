@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tumlinso.dev/schemas/todo-child-execution-v2.schema.json",
+  "title": "Todo child execution v2 result",
+  "type": "object",
+  "required": ["child_execution_id", "task_id", "state"],
+  "properties": {
+    "child_execution_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "access": {"enum": ["read", "write"], "default": "write"},
+    "state": {
+      "enum": [
+        "authorized", "queued", "running", "ready_for_acceptance",
+        "needs_codex", "failed", "preempted", "stale", "accepted",
+        "rejected", "canceled"
+      ]
+    },
+    "references": {
+      "type": "object",
+      "properties": {
+        "source_identity": {"type": "string"},
+        "context_packet": {"type": "string"},
+        "patch": {"type": "string"},
+        "candidate_verification": {"type": "string"},
+        "acceptance_verification": {"type": "string"},
+        "telemetry": {"type": "string"},
+        "reviewer_evidence": {"type": "string"},
+        "compact_logs": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "candidate_gates": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "acceptance_gates": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "additionalProperties": true
+}

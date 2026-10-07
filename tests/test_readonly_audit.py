@@ -14,8 +14,8 @@ from project_control.config import ProjectControlConfig, RepositoryConfig, Works
 from project_control.snapshot import SnapshotBuilder
 
 
-TODO = Path("/home/tumlinson/.agents/skills/todo-orchestrator/scripts/todo.py")
-SKILLS = Path("/home/tumlinson/.agents/skills")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TODO = PROJECT_ROOT / "tests" / "todo" / "scripts" / "todo.py"
 TOOLS = ('overview', 'delta', 'frontier', 'search', 'evidence', 'history', 'impact', 'read')
 
 
@@ -37,11 +37,11 @@ def manifest(root: Path) -> dict[str, tuple[int, str]]:
     return result
 
 
-@unittest.skipUnless(TODO.is_file(), "local todo-orchestrator integration unavailable")
 class ReadOnlyAuditTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name) / "disposable"
+        self.skills_root = Path(self.temporary.name) / "optional-skills"
         self.root.mkdir()
         run(["git", "init", "-b", "main"], self.root)
         run(["git", "config", "user.email", "tests@example.invalid"], self.root)
@@ -66,13 +66,13 @@ class ReadOnlyAuditTests(unittest.TestCase):
         plan.write_text(json.dumps(self.proposal), encoding="utf-8")
         run(["python", str(TODO), "plan", "validate", "--file", str(plan), "--repo-root", ".", "--json"], self.root)
         run(["python", str(TODO), "plan", "apply", "--file", str(plan), "--repo-root", ".", "--json"], self.root)
-        self.config = ProjectControlConfig(skills_root=SKILLS, workspaces={
+        self.config = ProjectControlConfig(observer_skills_root=self.skills_root, workspaces={
             "disposable": WorkspaceConfig(authority_repository="source", repositories={"source": RepositoryConfig(root=self.root)})
         })
         # This disposable audit deliberately exercises the compatibility CLI
         # read provider; the gate parent retains its deployed runtime binding.
         with patch('project_control.app.todo_read_port_factory', return_value=None):
-            self.mcp = create_mcp(self.config)
+            self.mcp = create_mcp(self.config, state_directory=Path(self.temporary.name) / "pc-state")
 
 
     def tearDown(self) -> None:

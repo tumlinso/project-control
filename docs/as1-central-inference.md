@@ -41,7 +41,12 @@ job lifetime, generation fences, packets, read-only authority context and the
 source command sandbox.
 
 `/healthz` reports `central_inference` availability and safe owner identity.
-`/readyz` requires configured workspaces and a validated central owner.
+`/readyz` is core readiness: it requires a valid Project Control configuration
+and a verified bundled workflow engine. It reports central inference and
+optional skill content separately; unavailable inference or an empty/unavailable
+skill catalog does not make core workflow readiness fail. A core configuration
+or workflow binding failure returns 503 with its reason. `/healthz` remains a
+process liveness response and can be healthy while an optional provider is down.
 Central absence, source/root/policy/ownership mismatches and transport timeout
 remain distinct from the daemon's admission-busy reasons. There is no local
 backend or network fallback.

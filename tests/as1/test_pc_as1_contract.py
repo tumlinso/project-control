@@ -28,7 +28,7 @@ def test_role_contract_matches_ledger_and_enforces_roles():
         assert set(c.SHARED_INFORMATION_TOOLS) <= set(policy["tools"])
         for tool in policy["tools"]:
             c.require_tool(role, tool)
-        for hidden in expected["removed_default_names"] + list(c.TEMPORARILY_INACTIVE):
+        for hidden in expected["removed_default_names"] + ["delegate_task", "collect_delegation"]:
             with pytest.raises(ValueError):
                 c.require_tool(role, hidden)
         if role != "observer":

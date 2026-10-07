@@ -18,12 +18,18 @@ dependencies = [
   "uvicorn>=0.32,<1",
 ]
 
+[dependency-groups]
+dev = [
+  "pytest>=9.1,<10",
+]
+
 [project.scripts]
 project-control = "project_control.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/project_control"]
+packages = ["src/project_control", "src/todo_orchestrator"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = ["as1_case(*ids): identifies focused AS1 CPU qualification cases"]

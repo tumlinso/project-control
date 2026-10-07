@@ -14,15 +14,14 @@ from project_control.workflow_core.recovery import (
 )
 
 
-SKILLS = Path(os.environ.get("PROJECT_CONTROL_SKILLS_ROOT", "/home/tumlinson/.agents/skills"))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RECOVERY_FIXTURE = PROJECT_ROOT / "tests" / "todo" / "test_workflow_recovery.py"
 
 
-@unittest.skipUnless((SKILLS / "todo-orchestrator/tests/test_workflow_recovery.py").is_file(), "Todo recovery fixture unavailable")
 class MaintenanceReceiptTests(unittest.TestCase):
     def test_real_authority_replays_after_receipt_projection_failure(self) -> None:
         import sys
-        sys.path.insert(0, str(SKILLS / "todo-orchestrator/tests"))
-        from test_workflow_recovery import WorkflowRecoveryTests
+        from tests.todo.test_workflow_recovery import WorkflowRecoveryTests
         from todo_orchestrator.git_state import scope_manifest
         from todo_orchestrator.workflow.recovery import RecoveryEngine
 
@@ -66,8 +65,7 @@ class MaintenanceReceiptTests(unittest.TestCase):
         import time
         from mcp import ClientSession
         from mcp.client.stdio import StdioServerParameters, stdio_client
-        sys.path.insert(0, str(SKILLS / "todo-orchestrator/tests"))
-        from test_workflow_recovery import WorkflowRecoveryTests
+        from tests.todo.test_workflow_recovery import WorkflowRecoveryTests
         from todo_orchestrator.git_state import scope_manifest
         from todo_orchestrator.workflow.recovery import RecoveryEngine
 
@@ -106,9 +104,13 @@ class MaintenanceReceiptTests(unittest.TestCase):
 
             async def public_call(authorization_id):
                 environment = dict(os.environ)
-                environment['PROJECT_CONTROL_SKILLS_ROOT'] = str(SKILLS)
                 environment['TODO_ORCHESTRATOR_STATE_DIR'] = str(fixture.repo.state_root)
-                environment['PYTHONPATH'] = os.pathsep.join([str(Path.cwd() / 'src'), str(SKILLS / 'todo-orchestrator')])
+                for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
+                            'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                            'PROJECT_CONTROL_SKILLS_ROOT', 'PROJECT_CONTROL_OBSERVER_SKILLS_ROOT',
+                            'OBSERVER_SKILLS_ROOT', 'CODING_WORKFLOW_SKILLS_ROOT'):
+                    environment.pop(key, None)
+                environment['PYTHONPATH'] = str(PROJECT_ROOT / 'src')
                 parameters = StdioServerParameters(
                     command=sys.executable,
                     args=['-m', 'project_control.maintenance_host', 'operator', '--principal', 'receipt-fault-operator'],

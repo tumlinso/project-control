@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,22 +11,23 @@ from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.app import create_mcp
+from project_control.as1_context import ContextHost
 from project_control.models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, RepositoryIdentity, WorktreeIdentity
 from project_control.services.planning import plan_preview
 
 
-TODO = Path("/home/tumlinson/.agents/skills/todo-orchestrator/scripts/todo.py")
-SKILLS = Path("/home/tumlinson/.agents/skills")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TODO = PROJECT_ROOT / "tests" / "todo" / "scripts" / "todo.py"
 
 
 def run(argv: list[str], root: Path) -> str:
     return subprocess.run(argv, cwd=root, check=True, text=True, capture_output=True).stdout
 
 
-@unittest.skipUnless(TODO.is_file(), "local todo-orchestrator integration unavailable")
 class PlanPreviewTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
+        self.skills_root = Path(self.temporary.name) / "optional-skills"
         self.root = Path(self.temporary.name) / "repo"
         self.cache = Path(self.temporary.name) / "cache"
         self.root.mkdir()
@@ -38,7 +39,7 @@ class PlanPreviewTests(unittest.TestCase):
         run(["git", "add", "README.md", ".gitignore"], self.root)
         run(["git", "commit", "-m", "fixture"], self.root)
         run(["python", str(TODO), "bootstrap", "--repo-root", ".", "--name", "Fixture", "--json"], self.root)
-        self.config = ProjectControlConfig(skills_root=SKILLS, workspaces={
+        self.config = ProjectControlConfig(observer_skills_root=self.skills_root, workspaces={
             "demo": WorkspaceConfig(authority_repository="source", repositories={"source": RepositoryConfig(root=self.root)})
         })
         status = json.loads(run(["python", str(TODO), "status", "--repo-root", ".", "--json"], self.root))
@@ -100,49 +101,21 @@ class PlanPreviewTests(unittest.TestCase):
         self.assertNotIn("observation_preconditions", validated.data)
         self.assertFalse(any(self.cache.rglob("proposal-*.json")))
 
-    def test_bound_mcp_validate_and_handoff_use_real_todo_service(self) -> None:
-        """Exercise the bound public route against this disposable authority."""
-
-        before = self.identities()
-        child = """
-import asyncio
-import json
-import sys
-from pathlib import Path
-from project_control.app import create_mcp
-from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-
-root = Path(sys.argv[1])
-skills = Path(sys.argv[2])
-config = ProjectControlConfig(skills_root=skills, workspaces={
-    'demo': WorkspaceConfig(authority_repository='source', repositories={
-        'source': RepositoryConfig(root=root),
-    }),
-})
-proposal = {'schema_version': 2, 'project': {'name': 'Fixture'}, 'invariants': [], 'locks': [], 'interfaces': [], 'tasks': []}
-mcp = create_mcp(config)
-validated = asyncio.run(mcp._tool_manager.call_tool('plan_preview', {
-    'project': 'demo', 'mode': 'validate', 'proposal': proposal,
-}))
-handed = asyncio.run(mcp._tool_manager.call_tool('plan_preview', {
-    'project': 'demo', 'mode': 'handoff', 'proposal': proposal, 'objective': 'Test',
-}))
-print(json.dumps({'validated': validated, 'handed': handed}, sort_keys=True))
-"""
-        environment = dict(os.environ)
-        environment["PROJECT_CONTROL_SKILLS_ROOT"] = str(SKILLS)
-        environment["PYTHONPATH"] = str(SKILLS / "todo-orchestrator") + os.pathsep + environment.get("PYTHONPATH", "")
-        environment["XDG_CACHE_HOME"] = str(self.cache)
-        completed = subprocess.run(
-            [sys.executable, "-c", child, str(self.root), str(SKILLS)],
-            cwd=self.root, env=environment, text=True, capture_output=True, check=True,
-        )
-        result = json.loads(completed.stdout)
-        after = self.identities()
-        self.assertTrue(result["validated"]["data"]["valid"])
-        self.assertEqual(result["validated"]["data"]["mutation_guard"], "unchanged")
-        self.assertIn("handoff", result["handed"]["data"])
-        self.assertEqual(before, after)
+    def test_retired_plan_preview_and_handoff_routes_are_not_registered(self) -> None:
+        state = Path(self.temporary.name) / "mcp-state"
+        host = ContextHost("mutator", "fixture-mutator", frozenset({"demo"}))
+        servers = [
+            create_mcp(self.config, profile="codex", state_directory=state / "codex"),
+            create_mcp(self.config, profile="mutator", host=host, state_directory=state / "mutator"),
+        ]
+        try:
+            for server in servers:
+                names = {tool.name for tool in asyncio.run(server.list_tools())}
+                self.assertNotIn("plan_preview", names)
+                self.assertNotIn("plan_handoff", names)
+        finally:
+            for server in servers:
+                server._project_control_surface.close()
 
     def test_proposal_limit_is_enforced(self) -> None:
         with self.assertRaises(ValueError):

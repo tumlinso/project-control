@@ -23,7 +23,7 @@ The machine-readable requirement ledger is `contracts/requirements.json`. In par
 * Busy service means persist the accepted question, return an ID, tell the caller **not to wait**, and let it continue reasoning. GPU residency is not job persistence.
 * `skill(query, skill?, hints?)` is observer-only. A local read-only adapter homed in the registered skills directory follows native skill routing. Small synthesis is allowed; Project Control supplies the actual skill text by direct reads.
 * Used, relevant skills become project semantic context. Exploratory reads alone do not count as applied skills.
-* Temporarily hide `delegate_task` and `collect_delegation`; retain their implementations, data, and tests. No time-based automatic re-enablement.
+* Do not expose Project Control delegation tools. Use configured Codex subagents for delegated work under the owning root's active task claim.
 * `terminal_capture`, `performance_probe`, and `agent_status` disappear from the ordinary observer surface. Performance findings become ordinary source-backed semantic/evidence context, not a universal CUDA status tool.
 * Mutator can independently understand and plan. It receives applicable observer knowledge and investigation capabilities plus full typed plan/control-plane mutation, registration and maintenance. Native filesystem/skills access replaces redundant observer adapters.
 * Genuinely destructive admin operations require fresh explicit user permission; routine safe transactions do not.
@@ -45,7 +45,7 @@ The user's statements override earlier assistant restatements. These are explici
 | Deterministic dependency evidence versus “proven impact” | A recorded dependency proves that a relationship was observed/declared, not that an arbitrary change will break a consumer. Report dependent candidates and change assumptions, not certainty of breakage. |
 | Agent knowledge versus skill authority | Search summaries and local synthesis remain attributed secondary guidance. `skill` must include direct exact excerpts with hashes/ranges and never substitute a paraphrase. |
 | Persistent questions versus long-lived model memory | Persist question, evidence, compact findings, unresolved issues and attempts. Do not depend on KV cache or store hidden reasoning. |
-| Removing delegation surface versus mutator investigate | Coder local delegation remains hidden. Mutator may request a **read-only scout** for planning; this does not reintroduce local coding delegation. |
+| Removing delegation surface versus mutator investigate | Project Control exposes no delegation tools. Mutator may request a **read-only scout** for planning; this does not reintroduce local coding delegation. |
 | Large scope versus sensible work granularity | Use the outcome-sized tasks supplied here; split only after a concrete concurrency, ownership or blocking need appears. Do not turn every schema, test, or parameter into a Todo. |
 
 ## 4. Authority ownership

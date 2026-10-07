@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "project": {"name": "Todo Orchestrator v2 Overhaul Dogfood"},
+  "invariants": [
+    {"id": "preserve-user-work", "rule": "Never reset, stash, clean, overwrite, or discard user-owned changes.", "severity": "error"},
+    {"id": "sqlite-authority", "rule": "SQLite is live authority; snapshots and Markdown are projections.", "severity": "error"},
+    {"id": "generic-production", "rule": "Production orchestration semantics remain project-agnostic.", "severity": "error"}
+  ],
+  "locks": [
+    {"name": "command-registry"},
+    {"name": "package-exports"},
+    {"name": "plan-schema"},
+    {"name": "skill-docs"},
+    {"name": "test-helpers"}
+  ],
+  "barriers": [
+    {
+      "id": "TO-V2-INTEGRATION-BARRIER",
+      "title": "All feature lanes validated",
+      "mode": "all",
+      "requirements": [
+        {"type": "task", "id": "TO-V2-04", "state": "done"},
+        {"type": "task", "id": "TO-V2-05", "state": "done"},
+        {"type": "task", "id": "TO-V2-06", "state": "done"},
+        {"type": "task", "id": "TO-V2-07", "state": "done"},
+        {"type": "task", "id": "TO-V2-08", "state": "done"},
+        {"type": "task", "id": "TO-V2-09", "state": "done"},
+        {"type": "task", "id": "TO-V2-10", "state": "done"},
+        {"type": "task", "id": "TO-V2-11", "state": "done"}
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TO-V2-00", "kind": "epic", "title": "Transactional parallel orchestration v2", "objective": "Replace cooperative Markdown synchronization with a project-agnostic transactional coordination system.", "status": "done", "result": "validated", "parallel_policy": "serial", "invariants": ["preserve-user-work", "sqlite-authority", "generic-production"]
+    },
+    {
+      "id": "TO-V2-01", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Preserve baseline and migration fixtures", "objective": "Preserve and prove legacy behavior before semantic changes.", "priority": 120, "parallel_policy": "parallel_safe", "scope": {"exclusive_paths": ["todo-orchestrator/tests/fixtures/legacy"]}, "invariants": ["preserve-user-work"], "gates": [{"id": "TO-V2-01-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_resume_logic.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/tests/test_resume_logic.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-02", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Transactional foundation", "objective": "Implement project identity, migrations, revisions, events, snapshots, and projections.", "priority": 110, "parallel_policy": "parallel_safe", "depends_on": [{"type": "task", "task_id": "TO-V2-01"}], "scope": {"exclusive_paths": ["todo-orchestrator/todo_orchestrator/db.py", "todo-orchestrator/todo_orchestrator/migrations.py", "todo-orchestrator/todo_orchestrator/config.py", "todo-orchestrator/todo_orchestrator/projections.py"]}, "invariants": ["sqlite-authority"], "gates": [{"id": "TO-V2-02-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_foundation.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/db.py", "todo-orchestrator/todo_orchestrator/migrations.py", "todo-orchestrator/todo_orchestrator/projections.py", "todo-orchestrator/tests/test_v2_foundation.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-03", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Sessions and atomic pickup", "objective": "Freeze the modular command, token, event, and atomic pickup contracts.", "priority": 100, "parallel_policy": "parallel_safe", "depends_on": [{"type": "task", "task_id": "TO-V2-02"}], "scope": {"exclusive_paths": ["todo-orchestrator/todo_orchestrator/claims.py", "todo-orchestrator/todo_orchestrator/sessions.py", "todo-orchestrator/todo_orchestrator/cli.py", "todo-orchestrator/todo_orchestrator/commands"]}, "claim_locks": ["command-registry"], "checkpoints": [{"id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE", "title": "Transactional extension contract frozen"}], "gates": [{"id": "TO-V2-03-GATE", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_concurrency.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/claims.py", "todo-orchestrator/tests/test_v2_concurrency.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-04", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Graph, readiness, checkpoints, and barriers", "objective": "Implement typed graph semantics and computed readiness.", "priority": 90, "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE"}], "scope": {"exclusive_paths": ["todo-orchestrator/todo_orchestrator/graph.py", "todo-orchestrator/todo_orchestrator/readiness.py", "todo-orchestrator/todo_orchestrator/checkpoints.py", "todo-orchestrator/todo_orchestrator/barriers.py"]}, "invariants": ["generic-production"], "gates": [{"id": "TO-V2-04-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_graph_coordination.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/graph.py", "todo-orchestrator/tests/test_v2_graph_coordination.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-05", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Generic resources and gates", "objective": "Schedule generic resources and capture gate evidence transactionally.", "priority": 89, "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE"}], "scope": {"exclusive_paths": ["todo-orchestrator/todo_orchestrator/resources.py", "todo-orchestrator/todo_orchestrator/gates.py", "todo-orchestrator/todo_orchestrator/evidence.py"]}, "invariants": ["generic-production"], "gates": [{"id": "TO-V2-05-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_resources_gates.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/resources.py", "todo-orchestrator/todo_orchestrator/gates.py", "todo-orchestrator/todo_orchestrator/evidence.py", "todo-orchestrator/tests/test_v2_resources_gates.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-06", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Ownership, Git audit, interfaces, and locks", "objective": "Protect shared-worktree paths, interfaces, and critical sections.", "priority": 88, "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE"}], "scope": {"exclusive_paths": ["todo-orchestrator/todo_orchestrator/ownership.py", "todo-orchestrator/todo_orchestrator/git_state.py", "todo-orchestrator/todo_orchestrator/interfaces.py", "todo-orchestrator/todo_orchestrator/audit.py"]}, "invariants": ["generic-production"], "gates": [{"id": "TO-V2-06-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_graph_coordination.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/ownership.py", "todo-orchestrator/todo_orchestrator/interfaces.py", "todo-orchestrator/todo_orchestrator/audit.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-07", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Context, deltas, handoff, and reporting", "objective": "Return compact task-specific state and evidence-backed handoffs.", "priority": 87, "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE"}], "scope": {"exclusive_paths": ["todo-orchestrator/todo_orchestrator/context.py", "todo-orchestrator/todo_orchestrator/events.py", "todo-orchestrator/todo_orchestrator/reporting.py", "todo-orchestrator/todo_orchestrator/service.py"]}, "claim_locks": ["package-exports"], "gates": [{"id": "TO-V2-07-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_recovery_migration_context.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/context.py", "todo-orchestrator/todo_orchestrator/events.py", "todo-orchestrator/todo_orchestrator/reporting.py", "todo-orchestrator/todo_orchestrator/service.py", "todo-orchestrator/tests/test_v2_recovery_migration_context.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-08", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Markdown migration and compatibility", "objective": "Migrate legacy ledgers without creating a second authority.", "priority": 86, "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE"}], "scope": {"exclusive_paths": ["todo-orchestrator/todo_orchestrator/legacy.py", "todo-orchestrator/scripts/v2_compat.py", "todo-orchestrator/scripts/init_todos.py", "todo-orchestrator/scripts/update_todos.py", "todo-orchestrator/scripts/summarize_todos.py", "todo-orchestrator/scripts/review_staleness.py", "todo-orchestrator/scripts/cleanup_todos.py"]}, "gates": [{"id": "TO-V2-08-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_recovery_migration_context.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/legacy.py", "todo-orchestrator/scripts/v2_compat.py"], "required": true}]
+    },
+    {
+      "id": "TO-V2-09", "parent_id": "TO-V2-00", "kind": "workstream", "title": "Skill and reference documentation", "objective": "Document the low-token transactional workflow.", "priority": 85, "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE"}], "scope": {"exclusive_paths": ["todo-orchestrator/SKILL.md", "todo-orchestrator/references", "todo-orchestrator/agents/openai.yaml"]}, "claim_locks": ["skill-docs"], "invariants": ["generic-production"], "gates": [{"id": "TO-V2-09-GATE", "type": "command", "argv": ["python", "/home/tumlinson/.codex/skills/.system/skill-creator/scripts/quick_validate.py", "todo-orchestrator"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/SKILL.md", "todo-orchestrator/agents/openai.yaml"], "required": true}]
+    },
+    {
+      "id": "TO-V2-10", "parent_id": "TO-V2-00", "kind": "validation_task", "title": "Concurrency and recovery tests", "objective": "Prove multiprocess, migration, resource, recovery, and compatibility behavior.", "priority": 84, "parallel_policy": "parallel_safe", "depends_on": [{"type": "checkpoint", "checkpoint_id": "TO-V2-BOOTSTRAP-PARALLEL-SAFE"}], "scope": {"exclusive_paths": ["todo-orchestrator/tests"]}, "claim_locks": ["test-helpers"], "gates": [{"id": "TO-V2-10-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/tests/test_v2_concurrency.py", "todo-orchestrator/tests/test_v2_resources_gates.py"], "required": true}], "result_policy": {"allowed_dispositions": ["validated", "failed"]}
+    },
+    {
+      "id": "TO-V2-11", "parent_id": "TO-V2-00", "kind": "validation_task", "title": "Generic topology fixture and end-to-end dogfood", "objective": "Prove the generic abstraction replaces project-specific orchestration prose.", "priority": 70, "parallel_policy": "parallel_safe", "depends_on": [{"type": "task", "task_id": "TO-V2-04"}, {"type": "task", "task_id": "TO-V2-05"}, {"type": "task", "task_id": "TO-V2-06"}, {"type": "task", "task_id": "TO-V2-07"}, {"type": "task", "task_id": "TO-V2-08"}, {"type": "task", "task_id": "TO-V2-10"}], "scope": {"exclusive_paths": ["todo-orchestrator/tests/fixtures/v2/generic-parallel-project.json"]}, "invariants": ["generic-production"], "gates": [{"id": "TO-V2-11-GATE", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-p", "test_v2_recovery_migration_context.py", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/tests/fixtures/v2/generic-parallel-project.json"], "required": true}], "result_policy": {"allowed_dispositions": ["validated", "failed"]}
+    },
+    {
+      "id": "TO-V2-12", "parent_id": "TO-V2-00", "kind": "integration_task", "title": "Final integration and release readiness", "objective": "Integrate and verify the complete v2 skill without disturbing unrelated work.", "priority": 60, "parallel_policy": "project_exclusive", "depends_on": [{"type": "barrier", "barrier_id": "TO-V2-INTEGRATION-BARRIER"}], "scope": {"exclusive_paths": ["todo-orchestrator"]}, "invariants": ["preserve-user-work", "sqlite-authority", "generic-production"], "gates": [
+        {"id": "TO-V2-12-TESTS", "type": "command", "argv": ["python", "-m", "unittest", "discover", "-s", "todo-orchestrator/tests", "-v"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/todo_orchestrator/service.py", "todo-orchestrator/tests/test_v2_concurrency.py", "todo-orchestrator/tests/test_v2_resources_gates.py"], "required": true},
+        {"id": "TO-V2-12-DIFF", "type": "command", "argv": ["git", "diff", "--check"], "required": true},
+        {"id": "TO-V2-12-SKILL", "type": "command", "argv": ["python", "/home/tumlinson/.codex/skills/.system/skill-creator/scripts/quick_validate.py", "todo-orchestrator"], "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "input_paths": ["todo-orchestrator/SKILL.md"], "required": true}
+      ], "result_policy": {"allowed_dispositions": ["validated", "failed"]}
+    }
+  ]
+}

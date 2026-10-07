@@ -1,0 +1,29 @@
+{
+  "database_migration_version": 11,
+  "project_schema_version": 2,
+  "required_tables": [
+    "workflow_capabilities",
+    "workflow_child_result_candidates",
+    "workflow_context_fragments",
+    "workflow_dispatches",
+    "workflow_integration_queue",
+    "workflow_lane_tasks",
+    "workflow_lanes",
+    "workflow_message_receipts",
+    "workflow_message_recipients",
+    "workflow_messages",
+    "workflow_patch_artifacts",
+    "workflow_recovery_audit",
+    "workflow_rendezvous",
+    "workflow_rendezvous_arrivals",
+    "workflow_rendezvous_participants",
+    "workflow_run_charters",
+    "workflow_runs",
+    "workflow_workspaces"
+  ],
+  "forbidden_child_lane_columns": [
+    "run_id",
+    "lane_id",
+    "role"
+  ]
+}

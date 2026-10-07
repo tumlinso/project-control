@@ -23,7 +23,7 @@ from project_control import runtime_binding
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-SUPPLIER = Path("/home/tumlinson/.agents/skills")
+SUPPLIER = Path("/home/tumlinson/skills_dev")
 RECEIVER = REPOSITORY / "src/project_control/local_runtime"
 
 
@@ -114,6 +114,70 @@ class RuntimeBindingTests(unittest.TestCase):
         runtime_binding._BOUND_MANIFEST_SHA256 = None
         self.addCleanup(setattr, runtime_binding, "_BOUND_MANIFEST_SHA256", original_manifest_sha)
 
+    def test_source_test_runner_binds_bundled_todo_without_a_supplier(self) -> None:
+        content_root = Path(self.temp.name) / "content-does-not-exist"
+        before_bytecode = {
+            path.relative_to(REPOSITORY / "src/todo_orchestrator").as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (REPOSITORY / "src/todo_orchestrator").rglob("*.pyc")
+        }
+        code = (
+            "import json, os; from project_control.runtime_identity import bind_runtime; "
+            "identity = bind_runtime(); import todo_orchestrator; "
+            "print(json.dumps({'content_root': str(identity.skills_root), "
+            "'source_package': str(identity.source_package_root), "
+            "'module_package': str(todo_orchestrator.__file__), "
+            "'observer_root': os.environ['PROJECT_CONTROL_OBSERVER_SKILLS_ROOT']}))"
+        )
+        env = dict(os.environ)
+        env["PROJECT_CONTROL_OBSERVER_SKILLS_ROOT"] = str(content_root)
+        env[runtime_binding.RELEASE_MANIFEST_VARIABLE] = "/missing/inherited-release.json"
+        env[runtime_binding.RELEASE_DIGEST_VARIABLE] = "0" * 64
+        result = subprocess.run(
+            ["bash", str(REPOSITORY / "scripts/pc-dev"), "python", "-c", code],
+            cwd=REPOSITORY, env=env, capture_output=True, text=True, timeout=30, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        identity = json.loads(result.stdout)
+        self.assertEqual(identity["content_root"], str(content_root.resolve()))
+        self.assertEqual(identity["source_package"], str((REPOSITORY / "src/todo_orchestrator").resolve()))
+        self.assertEqual(identity["module_package"], str((REPOSITORY / "src/todo_orchestrator/__init__.py").resolve()))
+        self.assertEqual(identity["observer_root"], str(content_root))
+        after_bytecode = {
+            path.relative_to(REPOSITORY / "src/todo_orchestrator").as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (REPOSITORY / "src/todo_orchestrator").rglob("*.pyc")
+        }
+        self.assertEqual(after_bytecode, before_bytecode)
+
+    def test_observer_qualifier_loads_adapter_after_verified_binding(self) -> None:
+        qualifier_path = REPOSITORY / "scripts/qualify_observer_model.py"
+        spec = importlib.util.spec_from_file_location("qualify_observer_model_test", qualifier_path)
+        self.assertIsNotNone(spec)
+        qualifier = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(qualifier)
+
+        identity = types.SimpleNamespace(package_root=Path(self.temp.name) / "verified/local_worker")
+        adapter_type = type("LlamaCppServerAdapter", (), {})
+        worker = types.ModuleType("local_worker")
+        worker.__path__ = []
+        servers = types.ModuleType("local_worker.servers")
+        servers.__path__ = []
+        adapter_module = types.ModuleType("local_worker.servers.llama_cpp")
+        adapter_module.LlamaCppServerAdapter = adapter_type
+        before = list(sys.path)
+        with mock.patch("project_control.runtime_binding.bind_local_runtime", return_value=identity) as bind, \
+                mock.patch.dict(sys.modules, {
+                    "local_worker": worker,
+                    "local_worker.servers": servers,
+                    "local_worker.servers.llama_cpp": adapter_module,
+                }):
+            actual_identity, actual_adapter = qualifier.load_runtime_adapter()
+        bind.assert_called_once_with()
+        self.assertIs(actual_identity, identity)
+        self.assertIs(actual_adapter, adapter_type)
+        self.assertEqual(sys.path, before)
+        self.assertFalse(hasattr(qualifier, "SKILLS"))
+
     def _install_source_shaped_binding_package(self) -> Path:
         project_package = self.repo_root / "src/project_control"
         project_package.mkdir(parents=True, exist_ok=True)
@@ -121,14 +185,14 @@ class RuntimeBindingTests(unittest.TestCase):
         shutil.copy2(REPOSITORY / "src/project_control/runtime_binding.py", project_package / "runtime_binding.py")
         return project_package
 
-    def test_source_identity_validates_receiver_manifest_without_importing_runtime(self) -> None:
+    def test_source_identity_derives_current_inventory_without_importing_runtime(self) -> None:
         before = {name for name in sys.modules if name == "local_worker" or name.startswith("local_worker.")}
         identity = runtime_binding.local_runtime_identity()
         after = {name for name in sys.modules if name == "local_worker" or name.startswith("local_worker.")}
 
         self.assertEqual(identity.root, self.fixture_root.resolve())
-        self.assertEqual(identity.source_root, "/fixture/skills/local-coding-worker")
-        self.assertEqual(identity.source_commit, "a" * 40)
+        self.assertEqual(identity.source_root, str(self.repo_root.resolve()))
+        self.assertEqual(identity.source_commit, "working-tree")
         self.assertEqual(identity.file_count, 2)
         self.assertEqual(before, after)
 
@@ -151,13 +215,21 @@ class RuntimeBindingTests(unittest.TestCase):
             runtime_binding.bind_local_runtime(root=other)
         self.assertFalse(any(name == "local_worker" or name.startswith("local_worker.") for name in sys.modules))
 
-    def test_modified_receiver_file_is_rejected_before_binding(self) -> None:
+    def test_fresh_source_process_accepts_edits_without_rewriting_manifest(self) -> None:
         with (self.fixture_root / "local_worker" / "supervisor.py").open("ab") as stream:
-            stream.write(b"# changed after manifest\n")
+            stream.write(b"\nSOURCE_EDIT = True\n")
 
-        with self.assertRaisesRegex(runtime_binding.RuntimeBindingError, "receiver_file_hash_mismatch"):
-            runtime_binding.bind_local_runtime()
-        self.assertFalse(any(name == "local_worker" or name.startswith("local_worker.") for name in sys.modules))
+        project_package = self._install_source_shaped_binding_package()
+        env = dict(os.environ)
+        env.pop(runtime_binding.RELEASE_MANIFEST_VARIABLE, None)
+        env.pop(runtime_binding.RELEASE_DIGEST_VARIABLE, None)
+        env["PYTHONPATH"] = str(project_package.parent)
+        completed = subprocess.run(
+            [sys.executable, "-c", "from project_control.runtime_binding import bind_local_runtime; "
+             "identity = bind_local_runtime(); assert identity.file_count == 2"],
+            cwd=self.repo_root, env=env, capture_output=True, text=True, timeout=30, check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
     def test_stale_or_missing_installed_release_binding_fails_closed(self) -> None:
         release = Path(self.temp.name) / "release.json"
@@ -178,6 +250,17 @@ class RuntimeBindingTests(unittest.TestCase):
             identity = runtime_binding.local_runtime_identity()
         self.assertEqual(identity.root, self.fixture_root.resolve())
         self.assertFalse(any(name == "local_worker" or name.startswith("local_worker.") for name in sys.modules))
+
+    def test_source_identity_still_rejects_an_explicit_bad_release_pin(self) -> None:
+        release = Path(self.temp.name) / "bad-release.json"
+        release.write_text(json.dumps({"schema_version": 3}), encoding="utf-8")
+        with mock.patch.dict(os.environ, {
+            runtime_binding.RELEASE_MANIFEST_VARIABLE: str(release),
+            runtime_binding.RELEASE_DIGEST_VARIABLE: "0" * 64,
+        }, clear=False):
+            with self.assertRaisesRegex(runtime_binding.RuntimeBindingError,
+                                        "runtime_release_manifest_digest_mismatch"):
+                runtime_binding.local_runtime_identity()
 
     def test_non_checkout_install_requires_a_digest_pinned_release_manifest(self) -> None:
         site_package = Path(self.temp.name) / "site-packages/project_control"
@@ -200,7 +283,7 @@ class RuntimeBindingTests(unittest.TestCase):
         fingerprint = runtime_binding._files_fingerprint(receiver_manifest["files"])
         release = Path(self.temp.name) / "release.json"
         release.write_text(json.dumps({
-            "schema_version": 2,
+            "schema_version": 3,
             "local_runtime_binding": {
                 "path": "project_control/local_runtime",
                 "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
@@ -243,7 +326,7 @@ class RuntimeBindingTests(unittest.TestCase):
         ):
             runtime_binding.bind_local_runtime()
 
-    def test_cached_modules_are_rejected_after_same_root_manifest_refresh(self) -> None:
+    def test_cached_modules_are_rejected_after_same_process_source_edit(self) -> None:
         runtime_binding.bind_local_runtime()
         loaded = importlib.import_module("local_worker.supervisor")
         self.assertEqual(Path(loaded.__file__).resolve(), self.fixture_root / "local_worker/supervisor.py")
@@ -251,7 +334,9 @@ class RuntimeBindingTests(unittest.TestCase):
         self.addCleanup(lambda: [sys.modules.pop(name, None) for name in tuple(sys.modules)
                                  if name == "local_worker" or name.startswith("local_worker.")])
 
-        _write_manifest(self.fixture_root, contents=b"VERSION = 'new'\n")
+        (self.fixture_root / "local_worker" / "supervisor.py").write_text(
+            "VERSION = 'new'\n", encoding="utf-8",
+        )
         self.assertEqual(loaded.VERSION, "old")
         with self.assertRaisesRegex(
             runtime_binding.RuntimeBindingError, "runtime_fingerprint_changed_restart_required"
@@ -292,6 +377,7 @@ with patch('subprocess.Popen') as process_start:
     def test_runtime_domain_tool_paths_are_explicit_and_do_not_depend_on_layout(self) -> None:
         code = """
 import os
+import todo_orchestrator
 from unittest.mock import patch
 from project_control.runtime_binding import import_local_worker_supervisor
 import_local_worker_supervisor()
@@ -299,7 +385,8 @@ from local_worker.controller import IntegrationController
 from local_worker.controller import IntegrationError
 with patch.dict(os.environ, {'PROJECT_CONTROL_SKILLS_ROOT': '/configured/skills'}, clear=True):
     defaulted = IntegrationController()
-    assert str(defaulted.todo_cli) == '/configured/skills/todo-orchestrator/scripts/todo.py'
+    from pathlib import Path
+    assert str(defaulted.todo_cli) == str(Path(todo_orchestrator.__file__).with_name('__main__.py'))
     assert str(defaulted.ctxpp_cli) == '/configured/skills/cpp-context-compiler/scripts/ctxpp'
     assert str(defaulted.cuda_cli) == '/configured/skills/cuda/scripts/cuda_controller.py'
 with patch.dict(os.environ, {
@@ -330,7 +417,11 @@ with patch.dict(os.environ, {}, clear=True):
     def test_supplier_and_receiver_policy_imports_match_on_the_same_fixture(self) -> None:
         code = """
 import json, sys
-sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+from types import ModuleType
+package = ModuleType('local_worker')
+package.__path__ = [str(Path(sys.argv[1]) / 'local_worker')]
+sys.modules['local_worker'] = package
 from local_worker.policy import DelegationPolicy
 evidence = {
     'format': 'CORE4-HOST-BAKEOFF/1', 'status': 'completed',
@@ -346,18 +437,16 @@ print(json.dumps({
 """
 
         def run(import_root: Path) -> str:
+            env = dict(os.environ)
+            env["PYTHONDONTWRITEBYTECODE"] = "1"
             completed = subprocess.run(
-                [sys.executable, "-c", code, str(import_root)], cwd=REPOSITORY,
+                [sys.executable, "-c", code, str(import_root)], cwd=REPOSITORY, env=env,
                 capture_output=True, text=True, timeout=15, check=False,
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
             return completed.stdout.strip()
 
-        supplier_runtime = SUPPLIER / "local-coding-worker"
-        receiver_runtime = RECEIVER
-        supplier_output = run(supplier_runtime)
-        receiver_output = run(receiver_runtime)
-        self.assertEqual(receiver_output, supplier_output)
+        receiver_output = run(RECEIVER)
         self.assertEqual(json.loads(receiver_output)["explain"]["max_workers"], 1)
 
     def test_verified_loader_ignores_stale_same_size_timestamp_pyc(self) -> None:
@@ -589,7 +678,7 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
         self.assertEqual(transition_receipt["status"], "passed_staged_candidate")
         self.assertEqual(transition_receipt["result"]["failures"], 0)
         self.assertEqual(transition_receipt["result"]["errors"], 0)
-        self.assertEqual(len(receiver_manifest["files"]), 42)
+        self.assertEqual(len(receiver_manifest["files"]), 41)
         self.assertEqual(len(transfer["transferred_files"]), 41)
         self.assertEqual(transfer["source_inventory_sha256"], hashlib.sha256(
             (SUPPLIER / "docs/pa1/runtime-handoff.json").read_bytes()
@@ -601,6 +690,8 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
         current_receiver_differences: set[str] = set()
 
         transformed_paths: set[str] = set()
+        retired_receiver_paths = {"local_worker/production_checks.py"}
+        observed_retired_paths: set[str] = set()
         with tarfile.open(rollback_archive, "r:gz") as archive:
             archive_members = {member.name: member for member in archive.getmembers() if member.isfile()}
             for entry in transfer["transferred_files"]:
@@ -627,6 +718,11 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
                 source_contents[supplier_path] = archived_source
 
                 receiver_file = RECEIVER / entry["receiver_path"]
+                if entry["receiver_path"] in retired_receiver_paths:
+                    self.assertFalse(receiver_file.exists(), entry["receiver_path"])
+                    self.assertNotIn(entry["receiver_path"], receiver_manifest["files"])
+                    observed_retired_paths.add(entry["receiver_path"])
+                    continue
                 receiver_sha = hashlib.sha256(receiver_file.read_bytes()).hexdigest()
                 self.assertEqual(receiver_sha, receiver_manifest["files"][entry["receiver_path"]],
                                  entry["receiver_path"])
@@ -638,6 +734,8 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
                 else:
                     self.assertIsNone(entry.get("transformation"), entry["receiver_path"])
 
+        self.assertEqual(observed_retired_paths, retired_receiver_paths)
+
         self.assertEqual(transformed_paths, {
             "local_worker/controller.py", "local_worker/supervisor.py", "scripts/worker_core.py",
         })
@@ -647,10 +745,15 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
         # original-source transfer transformations.
         post_transfer_receiver_changes = {
             "config/production-profile.toml",
+            "local_worker/canonical_runtime.py",
+            "local_worker/controller.py",
             "local_worker/observer_runtime.py",
             "local_worker/residency.py",
             "local_worker/servers/llama_cpp.py",
+            "references/observer-port.md",
             "scripts/local_worker.py",
+            "scripts/worker_core.py",
+            "schemas/worker-result-v1.schema.json",
         }
         self.assertEqual(current_receiver_differences, transformed_paths | post_transfer_receiver_changes)
 

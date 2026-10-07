@@ -14,7 +14,7 @@
     "findings": {"type": "array", "maxItems": 16, "items": {"type": "string", "maxLength": 500}},
     "changed_paths": {"const": []},
     "packet_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
-    "source_identity": {"oneOf": [{"$ref": "../../todo-orchestrator/schemas/runtime/source-identity-v1.schema.json"}, {"type": "null"}]},
+    "source_identity": {"oneOf": [{"$ref": "../../../todo_orchestrator/schemas/runtime/source-identity-v1.schema.json"}, {"type": "null"}]},
     "telemetry": {
       "type": "object",
       "additionalProperties": false,

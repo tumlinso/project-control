@@ -1,0 +1,38 @@
+#!/bin/sh
+# Start the one operator-owned, demand-only observer inference supervisor.
+# This source launcher has no command-line authority or policy overrides.
+set -eu
+
+if [ "$#" -ne 0 ]; then
+    printf '%s\n' "pc-inference: operator arguments are not accepted" >&2
+    exit 2
+fi
+
+repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+dev_launcher="$repo_root/scripts/pc-dev"
+if [ ! -x "$dev_launcher" ]; then
+    printf '%s\n' "pc-inference: source launcher is unavailable: $dev_launcher" >&2
+    exit 127
+fi
+
+state="${HOME}/.cache/project-control/as1-observer-analysis"
+host_runtime=/tmp/codex-todo-orchestrator-1000
+
+# Do not inherit a candidate binding or Python path into source mode. The
+# source runtime inventory supplies the local-runtime identity.
+unset PYTHONHOME PYTHONPATH PYTHONUSERBASE
+unset PROJECT_CONTROL_RELEASE_MANIFEST PROJECT_CONTROL_RELEASE_DIGEST
+unset PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256
+unset PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT PROJECT_CONTROL_RUNTIME_PYTHON
+unset CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT
+unset CODING_WORKFLOW_RUNTIME_PYTHON CORE4_SUPERVISOR_RUNTIME_DIR
+
+export PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR="$state"
+export TODO_BACKGROUND_HOST_RUNTIME_DIR="$host_runtime"
+# Match the existing operator launcher allowlist. The service receives no
+# command-line mechanism to widen or replace it.
+export PROJECT_CONTROL_OBSERVER_GPU_UUIDS='["GPU-21131915-1488-23af-38dd-1743ae1f5cc8","GPU-cf22c41f-5b58-77b1-3535-8fadd1ca6505","GPU-d745da9c-7649-8334-41f1-483afa6f3206","GPU-6c1cac7f-a360-0aef-ba98-2828bfd1db1a"]'
+
+exec "$dev_launcher" python -m project_control.runtime_binding local_worker.supervisor \
+    --serve --repo-root "$state" --service-state-root "$state" \
+    --runtime-root "$state/runtime" --observer-only

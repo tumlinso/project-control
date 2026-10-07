@@ -11,7 +11,7 @@ from ..adapters.git import GitReadAdapter
 from ..config import ProjectControlConfig, ensure_private_directory
 from ..models import PerformanceProbeInput, ProjectSnapshot, ToolEnvelope, ToolStatus, envelope
 from ..registry import WorkspaceRegistry
-from ..snapshot import resolve_skills_root
+from ..todo_authority import resolve_skills_root
 from ..subprocesses import FixedCommandRunner
 
 

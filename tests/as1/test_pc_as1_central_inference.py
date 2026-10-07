@@ -339,8 +339,10 @@ def test_http_health_and_readiness_require_validated_central_owner(monkeypatch, 
         assert client.get('/readyz').status_code == 200
         assert client.get('/healthz').json()['central_inference']['supervisor_pid'] == 42
         backend.central_status.side_effect = RuntimeError('central_supervisor_unavailable')
-        assert client.get('/readyz').status_code == 503
-        assert client.get('/readyz').json()['central_inference']['reason'] == 'central_supervisor_unavailable'
+        ready = client.get('/readyz')
+        assert ready.status_code == 200
+        assert ready.json()['core']['status'] == 'available'
+        assert ready.json()['central_inference']['reason'] == 'central_supervisor_unavailable'
         assert client.get('/healthz').json()['central_inference']['status'] == 'unavailable'
     composition.close.assert_called_once()
 

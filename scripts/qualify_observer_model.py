@@ -15,7 +15,6 @@ import threading
 import time
 import uuid
 
-SKILLS = Path('/home/tumlinson/.agents/skills/local-coding-worker')
 DEFAULT_BUDGET = 900
 VISIBLE_LIMIT = 2048
 TURN_LIMIT = 60
@@ -202,13 +201,21 @@ def target_context_tokens(context_size: int) -> int:
     return {32768: 8192, 65536: 32768, 131072: 65536, 262144: 131072}[context_size]
 
 
-def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
-    if not SKILLS.is_dir(): raise RuntimeError(f'worker source unavailable: {SKILLS}')
-    if not args.model_path.is_file(): raise RuntimeError('model path must be an existing file')
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    sys.path.insert(0, str(SKILLS))
+def load_runtime_adapter():
+    """Load the llama adapter only after binding the manifest-pinned receiver."""
+    from project_control.runtime_binding import bind_local_runtime
+
+    identity = bind_local_runtime()
     from local_worker.servers.llama_cpp import LlamaCppServerAdapter
 
+    return identity, LlamaCppServerAdapter
+
+
+def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
+    if not args.model_path.is_file(): raise RuntimeError('model path must be an existing file')
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    identity, LlamaCppServerAdapter = load_runtime_adapter()
+    adapter_path = identity.package_root / 'servers/llama_cpp.py'
     adapter = LlamaCppServerAdapter(binary=args.llama_server)
     inspected = adapter.inspect()
     if not inspected.get('available'): raise RuntimeError('llama-server is unavailable')
@@ -230,8 +237,8 @@ def run(args: argparse.Namespace, lease: dict, output_path: Path) -> dict:
     continuation_answers: dict[str, str] = {}
 
     source = {'project_commit': subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True,
-                  text=True).stdout.strip(), 'adapter_path': str(SKILLS / 'local_worker/servers/llama_cpp.py'),
-              'adapter_sha256': digest(SKILLS / 'local_worker/servers/llama_cpp.py'),
+                  text=True).stdout.strip(), 'adapter_path': str(adapter_path),
+              'adapter_sha256': digest(adapter_path),
               'llama_server': str(binary), 'llama_server_sha256': digest(binary),
               'model_path': str(args.model_path.resolve()), 'model_sha256': model_hash}
     stage = 'execution'

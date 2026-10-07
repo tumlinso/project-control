@@ -156,18 +156,6 @@
     "local_investigate",
     "find"
   ],
-  "temporarily_inactive": {
-    "delegate_task": {
-      "preserve_implementation": true,
-      "dispatch": "temporarily_inactive",
-      "reenable": "explicit operator decision; no timed reactivation"
-    },
-    "collect_delegation": {
-      "preserve_implementation": true,
-      "dispatch": "temporarily_inactive",
-      "reenable": "explicit operator decision; no timed reactivation"
-    }
-  },
   "common_contract": {
     "default_detail": "compact",
     "proposed_response_budgets_bytes": {

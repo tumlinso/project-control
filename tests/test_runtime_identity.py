@@ -1,126 +1,126 @@
 from __future__ import annotations
 
-import os
+import hashlib
+import json
+import shutil
 import sys
 import tempfile
 import types
 import unittest
-import warnings
 from pathlib import Path
 from unittest.mock import patch
 
-from project_control.runtime_identity import (
-    CANONICAL_FINGERPRINT_VARIABLE,
-    CANONICAL_ROOT_VARIABLE,
-    LEGACY_ROOT_VARIABLE,
-    RuntimeIdentityError,
-    bind_runtime,
-    locate_skills_root,
-    package_fingerprint,
-    runtime_diagnostics,
-    validate_runtime,
-)
+from project_control import runtime_identity
+
+
+PROJECT_CONTROL_SOURCE = Path(runtime_identity.__file__).resolve().parent
+TODO_SOURCE = PROJECT_CONTROL_SOURCE.parent / "todo_orchestrator"
 
 
 class RuntimeIdentityTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
-        self.source = self.root / "todo-orchestrator" / "todo_orchestrator"
-        self.source.mkdir(parents=True)
-        (self.source / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        self.project_package = root / "src" / "project_control"
+        self.todo_package = root / "src" / "todo_orchestrator"
+        shutil.copytree(PROJECT_CONTROL_SOURCE, self.project_package,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        shutil.copytree(TODO_SOURCE, self.todo_package,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         self.module = types.ModuleType("todo_orchestrator")
-        self.module.__file__ = str(self.source / "__init__.py")
+        self.module.__file__ = str(self.todo_package / "__init__.py")
+        self.file_patch = patch.object(runtime_identity, "__file__",
+                                       str(self.project_package / "runtime_identity.py"))
+        self.file_patch.start()
+        self.addCleanup(self.file_patch.stop)
+        self.modules_patch = patch.dict(sys.modules, {"todo_orchestrator": self.module})
+        self.modules_patch.start()
+        self.addCleanup(self.modules_patch.stop)
 
-    def tearDown(self) -> None:
-        self.temporary.cleanup()
+    def test_binds_bundled_package_without_any_skills_root(self) -> None:
+        identity = runtime_identity.bind_runtime({})
 
-    def env(self, **extra: str) -> dict[str, str]:
-        return {CANONICAL_ROOT_VARIABLE: str(self.root), **extra}
+        self.assertEqual(identity.package_root, self.todo_package.resolve())
+        self.assertEqual(identity.source_package_root, self.todo_package.resolve())
+        self.assertEqual(identity.fingerprint, runtime_identity.package_fingerprint(self.todo_package))
 
-    def test_requires_explicit_root(self) -> None:
-        with self.assertRaises(RuntimeIdentityError) as raised:
-            locate_skills_root({})
-        self.assertEqual(raised.exception.observed, "missing")
+    def test_missing_or_changed_content_does_not_break_core_identity(self) -> None:
+        content_root = Path(self.temp.name) / "missing-content"
+        identity = runtime_identity.bind_runtime({
+            runtime_identity.CANONICAL_ROOT_VARIABLE: str(content_root),
+        })
+        self.assertEqual(identity.skills_root, content_root)
 
-    def test_legacy_root_warns_and_resolves(self) -> None:
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            self.assertEqual(locate_skills_root({LEGACY_ROOT_VARIABLE: str(self.root)}), self.root)
-        self.assertEqual(len(caught), 1)
-        self.assertIn(CANONICAL_ROOT_VARIABLE, str(caught[0].message))
+        content_root.mkdir()
+        marker = content_root / "changed.md"
+        marker.write_text("changed content", encoding="utf-8")
+        runtime_identity.validate_runtime(identity)
 
-    def test_conflicting_root_variables_fail_closed(self) -> None:
-        with self.assertRaises(RuntimeIdentityError):
-            locate_skills_root({
-                CANONICAL_ROOT_VARIABLE: str(self.root),
-                LEGACY_ROOT_VARIABLE: str(self.root / "different"),
+    def test_canonical_observer_content_root_precedes_optional_alias(self) -> None:
+        canonical = Path(self.temp.name) / "canonical"
+        alias = Path(self.temp.name) / "alias"
+        self.assertEqual(runtime_identity.locate_skills_root({
+            runtime_identity.OBSERVER_ROOT_VARIABLE: str(canonical),
+            runtime_identity.OBSERVER_ROOT_ALIAS_VARIABLE: str(alias),
+        }), canonical)
+
+    def test_import_from_a_different_package_path_is_rejected_even_if_identical(self) -> None:
+        ambient = Path(self.temp.name) / "ambient" / "todo_orchestrator"
+        shutil.copytree(self.todo_package, ambient)
+        self.module.__file__ = str(ambient / "__init__.py")
+
+        with self.assertRaisesRegex(runtime_identity.RuntimeIdentityError,
+                                    "not the bundled Project Control package"):
+            runtime_identity.bind_runtime({})
+
+    def test_bundled_package_root_symlink_is_rejected_before_resolution(self) -> None:
+        external = Path(self.temp.name) / "external-todo"
+        shutil.move(self.todo_package, external)
+        self.todo_package.symlink_to(external, target_is_directory=True)
+
+        with self.assertRaisesRegex(runtime_identity.RuntimeIdentityError,
+                                    "bundled Todo package root must not be a symlink"):
+            runtime_identity.bind_runtime({})
+
+    def test_python_source_symlink_is_rejected(self) -> None:
+        target = Path(self.temp.name) / "external-init.py"
+        target.write_bytes((self.todo_package / "__init__.py").read_bytes())
+        (self.todo_package / "__init__.py").unlink()
+        (self.todo_package / "__init__.py").symlink_to(target)
+
+        with self.assertRaisesRegex(runtime_identity.RuntimeIdentityError,
+                                    "runtime package contains a symlink"):
+            runtime_identity.bind_runtime({})
+
+    def test_canonical_package_fingerprint_mismatch_is_rejected(self) -> None:
+        with self.assertRaisesRegex(runtime_identity.RuntimeIdentityError,
+                                    "configured Todo source changed"):
+            runtime_identity.bind_runtime({
+                runtime_identity.CANONICAL_FINGERPRINT_VARIABLE: "0" * 64,
             })
 
-    def test_bind_does_not_mutate_sys_path(self) -> None:
-        before = list(sys.path)
-        with patch.dict(sys.modules, {"todo_orchestrator": self.module}):
-            identity = bind_runtime(self.env())
-        self.assertEqual(sys.path, before)
-        self.assertEqual(identity.package_root, self.source)
+    def test_manifest_digest_and_schema3_package_path_are_strict(self) -> None:
+        manifest = Path(self.temp.name) / "release-manifest.json"
+        data = {
+            "schema_version": 3,
+            "todo_package_root": str(self.todo_package),
+            "todo_runtime_fingerprint": runtime_identity.package_fingerprint(self.todo_package),
+            "skills_root": None,
+        }
+        manifest.write_text(json.dumps(data), encoding="utf-8")
+        environment = {
+            runtime_identity.RELEASE_MANIFEST_VARIABLE: str(manifest),
+            runtime_identity.RELEASE_DIGEST_VARIABLE: hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        }
+        self.assertEqual(runtime_identity.bind_runtime(environment).package_root, self.todo_package)
 
-    def test_installed_copy_with_equal_sources_is_accepted(self) -> None:
-        installed = self.root / "venv" / "todo_orchestrator"
-        installed.mkdir(parents=True)
-        (installed / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-        self.module.__file__ = str(installed / "__init__.py")
-        with patch.dict(sys.modules, {"todo_orchestrator": self.module}):
-            identity = bind_runtime(self.env())
-        self.assertEqual(identity.package_root, installed)
-        self.assertEqual(identity.fingerprint, package_fingerprint(self.source))
-
-    def test_skewed_import_is_rejected(self) -> None:
-        installed = self.root / "venv" / "todo_orchestrator"
-        installed.mkdir(parents=True)
-        (installed / "__init__.py").write_text("VALUE = 2\n", encoding="utf-8")
-        self.module.__file__ = str(installed / "__init__.py")
-        with patch.dict(sys.modules, {"todo_orchestrator": self.module}):
-            with self.assertRaises(RuntimeIdentityError):
-                bind_runtime(self.env())
-
-    def test_pinned_source_change_is_rejected(self) -> None:
-        wrong = "0" * 64
-        with patch.dict(sys.modules, {"todo_orchestrator": self.module}):
-            with self.assertRaises(RuntimeIdentityError):
-                bind_runtime(self.env(**{CANONICAL_FINGERPRINT_VARIABLE: wrong}))
-
-    def test_validate_rejects_source_mutation(self) -> None:
-        with patch.dict(sys.modules, {"todo_orchestrator": self.module}):
-            identity = bind_runtime(self.env())
-            (self.source / "changed.py").write_text("CHANGED = True\n", encoding="utf-8")
-            with self.assertRaises(RuntimeIdentityError):
-                validate_runtime(identity)
-
-    def test_runtime_diagnostics_reports_configuration_without_guessing_a_root(self) -> None:
-        result = runtime_diagnostics({})
-        self.assertEqual(result["status"], "unavailable")
-        self.assertEqual(result["reason"], "runtime_not_configured")
-        self.assertEqual(result["supported_action"], "configure_verified_runtime")
-        self.assertEqual(result["required_environment"], [CANONICAL_ROOT_VARIABLE])
-
-    def test_runtime_diagnostics_returns_verified_identity_without_environment(self) -> None:
-        with patch.dict(sys.modules, {"todo_orchestrator": self.module}):
-            result = runtime_diagnostics(self.env(API_SECRET="must-not-appear"))
-        self.assertEqual(result["status"], "verified")
-        self.assertEqual(result["identity"]["skills_root"], str(self.root))
-        self.assertEqual(result["supported_action"], "use_configured_runtime")
-        self.assertNotIn("launch_environment", result)
-        self.assertNotIn("must-not-appear", str(result))
-
-    def test_runtime_diagnostics_preserves_a_mismatch_as_attention_required(self) -> None:
-        result = runtime_diagnostics(
-            self.env(**{CANONICAL_FINGERPRINT_VARIABLE: "0" * 64}),
-            binder=lambda environment: bind_runtime(environment),
-        )
-        self.assertEqual(result["status"], "attention_required")
-        self.assertEqual(result["reason"], "runtime_identity_mismatch")
-        self.assertEqual(result["supported_action"], "restart_verified_runtime")
-        self.assertIn("configured Todo source changed", result["cause"])
+        data["todo_package_root"] = str(Path(self.temp.name) / "elsewhere")
+        manifest.write_text(json.dumps(data), encoding="utf-8")
+        environment[runtime_identity.RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        with self.assertRaisesRegex(runtime_identity.RuntimeIdentityError,
+                                    "package path differs from release manifest"):
+            runtime_identity.bind_runtime(environment)
 
 
 if __name__ == "__main__":

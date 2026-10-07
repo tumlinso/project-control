@@ -121,7 +121,7 @@ import asyncio, json, os, subprocess, sys
 from pathlib import Path
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from v2_helpers import V2Repo, base_plan, safe_task
+from tests.todo.v2_helpers import V2Repo, base_plan, safe_task
 from todo_orchestrator.workflow.service import WorkspaceService, repository_identity
 repo=V2Repo()
 try:
@@ -138,10 +138,7 @@ try:
  retained=Path(ws['worktree_path'])/'retained.txt'; retained.write_text('preserved\n'); before=retained.read_bytes()
  repo.service.db.mutate(actor_session_id=None,entity_type='f',entity_id='w',event_type='f',payload={},operation=lambda c,r:c.execute("UPDATE workflow_workspaces SET state='quarantined' WHERE id=?",(ws['workspace_id'],)))
  intent=repo.root/'intent.json'; intent.write_text(json.dumps({'source_run_id':'OLD-RUN','successor_run_id':'NEW-RUN','reason':'replace','preserved_work_handoffs':[{'source_workspace_id':ws['workspace_id'],'source_lane_id':'OLD-LANE','successor_lane_id':'NEW-LANE','successor_task_id':'NEW','adopt_dirty':True}]}))
- env={'PROJECT_CONTROL_SKILLS_ROOT':sys.argv[1],'TODO_ORCHESTRATOR_STATE_DIR':str(repo.state_root)}
- if os.environ.get('PROJECT_CONTROL_RELEASE_MANIFEST'):
-  for key in ('PROJECT_CONTROL_RELEASE_MANIFEST','PROJECT_CONTROL_RELEASE_DIGEST'): env[key]=os.environ[key]
- else: env['PYTHONPATH']=os.pathsep.join([str(Path.cwd()/'src'),str(Path(sys.argv[1])/'todo-orchestrator')])
+ env={'TODO_ORCHESTRATOR_STATE_DIR':str(repo.state_root),'PYTHONPATH':str(Path.cwd()/'src')}
  issued=subprocess.run([sys.executable,'-m','project_control.cli','admin','prepare-supersession','--repo',str(repo.root),'--intent',str(intent),'--recipient','op'],cwd=str(Path.cwd()),env=env,text=True,capture_output=True); assert issued.returncode==0,issued.stderr
  assignment=json.loads(issued.stdout)
  async def call(command,name,args):
@@ -169,8 +166,12 @@ try:
 finally: repo.close()
 '''
         environment = dict(os.environ)
-        skills = Path(environment.get("PROJECT_CONTROL_SKILLS_ROOT", "/home/tumlinson/.agents/skills"))
-        environment["PYTHONPATH"] = os.pathsep.join([str(skills / "todo-orchestrator/tests"), environment.get("PYTHONPATH", "")])
-        result = subprocess.run([os.sys.executable, "-c", child, str(skills)], cwd=Path(__file__).parents[1], env=environment, text=True, capture_output=True)
+        for key in ("PROJECT_CONTROL_RELEASE_MANIFEST", "PROJECT_CONTROL_RELEASE_DIGEST",
+                    "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT", "CODING_WORKFLOW_RUNTIME_FINGERPRINT",
+                    "PROJECT_CONTROL_SKILLS_ROOT", "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT",
+                    "OBSERVER_SKILLS_ROOT", "CODING_WORKFLOW_SKILLS_ROOT"):
+            environment.pop(key, None)
+        environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+        result = subprocess.run([os.sys.executable, "-c", child], cwd=Path(__file__).parents[1], env=environment, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"status": "superseded", "claimed": "claimed", "integrated": "integrated"})

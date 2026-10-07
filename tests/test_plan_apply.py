@@ -4,17 +4,13 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 
-SKILLS = Path("/home/tumlinson/.agents/skills")
-TODO_PACKAGE = SKILLS / "todo-orchestrator"
-if str(TODO_PACKAGE) not in sys.path:
-    sys.path.insert(0, str(TODO_PACKAGE))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import ProposalEnvelope, VersionedPrecondition
@@ -27,11 +23,11 @@ def run(argv: list[str], root: Path) -> str:
     return subprocess.run(argv, cwd=root, check=True, text=True, capture_output=True).stdout
 
 
-@unittest.skipUnless((TODO_PACKAGE / "todo_orchestrator" / "service.py").is_file(), "Todo runtime unavailable")
 class PlanApplyTests(unittest.TestCase):
     def setUp(self) -> None:
         reset_runtime_for_testing()
         self.temporary = tempfile.TemporaryDirectory()
+        self.skills_root = Path(self.temporary.name) / "optional-skills"
         self.root = Path(self.temporary.name) / "repo"
         self.root.mkdir()
         run(["git", "init", "-b", "main"], self.root)
@@ -47,7 +43,7 @@ class PlanApplyTests(unittest.TestCase):
 
         Service.bootstrap(self.root, "Fixture")
         self.config = ProjectControlConfig(
-            skills_root=SKILLS,
+            observer_skills_root=self.skills_root,
             workspaces={
                 "demo": WorkspaceConfig(
                     authority_repository="source",
@@ -55,7 +51,18 @@ class PlanApplyTests(unittest.TestCase):
                 )
             },
         )
-        self.environment = dict(os.environ, PROJECT_CONTROL_SKILLS_ROOT=str(SKILLS))
+        self.environment = {
+            key: value for key, value in os.environ.items()
+            if key not in {
+                "PROJECT_CONTROL_RELEASE_MANIFEST", "PROJECT_CONTROL_RELEASE_DIGEST",
+                "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT", "CODING_WORKFLOW_RUNTIME_FINGERPRINT",
+                "CODING_WORKFLOW_SKILLS_ROOT", "PROJECT_CONTROL_SKILLS_ROOT",
+                "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT", "OBSERVER_SKILLS_ROOT",
+            }
+        }
+        self.environment["PROJECT_CONTROL_OBSERVER_SKILLS_ROOT"] = str(self.skills_root)
+        self.environment_patch = patch.dict(os.environ, self.environment)
+        self.environment_patch.start()
         self.builder = SnapshotBuilder(
             self.config,
             todo_read_port_factory=todo_read_port_factory(self.environment),
@@ -63,6 +70,7 @@ class PlanApplyTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         reset_runtime_for_testing()
+        self.environment_patch.stop()
         self.temporary.cleanup()
 
     def plan(self, task_id: str = "TASK-1") -> dict[str, object]:

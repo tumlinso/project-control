@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -213,6 +214,61 @@ class FinalAssistanceCliTests(unittest.TestCase):
         self.assertIn("--property=CPUWeight=100", command)
         self.assertIn("--property=DelegateSubgroup=controller", command)
         self.assertIn("--property=RuntimeMaxSec=600s", command)
+
+    def test_one_shot_transient_failure_reports_safe_child_diagnostics(self):
+        secret = b"PRIVATE_PROMPT /home/private/source.py token=SECRET model words"
+        stderr = (b"project-control: lab_planner_incomplete_proposal "
+                  b"schema=experiment-plan-v1 missing_fields=argv,artifacts\n" + secret)
+        completed = subprocess.CompletedProcess([], 2, stdout=b"", stderr=stderr)
+        output = io.StringIO()
+        with patch("sys.stderr", output), \
+             patch("project_control.assistance.lab_runner.current_cgroup_ready", return_value=False), \
+             patch("project_control.cli.shutil.which", return_value="/usr/bin/systemd-run"), \
+             patch("project_control.cli._lab_transient_unit_active", return_value=False), \
+             patch("project_control.cli._lab_runtime_identity",
+                   return_value=(Path("/usr/bin/python3"), Path("/tmp/source"))), \
+             patch("project_control.cli.subprocess.run", return_value=completed):
+            result = main([
+                "assistance", "lab", "run", "--project", "demo", "--source", "input.py",
+                "--hypothesis", "h", "--reference", "r", "--measure", "m", "--stop-rule", "s",
+                "--", "python3", "-c", "pass",
+            ])
+        self.assertEqual(2, result)
+        diagnostic = output.getvalue()
+        self.assertIn("child_exit_code=2", diagnostic)
+        self.assertIn("child_error_code=lab_planner_incomplete_proposal", diagnostic)
+        self.assertIn("proposal_schema=experiment-plan-v1", diagnostic)
+        self.assertIn("missing_fields=argv,artifacts", diagnostic)
+        self.assertIn(f"stderr_bytes={len(stderr)}", diagnostic)
+        self.assertIn(f"stderr_sha256={hashlib.sha256(stderr).hexdigest()}", diagnostic)
+        self.assertNotIn(secret.decode(), diagnostic)
+        self.assertNotIn("/home/private", diagnostic)
+        self.assertNotIn("SECRET", diagnostic)
+
+    def test_scoped_transient_failure_reports_only_allowlisted_diagnostics(self):
+        secret = b"PRIVATE_PROMPT /home/private/source.py token=SECRET model words"
+        stderr = (b"project-control: lab_planner_incomplete_proposal "
+                  b"schema=experiment-plan-v1 missing_fields=argv,artifacts\n" + secret)
+        completed = subprocess.CompletedProcess([], 17, stdout=b"", stderr=stderr)
+        with patch("project_control.assistance.lab_runner.current_cgroup_ready", return_value=False), \
+             patch("project_control.cli._lab_transient_unit_active", return_value=False), \
+             patch("project_control.cli.shutil.which", return_value="/usr/bin/systemd-run"), \
+             patch("project_control.cli._lab_runtime_identity",
+                   return_value=(Path("/usr/bin/python3"), Path("/tmp/source"))), \
+             patch("project_control.cli.subprocess.run", return_value=completed):
+            with self.assertRaises(ValueError) as exc_info:
+                _scoped_lab_in_transient_unit("run", "scope-1")
+        message = str(exc_info.exception)
+        self.assertIn("lab_transient_execution_failed", message)
+        self.assertIn("child_exit_code=17", message)
+        self.assertIn("child_error_code=lab_planner_incomplete_proposal", message)
+        self.assertIn("proposal_schema=experiment-plan-v1", message)
+        self.assertIn("missing_fields=argv,artifacts", message)
+        self.assertIn(f"stderr_bytes={len(stderr)}", message)
+        self.assertIn(f"stderr_sha256={hashlib.sha256(stderr).hexdigest()}", message)
+        self.assertNotIn(secret.decode(), message)
+        self.assertNotIn("/home/private", message)
+        self.assertNotIn("SECRET", message)
 
 
 if __name__ == "__main__":

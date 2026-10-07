@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://todo-orchestrator.local/schemas/project-plan-v3.schema.json",
+  "title": "Todo Orchestrator Project Plan v3",
+  "type": "object",
+  "required": ["schema_version", "project", "tasks", "runs"],
+  "properties": {
+    "schema_version": {"const": 3},
+    "project": {"type": "object"},
+    "tasks": {"type": "array", "items": {"type": "object", "required": ["id", "title"]}},
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "charter", "lanes"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "root_task_id": {"type": ["string", "null"]},
+          "charter": {"type": "object"},
+          "lanes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "role", "tasks"],
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "parent_lane_id": {"type": ["string", "null"]},
+                "role": {"enum": ["coordinator", "implementer", "validator", "integrator", "specialist"]},
+                "tasks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+                "motivation": {"type": ["string", "object", "array"]},
+                "desired_end_state": {"type": ["string", "object", "array"]},
+                "conceptual_end_state": {"type": ["string", "object", "array"]},
+                "rationale": {"type": ["string", "object", "array"]},
+                "uncertainties": {"type": ["string", "object", "array"]},
+                "risks": {"type": ["string", "object", "array"]},
+                "delegated_choices": {"type": ["string", "object", "array"]},
+                "delegated_judgment": {"type": ["string", "object", "array"]},
+                "references": {"type": ["string", "object", "array"]},
+                "workspace": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {"enum": ["exclusive", "read_shared", "isolated_merge", "contract_split"]},
+                    "integration_task_id": {"type": "string"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "rendezvous": {"type": "array", "items": {"type": "object"}},
+          "context_fragments": {"type": "array", "items": {"type": "object"}}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

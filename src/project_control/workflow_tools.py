@@ -26,8 +26,6 @@ WORKFLOW_TOOL_NAMES = (
     "next_task",
     "inspect_task",
     "coordinate_task",
-    "delegate_task",
-    "collect_delegation",
     "finish_task",
 )
 
@@ -40,8 +38,9 @@ WORKFLOW_INSTRUCTIONS = (
     "synchronization. Read-only questions and research may use rich Project Control reads "
     "directly without a task or claim. Finish_task runs required gates, so use run_gates "
     "separately only when earlier validation is useful. First-class Codex "
-    "agents receive durable run lanes and roles. Local workers are subordinate bounded children "
-    "of one parent claim and never act as first-class lanes. Use configured Codex subagents for delegation; delegate_task and collect_delegation are temporarily inactive until explicit operator reenable. Opaque "
+    "agents receive durable run lanes and roles. Project Control local inference "
+    "supports observer assistance; delegated coding and research use configured Codex "
+    "subagents under the parent claim. Opaque "
     "handles are the only model-facing authorization."
 )
 
@@ -79,8 +78,6 @@ class _WorkflowProtocolPort(Protocol):
     def next_task(self, **arguments: object) -> dict[str, object]: ...
     def inspect_task(self, **arguments: object) -> dict[str, object]: ...
     def coordinate_task(self, **arguments: object) -> dict[str, object]: ...
-    def delegate_task(self, **arguments: object) -> dict[str, object]: ...
-    def collect_delegation(self, **arguments: object) -> dict[str, object]: ...
     def finish_task(self, **arguments: object) -> dict[str, object]: ...
 
 
@@ -104,7 +101,7 @@ def register_workflow_tools(
     diagnostic_factory: Callable[[], str] | None = None,
     context_publisher: Callable[[_WorkflowProtocolPort, str, dict], dict] | None = None,
 ) -> tuple[str, ...]:
-    """Register the canonical six tools on ``server`` without opening any authority.
+    """Register the four canonical workflow tools without opening any authority.
 
     The protocol is resolved lazily on first invocation.  The verified runtime
     binding may therefore construct the MCP application without importing or
@@ -234,41 +231,6 @@ def register_workflow_tools(
         return invoke(
             "coordinate_task", workflow_handle=workflow_handle, action=action, payload=payload
         )
-
-    @server.tool(
-        description=(
-            "Temporarily unavailable: local-worker dispatch requires explicit operator "
-            "reenablement. Use configured Codex subagents for bounded delegation; the parent "
-            "claim remains authoritative."
-        ),
-        annotations=_MUTATING,
-        structured_output=True,
-    )
-    def delegate_task(
-        workflow_handle: str,
-        delegated_objective: str,
-        mode: Literal["auto", "readonly", "writable"] = "auto",
-        source_targets: list[str] | None = None,
-    ) -> dict[str, object]:
-        return invoke(
-            "delegate_task",
-            workflow_handle=workflow_handle,
-            delegated_objective=delegated_objective,
-            mode=mode,
-            source_targets=source_targets,
-        )
-
-    @server.tool(
-        description=(
-            "Temporarily unavailable: local-worker dispatch requires explicit operator "
-            "reenablement. Use configured Codex subagents for bounded delegation; child "
-            "result acceptance remains a parent workflow action."
-        ),
-        annotations=_MUTATING,
-        structured_output=True,
-    )
-    def collect_delegation(delegation_handle: str) -> dict[str, object]:
-        return invoke("collect_delegation", delegation_handle=delegation_handle)
 
     @server.tool(
         description=(

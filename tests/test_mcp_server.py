@@ -64,7 +64,7 @@ class MCPServerTests(unittest.TestCase):
         self.assertNotIn('read', {t.name for t in tools})
     def test_hidden_workflow_and_legacy_aliases_rejected_before_binding(self):
         mcp = self.make()
-        for name in ('next_task', 'project_overview', 'source_context', 'find', 'delegate_task'):
+        for name in ('next_task', 'project_overview', 'source_context', 'find', 'delegate_task', 'collect_delegation'):
             with self.assertRaises(ToolError):
                 asyncio.run(mcp.call_tool(name, {'project': 'demo'}))
     def test_runtime_receives_configured_read_port_factory(self):
@@ -88,9 +88,10 @@ class MCPServerTests(unittest.TestCase):
             self.assertEqual(client.get('/healthz').status_code, 200)
             self.assertEqual(client.get('/readyz').status_code, 200)
             central.side_effect = RuntimeError('central_supervisor_unavailable')
-            unavailable = client.get('/readyz')
-            self.assertEqual(unavailable.status_code, 503)
-            self.assertEqual(unavailable.json()['central_inference']['reason'], 'central_supervisor_unavailable')
+            ready = client.get('/readyz')
+            self.assertEqual(ready.status_code, 200)
+            self.assertEqual(ready.json()['core']['status'], 'available')
+            self.assertEqual(ready.json()['central_inference']['reason'], 'central_supervisor_unavailable')
             version = client.get('/version').json()
             self.assertEqual(version['tool_schema_version'], 10)
             self.assertFalse(version['features']['automatic_overview'])

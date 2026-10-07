@@ -41,9 +41,6 @@ def _run_cli_sentinel_script() -> subprocess.CompletedProcess[str]:
         cli._launch_delegate = forbidden
         cli._run_detached_delegate = forbidden
         cli.run_controller = forbidden
-        cli.host_check = forbidden
-        cli.evaluate = forbidden
-        cli.release_check = forbidden
         cli._request = forbidden
         cli._load_receiver_runtime = forbidden
 
@@ -55,6 +52,7 @@ def _run_cli_sentinel_script() -> subprocess.CompletedProcess[str]:
             ['self-test', '--repo', '/must/not/be/used'],
             ['host-check', '--scenario', 'readonly'],
             ['evaluate', '--phase', 'focused'],
+            ['policy', 'validate'],
             ['release-check', '--phase', 'integrated'],
             ['service', 'warm'],
             ['model-cache', 'install', '--candidate-id', 'candidate'],
@@ -89,7 +87,6 @@ def _run_cli_sentinel_script() -> subprocess.CompletedProcess[str]:
             cli._model_cache = lambda: ReadOnlyCache()
             cli._request = lambda path: {'format': 'LCW-REQUEST/1'}
             cli.eligibility = lambda request: {'eligible': True}
-            cli.validate_policy = lambda: {'policy': 'inspected'}
             cli.IntegrationError = RuntimeError
 
         cli._load_receiver_runtime = load_read_only_fakes
@@ -101,7 +98,6 @@ def _run_cli_sentinel_script() -> subprocess.CompletedProcess[str]:
             ['model-cache', 'list'],
             ['model-cache', 'verify', '--candidate-id', 'candidate',
              '--payload-sha256', '0' * 64, '--quick'],
-            ['policy', 'validate'],
         ]
         for argv in allowed:
             sys.argv = [str(cli_path), *argv]

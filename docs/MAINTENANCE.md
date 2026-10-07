@@ -5,6 +5,44 @@ AS1 public maintenance is mutator-only: `maintain_execution` has native
 retirement. See [control](as1-control.md) and [the role surface](as1-surface.md).
 Coder/codex and observer cannot invoke broad maintenance.
 
+## Mutator rescue without skill discovery
+
+The native Todo workflow engine is bundled with Project Control. The mutator
+rescue path calls Project Control's typed tools directly; it does not need the
+Todo Orchestrator `SKILL.md`, a skill lookup, or a separate Todo checkout. The
+server still requires the configured mutator profile, an allowed project, and
+its trusted startup principal.
+
+For one stopped task, first inspect its current recovery state:
+
+```json
+{"project":"PROJECT","action":"diagnose","task_id":"TASK"}
+```
+
+Review the blockers, then prepare an assignment for that same task. Supply
+`run_id` when needed to select the exact active run:
+
+```json
+{"project":"PROJECT","action":"prepare","task_id":"TASK","run_id":"RUN"}
+```
+
+Preparation returns an opaque principal-bound `authorization_id`. Execute only
+that grant:
+
+```json
+{"project":"PROJECT","action":"execute","authorization_id":"GRANT"}
+```
+
+Do not replace the task, run, principal, or grant between preparation and
+execution. The native transaction rechecks ownership, live activity, retained
+work, and continuation safety. It preserves dirty work and refuses unsafe or
+ambiguous recovery; it does not repair arbitrary ledger corruption or override
+an active owner.
+
+For exact run replacement, use `plan` with `action="supersede"` and the reviewed
+intent. It prepares a scoped grant; execute only the returned
+`authorization_id` with `maintain_execution` as above.
+
 ## Preserved owner/operator CLI compatibility
 
 The following owner CLI and legacy grant route remain compatibility mechanisms,

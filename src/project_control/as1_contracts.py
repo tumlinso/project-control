@@ -21,7 +21,6 @@ Nonempty = Annotated[str, Field(min_length=1)]
 Detail = Literal["compact", "standard", "extended"]
 SHARED_INFORMATION_TOOLS = ("overview", "delta", "frontier", "search", "evidence", "impact", "history", "machine")
 WORKFLOW_TOOLS = ("next_task", "inspect_task", "coordinate_task", "finish_task")
-TEMPORARILY_INACTIVE = ("delegate_task", "collect_delegation")
 RESPONSE_BUDGETS_BYTES = {"compact": 2048, "standard": 8192, "extended": 65536}
 SKILL_ASSEMBLY_DETAIL = "extended"
 
@@ -405,14 +404,6 @@ SURFACE = {'format': 'pc-adaptive-surface/1',
                            'performance_status',
                            'local_investigate',
                            'find'],
- 'temporarily_inactive': {'delegate_task': {'preserve_implementation': True,
-                                            'dispatch': 'temporarily_inactive',
-                                            'reenable': 'explicit operator decision; no timed '
-                                                        'reactivation'},
-                          'collect_delegation': {'preserve_implementation': True,
-                                                 'dispatch': 'temporarily_inactive',
-                                                 'reenable': 'explicit operator decision; no timed '
-                                                             'reactivation'}},
  'common_contract': {'default_detail': 'compact',
                      'proposed_response_budgets_bytes': {'compact': 2048,
                                                          'standard': 8192,

@@ -16,7 +16,6 @@ from .security import stable_public_id
 from .todo_authority import (
     TodoProviderResolution,
     TodoReadPortFactory,
-    resolve_skills_root,
     resolve_todo_provider,
 )
 
@@ -88,12 +87,11 @@ class SnapshotBuilder:
         component_authority: dict[str, Any] = {}
         authority = workspace.authority_repository
         provider = self._todo_provider(workspace_id)
-        skills_root = provider.skills_root if provider.compatible else None
-        if authority and authority in git_adapters and skills_root and (provider.todo_script or provider.read_port):
+        if authority and authority in git_adapters and provider.compatible and provider.read_port:
             try:
                 todo = TodoReadAdapter(
                     self.registry.repository(workspace_id, authority).root,
-                    provider.todo_script,
+                    None,
                     read_port=provider.read_port,
                 ).observe()
                 todo_revision = todo.revision
@@ -117,10 +115,10 @@ class SnapshotBuilder:
         else:
             if not authority:
                 provider_warnings["todo"] = ["todo_not_configured"]
-            elif skills_root is None:
-                provider_warnings["todo"] = [provider.error_code or "skills_root_unavailable"]
+            elif not provider.compatible or provider.read_port is None:
+                provider_warnings["todo"] = [provider.error_code or "todo_provider_unavailable"]
             else:
-                provider_warnings["todo"] = ["todo_read_command_unavailable"]
+                provider_warnings["todo"] = ["todo_read_port_unavailable"]
 
         authority_root = self.registry.repository(workspace_id, authority).root if authority else next(iter(workspace.repositories.values())).root
         cuda = CudaReadAdapter(authority_root).status(campaign)

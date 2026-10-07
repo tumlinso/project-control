@@ -14,6 +14,7 @@ from project_control.as1_jobs import TrustedObserverFactory
 from project_control.as1_surface import (
     QUALIFIED_OBSERVER_RUNTIME_SHA256,
     _analysis_runtime_identity,
+    _observer_runtime_digest,
 )
 from project_control.runtime_binding import (
     RuntimeBindingError,
@@ -21,6 +22,7 @@ from project_control.runtime_binding import (
     local_runtime_identity,
 )
 import project_control.runtime_binding as runtime_binding
+import project_control.as1_surface as surface_module
 
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[2] / "src/project_control/local_runtime"
@@ -75,6 +77,30 @@ def test_trusted_observer_factory_uses_receiver_manifest_and_observer_digest():
     assert factory.path == observer
     assert factory.digest == digest
     assert factory.runtime_identity.manifest_sha256 == identity.manifest_sha256
+
+
+def test_source_observer_digest_uses_dynamic_inventory_not_physical_manifest(monkeypatch):
+    identity = local_runtime_identity()
+    expected = runtime_binding._source_receiver_files(identity.root)[
+        "local_worker/observer_runtime.py"
+    ]
+
+    def reject_physical_manifest(_root):
+        pytest.fail("source observer digest must not read the checked-in manifest")
+
+    monkeypatch.setattr(surface_module, "_read_receiver_manifest", reject_physical_manifest)
+    assert identity.source_commit == "working-tree"
+    assert _observer_runtime_digest(identity) == expected
+
+
+def test_source_observer_digest_rejects_inventory_change_during_resolution(monkeypatch):
+    identity = local_runtime_identity()
+    files = runtime_binding._source_receiver_files(identity.root)
+    files["local_worker/observer_runtime.py"] = "0" * 64
+    monkeypatch.setattr(surface_module, "_source_receiver_files", lambda _root: files)
+
+    with pytest.raises(ValueError, match="receiver changed during observer digest resolution"):
+        _observer_runtime_digest(identity)
 
 
 def test_worker_factory_imports_only_the_canonical_receiver_namespace():

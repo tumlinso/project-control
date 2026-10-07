@@ -102,7 +102,7 @@ finally:coder._project_control_surface.close();mutator._project_control_surface.
 def test_observer_genuine_compiler_export_retains_unknown_closure(tmp_path, monkeypatch):
     import project_control.as1_trace as loaded
     assert sha(loaded.__file__)==sha(ROOT/'src/project_control/as1_trace.py')
-    from test_pc_as1_trace import test_genuine_installed_ctxpp_producer_and_trace_consumer
+    from tests.as1.test_pc_as1_trace import test_genuine_installed_ctxpp_producer_and_trace_consumer
     test_genuine_installed_ctxpp_producer_and_trace_consumer(tmp_path, monkeypatch)
     record=json.loads((tmp_path/'genuine-ctxpp-evidence.json').read_text())
     assert record['native_call_count'] and record['consumer_call_count']
@@ -112,7 +112,7 @@ def test_observer_genuine_compiler_export_retains_unknown_closure(tmp_path, monk
 
 @pytest.mark.as1_case('E2E-02')
 def test_native_recovery_preserves_dirty_source_and_receipt_replay():
-    from test_pc_as1_control import test_exact_supersession_receipt_dirty_handoff_and_current_continuation, test_stopped_execution_diagnose_prepare_execute_and_live_refusal
+    from tests.as1.test_pc_as1_control import test_exact_supersession_receipt_dirty_handoff_and_current_continuation, test_stopped_execution_diagnose_prepare_execute_and_live_refusal
     test_exact_supersession_receipt_dirty_handoff_and_current_continuation()
     test_stopped_execution_diagnose_prepare_execute_and_live_refusal()
 
@@ -212,7 +212,7 @@ def test_skill_selected_resource_change_fails_direct_authority(tmp_path):
     # mandatory real paired inference test above.
     import project_control.as1_skill as loaded
     assert sha(loaded.__file__)==sha(ROOT/'src/project_control/as1_skill.py')
-    from test_pc_as1_skill import fixture_root, item, Turns, command, make, finish, SCOPE
+    from tests.as1.test_pc_as1_skill import fixture_root, item, Turns, command, make, finish, SCOPE
     root=fixture_root(tmp_path)
     choice=item(root,'fixture','resource.md')
     def selected(request):

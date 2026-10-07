@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -23,6 +24,8 @@ from project_control.todo_authority import (
     resolve_todo_provider,
 )
 
+BUNDLED_TODO_PACKAGE = Path(__file__).resolve().parents[1] / "src" / "todo_orchestrator"
+
 
 class FakeReadPort:
     def __init__(
@@ -40,7 +43,7 @@ class FakeReadPort:
     def identity(self):
         return {
             "contract": self.contract,
-            "skills_root": str(self.skills_root),
+            "package_root": str(BUNDLED_TODO_PACKAGE.resolve()),
             "source_identity": "todo-fixture-identity",
             "version": "fixture",
             "capabilities": list(REQUIRED_TODO_READ_CAPABILITIES),
@@ -77,6 +80,13 @@ class TodoAuthorityTests(unittest.TestCase):
         base = Path(self.temporary.name)
         self.skills_root = base / "skills"
         self.skills_root.mkdir()
+        self.environment = patch.dict(os.environ, {
+            "XDG_STATE_HOME": str(base / "state"),
+            "XDG_CACHE_HOME": str(base / "cache"),
+            "PROJECT_CONTROL_SKILLS_ROOT": "",
+            "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT": str(self.skills_root),
+        }, clear=False)
+        self.environment.start()
         self.repo = base / "repo"
         self.repo.mkdir()
         subprocess.run(["git", "init", "-b", "main"], cwd=self.repo, check=True, capture_output=True)
@@ -89,7 +99,7 @@ class TodoAuthorityTests(unittest.TestCase):
         control.mkdir()
         (control / "project.json").write_text(json.dumps({"project_uuid": "fixture-uuid"}), encoding="utf-8")
         self.config = ProjectControlConfig(
-            skills_root=self.skills_root,
+            observer_skills_root=self.skills_root,
             workspaces={
                 "fixture": WorkspaceConfig(
                     authority_repository="source",
@@ -99,6 +109,7 @@ class TodoAuthorityTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
+        self.environment.stop()
         self.temporary.cleanup()
 
     def test_verified_in_process_port_is_preferred_and_drives_snapshot(self) -> None:
@@ -120,7 +131,7 @@ class TodoAuthorityTests(unittest.TestCase):
         self.assertEqual(snapshot.todo_workflow["read_authority_fingerprint"], "f" * 64)
         self.assertEqual(snapshot.todo_tables, {"tasks": []})
         self.assertIn("semantic.workflow", [item[0] for item in port.calls])
-        self.assertEqual(factory_calls, [self.skills_root.resolve(), self.skills_root.resolve()])
+        self.assertEqual(factory_calls, [BUNDLED_TODO_PACKAGE.resolve(), BUNDLED_TODO_PACKAGE.resolve()])
 
     def test_snapshot_builder_freezes_provider_after_first_resolution(self) -> None:
         port = FakeReadPort(self.skills_root)
@@ -136,22 +147,21 @@ class TodoAuthorityTests(unittest.TestCase):
         builder.build("fixture")
         self.assertEqual(calls, 1)
 
-    def test_bound_runtime_root_precedes_live_skills_alias(self) -> None:
-        frozen = Path(self.temporary.name) / "frozen-skills"
-        frozen.mkdir()
-        port = FakeReadPort(frozen)
-
+    def test_optional_content_root_does_not_select_bundled_todo_package(self) -> None:
+        content = Path(self.temporary.name) / "other-content"
+        content.mkdir()
+        config = self.config.model_copy(update={"observer_skills_root": content})
+        port = FakeReadPort(content)
+        seen = []
         def factory(root: Path):
-            self.assertEqual(root, frozen)
+            seen.append(root)
             return port
-
-        # This mirrors a release candidate: config remains intentionally on
-        # the source checkout while the verified in-process port is frozen.
-        setattr(factory, "_project_control_bound_skills_root", frozen)
-        resolution = resolve_todo_provider(self.config, "fixture", read_port_factory=factory)
+        with patch.dict(os.environ, {"PROJECT_CONTROL_OBSERVER_SKILLS_ROOT": str(content)}):
+            resolution = resolve_todo_provider(config, "fixture", read_port_factory=factory)
         self.assertTrue(resolution.compatible)
-        self.assertEqual(resolution.selection_source, "runtime_binding")
-        self.assertEqual(resolution.skills_root, frozen.resolve())
+        self.assertEqual(resolution.selection_source, "bundled_package")
+        self.assertEqual(resolution.skills_root, content.resolve())
+        self.assertEqual(seen, [BUNDLED_TODO_PACKAGE.resolve()])
 
     def test_database_open_failure_is_preserved_as_bounded_component_code(self) -> None:
         port = FakeReadPort(self.skills_root)
@@ -231,7 +241,7 @@ class TodoAuthorityTests(unittest.TestCase):
         before = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
         with patch("project_control.app.todo_read_port_factory", return_value=lambda _root: port), \
              patch("project_control.app.Runtime.todo_plan_reader", return_value=reader):
-            mcp = create_mcp(self.config)
+            mcp = create_mcp(self.config, state_directory=Path(self.temporary.name) / "mcp-state")
             with self.assertRaises(ToolError):
                 asyncio.run(mcp.call_tool("plan_preview", {"project": "fixture"}))
             result = plan_preview(self.config, Runtime(self.config).snapshot('fixture'),
@@ -267,7 +277,7 @@ class TodoAuthorityTests(unittest.TestCase):
         )
         before = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo, text=True, capture_output=True, check=True).stdout
         with patch("project_control.app.todo_read_port_factory", return_value=None):
-            mcp = create_mcp(self.config)
+            mcp = create_mcp(self.config, state_directory=Path(self.temporary.name) / "mcp-state")
         runtime = getattr(mcp, "_project_control_runtime")
         with patch.object(runtime, "snapshot", return_value=missing), \
              patch.object(runtime, "todo_plan_reader", side_effect=AssertionError("reader must not construct")) as reader:
@@ -329,23 +339,18 @@ class TodoAuthorityTests(unittest.TestCase):
         self.assertEqual(incompatible.error_code, "todo_read_port_schema_incompatible")
         self.assertIsNone(incompatible.todo_script)
 
-    def test_subprocess_probe_labels_remain_cli_compatible(self) -> None:
+    def test_legacy_skill_cli_does_not_replace_bundled_in_process_provider(self) -> None:
         script = self.skills_root / "todo-orchestrator" / "scripts" / "todo.py"
         script.parent.mkdir(parents=True)
         script.write_text("raise SystemExit(0)\n", encoding="utf-8")
-        cli_capabilities = (
-            "semantic_state", "semantic_anchor", "semantic_delta",
-            "semantic_workflow", "export",
+        port = FakeReadPort(self.skills_root)
+        resolution = resolve_todo_provider(
+            self.config, "fixture", read_port_factory=lambda _root: port,
         )
-        with patch(
-            "project_control.todo_authority._probe_todo_entrypoint",
-            return_value=("fixture", "cli-fixture-identity", cli_capabilities, True),
-        ):
-            resolution = resolve_todo_provider(self.config, "fixture")
         self.assertTrue(resolution.compatible)
-        self.assertEqual(resolution.mode, "subprocess")
-        self.assertEqual(resolution.capabilities, cli_capabilities)
-        self.assertEqual(resolution.todo_script, script.resolve())
+        self.assertEqual(resolution.mode, "in_process")
+        self.assertEqual(resolution.package_root, BUNDLED_TODO_PACKAGE.resolve())
+        self.assertIsNone(resolution.todo_script)
 
     def test_adapter_routes_only_allowlisted_operations_through_port(self) -> None:
         port = FakeReadPort(self.skills_root)
@@ -366,8 +371,8 @@ class TodoAuthorityTests(unittest.TestCase):
         ):
             resolution = resolve_todo_provider(config, "fixture", read_port_factory=lambda _root: port)
         self.assertTrue(resolution.compatible)
-        self.assertEqual(resolution.selection_source, "compatibility_environment")
-        self.assertIn("coding_workflow_skills_root_deprecated", resolution.warnings)
+        self.assertEqual(resolution.selection_source, "bundled_package")
+        self.assertIsNone(resolution.todo_script)
 
 
 if __name__ == "__main__":

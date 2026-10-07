@@ -17,11 +17,17 @@ from .as1_contracts import (ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAI
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
 from .as1_jobs import JobService, TrustedObserverFactory, InvalidToolArguments, ObserverLogArguments
 from .as1_packets import SQLitePacketStore
-from .as1_skill import SkillService, SkillObserverFactory, _verified_reads, _entry_precedes_resource
+from .as1_skill import (SkillService, SkillObserverFactory, _verified_reads,
+                        _entry_precedes_resource, registered_skill_roots)
 from .as1_trace import TraceService
 from .config import DEFAULT_DENY_PATTERNS, configured_observer_skills_root
 from .observer_analysis import SkillsObserverAnalysisProvider, observer_analysis_state_root
-from .runtime_binding import local_runtime_identity
+from .runtime_binding import (
+    _files_fingerprint,
+    _read_receiver_manifest,
+    _source_receiver_files,
+    local_runtime_identity,
+)
 from .profiles import MCPProfile
 from .models import (DeltaSince, EvidenceInput, HistoryTraceInput, InspectInput,
                      ArchitectureContextInput, SourceContextInput, CoordinationViewInput)
@@ -600,14 +606,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     runtime_root = local_runtime_identity().root
     if observer_runtime_sha256 is None:
         verified_runtime = local_runtime_identity(root=runtime_root)
-        receiver_manifest = (verified_runtime.root / 'receiver-manifest.json').read_bytes()
-        if hashlib.sha256(receiver_manifest).hexdigest() != verified_runtime.manifest_sha256:
-            raise ValueError('receiver manifest changed during observer digest resolution')
-        manifest = json.loads(receiver_manifest)
-        try:
-            observer_runtime_sha256 = manifest['files']['local_worker/observer_runtime.py']
-        except (KeyError, TypeError) as exc:
-            raise ValueError('observer runtime receiver manifest entry missing') from exc
+        observer_runtime_sha256 = _observer_runtime_digest(verified_runtime)
     c.backend = backend or SkillsObserverAnalysisProvider()
     roots = [config.workspaces[p].repositories[a].root for p in sorted(c.host.projects)
              for a in config.workspaces[p].repositories]
@@ -635,9 +634,7 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     analysis_runtime_identity = None
     trusted = None
     try:
-        catalog = json.loads((root / 'integrations/native-skill-catalog.json').read_text())
-        skills = {entry['name']: {'name': entry['name'], 'root': str(root / entry['name'])}
-                  for entry in catalog['entries'] if entry.get('status') == 'accessible'}
+        skills = registered_skill_roots(root)
         def execution_permitted(scope, shared):
             from types import SimpleNamespace
             return c.can_execute_inquiry(SimpleNamespace(scope=scope), shared)
@@ -792,10 +789,17 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
         trusted.digest if trusted is not None else
             observer_runtime_sha256,
         source_verification_state='source_verified' if trusted is not None else 'source_unavailable')
+    def skill_catalog_identity():
+        try:
+            return c.skills.catalog_identity()
+        except (OSError, ValueError):
+            return 'unavailable'
+
     c.jobs = JobService(state_root / 'jobs-v2', legacy_directory=state_root / 'jobs',
                         packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,
                         inquiry_context_provider=inquiry_context,
-                        analysis_runtime_identity=analysis_runtime_identity)
+                        analysis_runtime_identity=analysis_runtime_identity,
+                        skill_catalog_identity_provider=skill_catalog_identity)
     def ensure_explicit_demand_runtime(*, deadline_epoch=None):
         # Imported lazily so cold composition and model-free requests never
         # inspect or start the inference unit.
@@ -881,6 +885,28 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
 
         c.attention_tick = attention_tick
     return c
+
+
+def _observer_runtime_digest(verified_runtime):
+    """Resolve the observer digest from the active source or release inventory.
+
+    Source checkouts derive their inventory in memory, so edits do not depend
+    on refreshing the historical receiver-manifest file. Frozen releases keep
+    validating and reading the physical manifest whose digest is release-pinned.
+    """
+    relative = 'local_worker/observer_runtime.py'
+    if verified_runtime.source_commit == 'working-tree':
+        files = _source_receiver_files(verified_runtime.root)
+        if _files_fingerprint(files) != verified_runtime.fingerprint:
+            raise ValueError('receiver changed during observer digest resolution')
+    else:
+        files, _manifest, manifest_sha = _read_receiver_manifest(verified_runtime.root)
+        if manifest_sha != verified_runtime.manifest_sha256:
+            raise ValueError('receiver manifest changed during observer digest resolution')
+    try:
+        return files[relative]
+    except (KeyError, TypeError) as exc:
+        raise ValueError('observer runtime receiver manifest entry missing') from exc
 
 
 def register_surface(mcp, c):
@@ -970,9 +996,9 @@ def register_surface(mcp, c):
         'skill': 'Read-only discovery and use of an installed native skill for a question, using optional project context and evidence hints. Always returns extended authoritative excerpts (up to 49,152 excerpt bytes across selected resources); this is a ceiling, not a target. The agent synthesis should stay concise and include useful context without repeating the excerpts. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
         'command': 'Run a bounded read-only command within the configured repository roots using argv, optional cwd, and limits. Host policy clamps execution limits; output is recorded as evidence. No delegation or mutation.',
         'log': 'Retrieve up to five question-and-answer briefs from the global latest-50 answered-inquiry cache, using query/path_or_entity for lexical matches. Optional project narrows results; job_id remains a compatibility exact-record read.',
-        'plan': 'Validate or compare a native Todo plan, or apply, amend, supersede, or retire project work through the scoped transaction authority. Supply the action and its matching plan or proposal; authorized mutations require valid prepared authority.',
+        'plan': 'Validate or compare a native Todo plan, or apply, amend, supersede, or retire project work through the scoped transaction authority. For exact run replacement, action=supersede with intent prepares a reviewed principal-bound grant; execute only that returned authorization_id through maintain_execution. The Todo engine is bundled with Project Control; this path does not require the Todo Orchestrator skill.',
         'amend_project': 'Submit a typed semantic project amendment, such as a supported registration or evidence update. The request is checked against current project authority before it is previewed or committed.',
-        'maintain_execution': 'Resume one clean stopped execution under a host-issued maintenance mandate. Supply a typed request containing the authorized action and mandate; the mandate limits which execution can change.',
+        'maintain_execution': 'Native mutator rescue path; no Todo Orchestrator skill is required. Diagnose with {project, action:"diagnose", task_id}; inspect blockers. Prepare the same task with {project, action:"prepare", task_id, run_id?}; include run_id to select its exact active run when needed. Execute only the returned opaque grant with {project, action:"execute", authorization_id}. Project and startup-principal access checks apply. The grant and native transaction recheck exact ownership, live activity, retained dirty work, and continuation safety; blocked or corrupt state may need separate owner repair.',
     }
     for fn in (overview, delta, frontier, search, evidence, impact, history, machine, read, investigate, skill, command, log, plan, amend_project, maintain_execution):
         register(fn, descriptions[fn.__name__], mutation=fn.__name__ in {'plan', 'amend_project', 'maintain_execution'}, analysis=fn.__name__ in {'investigate', 'skill'})

@@ -296,7 +296,15 @@ def run_controller(request_value: object, *, production_runtime: object | None =
             )
         return skills_root / relative
 
-    todo_cli = configured_tool("LCW_TODO_CLI", "todo-orchestrator/scripts/todo.py")
+    todo_cli_value = os.environ.get("LCW_TODO_CLI")
+    if todo_cli_value:
+        todo_cli = Path(todo_cli_value).expanduser().resolve()
+    else:
+        try:
+            import todo_orchestrator
+        except ImportError as exc:
+            raise WorkerError("bundled todo_orchestrator CLI is unavailable") from exc
+        todo_cli = Path(todo_orchestrator.__file__).with_name("__main__.py")
     ctxpp_cli = configured_tool("LCW_CTXPP_CLI", "cpp-context-compiler/scripts/ctxpp")
     heartbeat_command = [
         sys.executable, str(todo_cli), "child", "heartbeat", "--repo-root", str(root),

@@ -114,7 +114,19 @@ PERFORMANCE_PROBE = ToolAnnotations(
     openWorldHint=False,
 )
 
-MUTATOR_INSTRUCTIONS = "Use plan, amend_project and maintain_execution for explicit transactional control."
+MUTATOR_INSTRUCTIONS = (
+    "Use plan, amend_project and maintain_execution for explicit transactional control. "
+    "The native Todo workflow engine is part of Project Control; rescue does not require "
+    "the Todo Orchestrator skill or a separate source checkout. For a stopped task, call "
+    "maintain_execution with {project, action:'diagnose', task_id}; inspect blockers, then "
+    "call {project, action:'prepare', task_id, run_id?} for that same task (include run_id "
+    "when needed to select its exact active run). Execute only the returned grant using "
+    "{project, action:'execute', authorization_id}; never substitute a task, run, workspace, "
+    "principal, or grant. For exact run replacement, use plan(action:'supersede') to prepare "
+    "the reviewed intent, then execute its returned grant with maintain_execution. Startup "
+    "project/principal access checks and native ownership, cleanliness, and affected-work "
+    "guards still apply; blocked or corrupt state may require owner repair outside this route."
+)
 
 OverviewDetail = Literal["compact", "standard", "expanded"]
 DeltaDetail = Literal["architectural", "standard", "implementation"]
@@ -145,7 +157,19 @@ SourceRelation = Literal[
 class Runtime:
     def __init__(self, config: ProjectControlConfig):
         self.config = config
-        self.todo_read_port_factory = todo_read_port_factory()
+        self.workflow_binding = None
+        self.workflow_binding_error = None
+        try:
+            self.workflow_binding = initialize_workflow_binding()
+            self.workflow_binding.validate()
+            self.todo_read_port_factory = todo_read_port_factory()
+        except Exception as error:
+            # Keep liveness and unrelated read surfaces available so readiness
+            # can report the actual core binding failure. Workflow operations
+            # still fail through their own verified binding path.
+            self.todo_read_port_factory = None
+            self.workflow_binding = None
+            self.workflow_binding_error = error
         self.builder = SnapshotBuilder(
             config, todo_read_port_factory=self.todo_read_port_factory,
         )
@@ -252,7 +276,7 @@ def create_mcp(
     if selected_profile == MCPProfile.OBSERVER:
         instructions += " Observer tools provide read-only context, investigation and installed skill guidance. Use read or evidence for authoritative selected source. While investigate or skill is thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question."
     if selected_profile == MCPProfile.MUTATOR:
-        instructions += " Use plan, amend_project and maintain_execution for explicit transactional control."
+        instructions += " " + MUTATOR_INSTRUCTIONS
     if maintenance_host is not None:
         from .as1_context import ContextHost
         if selected_profile != MCPProfile.MUTATOR or host is not None:
@@ -284,6 +308,40 @@ def create_mcp(
         except Exception as error:
             return {"status": "unavailable", "reason": SkillsObserverAnalysisProvider._failure(error)}
 
+    def workflow_health():
+        binding = runtime.workflow_binding
+        error = runtime.workflow_binding_error
+        if binding is None:
+            reason = getattr(error, "code", None) or "workflow_binding_unavailable"
+            return {"status": "unavailable", "configuration": "valid",
+                    "workflow_engine": "unavailable", "reason": str(reason)}
+        try:
+            binding.validate()
+            identity = binding.identity
+            return {"status": "available", "configuration": "valid",
+                    "workflow_engine": "available", "fingerprint": identity.fingerprint}
+        except Exception as error:
+            reason = getattr(error, "code", None) or "workflow_binding_unavailable"
+            return {"status": "unavailable", "configuration": "valid",
+                    "workflow_engine": "unavailable", "reason": str(reason)}
+
+    def content_health():
+        try:
+            registrations = getattr(composition.skills, "skills", None)
+            if not isinstance(registrations, dict):
+                return {"status": "unavailable", "reason": "skill_registry_unavailable"}
+            if not registrations:
+                return {"status": "unavailable", "reason": "no_registered_skills",
+                        "skill_count": 0}
+            identity = composition.skills.catalog_identity()
+            if not isinstance(identity, str) or not identity:
+                raise ValueError("skill_catalog_identity_unavailable")
+            return {"status": "available", "catalog_sha256": identity,
+                    "skill_count": len(registrations)}
+        except Exception as error:
+            reason = getattr(error, "code", None) or "skill_catalog_unavailable"
+            return {"status": "unavailable", "reason": str(reason)}
+
     @mcp.custom_route("/healthz", methods=["GET"])
     async def health(_: Request):
         central = await asyncio.to_thread(central_health)
@@ -291,9 +349,13 @@ def create_mcp(
 
     @mcp.custom_route("/readyz", methods=["GET"])
     async def ready(_: Request):
+        core = await asyncio.to_thread(workflow_health)
         central = await asyncio.to_thread(central_health)
-        ok = bool(active_config.workspaces) and central.get("status") == "available"
-        return JSONResponse({"status": "ready" if ok else "unavailable", "central_inference": central}, status_code=200 if ok else 503)
+        content = await asyncio.to_thread(content_health)
+        ok = core.get("status") == "available"
+        return JSONResponse({"status": "ready" if ok else "unavailable", "core": core,
+                             "central_inference": central, "optional_content": content},
+                            status_code=200 if ok else 503)
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request):

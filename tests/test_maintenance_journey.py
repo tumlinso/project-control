@@ -8,11 +8,10 @@ import unittest
 from pathlib import Path
 
 
-SKILLS = Path("/home/tumlinson/.agents/skills")
-RECOVERY_FIXTURE = SKILLS / "todo-orchestrator/tests/test_workflow_recovery.py"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RECOVERY_FIXTURE = PROJECT_ROOT / "tests" / "todo" / "test_workflow_recovery.py"
 
 
-@unittest.skipUnless(RECOVERY_FIXTURE.is_file(), "local Todo recovery fixture unavailable")
 class MaintenanceJourneyTests(unittest.TestCase):
     def test_fresh_process_maintains_stopped_target_then_publicly_claims_it(self) -> None:
         """One same-target clean-stop journey through the paired public boundary."""
@@ -25,7 +24,7 @@ import sys
 from pathlib import Path
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from test_workflow_recovery import WorkflowRecoveryTests
+from tests.todo.test_workflow_recovery import WorkflowRecoveryTests
 from todo_orchestrator.git_state import scope_manifest
 
 fixture = WorkflowRecoveryTests('test_expired_readonly_coordinator_requeues_atomically_with_live_process')
@@ -42,14 +41,9 @@ try:
     # processes. The issuer has only its exact development/release bindings
     # plus V2Repo's disposable authority locator.
     issuer_environment = {
-        'PROJECT_CONTROL_SKILLS_ROOT': sys.argv[1],
         'TODO_ORCHESTRATOR_STATE_DIR': str(fixture.repo.state_root),
+        'PYTHONPATH': str(Path.cwd() / 'src'),
     }
-    if os.environ.get('PROJECT_CONTROL_RELEASE_MANIFEST'):
-        for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST'):
-            issuer_environment[key] = os.environ[key]
-    else:
-        issuer_environment['PYTHONPATH'] = os.pathsep.join([str(Path.cwd() / 'src'), str(Path(sys.argv[1]) / 'todo-orchestrator')])
     issued = subprocess.run([
         sys.executable, '-m', 'project_control.cli', 'admin', 'prepare-maintenance',
         '--repo', str(fixture.repo.root), '--task', 'A', '--recipient', 'test-operator-a',
@@ -84,16 +78,14 @@ finally:
     fixture.tearDown()
 """
         environment = dict(os.environ)
-        runtime_skills = Path(environment.get("PROJECT_CONTROL_SKILLS_ROOT", str(SKILLS)))
-        environment.setdefault("PROJECT_CONTROL_SKILLS_ROOT", str(runtime_skills))
-        fixture_tests = runtime_skills / "todo-orchestrator/tests"
-        self.assertTrue(fixture_tests.is_dir(), f"candidate recovery fixture unavailable: {fixture_tests}")
-        environment["PYTHONPATH"] = os.pathsep.join([
-            str(fixture_tests),
-            environment.get("PYTHONPATH", ""),
-        ])
+        for key in ("PROJECT_CONTROL_RELEASE_MANIFEST", "PROJECT_CONTROL_RELEASE_DIGEST",
+                    "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT", "CODING_WORKFLOW_RUNTIME_FINGERPRINT",
+                    "PROJECT_CONTROL_SKILLS_ROOT", "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT",
+                    "OBSERVER_SKILLS_ROOT", "CODING_WORKFLOW_SKILLS_ROOT"):
+            environment.pop(key, None)
+        environment["PYTHONPATH"] = str(PROJECT_ROOT / "src")
         completed = subprocess.run(
-            [sys.executable, "-c", child, str(runtime_skills)], cwd=Path(__file__).parents[1], env=environment,
+            [sys.executable, "-c", child], cwd=PROJECT_ROOT, env=environment,
             text=True, capture_output=True, check=False,
         )
         self.assertEqual(0, completed.returncode, completed.stderr)

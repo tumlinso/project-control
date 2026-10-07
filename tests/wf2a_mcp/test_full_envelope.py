@@ -13,7 +13,7 @@ from project_control.models import DeltaSince
 try:
     from tests.test_project_model import fixture_snapshot
 except ModuleNotFoundError:
-    from test_project_model import fixture_snapshot
+    from tests.wf2a_mcp.test_project_model import fixture_snapshot
 
 
 def size(value) -> int:

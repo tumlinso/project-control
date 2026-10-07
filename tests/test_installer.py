@@ -29,13 +29,6 @@ def completed(command, code=0, stdout="", stderr=""):
     return subprocess.CompletedProcess(command, code, stdout=stdout, stderr=stderr)
 
 
-def native_resources(skills):
-    integrations = skills / "integrations"
-    integrations.mkdir(parents=True, exist_ok=True)
-    (integrations / "native-skill-catalog.json").write_bytes(b'{"entries": []}\n')
-    (integrations / "native-skill-routing.md").write_bytes(b"# Native routing\n")
-
-
 def fake_project_control_wheel(temporary):
     """Create the receiver resource a successful fake pip install would expose."""
     runtime = temporary / "lib/python3.13/site-packages/project_control/local_runtime"
@@ -75,7 +68,6 @@ class InstallerTests(unittest.TestCase):
             todo = skills / "todo-orchestrator"
             todo.mkdir(); (todo / "pyproject.toml").write_text("[project]\nname='todo'\n")
             (todo / "current.py").write_text("# current Todo tree\n")
-            native_resources(skills)
             commands = []
 
             def runner(command):
@@ -153,7 +145,7 @@ class InstallerTests(unittest.TestCase):
                     MODULE.capture_rollback_inventory(runner=runner)
                 self.assertEqual(calls, [("codex", "mcp", "list", "--json")])
 
-    def test_candidate_preserves_native_catalog_routes_and_pins_resources(self) -> None:
+    def test_candidate_omits_worker_skill_and_legacy_catalog_pins(self) -> None:
         from project_control.runtime_identity import (
             RELEASE_DIGEST_VARIABLE, RELEASE_MANIFEST_VARIABLE,
             RuntimeIdentityError, _release,
@@ -166,9 +158,7 @@ class InstallerTests(unittest.TestCase):
             (project / "pyproject.toml").write_text("")
             (project / "src").mkdir()
             (project / "src/project_control").symlink_to(ROOT / "src/project_control", target_is_directory=True)
-            native_resources(skills)
             originals = {}
-            entries = []
             for name in ("todo-orchestrator", "cuda", "cpp-context-compiler", "local-coding-worker"):
                 entry = f"{name}/SKILL.md"
                 route = f"{name}/references/nested/router.md"
@@ -177,17 +167,16 @@ class InstallerTests(unittest.TestCase):
                     source.parent.mkdir(parents=True, exist_ok=True)
                     originals[relative] = f"# Authored {relative}\n".encode()
                     source.write_bytes(originals[relative])
-                entries.append({"name": name, "entry": entry, "status": "accessible",
-                                "routes": [{"path": "references/nested/router.md", "status": "accessible"}]})
             (skills / "todo-orchestrator/pyproject.toml").write_text("")
             package = skills / "todo-orchestrator/todo_orchestrator"
             package.mkdir()
             (package / "__init__.py").write_text("# frozen kernel\n")
-            catalog = "integrations/native-skill-catalog.json"
-            routing = "integrations/native-skill-routing.md"
-            (skills / catalog).write_bytes(json.dumps({"entries": entries}).encode() + b"\n")
-            for relative in (catalog, routing):
-                originals[relative] = (skills / relative).read_bytes()
+            worker_runtime = skills / "local-coding-worker/local_worker"
+            worker_runtime.mkdir(parents=True)
+            (worker_runtime / "supervisor.py").write_text("# retired skill runtime\n")
+            (skills / "integrations").mkdir()
+            (skills / "integrations/native-skill-catalog.json").write_text('{"entries": []}\n')
+            (skills / "integrations/native-skill-routing.md").write_text("# Legacy external routing\n")
 
             def runner(command):
                 if command[0] == "git":
@@ -197,36 +186,59 @@ class InstallerTests(unittest.TestCase):
                 return completed(command)
 
             build_candidate(project_control_root=project, skills_root=skills, destination=destination, runner=runner)
+            snapshot = destination / "runtime-skills"
             for relative, expected in originals.items():
-                self.assertEqual((destination / "runtime-skills" / relative).read_bytes(), expected)
+                if relative.startswith("local-coding-worker/"):
+                    self.assertFalse((snapshot / relative).exists())
+                else:
+                    self.assertEqual((snapshot / relative).read_bytes(), expected)
+            self.assertFalse((snapshot / "local-coding-worker").exists())
+            self.assertFalse((snapshot / "integrations/native-skill-catalog.json").exists())
+            self.assertFalse((snapshot / "integrations/native-skill-routing.md").exists())
             manifest = destination / "release-manifest.json"
             data = json.loads(manifest.read_bytes())
             self.assertEqual(data["todo_commit"], "exact-source-commit")
-            self.assertEqual(data["frozen_skill_resources"], {
-                relative: hashlib.sha256(originals[relative]).hexdigest()
-                for relative in (catalog, routing)
-            })
+            self.assertNotIn("frozen_skill_resources", data)
             environment = {
                 RELEASE_MANIFEST_VARIABLE: str(manifest),
                 RELEASE_DIGEST_VARIABLE: hashlib.sha256(manifest.read_bytes()).hexdigest(),
             }
             self.assertIsNotNone(_release(environment))
+
+            # Manifests made by earlier releases retain their strict resource
+            # pin checks even though new candidates no longer include these
+            # externally supplied resources.
+            catalog = "integrations/native-skill-catalog.json"
+            routing = "integrations/native-skill-routing.md"
+            legacy_pins = {}
+            for relative, content in ((catalog, b'{"entries": []}\n'),
+                                      (routing, b"# Native routing\n")):
+                frozen = snapshot / relative
+                frozen.parent.mkdir(parents=True, exist_ok=True)
+                frozen.write_bytes(content)
+                legacy_pins[relative] = hashlib.sha256(content).hexdigest()
+            data["frozen_skill_resources"] = legacy_pins
+            manifest.write_text(json.dumps(data))
+            environment[RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
+            self.assertIsNotNone(_release(environment))
             for relative in (catalog, routing):
                 with self.subTest(resource=relative):
-                    frozen = destination / "runtime-skills" / relative
-                    frozen.write_bytes(originals[relative] + b"changed")
+                    frozen = snapshot / relative
+                    frozen.write_bytes(b"changed")
+                    manifest.write_text(json.dumps(data))
+                    environment[RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
                     with self.assertRaisesRegex(RuntimeIdentityError, "Frozen Skills resource changed"):
                         _release(environment)
-                    frozen.write_bytes(originals[relative])
+                    content = b'{"entries": []}\n' if relative == catalog else b"# Native routing\n"
+                    frozen.write_bytes(content)
                     frozen.unlink()
-                    frozen.symlink_to(skills / relative)
+                    frozen.symlink_to(root / "external-resource")
                     with self.assertRaisesRegex(RuntimeIdentityError, "Frozen Skills resource changed"):
                         _release(environment)
                     frozen.unlink()
-                    frozen.write_bytes(originals[relative])
-            pins = data["frozen_skill_resources"]
+                    frozen.write_bytes(content)
             for invalid in (None, {"../native-skill-catalog.json": "a" * 64},
-                            {**pins, catalog: "invalid"}):
+                            {**legacy_pins, catalog: "invalid"}):
                 with self.subTest(invalid_pins=invalid):
                     data["frozen_skill_resources"] = invalid
                     manifest.write_text(json.dumps(data))
@@ -238,14 +250,15 @@ class InstallerTests(unittest.TestCase):
             environment[RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
             self.assertIsNotNone(_release(environment))  # Existing manifests remain compatible.
 
-    def test_missing_native_resource_refuses_candidate_publication(self) -> None:
+    def test_candidate_does_not_require_legacy_native_catalog_resources(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             skills = root / "skills"
-            native_resources(skills)
-            (skills / "integrations/native-skill-routing.md").unlink()
-            with self.assertRaisesRegex(InstallError, "required native Skills resource is missing"):
-                MODULE._freeze_skills(skills, root / "staging", root / "candidate")
+            todo = skills / "todo-orchestrator/todo_orchestrator"
+            todo.mkdir(parents=True)
+            (todo / "__init__.py").write_text("# todo\n")
+            record = MODULE._freeze_skills(skills, root / "staging", root / "candidate")
+            self.assertNotIn("frozen_skill_resources", record)
 
     def test_candidate_binds_frozen_local_analysis_without_pythonpath(self) -> None:
         with tempfile.TemporaryDirectory() as root:
@@ -255,7 +268,6 @@ class InstallerTests(unittest.TestCase):
             (skills / "todo-orchestrator").mkdir(parents=True); (skills / "todo-orchestrator" / "pyproject.toml").write_text("")
             (skills / "local-coding-worker" / "local_worker").mkdir(parents=True)
             (skills / "local-coding-worker" / "local_worker" / "supervisor.py").write_text("# frozen\n")
-            native_resources(skills)
 
             def runner(command):
                 if command[0] == "git": return completed(command, stdout="hash\n")
@@ -289,8 +301,6 @@ class InstallerTests(unittest.TestCase):
             (skills / "todo-orchestrator").mkdir(parents=True)
             (skills / "todo-orchestrator" / "pyproject.toml").write_text("", encoding="utf-8")
             commands = []
-
-            native_resources(skills)
 
             def runner(command):
                 commands.append(tuple(command))
@@ -326,8 +336,6 @@ class InstallerTests(unittest.TestCase):
             (skills / "todo-orchestrator" / "pyproject.toml").write_text("", encoding="utf-8")
             staging_paths = []
             executed = []
-
-            native_resources(skills)
 
             def runner(command):
                 command = tuple(command)
@@ -407,8 +415,6 @@ class InstallerTests(unittest.TestCase):
             (skills / "todo-orchestrator").mkdir(parents=True)
             (skills / "todo-orchestrator" / "pyproject.toml").write_text("", encoding="utf-8")
 
-            native_resources(skills)
-
             def runner(command):
                 if command[0] == "git":
                     return completed(command, stdout="hash\n")
@@ -431,8 +437,6 @@ class InstallerTests(unittest.TestCase):
             (project / "pyproject.toml").write_text("", encoding="utf-8")
             (skills / "todo-orchestrator").mkdir(parents=True)
             (skills / "todo-orchestrator" / "pyproject.toml").write_text("", encoding="utf-8")
-
-            native_resources(skills)
 
             def runner(command):
                 command = tuple(command)

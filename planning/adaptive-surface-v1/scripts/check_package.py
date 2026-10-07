@@ -149,7 +149,7 @@ def check(root: Path = ROOT, *, require_manifest: bool = False) -> dict[str, Any
         raise ValueError('shared information surface must have eight tools without public find')
     expected_profiles = {'observer','investigator','coder','mutator','skill_assembler'}
     if set(surface['profiles']) != expected_profiles: raise ValueError('profile set drift')
-    old = set(surface['removed_default_names']) | set(surface['temporarily_inactive'])
+    old = set(surface['removed_default_names']) | set(surface.get('temporarily_inactive', {}))
     for profile, spec in surface['profiles'].items():
         names=spec['tools']
         if len(names)!=len(set(names)): raise ValueError(f'duplicate tools: {profile}')

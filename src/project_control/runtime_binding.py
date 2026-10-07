@@ -159,7 +159,7 @@ def _load_release(expected_release_digest: str | None) -> tuple[Path, dict[str, 
     except (OSError, ValueError, TypeError) as error:
         raise RuntimeBindingError("runtime_release_manifest_invalid") from error
     if (hashlib.sha256(raw).hexdigest() != digest or not isinstance(data, dict)
-            or data.get("schema_version") != 2):
+            or data.get("schema_version") not in {2, 3}):
         raise RuntimeBindingError("runtime_release_manifest_digest_mismatch")
     return path, data
 
@@ -242,6 +242,58 @@ def _verify_receiver(root: Path, *, expected_manifest_sha256: str | None = None,
                            manifest_sha, fingerprint, len(files))
 
 
+def _source_receiver_files(root: Path) -> dict[str, str]:
+    """Derive the editable source file map without trusting a checked-in map."""
+    if root.is_symlink():
+        raise RuntimeBindingError("receiver_root_symlink_rejected")
+    try:
+        root = root.expanduser().resolve(strict=True)
+    except OSError as error:
+        raise RuntimeBindingError("receiver_root_unavailable") from error
+    package_root = root / "local_worker"
+    if not package_root.is_dir() or not (package_root / "__init__.py").is_file():
+        raise RuntimeBindingError("receiver_package_root_invalid")
+
+    files: dict[str, str] = {}
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise RuntimeBindingError("receiver_symlink_rejected")
+        relative_parts = path.relative_to(root).parts
+        if path.is_dir() and path.name == "__pycache__":
+            continue
+        if not path.is_file() or path.suffix == ".pyc" or RECEIVER_MANIFEST in relative_parts:
+            continue
+        resolved = path.resolve(strict=True)
+        if root not in resolved.parents or not resolved.is_file():
+            raise RuntimeBindingError("receiver_file_path_invalid")
+        files[path.relative_to(root).as_posix()] = _sha256(resolved)
+    if not files:
+        raise RuntimeBindingError("receiver_manifest_files_invalid")
+    return files
+
+
+def _source_receiver_identity(root: Path) -> RuntimeIdentity:
+    """Derive the editable source inventory without trusting a checked-in map."""
+    files = _source_receiver_files(root)
+    root = root.expanduser().resolve(strict=True)
+    package_root = root / "local_worker"
+
+    source_root = str(Path(__file__).resolve().parents[2])
+    source_commit = "working-tree"
+    fingerprint = _files_fingerprint(files)
+    # This is a source-only identity record generated in memory. It changes
+    # whenever any imported or packaged receiver file changes, without asking
+    # developers to edit the release manifest checked into the checkout.
+    identity_record = json.dumps(
+        {"files": dict(sorted(files.items())), "source_root": source_root,
+         "source_commit": source_commit},
+        sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+    ).encode("utf-8")
+    manifest_sha = hashlib.sha256(identity_record).hexdigest()
+    return RuntimeIdentity(root, package_root, source_root, source_commit,
+                           manifest_sha, fingerprint, len(files))
+
+
 def local_runtime_identity(*, root: str | Path | None = None,
                            expected_release_digest: str | None = None) -> RuntimeIdentity:
     """Validate and describe the receiver runtime without importing it."""
@@ -272,8 +324,10 @@ def local_runtime_identity(*, root: str | Path | None = None,
             raise RuntimeBindingError("runtime_root_override_rejected")
         expected_manifest_sha = None
         expected_fingerprint = None
-    return _verify_receiver(Path(root), expected_manifest_sha256=expected_manifest_sha,
-                            expected_fingerprint=expected_fingerprint)
+    if release is not None:
+        return _verify_receiver(Path(root), expected_manifest_sha256=expected_manifest_sha,
+                                expected_fingerprint=expected_fingerprint)
+    return _source_receiver_identity(Path(root))
 
 
 def _reject_ambient_modules(package_root: Path, fingerprint: str) -> None:
@@ -306,9 +360,15 @@ def bind_local_runtime(*, root: str | Path | None = None,
         if _BOUND_MANIFEST_SHA256 is not None and _BOUND_MANIFEST_SHA256 != identity.manifest_sha256:
             raise RuntimeBindingError("runtime_manifest_changed_restart_required")
         _reject_ambient_modules(identity.package_root, identity.fingerprint)
-        files, _, manifest_sha = _read_receiver_manifest(identity.root)
-        if manifest_sha != identity.manifest_sha256:
-            raise RuntimeBindingError("receiver_manifest_changed_during_binding")
+        if identity.source_commit == "working-tree":
+            files = _source_receiver_files(identity.root)
+            if _files_fingerprint(files) != identity.fingerprint:
+                raise RuntimeBindingError("receiver_changed_during_binding")
+            manifest_sha = identity.manifest_sha256
+        else:
+            files, _, manifest_sha = _read_receiver_manifest(identity.root)
+            if manifest_sha != identity.manifest_sha256:
+                raise RuntimeBindingError("receiver_manifest_changed_during_binding")
         if _BOUND_FINDER is None:
             _BOUND_FINDER = _ManifestFinder(identity, files)
         elif (_BOUND_FINDER.identity.fingerprint != identity.fingerprint

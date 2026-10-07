@@ -88,7 +88,8 @@ evidence and changed-source information so the agent preserves still-valid work.
 The private scheduler permits two executing and four waiting inquiries, a
 30 second foreground wait and 300 second lifetime.
 
-Observer `skill()` cheaply lists the installed catalog. Use
+Observer `skill()` cheaply lists a bounded catalog derived from actual registered
+skill entries. Use
 `skill(query="Volta register pressure", skill="cuda", request_id="volta-1")`
 for a cached skill inquiry with the same literal-repeat and freshness behavior.
 Investigation and skill share the private durable broker and retained evidence;
@@ -98,9 +99,11 @@ material dependency freshness.
 
 Project Control brokers authorized access, persistence, freshness, exact source
 reads and provenance. The local read-only worker performs semantic navigation:
-it reads the installed `SKILL.md` first, then follows authored maps, references
-and prerequisites. With no selected skill, the registered discovery guide leads
-to the installed catalog; each selected skill's own entry remains authoritative.
+it reads the selected real `SKILL.md` first, then follows authored maps,
+references and prerequisites. With no selected skill, Project Control supplies
+discovery instructions and derives a bounded catalog from registered entries;
+there is no bootstrap skill or external catalog file. Each selected skill's own
+entry remains authoritative.
 Indexes and graphs can accelerate navigation but do not replace this agentic
 routing. Results separate small labeled worker synthesis from broker-verified
 original excerpts, hashes and line ranges. Missing prerequisites, changed text,
@@ -120,11 +123,8 @@ through native current-state guards and principal-bound grants. These operations
 cannot authorize themselves through caller role strings, packet hints or approval
 prose. CLI owner compatibility remains separate from ordinary model permissions.
 
-`delegate_task` and `collect_delegation` preserve their implementation and history
-but are absent from discovery and rejected at dispatch as `temporarily_inactive`.
-Feature metadata records the reason and explicit operator reenable policy. There
-is no timed or automatic reactivation. Use configured Codex subagents for bounded
-coding/research delegation under the owning root claim.
+Delegated coding and research assignments use configured Codex subagents under
+the owning root claim. Project Control exposes no delegation workflow tools.
 
 Old public names such as `project_overview`, `architecture_context`,
 `source_context`, generic `inspect`, `skill_list/read/context`, `plan_preview`,

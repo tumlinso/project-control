@@ -125,7 +125,7 @@ Profile tool permissions remain distinct while project knowledge is collective.
 | Mutator | Same eight, compact/standard | investigate; native files/skills; four workflow tools | plan, amend_project, maintain_execution |
 | Skill assembler, internal mode | Same semantic implementation with permitted scope, compact/standard | command, log; home=registered skills root | None; only proposes source selections |
 
-This deliberately does not expose Project Control read/skill to local profiles or recursive investigator adapters. Native capabilities are not reimplemented as MCP tools. Temporarily disabled coder delegation tools are absent from discovery and rejected at dispatch with `temporarily_inactive`; feature metadata gives reason and explicit reactivation policy, not a scheduled date.
+This deliberately does not expose Project Control read/skill to local profiles or recursive investigator adapters. Native capabilities are not reimplemented as MCP tools. Delegated assignments use configured Codex subagents under the owning root's active task claim; Project Control exposes no delegation workflow tools.
 
 ## Removal/compatibility
 

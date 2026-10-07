@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -212,12 +213,12 @@ def test_applied_skill_notes_sources_and_budget_exactness(world):
 @pytest.mark.as1_case('CTX-01', 'CTX-11')
 def test_actual_skills_semantic_port_fixture(world, tmp_path):
     # Isolate source module identity from the currently bound migration-11 runtime.
-    source = Path('/home/tumlinson/.agents/skills/todo-orchestrator')
+    source = Path(__file__).resolve().parents[2] / 'src'
     script = '''
 import hashlib, json, pathlib, sys
 from todo_orchestrator.service import Service
 import todo_orchestrator.service as module
-from v2_helpers import V2Repo
+from tests.todo.v2_helpers import V2Repo
 assert pathlib.Path(module.__file__).resolve() == pathlib.Path(sys.argv[1]) / 'todo_orchestrator/service.py'
 repo = V2Repo()
 try:
@@ -230,8 +231,14 @@ try:
  print(json.dumps(result))
 finally: repo.close()
 '''
-    env = {**os.environ, 'PYTHONPATH': str(source) + ':' + str(source/'tests'), 'PYTHONDONTWRITEBYTECODE':'1'}
-    result = subprocess.run(['/home/tumlinson/project-control/.venv/bin/python', '-c', script, str(source)], env=env, capture_output=True, text=True, check=True)
+    root = source.parent
+    env = {**os.environ, 'PYTHONPATH': str(source) + ':' + str(root), 'PYTHONDONTWRITEBYTECODE':'1'}
+    for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
+                'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                'PROJECT_CONTROL_SKILLS_ROOT', 'PROJECT_CONTROL_OBSERVER_SKILLS_ROOT',
+                'OBSERVER_SKILLS_ROOT', 'CODING_WORKFLOW_SKILLS_ROOT'):
+        env.pop(key, None)
+    result = subprocess.run([sys.executable, '-c', script, str(source)], cwd=root, env=env, capture_output=True, text=True, check=True)
     actual = json.loads(result.stdout)
     world[3].semantic_provider = lambda project: actual
     response = full(world, 'overview')

@@ -25,6 +25,18 @@ _LOCK = RLock()
 _BINDING: WorkflowBinding | None = None
 
 
+def _same_executable_identity(left: RuntimeIdentity, right: RuntimeIdentity) -> bool:
+    """Compare workflow code identity, excluding optional content configuration."""
+    return (
+        left.source_package_root == right.source_package_root
+        and left.package_root == right.package_root
+        and left.module_file == right.module_file
+        and left.fingerprint == right.fingerprint
+        and left.release_manifest == right.release_manifest
+        and left.release_digest == right.release_digest
+    )
+
+
 def _runtime_guard(identity: RuntimeIdentity):
     def guard(repo_root: Path) -> None:
         try:
@@ -55,8 +67,9 @@ def initialize_workflow_binding(
 ) -> WorkflowBinding:
     """Initialize the sole process-wide workflow binding, or validate it.
 
-    Repeated calls are safe only while the configured root and loaded package
-    remain identical.  Runtime rebinding is intentionally unsupported.
+    Repeated calls are safe only while the executable package and release
+    binding remain identical. Optional skills/content roots do not select code.
+    Runtime rebinding is intentionally unsupported.
     """
 
     global _BINDING
@@ -64,13 +77,13 @@ def initialize_workflow_binding(
         if _BINDING is not None:
             _BINDING.validate()
             requested = bind_runtime(environment)
-            if requested != _BINDING.identity:
+            if not _same_executable_identity(requested, _BINDING.identity):
                 from .runtime_identity import RuntimeIdentityError
 
                 raise RuntimeIdentityError(
                     "Project Control cannot rebind Todo after initialization",
-                    expected=str(_BINDING.identity.skills_root),
-                    observed=str(requested.skills_root),
+                    expected=f"{_BINDING.identity.module_file}:{_BINDING.identity.fingerprint}",
+                    observed=f"{requested.module_file}:{requested.fingerprint}",
                 )
             return _BINDING
 
@@ -105,46 +118,30 @@ def workflow_protocol(environment: Mapping[str, str] = os.environ):
 def todo_read_port_factory(
     environment: Mapping[str, str] = os.environ,
 ) -> Callable[[Path], object] | None:
-    """Return the verified Todo read-port factory for live composition.
+    """Return the verified read-port factory for the bundled Todo package.
 
-    The compatibility subprocess provider remains available only when no
-    explicit Todo runtime root was supplied.  Once either supported root
-    variable is present, initialization and every requested authority must
-    match the immutable process-wide workflow binding or fail closed.
+    The optional path argument is retained for the caller protocol, but it
+    describes content metadata only and never selects executable code.
     """
-
-    if not (
-        environment.get("PROJECT_CONTROL_SKILLS_ROOT")
-        or environment.get("CODING_WORKFLOW_SKILLS_ROOT")
-    ):
-        return None
-
     binding = initialize_workflow_binding(environment)
     identity = binding.identity
     from todo_orchestrator.read_port import create_todo_read_port
 
-    def create(skills_root: Path) -> object:
+    def create(_content_root: Path | None = None) -> object:
         binding.validate()
-        requested = Path(skills_root).expanduser().resolve()
-        if requested != identity.skills_root:
+        if identity.package_root != (Path(__file__).resolve().parent.parent / "todo_orchestrator").resolve():
             from .runtime_identity import RuntimeIdentityError
 
             raise RuntimeIdentityError(
-                "Todo read authority does not match the bound runtime",
-                expected=str(identity.skills_root),
-                observed=str(requested),
+                "Todo read authority does not match the bundled package",
+                expected=str((Path(__file__).resolve().parent.parent / "todo_orchestrator").resolve()),
+                observed=str(identity.package_root),
             )
-        port = create_todo_read_port(identity.skills_root)
+        port = create_todo_read_port()
         binding.validate()
         return port
 
-    # Provider discovery normally begins with workspace configuration.  A
-    # manifest-backed candidate intentionally imports its frozen runtime copy,
-    # though, which can differ from that live configuration path.  Advertise
-    # the already-validated root so the resolver selects the same authority
-    # before it asks this fail-closed factory to validate a configured alias.
-    # This is metadata on a private callable seam, not a second binding route.
-    setattr(create, "_project_control_bound_skills_root", identity.skills_root)
+    setattr(create, "_project_control_bound_package_root", identity.package_root)
     return create
 
 

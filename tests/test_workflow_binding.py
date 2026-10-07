@@ -77,11 +77,25 @@ class WorkflowBindingTests(unittest.TestCase):
             second = initialize_workflow_binding({})
         self.assertIs(first, second)
 
-    def test_rebinding_is_rejected(self) -> None:
+    def test_optional_content_root_change_keeps_one_bundled_binding(self) -> None:
         other = RuntimeIdentity(
             self.identity.skills_root / "other",
             self.identity.source_package_root,
             self.identity.package_root,
+            self.identity.module_file,
+            self.identity.fingerprint,
+        )
+        bind, validate, modules = self.patches(identities=[self.identity, other])
+        with bind, validate, modules:
+            first = initialize_workflow_binding({})
+            second = initialize_workflow_binding({})
+        self.assertIs(first, second)
+
+    def test_executable_package_rebinding_is_rejected(self) -> None:
+        other = RuntimeIdentity(
+            self.identity.skills_root,
+            self.identity.source_package_root / "other",
+            self.identity.package_root / "other",
             self.identity.module_file,
             self.identity.fingerprint,
         )

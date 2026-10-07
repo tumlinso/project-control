@@ -206,7 +206,7 @@ class TrustedObserverFactory:
                 raise RuntimeError('stale_attempt')
             service.checkpoint(job_id, attempt, observations, access_scope=scope)
         return module.ObserverWorkerPort(Adapter(), command=command, tools=tools,
-            fence=fence, checkpoint=checkpoint)
+            fence=fence, checkpoint=checkpoint, skills=self.skills)
 
     def load_runtime_module(self):
         """Return the single canonical observer module after rechecking its source."""
@@ -232,7 +232,7 @@ class JobService:
                  hard_limit=100, max_storage_bytes=64 * 1024 * 1024,
                  lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None,
                  inquiry_context_provider=None, legacy_directory=None,
-                 analysis_runtime_identity=None):
+                 analysis_runtime_identity=None, skill_catalog_identity_provider=None):
         _load_assistance_components()
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -251,6 +251,7 @@ class JobService:
         self.inquiry_access = inquiry_access
         self.can_execute = can_execute
         self.inquiry_context_provider = inquiry_context_provider
+        self.skill_catalog_identity_provider = skill_catalog_identity_provider
         if analysis_runtime_identity is not None:
             if (not isinstance(analysis_runtime_identity, str)
                     or not analysis_runtime_identity or len(analysis_runtime_identity) > 512):
@@ -1231,7 +1232,8 @@ class JobService:
                     return self._accepted(DurableJob.model_validate_json(old['record']), False, retry=True)
                 if not self._thread or not self._thread.is_alive():
                     return {'accepted': False, 'reason': 'durable_processing_unavailable'}
-                if mode == 'skill' and skill not in getattr(self.worker_factory, 'skills', {}):
+                if (mode == 'skill' and skill is not None
+                        and skill not in getattr(self.worker_factory, 'skills', {})):
                     return {'accepted': False, 'reason': 'unregistered_skill'}
                 # Pin before admission so concurrent packet GC cannot expire accepted inputs.
                 # The owner is unique; unsuccessful admission releases its temporary pins.
@@ -1568,8 +1570,10 @@ class JobService:
         return True
 
     def _inquiry_identity(self, question, scope, mode, skill):
-        return canonical_digest({'question': question,
-            'context': self.inquiry_context(scope, self.analysis_runtime_identity),
+        context = self.inquiry_context(scope, self.analysis_runtime_identity)
+        if mode == 'skill' and self.skill_catalog_identity_provider is not None:
+            context['skill_catalog_sha256'] = self.skill_catalog_identity_provider()
+        return canonical_digest({'question': question, 'context': context,
             'mode': mode, 'skill': skill})
 
     def _inquire(self, question, access_scope, mode, skill, hints, request_id,
@@ -2614,6 +2618,14 @@ class JobService:
             dropped += 1
 
     def _execute(self, job):
+        if (job.mode == 'skill' and job.skill is not None
+                and job.skill not in getattr(self.worker_factory, 'skills', {})):
+            # Historical durable records remain readable, but a removed skill
+            # must never be rebound to another current registration.
+            self.finish(job.job_id, job.attempt, {'status': 'failed',
+                'reason': 'retired_skill_unavailable',
+                'unresolved_questions': ['The recorded skill is no longer registered; it was not remapped.']})
+            return
         session = None
         heartbeat_stop = threading.Event()
         heartbeat = threading.Thread(target=self._heartbeat, args=(job, heartbeat_stop), daemon=True)
@@ -2703,7 +2715,7 @@ class JobService:
                 request.update(self.inquiry_context_provider(job))
             if session:
                 request['session_id'] = session
-            if job.mode == 'skill':
+            if job.mode == 'skill' and job.skill is not None:
                 request['skill'] = self.worker_factory.skills[job.skill]
             request = self._project_worker_request(request, self._checkpoint_public_calls(job.job_id))
             if request is None:

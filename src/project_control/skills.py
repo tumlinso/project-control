@@ -179,9 +179,11 @@ class SkillRegistry:
         rejected = 0
         with self._open(directory=True) as fd:
             names = []
+            entries_seen = 0
             with os.scandir(fd) as entries:
                 for entry in entries:
-                    if len(names) >= MAX_ENTRIES:
+                    entries_seen += 1
+                    if entries_seen > MAX_ENTRIES:
                         raise SkillError("inventory_limit", "Skill root inventory exceeds the limit")
                     if entry.is_dir(follow_symlinks=False):
                         names.append(entry.name)

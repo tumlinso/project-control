@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openai.local/core4/resource-request-v1.schema.json",
+  "title": "CORE4 host resource request v1",
+  "type": "object",
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tags": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "exclusive_resources": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "isolate_pcie_root": {
+      "type": "boolean"
+    },
+    "isolate_nvlink_domain": {
+      "type": "boolean"
+    },
+    "cpu_threads": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cpu_heavy": {
+      "type": "boolean"
+    },
+    "ram_bytes": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "not": {
+    "required": [
+      "ids",
+      "count"
+    ]
+  },
+  "additionalProperties": false
+}

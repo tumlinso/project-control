@@ -349,7 +349,7 @@
       "id": "API-03",
       "outcome": "PC-AS1-SURFACE",
       "project": "project-control",
-      "behavior": "Delegate/collect implementations and state survive, but discovery/dispatch label them temporarily inactive with explicit reactivation.",
+      "behavior": "All workflow servers permanently omit delegate/collect; direct calls fail before Todo access and expose no reactivation metadata.",
       "required": true,
       "test_file": "tests/as1/test_pc_as1_surface.py"
     },
@@ -469,7 +469,7 @@
       "id": "RUN-03",
       "outcome": "SK-AS1-RUNTIME",
       "project": "skills",
-      "behavior": "Existing coding delegate/collect implementations/tests remain functional internally but native model routing marks them temporarily inactive.",
+      "behavior": "The retired local-coding-worker skill is absent from native model routing; observer inference remains Project Control owned and no coding dispatch is exposed.",
       "required": true,
       "test_file": "tests/as1/test_sk_as1_runtime.py"
     },

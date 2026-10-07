@@ -44,17 +44,17 @@ def make(tmp_path, **kwargs):
 
 
 def source_environment():
-    from project_control.runtime_identity import package_fingerprint
     environment = dict(os.environ)
     for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
                 'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
+                'PROJECT_CONTROL_SKILLS_ROOT', 'PROJECT_CONTROL_OBSERVER_SKILLS_ROOT', 'OBSERVER_SKILLS_ROOT',
                 'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_READ_ONLY', 'TODO_ORCHESTRATOR_STATE_DIR'):
         environment.pop(key, None)
-    environment['PROJECT_CONTROL_SKILLS_ROOT'] = str(SKILLS)
+    environment.pop('PROJECT_CONTROL_SKILLS_ROOT', None)
+    environment['PROJECT_CONTROL_OBSERVER_SKILLS_ROOT'] = str(SKILLS)
     environment['PROJECT_CONTROL_LOCAL_RUNTIME_ROOT'] = str(RUNTIME_ROOT)
     environment['PROJECT_CONTROL_LOCAL_RUNTIME_MANIFEST_SHA256'] = hashlib.sha256((RUNTIME_ROOT/'receiver-manifest.json').read_bytes()).hexdigest()
-    environment['PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT'] = package_fingerprint(SKILLS/'todo-orchestrator/todo_orchestrator')
-    environment['PYTHONPATH'] = os.pathsep.join([str(ROOT/'src'), str(SKILLS/'todo-orchestrator')])
+    environment['PYTHONPATH'] = str(ROOT/'src')
     environment['AS1_SOURCE_HASHES'] = json.dumps({
         name: hashlib.sha256((ROOT/'src/project_control'/ (name+'.py')).read_bytes()).hexdigest()
         for name in ('as1_jobs', 'as1_packets', 'as1_surface')}, sort_keys=True)

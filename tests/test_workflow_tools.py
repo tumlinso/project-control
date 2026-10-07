@@ -50,12 +50,6 @@ class FakeProtocol:
     def coordinate_task(self, **arguments: object) -> dict[str, object]:
         return self._call("coordinate_task", arguments)
 
-    def delegate_task(self, **arguments: object) -> dict[str, object]:
-        return self._call("delegate_task", arguments)
-
-    def collect_delegation(self, **arguments: object) -> dict[str, object]:
-        return self._call("collect_delegation", arguments)
-
     def finish_task(self, **arguments: object) -> dict[str, object]:
         return self._call("finish_task", arguments)
 
@@ -91,7 +85,7 @@ class WorkflowToolTests(unittest.TestCase):
         self.assertEqual(registered, WORKFLOW_TOOL_NAMES)
         self.assertEqual(tuple(tool.name for tool in asyncio.run(server.list_tools())), WORKFLOW_TOOL_NAMES)
 
-    def test_all_six_tools_call_the_same_in_process_protocol(self) -> None:
+    def test_all_four_tools_call_the_same_in_process_protocol(self) -> None:
         protocol = FakeProtocol()
         server = create_workflow_mcp(protocol)
         manager = server._tool_manager
@@ -102,23 +96,26 @@ class WorkflowToolTests(unittest.TestCase):
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "task"}))
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "context_fragment", "target": "NOTE-1"}))
         asyncio.run(manager.call_tool("coordinate_task", {"workflow_handle": handle, "action": "sync"}))
-        asyncio.run(manager.call_tool("delegate_task", {
-            "workflow_handle": handle, "delegated_objective": "bounded",
-            "source_targets": ["src/exact.py"],
-        }))
-        asyncio.run(manager.call_tool("collect_delegation", {"delegation_handle": "wfd_opaque"}))
         asyncio.run(manager.call_tool("finish_task", {"workflow_handle": handle, "action": "complete"}))
         self.assertEqual([name for name, _ in protocol.calls], [
-            "next_task", "inspect_task", "inspect_task", "coordinate_task",
-            "delegate_task", "collect_delegation", "finish_task",
+            "next_task", "inspect_task", "inspect_task", "coordinate_task", "finish_task",
         ])
         self.assertEqual(protocol.calls[1][1]["budget_bytes"], 8192)
         self.assertEqual(protocol.calls[0][1]["run_id"], "PCU-RUN-1")
         self.assertEqual(protocol.calls[2][1]["kind"], "context_fragment")
         self.assertEqual(protocol.calls[2][1]["target"], "NOTE-1")
-        self.assertEqual(protocol.calls[4][1]["mode"], "auto")
-        self.assertEqual(protocol.calls[4][1]["source_targets"], ["src/exact.py"])
-        self.assertIsNone(protocol.calls[6][1]["disposition"])
+        self.assertIsNone(protocol.calls[4][1]["disposition"])
+
+    def test_removed_delegation_names_are_not_registered_or_dispatched(self) -> None:
+        protocol = FakeProtocol()
+        server = create_workflow_mcp(protocol)
+        names = tuple(tool.name for tool in asyncio.run(server.list_tools()))
+        self.assertEqual(names, ("next_task", "inspect_task", "coordinate_task", "finish_task"))
+        manager = server._tool_manager
+        for name in ("delegate_task", "collect_delegation"):
+            with self.assertRaises(Exception):
+                asyncio.run(manager.call_tool(name, {}))
+        self.assertEqual(protocol.calls, [])
 
     def test_construction_is_lazy_sticky_and_internal_failures_are_bounded(self) -> None:
         instances: list[FakeProtocol] = []

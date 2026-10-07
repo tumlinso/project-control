@@ -396,12 +396,16 @@ class ObserverWorkerPort:
     Only observed tool results survive a yield; hidden model reasoning and
     previous jobs' conversation state are neither stored nor reused.
     """
-    def __init__(self, backend, *, command: ReadOnlyCommandRunner, tools, fence, checkpoint=None):
+    def __init__(self, backend, *, command: ReadOnlyCommandRunner, tools, fence, checkpoint=None,
+                 skills=None):
         self.backend = backend
         self.command = command
         self.tools = tools
         self.fence = fence
         self.checkpoint = checkpoint
+        # Skill roots are sealed by TrustedObserverFactory at startup. They are
+        # deliberately not accepted from the durable request payload.
+        self.skills = dict(skills or {})
 
     def run(self, request: dict[str, Any]) -> dict[str, Any]:
         """Run the compatibility path with the request's full round budget."""
@@ -559,13 +563,31 @@ class ObserverWorkerPort:
             remaining_seconds(deadline_epoch)
             skill = request.get("skill")
             if request["mode"] == "skill":
-                if (not isinstance(skill, dict) or set(skill) != {"name", "root"} or
-                        not isinstance(skill["name"], str) or not skill["name"] or not isinstance(skill["root"], str)):
-                    raise ValueError("skill requires broker-registered name/root")
-                root = Path(skill["root"]).resolve()
-                if not self.command.allows(root) or not self.command.allows(root / "SKILL.md"):
-                    raise ValueError("skill_root_outside_trusted_mounts")
-                entry = str((root / "SKILL.md").resolve())
+                if not self.skills or len(self.skills) > 128:
+                    raise ValueError("skill_registrations_unavailable")
+                entries = {}
+                for name, registration in self.skills.items():
+                    if (not isinstance(name, str) or not name or len(name) > 256
+                            or not isinstance(registration, dict) or set(registration) != {"name", "root"}
+                            or registration.get("name") != name or not isinstance(registration.get("root"), str)
+                            or not Path(registration["root"]).is_absolute()):
+                        raise ValueError("invalid_trusted_skill_registration")
+                    registered_root = Path(registration["root"]).resolve()
+                    registered_entry = (registered_root / "SKILL.md").resolve()
+                    if not self.command.allows(registered_root) or not self.command.allows(registered_entry):
+                        raise ValueError("skill_root_outside_trusted_mounts")
+                    entries[name] = (registered_root, str(registered_entry))
+                if skill is not None:
+                    if (not isinstance(skill, dict) or set(skill) != {"name", "root"}
+                            or skill.get("name") not in entries
+                            or Path(skill["root"]).resolve() != entries[skill["name"]][0]):
+                        raise ValueError("skill_requires_broker_registered_name_root")
+                    initial_names = {skill["name"]}
+                else:
+                    initial_names = set(entries)
+                first_name = sorted(initial_names)[0]
+                root, entry = entries[first_name]
+                initial_entries = {entries[name][1] for name in initial_names}
                 def read_resources(source_observations=observations):
                     return {read["path"]: read for observation in source_observations
                             for read in observation.get("source_reads", [])
@@ -573,7 +595,7 @@ class ObserverWorkerPort:
                 def entry_observed(source_observations=observations):
                     return any(observation.get("status") == "completed"
                                and observation.get("exit_code") == 0 and not observation.get("truncated")
-                               and any(read.get("path") == entry and isinstance(read.get("content_sha256"), str)
+                               and any(read.get("path") in initial_entries and isinstance(read.get("content_sha256"), str)
                                        and len(read["content_sha256"]) == 64
                                        for read in observation.get("source_reads", []) if isinstance(read, dict))
                                for observation in source_observations)
@@ -586,7 +608,7 @@ class ObserverWorkerPort:
                     target = Path(argv[1])
                     if not target.is_absolute():
                         target = Path(cwd) / target
-                    return str(target.resolve()) == entry
+                    return str(target.resolve()) in initial_entries
             # Only the runner's startup policy grants mounts. Caller scope,
             # hints and skill metadata never become permitted command roots.
             native_roots = [str(root) for root in getattr(self.command, "roots", ())
@@ -606,7 +628,7 @@ class ObserverWorkerPort:
                 "unresolved_questions": []}
             if request["mode"] == "skill":
                 final_example["skill_selection"] = {"format": "pc-skill-selection/1", "selections": [{
-                    "skill": skill["name"], "resource": "SKILL.md", "content_sha256": "exact observed source_reads SHA256",
+                    "skill": first_name, "resource": "SKILL.md", "content_sha256": "exact observed source_reads SHA256",
                     "line_start": 1, "line_end": 1, "reason": "why this observed resource answers the question"}],
                     "synthesis": "source-backed skill guidance", "unresolved": []}
             worker_source = Path(__file__).resolve()
@@ -663,9 +685,12 @@ class ObserverWorkerPort:
             )
             if request["mode"] == "skill":
                 instruction += (
-                    " Skill mode: the command example reads the exact validated installed entry " + json.dumps(entry) + ". "
-                    "Read that entry if it is not already present in retained source observations, "
-                    "Before successful exact entry proof, only a direct cat of that entry is permitted; "
+                    " Skill mode: the command example reads a registered installed entry " + json.dumps(entry) + ". "
+                    + ("A skill name was supplied; keep navigation scoped to its registered root, except for explicitly identified cross-skill prerequisites. "
+                       if skill is not None else
+                       "No skill name was supplied; choose among Project Control's registered real skill entries. There is no bootstrap skill. ")
+                    + "Read a relevant registered entry if it is not already present in retained source observations. "
+                    "Before successful entry proof, only a direct cat of a registered entry is permitted; "
                     "a denied proposal or failed/truncated read is feedback, not source evidence. "
                     "then follow its own maps and references agentically. Read selected files with direct cat argv to retain exact source proof. "
                     "Indexes are advisory. Final JSON must include skill_selection with format pc-skill-selection/1, "
@@ -777,8 +802,8 @@ class ObserverWorkerPort:
                             "tool payloads are not broker observation IDs."
                         )
                         if request["mode"] == "skill" and not entry_observed(visible_observations):
-                            continuation += (" The validated installed entry has not been successfully read in the "
-                                "visible observations: " + entry + ". Read it with direct cat before other commands/tools "
+                            continuation += (" No registered installed entry has been successfully read in the "
+                                "visible observations. Read a relevant registered SKILL.md with direct cat before other commands/tools "
                                 "or final selection. Failed, truncated or omitted entry observations do not satisfy this prerequisite.")
                         messages.append({"role": "user", "content": json.dumps(
                             {"progress": turn_progress, "continuation": continuation}, ensure_ascii=False)})
@@ -1081,15 +1106,24 @@ class ObserverWorkerPort:
                 or not isinstance(selection.get("synthesis"), str) or not isinstance(selection.get("selections"), list)
                 or not 1 <= len(selection["selections"]) <= 12):
             raise ValueError("invalid_skill_selection")
-        root = Path(skill["root"]).resolve()
         for item in selection["selections"]:
             if not isinstance(item, dict) or not isinstance(item.get("resource"), str):
                 raise ValueError("invalid_skill_resource")
+            selected_name = item.get("skill")
+            if skill is not None:
+                if selected_name != skill["name"]:
+                    raise ValueError("skill_resource_identity_missing")
+                registration = skill
+            else:
+                registration = self.skills.get(selected_name)
+                if not isinstance(registration, dict) or registration.get("name") != selected_name:
+                    raise ValueError("skill_resource_identity_missing")
+            root = Path(registration["root"]).resolve()
             relative = Path(item["resource"])
             path = (root / relative).resolve()
             if relative.is_absolute() or ".." in relative.parts or root not in path.parents or not self.command.allows(path):
                 raise ValueError("skill_resource_escapes_registered_root")
-            if item.get("skill") != skill["name"] or not isinstance(item.get("reason"), str):
+            if not isinstance(item.get("reason"), str):
                 raise ValueError("skill_resource_identity_missing")
             if str(path) not in reads or reads[str(path)].get("content_sha256") != item.get("content_sha256"):
                 raise ValueError("skill_selected_resource_not_read_agentically")

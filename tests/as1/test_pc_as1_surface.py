@@ -10,7 +10,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from project_control.app import create_mcp
 from project_control.as1_context import ContextHost
 from project_control.runtime_binding import local_runtime_identity
-from project_control.config import ProjectControlConfig, configured_observer_skills_root
+from project_control.config import ProjectControlConfig
 from project_control.profiles import enumerate_tool_schemas, validate_profile_registration
 from project_control.workflow_tools import register_workflow_tools
 
@@ -20,6 +20,16 @@ CONTRACT = json.loads((BASE / 'planning/adaptive-surface-v1/contracts/surface.js
 
 def run(value):
     return asyncio.run(value)
+
+
+def make_skill_root(root):
+    skill = root / 'cuda'
+    skill.mkdir(parents=True)
+    (skill / 'SKILL.md').write_text(
+        '---\nname: cuda\ndescription: Temporary skill for observer surface tests\n---\nUse this fixture skill.\n',
+        encoding='utf-8',
+    )
+    return root
 
 
 @pytest.fixture
@@ -147,12 +157,10 @@ def test_observer_only_detail_schema_and_dispatch(servers):
 
 
 @pytest.mark.as1_case('API-03')
-def test_inactive_delegation_preserved_and_fenced(servers):
+def test_delegation_tools_are_permanently_absent_and_fenced(servers):
     class Protocol:
-        def delegate_task(self, **args):
-            raise AssertionError('inactive dispatch reached authority')
-        def collect_delegation(self, **args):
-            raise AssertionError('inactive dispatch reached authority')
+        pass
+
     protocol = Protocol()
     for profile in ('coder', 'mutator'):
         server = servers(profile)
@@ -160,15 +168,13 @@ def test_inactive_delegation_preserved_and_fenced(servers):
         names = run(enumerate_tool_schemas(server))
         for name in ('delegate_task', 'collect_delegation'):
             assert name not in names
-            with pytest.raises(ToolError, match='temporarily_inactive'):
+            with pytest.raises(ToolError, match=f'unavailable in the {profile} profile'):
                 run(server.call_tool(name, {'profile': 'mutator'}))
-            assert server.feature_metadata['temporarily_inactive'][name]['preserve_implementation']
-            assert 'explicit operator decision' in server.feature_metadata['temporarily_inactive'][name]['reenable']
-    assert callable(protocol.delegate_task) and callable(protocol.collect_delegation)
+        assert 'temporarily_inactive' not in server.feature_metadata
 
 
 @pytest.mark.as1_case('API-04')
-def test_composed_producers_lazy_startup_packets_and_native_worker(servers):
+def test_composed_producers_lazy_startup_packets_and_native_worker(servers, tmp_path, monkeypatch):
     from project_control.as1_context import InformationService
     from project_control.as1_control import ControlService
     from project_control.as1_jobs import JobService, TrustedObserverFactory
@@ -178,8 +184,10 @@ def test_composed_producers_lazy_startup_packets_and_native_worker(servers):
     class Backend:
         def run_observer_turn(self, request):
             raise AssertionError('startup invoked inference')
+    skills_root = make_skill_root(tmp_path / 'observer-skills')
+    monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_SKILLS_ROOT', str(skills_root))
     with patch('project_control.as1_surface.TraceService._build', side_effect=AssertionError('startup scanned corpus')):
-        server = servers(observer_backend=Backend())
+        server = servers(config=ProjectControlConfig(observer_skills_root=skills_root), observer_backend=Backend())
     c = server._project_control_surface
     assert isinstance(c.information, InformationService) and isinstance(c.control, ControlService)
     assert isinstance(c.jobs, JobService) and isinstance(c.skills, SkillService) and isinstance(c.trace, TraceService)
@@ -200,7 +208,9 @@ def test_composed_producers_lazy_startup_packets_and_native_worker(servers):
     assert value['status'] == 'ok' and value['sources'] == []
     assert c.store.lookup(value['packet'], access_scope=c.host.scope(None)).status == 'ok'
     catalog = c.skills.catalog(access_scope=c.host.scope(None))
-    assert catalog
+    assert catalog['status'] == 'ok'
+    assert [row['name'] for row in catalog['skills']] == ['cuda']
+    assert catalog['skills'][0]['status'] == 'accessible'
     c.start()
     assert c.jobs.health()['dispatcher'] == 'running'
     assert c.close()
@@ -212,7 +222,7 @@ def test_composed_producers_lazy_startup_packets_and_native_worker(servers):
     assert 'internal_command_sandbox' in diagnostic
 
 
-from test_pc_as1_context import world
+from tests.as1.test_pc_as1_context import world
 
 
 @pytest.mark.as1_case('API-04')
@@ -244,12 +254,14 @@ def test_real_public_reads_exact_search_discovery_scope_and_trace(servers, world
 
 
 @pytest.mark.as1_case('API-04')
-def test_worker_command_roots_follow_durable_admission(servers, tmp_path):
+def test_worker_command_roots_follow_durable_admission(servers, tmp_path, monkeypatch):
     from types import SimpleNamespace
     from project_control.config import WorkspaceConfig, RepositoryConfig
     a = tmp_path / 'project_a'; b = tmp_path / 'project_b'; a.mkdir(); b.mkdir()
     config = ProjectControlConfig(workspaces={name: WorkspaceConfig(repositories={'source': RepositoryConfig(root=root)}) for name, root in [('a', a), ('b', b)]})
-    skills_root = configured_observer_skills_root(config)
+    skills_root = make_skill_root(tmp_path / 'observer-skills')
+    config.observer_skills_root = skills_root
+    monkeypatch.setenv('PROJECT_CONTROL_OBSERVER_SKILLS_ROOT', str(skills_root))
     c = servers(config=config)._project_control_surface
     trusted = c.jobs.worker_factory.trusted
     job = SimpleNamespace(scope=c.host.scope('a'), mode='investigate', job_id='job_fixture', attempt=1)
@@ -261,11 +273,10 @@ def test_worker_command_roots_follow_durable_admission(servers, tmp_path):
     worker = trusted(c.jobs, job)
     assert worker.command.roots == (skills_root,)
     assert not worker.command.allows(a / 'source.py')
-    skill_path = skills_root / 'local-coding-worker/SKILL.md'
+    skill_path = skills_root / 'cuda/SKILL.md'
     assert skill_path.is_file()
     assert worker.command.allows(skill_path)
-    receiver_path = local_runtime_identity().root / 'local-coding-worker/SKILL.md'
-    assert not worker.command.allows(receiver_path)
+    assert 'local-coding-worker' not in c.skills.skills
     job.scope['project'] = 'unregistered'
     with pytest.raises(PermissionError):
         trusted(c.jobs, job)
@@ -342,24 +353,25 @@ def test_public_native_capability_publication_consumer(scenario):
     import sys
     from project_control.runtime_identity import package_fingerprint
     skills = Path('/home/tumlinson/.agents/skills')
-    native = skills / 'todo-orchestrator'
+    native = BASE / 'src'
     files = [BASE / 'src/project_control' / name for name in ('app.py', 'as1_surface.py', 'as1_control.py', 'workflow_tools.py')]
     files += [native / 'todo_orchestrator' / name for name in ('project_amendments.py', 'workflow/protocol.py', 'workflow/service.py', 'workflow/capabilities.py', 'workflow/roles.py')]
     hashes = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
     env = os.environ.copy()
     for key in ('PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST',
                 'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', 'CODING_WORKFLOW_RUNTIME_FINGERPRINT',
-                'CODING_WORKFLOW_SKILLS_ROOT', 'TODO_ORCHESTRATOR_STATE_DIR', 'TODO_ORCHESTRATOR_READ_ONLY'):
+                'PROJECT_CONTROL_SKILLS_ROOT', 'OBSERVER_SKILLS_ROOT', 'CODING_WORKFLOW_SKILLS_ROOT',
+                'TODO_ORCHESTRATOR_STATE_DIR', 'TODO_ORCHESTRATOR_READ_ONLY'):
         env.pop(key, None)
-    env.update(PROJECT_CONTROL_SKILLS_ROOT=str(skills),
+    env.update(PROJECT_CONTROL_OBSERVER_SKILLS_ROOT=str(skills),
         PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT=package_fingerprint(native / 'todo_orchestrator'),
-        PYTHONPATH=os.pathsep.join([str(BASE / 'src'), str(native), str(native / 'tests')]),
+        PYTHONPATH=os.pathsep.join([str(BASE / 'src'), str(BASE)]),
         AS1_SURFACE_SOURCE_HASHES=json.dumps(hashes), AS1_SURFACE_SCENARIO=scenario,
         PYTHONDONTWRITEBYTECODE='1')
     script = r'''
 import asyncio, hashlib, json, os
 from pathlib import Path
-from v2_helpers import V2Repo, base_plan, safe_task
+from tests.todo.v2_helpers import V2Repo, base_plan, safe_task
 from project_control.app import create_mcp
 from project_control.config import ProjectControlConfig, WorkspaceConfig, RepositoryConfig
 from project_control.workflow_binding import workflow_protocol
@@ -376,7 +388,7 @@ try:
     os.environ['XDG_STATE_HOME'] = str(repo.root / 'private-state')
     repo.apply(base_plan([safe_task('A', 'src/a')]))
     source = repo.root / 'src/a/contract.txt'; source.parent.mkdir(parents=True); source.write_text('exact fixture source\n')
-    config = ProjectControlConfig(skills_root=Path(os.environ['PROJECT_CONTROL_SKILLS_ROOT']),
+    config = ProjectControlConfig(observer_skills_root=Path(os.environ['PROJECT_CONTROL_OBSERVER_SKILLS_ROOT']),
         workspaces={'demo':WorkspaceConfig(authority_repository='source',repositories={'source':RepositoryConfig(root=repo.root)})})
     server = create_mcp(config, profile='coder', state_directory=repo.root / 'private-state/as1')
     def call(name, arguments):

@@ -166,16 +166,11 @@ packet created just before eviction may survive, but cannot update a new attempt
 Checkpoint receives observed evidence only. Disconnects and lease expiry belong
 to broker lifecycle; this synchronous port never cancels an accepted durable job.
 
-Existing coding delegation/collection remains functional through internal kernel
-APIs. The compatibility MCP's native routing wrapper excludes those handlers
-from tool listings and rejects dispatch with `temporarily_inactive`. The canonical
-kernel server and methods remain unchanged for explicit maintenance and tests.
-This guard covers the Skills-owned compatibility fallback entrypoint selected
-when the current Project Control CLI is absent. The preferred installed Project
-Control CLI still receives the original `serve codex` forwarding call. Its native
-profile discovery/dispatch and deployed startup are a PC-SURFACE consumer
-requirement, followed by end-to-end API-03/API-04 and paired SQA validation; this
-worker source change does not claim those producer/deployment checks passed.
+Project Control does not expose coding delegation or collection through its
+workflow surface. Local inference remains an observer-assistance capability;
+delegated coding and research use configured Codex subagents under the owning
+root task claim. Todo's historical delegation records and kernel APIs remain
+available for state compatibility and are outside the active MCP surface.
 
 Scripted model transports and supervisor fixtures establish protocol behavior,
 not inference. Qualification must separately exercise the installed verified

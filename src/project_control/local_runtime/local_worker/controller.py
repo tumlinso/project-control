@@ -421,13 +421,19 @@ class IntegrationController:
             value = explicit or self.environment.get(variable) or os.environ.get(variable)
             if value:
                 return Path(value).expanduser().resolve()
+            if variable == "LCW_TODO_CLI":
+                try:
+                    import todo_orchestrator
+                except ImportError as exc:
+                    raise IntegrationError("bundled todo_orchestrator CLI is unavailable") from exc
+                return Path(todo_orchestrator.__file__).with_name("__main__.py")
             if skills_root is None:
                 raise IntegrationError(
                     "PROJECT_CONTROL_SKILLS_ROOT or an explicit domain-tool path must be configured"
                 )
             return skills_root / relative
 
-        self.todo_cli = configured_tool(todo_cli, "LCW_TODO_CLI", "todo-orchestrator/scripts/todo.py")
+        self.todo_cli = configured_tool(todo_cli, "LCW_TODO_CLI", "")
         self.ctxpp_cli = configured_tool(ctxpp_cli, "LCW_CTXPP_CLI", "cpp-context-compiler/scripts/ctxpp")
         self.worker_cli = configured_tool(worker_cli, "LCW_WORKER_CLI", "local-coding-worker/scripts/local_worker.py")
         self.cuda_cli = configured_tool(None, "LCW_CUDA_CLI", "cuda/scripts/cuda_controller.py")

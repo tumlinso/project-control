@@ -144,6 +144,13 @@ class ProfileRegistrationTests(unittest.TestCase):
         server = ProfiledFastMCP("project-control", profile="observer")
         with self.assertRaises(ProfileRegistrationError):
             server.add_tool(_handler, name="arbitrary_shell")
+        for removed in ("delegate_task", "collect_delegation"):
+            with self.subTest(removed=removed):
+                with self.assertRaises(ProfileRegistrationError):
+                    server.add_tool(_handler, name=removed)
+                with self.assertRaisesRegex(ToolError, "unavailable in the observer profile"):
+                    asyncio.run(server.call_tool(removed, {}))
+        self.assertNotIn("temporarily_inactive", server.feature_metadata)
 
     def test_registration_validation_reports_missing_tools(self) -> None:
         server = ProfiledFastMCP("project-control", profile="observer")

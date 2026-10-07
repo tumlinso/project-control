@@ -17,7 +17,7 @@ from project_control.snapshot import resolve_todo_provider
 from project_control.subprocesses import CommandResult, CommandTimeoutError, FixedCommandRunner
 
 
-TODO = Path("/home/tumlinson/.agents/skills/todo-orchestrator/scripts/todo.py")
+TODO = Path(__file__).resolve().parent / "todo" / "scripts" / "todo.py"
 
 
 def run(argv: list[str], cwd: Path) -> str:
@@ -49,6 +49,26 @@ class SequenceRunner:
 
 @unittest.skipUnless(TODO.is_file(), "local todo-orchestrator integration unavailable")
 class AdapterContractTests(unittest.TestCase):
+    @staticmethod
+    def _provider_factory(package_root: Path, *, reported_root: Path | None = None):
+        class Port:
+            def identity(self):
+                return {
+                    "contract": "PCU-TODO-READ-PORT/1",
+                    "package_root": str(reported_root or package_root),
+                    "source_identity": "todo-orchestrator:test-source",
+                    "version": "1",
+                    "capabilities": [
+                        "semantic.state", "semantic.anchor", "semantic.delta",
+                        "semantic.workflow", "export",
+                    ],
+                }
+
+            def invoke(self, operation, *, repo_root, arguments=()):
+                return {"ok": True, "code": "success", "data": {}}
+
+        return lambda _package_root: Port()
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name) / "repo"
@@ -230,13 +250,11 @@ class AdapterContractTests(unittest.TestCase):
         self.assertFalse(runner.calls[0][1]["check"])
         self.assertEqual(Path(adapter.todo_script), TODO.resolve())
 
-    def test_provider_resolution_prefers_compatible_workspace_root(self) -> None:
+    def test_provider_resolution_uses_bundled_package_independent_of_content_roots(self) -> None:
         workspace_skills = Path(self.temporary.name) / "workspace-skills"
         global_skills = Path(self.temporary.name) / "global-skills"
-        for root in (workspace_skills, global_skills):
-            script = root / "todo-orchestrator" / "scripts" / "todo.py"
-            script.parent.mkdir(parents=True)
-            script.write_text("raise SystemExit(0)\n", encoding="utf-8")
+        workspace_skills.mkdir()
+        global_skills.mkdir()
         config = ProjectControlConfig(
             skills_root=global_skills,
             workspaces={"fixture": WorkspaceConfig(
@@ -245,19 +263,21 @@ class AdapterContractTests(unittest.TestCase):
                 repositories={"source": RepositoryConfig(root=self.root)},
             )},
         )
-        resolved = resolve_todo_provider(config, "fixture")
+        package_root = Path(__file__).resolve().parents[1] / "src" / "todo_orchestrator"
+        resolved = resolve_todo_provider(
+            config, "fixture", read_port_factory=self._provider_factory(package_root),
+        )
         self.assertTrue(resolved.compatible)
-        self.assertEqual(resolved.selection_source, "workspace_config")
-        self.assertEqual(resolved.skills_root, workspace_skills.resolve())
+        self.assertEqual(resolved.selection_source, "bundled_package")
+        self.assertEqual(resolved.package_root, package_root.resolve())
+        self.assertIsNone(resolved.todo_script)
         self.assertEqual(set(resolved.capabilities), {
             "semantic_state", "semantic_anchor", "semantic_delta", "semantic_workflow", "export",
         })
 
-    def test_incompatible_configured_entrypoint_is_rejected_precisely(self) -> None:
+    def test_read_port_outside_bundled_package_is_rejected_precisely(self) -> None:
         skills = Path(self.temporary.name) / "old-skills"
-        script = skills / "todo-orchestrator" / "scripts" / "todo.py"
-        script.parent.mkdir(parents=True)
-        script.write_text("raise SystemExit(2)\n", encoding="utf-8")
+        skills.mkdir()
         config = ProjectControlConfig(
             skills_root=skills,
             workspaces={"fixture": WorkspaceConfig(
@@ -265,10 +285,15 @@ class AdapterContractTests(unittest.TestCase):
                 repositories={"source": RepositoryConfig(root=self.root)},
             )},
         )
-        with patch.dict(os.environ, {"PROJECT_CONTROL_SKILLS_ROOT": str(skills)}, clear=False):
-            resolved = resolve_todo_provider(config, "fixture")
+        package_root = Path(__file__).resolve().parents[1] / "src" / "todo_orchestrator"
+        foreign_package = Path(self.temporary.name) / "foreign-todo"
+        foreign_package.mkdir()
+        resolved = resolve_todo_provider(
+            config, "fixture",
+            read_port_factory=self._provider_factory(package_root, reported_root=foreign_package),
+        )
         self.assertFalse(resolved.compatible)
-        self.assertEqual(resolved.error_code, "todo_entrypoint_incompatible")
+        self.assertEqual(resolved.error_code, "todo_read_port_package_mismatch")
 
     def test_structured_nonzero_error_is_parsed(self) -> None:
         runner = SequenceRunner([(16, {"ok": False, "code": "project_not_bootstrapped", "error": {"message": "hidden"}})])

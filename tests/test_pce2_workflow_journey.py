@@ -20,7 +20,7 @@ from pathlib import Path
 
 from project_control.app import create_mcp
 from project_control.config import ProjectControlConfig
-from v2_helpers import V2Repo, base_plan, safe_task
+from tests.todo.v2_helpers import V2Repo, base_plan, safe_task
 
 repo = V2Repo()
 try:
@@ -55,21 +55,13 @@ finally:
     repo.close()
 '''
         environment = dict(os.environ)
-        # Development uses the configured Skills source. A manifest-backed
-        # candidate must select its own frozen installed package unchanged.
-        if not environment.get("PROJECT_CONTROL_RELEASE_MANIFEST"):
-            skills_root = environment.get("PROJECT_CONTROL_SKILLS_ROOT")
-            self.assertTrue(skills_root, "development journey requires PROJECT_CONTROL_SKILLS_ROOT")
-            environment["PYTHONPATH"] = os.pathsep.join([
-                str(Path(skills_root) / "todo-orchestrator"),
-                environment.get("PYTHONPATH", ""),
-            ])
-        skills_root = environment.get("PROJECT_CONTROL_SKILLS_ROOT")
-        self.assertTrue(skills_root, "journey fixture requires PROJECT_CONTROL_SKILLS_ROOT")
-        environment["PYTHONPATH"] = os.pathsep.join([
-            str(Path(skills_root) / "todo-orchestrator" / "tests"),
-            environment.get("PYTHONPATH", ""),
-        ])
+        project_root = Path(__file__).resolve().parents[1]
+        for key in ("PROJECT_CONTROL_RELEASE_MANIFEST", "PROJECT_CONTROL_RELEASE_DIGEST",
+                    "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT", "CODING_WORKFLOW_RUNTIME_FINGERPRINT",
+                    "CODING_WORKFLOW_SKILLS_ROOT", "PROJECT_CONTROL_SKILLS_ROOT",
+                    "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT", "OBSERVER_SKILLS_ROOT"):
+            environment.pop(key, None)
+        environment["PYTHONPATH"] = str(project_root / "src")
         completed = subprocess.run(
             [sys.executable, "-c", child], cwd=Path(__file__).parents[1], env=environment,
             text=True, capture_output=True, check=False,

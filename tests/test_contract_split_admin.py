@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import sys
 from project_control import admin
-from test_admin import _todo_runtime_modules
+from tests.test_admin import _todo_runtime_modules
 
 class ContractSplitAdminTests(unittest.TestCase):
     def test_cli_routes_exact_owner_arguments(self):

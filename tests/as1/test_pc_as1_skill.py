@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import threading
 import time
 
@@ -17,6 +18,7 @@ from project_control.as1_jobs import JobService, TrustedObserverFactory
 from project_control.as1_packets import SQLitePacketStore
 from project_control.as1_skill import SkillObserverFactory, SkillService
 import project_control.as1_skill as skill_module
+import project_control.skills as skills_module
 
 INSTALLED = Path('/home/tumlinson/.agents/skills')
 RUNTIME_ROOT = Path(__file__).resolve().parents[2]/'src/project_control/local_runtime'
@@ -85,10 +87,6 @@ def fixture_root(tmp_path):
                                     '# Native guide\nRead resource.md. No map is installed; follow this reference.\n')
         (skill/'resource.md').write_bytes(b'# Exact instructions\r\n  keep indentation\r\n\r\n```python\r\nx = 1\r\n```\r\n')
         entries.append({'name': name, 'entry': name+'/SKILL.md', 'sha256': digest(skill/'SKILL.md'), 'status': 'accessible'})
-    (root/'integrations').mkdir()
-    (root/'integrations/native-skill-catalog.json').write_text(json.dumps({'entries': entries,
-        'external_dependencies': [{'name': 'missing-external', 'status': 'missing'}],
-        'unsupported': ['External roots are unregistered']}))
     return root
 
 
@@ -114,15 +112,16 @@ def finish(service, admitted):
 @pytest.mark.as1_case('SKL-01')
 def test_catalog_optional_name_hints_unscoped_worker_selection_and_profile(tmp_path):
     root = fixture_root(tmp_path)
-    backend = Turns([command(root/'local-coding-worker/SKILL.md'),
-                     command(root/'integrations/native-skill-catalog.json'), command(root/'fixture/SKILL.md'),
+    backend = Turns([command(root/'fixture/SKILL.md'),
                      command(root/'fixture/resource.md'), final([item(root, 'fixture', 'resource.md', 1, 6)])])
     service, jobs = make(tmp_path, root, backend)
     catalog = service.submit(access_scope=SCOPE)
     assert catalog['complete'] and catalog['continuation'] is None
-    assert {e['name'] for e in catalog['skills']} == {'fixture', 'prerequisite', 'local-coding-worker'}
+    assert {e['name'] for e in catalog['skills']} == {'fixture', 'prerequisite'}
     assert all(e['description'] and e['id'] for e in catalog['skills'])
-    assert catalog['external_dependencies'][0]['status'] == 'missing'
+    assert catalog['external_dependencies'] == []
+    assert all(source.path != 'integrations/native-skill-catalog.json'
+               for source in service.packets.lookup(catalog['packet_id'], access_scope=SCOPE).packet.sources)
     assert not backend.requests and jobs.health()['dispatcher'] == 'stopped'
     jobs.start()
     try:
@@ -144,16 +143,73 @@ def test_catalog_optional_name_hints_unscoped_worker_selection_and_profile(tmp_p
 
 
 @pytest.mark.as1_case('SKL-01')
-def test_catalog_preserves_missing_stale_unregistered_rows(tmp_path):
+def test_catalog_is_derived_from_current_entries_and_excludes_retired_skill(tmp_path):
     root = fixture_root(tmp_path)
     (root/'fixture/SKILL.md').write_text('---\nname: fixture\ndescription: Changed\n---\n')
     (root/'prerequisite/SKILL.md').unlink()
     registrations = {'fixture': {'name': 'fixture', 'root': str(root/'fixture')}}
     service, jobs = make(tmp_path, root, Turns([]), registrations=registrations)
-    rows = {r['name']: r for r in service.catalog(access_scope=SCOPE)['skills']}
-    assert rows['fixture']['status'] == 'stale'
-    assert rows['prerequisite']['status'] == 'unavailable'
-    assert rows['local-coding-worker']['status'] == 'unregistered'
+    catalog = service.catalog(access_scope=SCOPE)
+    rows = {r['name']: r for r in catalog['skills']}
+    assert rows['fixture']['status'] == 'accessible'
+    assert 'prerequisite' not in rows
+    assert 'local-coding-worker' not in rows
+    assert catalog['rejected'] >= 1
+
+
+def test_skill_root_inventory_limit_counts_regular_files(tmp_path, monkeypatch):
+    root = tmp_path/'skills'; root.mkdir()
+    skill = root/'fixture'; skill.mkdir()
+    (skill/'SKILL.md').write_text('---\nname: fixture\ndescription: Fixture\n---\n')
+    (root/'one.txt').write_text('one')
+    (root/'two.txt').write_text('two')
+    monkeypatch.setattr(skills_module, 'MAX_ENTRIES', 2)
+    with pytest.raises(skills_module.SkillError) as error:
+        skills_module.SkillRegistry(root)._discover()
+    assert error.value.code == 'inventory_limit'
+
+
+def test_effective_catalog_digest_invalidates_skill_inquiry_identity(tmp_path):
+    root = fixture_root(tmp_path)
+    service, jobs = make(tmp_path, root, Turns([]))
+    before = service.catalog_identity()
+    identity_before = jobs._inquiry_identity('same question', SCOPE, 'skill', None)
+    entry = root/'prerequisite/SKILL.md'
+    entry.write_text(entry.read_text() + '\nUpdated routing guidance.\n')
+    assert service.catalog_identity() != before
+    assert jobs._inquiry_identity('same question', SCOPE, 'skill', None) != identity_before
+
+
+def test_retired_skill_jobs_are_not_remapped_when_recovered(tmp_path, monkeypatch):
+    root = fixture_root(tmp_path)
+    service, jobs = make(tmp_path, root, Turns([]))
+    captured = []
+    monkeypatch.setattr(jobs, 'finish', lambda job_id, attempt, result: captured.append(result))
+    jobs._execute(SimpleNamespace(mode='skill', skill='local-coding-worker', job_id='old-job', attempt=1))
+    assert captured and captured[0]['reason'] == 'retired_skill_unavailable'
+    assert not service.submit(query='legacy request', skill='local-coding-worker',
+                              access_scope=SCOPE)['accepted']
+
+
+def test_direct_observer_port_requires_trusted_skill_registrations(tmp_path):
+    root = fixture_root(tmp_path)
+    service, jobs = make(tmp_path, root, Turns([]))
+    trusted = jobs.worker_factory.trusted
+    module = trusted.load_runtime_module()
+    class Command:
+        roots = ()
+        def allows(self, path):
+            return True
+        def run(self, *args, **kwargs):
+            raise AssertionError('unregistered direct port must not read')
+    backend = Turns([])
+    worker = module.ObserverWorkerPort(backend, command=Command(), tools=lambda *args: {},
+        fence=lambda *args: True, skills={})
+    result = worker.run({'job_id': 'direct', 'attempt': 1, 'mode': 'skill', 'question': 'q',
+                         'scope': SCOPE, 'hints': [], 'observations': []})
+    assert result['status'] == 'partial'
+    assert result['reason'] == 'skill_registrations_unavailable'
+    assert not backend.requests
 
 
 @pytest.mark.as1_case('SKL-02', 'SKL-03')
@@ -344,7 +400,8 @@ def test_wrong_registered_root_and_mid_read_replacement_are_explicit(tmp_path, m
     (outside/'SKILL.md').write_text('outside root\n')
     registration = {'fixture': {'name': 'fixture', 'root': str(outside)}}
     service, jobs = make(tmp_path, root, Turns([command(outside/'SKILL.md')]), registrations=registration)
-    assert service.catalog(access_scope=SCOPE)['skills'][1]['status'] == 'registration_mismatch'
+    rows = {row['name']: row for row in service.catalog(access_scope=SCOPE)['skills']}
+    assert rows['fixture']['status'] == 'registration_mismatch'
     jobs.start()
     try:
         admitted = service.submit(query='Select source', skill='fixture', access_scope=SCOPE)

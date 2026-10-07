@@ -60,24 +60,26 @@ class CandidateIdentity:
 
 def source_identity(
     project_control_root: Path,
-    skills_root: Path,
+    _skills_root: Path | None = None,
     *,
     runner: Runner = _run,
 ) -> CandidateIdentity:
     project_control_root = project_control_root.resolve()
-    todo_root = (skills_root.resolve() / "todo-orchestrator")
+    todo_root = project_control_root / "src" / "todo_orchestrator"
     if not (project_control_root / "pyproject.toml").is_file():
         raise InstallError("Project Control source is missing pyproject.toml")
-    if not (todo_root / "pyproject.toml").is_file():
-        raise InstallError("Todo Orchestrator source is missing pyproject.toml")
+    if not (todo_root / "__init__.py").is_file():
+        raise InstallError("bundled Todo Orchestrator package is missing")
+    project_commit = _git_value(project_control_root, "rev-parse", "HEAD", runner=runner)
+    project_tree = _git_value(project_control_root, "rev-parse", "HEAD^{tree}", runner=runner)
     return CandidateIdentity(
         schema_version=1,
         project_control_root=str(project_control_root),
-        project_control_commit=_git_value(project_control_root, "rev-parse", "HEAD", runner=runner),
-        project_control_tree=_git_value(project_control_root, "rev-parse", "HEAD^{tree}", runner=runner),
+        project_control_commit=project_commit,
+        project_control_tree=project_tree,
         todo_root=str(todo_root),
-        todo_commit=_git_value(todo_root, "rev-parse", "HEAD", runner=runner),
-        todo_tree=_git_value(todo_root, "rev-parse", "HEAD^{tree}", runner=runner),
+        todo_commit=project_commit,
+        todo_tree=project_tree,
         python_executable=sys.executable,
     )
 
@@ -186,26 +188,61 @@ def _working_tree_inventory(root: Path, *, runner: Runner) -> dict[str, object]:
             "files": dict(sorted(files.items()))}
 
 
-def _freeze_skills(skills: Path, temporary: Path, destination: Path) -> dict:
+def _freeze_skills(skills: Path | None, temporary: Path, destination: Path) -> dict:
     snapshot = temporary / "runtime-skills"
-    for name in ("todo-orchestrator", "cuda", "cpp-context-compiler", "local-coding-worker", "integrations/coding-workflow-mcp"):
-        source = skills / name
-        if source.is_dir():
+    snapshot.mkdir(parents=True, exist_ok=True)
+    for name in ("cuda", "cpp-context-compiler"):
+        source = skills / name if skills is not None else None
+        if source is not None and source.is_dir():
             shutil.copytree(source, snapshot / name, ignore=shutil.ignore_patterns(
                 "__pycache__", "*.pyc", ".git", ".venv", "build", "dist", "*.egg-info", ".ctxpp", ".todo"))
-    resources = {}
-    for name in ("integrations/native-skill-catalog.json", "integrations/native-skill-routing.md"):
-        source = skills / name
-        if not source.is_file():
-            raise InstallError(f"required native Skills resource is missing: {source}")
-        target = snapshot / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
-        resources[name] = _sha256_file(target)
-    fingerprint = _source_fingerprint(snapshot / "todo-orchestrator" / "todo_orchestrator")
-    return {"schema_version": 2, "skills_root": str(destination / "runtime-skills"),
-            "todo_runtime_fingerprint": fingerprint, "tools_fingerprint": _source_fingerprint(snapshot),
-            "frozen_skill_resources": resources}
+    return {"schema_version": 3, "skills_root": str(destination / "runtime-skills"),
+            "tools_fingerprint": _source_fingerprint(snapshot)}
+
+
+def _bind_todo_package(temporary: Path, destination: Path, release: dict) -> None:
+    packages = sorted(temporary.glob("lib/python*/site-packages/todo_orchestrator"))
+    if len(packages) != 1 or not (packages[0] / "__init__.py").is_file():
+        raise InstallError("candidate Project Control wheel omitted or ambiguously installed the bundled Todo package")
+    package = packages[0]
+    relative = package.relative_to(temporary)
+    release["todo_package_root"] = str((destination / relative).resolve())
+    release["todo_runtime_fingerprint"] = _source_fingerprint(package)
+
+
+def _refresh_candidate_receiver_manifest(root: Path) -> None:
+    """Write the installed receiver's map from the files actually in the wheel."""
+    manifest_path = root / "receiver-manifest.json"
+    if manifest_path.is_symlink():
+        raise InstallError("candidate receiver manifest path is invalid")
+    try:
+        metadata = json.loads(manifest_path.read_bytes())
+    except (OSError, ValueError, TypeError) as error:
+        raise InstallError("candidate receiver manifest is missing or invalid") from error
+    if (not isinstance(metadata, dict) or metadata.get("schema_version") != 1
+            or not isinstance(metadata.get("source_root"), str)
+            or not isinstance(metadata.get("source_commit"), str)):
+        raise InstallError("candidate receiver manifest metadata is invalid")
+
+    root = root.resolve(strict=True)
+    files: dict[str, str] = {}
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise InstallError("candidate receiver contains a symlink")
+        relative = path.relative_to(root)
+        if path.is_dir() and path.name == "__pycache__":
+            continue
+        if not path.is_file() or path.suffix == ".pyc" or relative.as_posix() == "receiver-manifest.json":
+            continue
+        resolved = path.resolve(strict=True)
+        if root not in resolved.parents or not resolved.is_file():
+            raise InstallError("candidate receiver source path is invalid")
+        files[relative.as_posix()] = _sha256_file(resolved)
+    if not files or "local_worker/__init__.py" not in files:
+        raise InstallError("candidate receiver package is incomplete")
+
+    metadata["files"] = dict(sorted(files.items()))
+    manifest_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _bind_project_control_runtime(temporary: Path, *, allow_missing_stub: bool = False) -> dict[str, str] | None:
@@ -225,6 +262,7 @@ def _bind_project_control_runtime(temporary: Path, *, allow_missing_stub: bool =
     if len(packages) != 1:
         raise InstallError("candidate has ambiguous Project Control receiver package roots")
     root = packages[0].resolve()
+    _refresh_candidate_receiver_manifest(root)
     manifest_path = root / "receiver-manifest.json"
     try:
         raw = manifest_path.read_bytes()
@@ -271,22 +309,25 @@ def _bind_project_control_runtime(temporary: Path, *, allow_missing_stub: bool =
 def build_candidate(
     *,
     project_control_root: Path,
-    skills_root: Path,
+    skills_root: Path | None = None,
     destination: Path,
     offline: bool = False,
     uv_cache_dir: Path | None = None,
     runner: Runner = _run,
 ) -> CandidateIdentity:
-    """Build both local distributions into a new, isolated virtual environment.
+    """Build the Project Control distribution into an isolated virtual environment.
 
     The destination is published with one rename only after installation succeeds.
     Existing paths are never replaced.
     """
 
     project_control_root = project_control_root.resolve()
-    skills_root = skills_root.resolve()
+    skills_root = skills_root.resolve() if skills_root is not None else None
     destination = destination.resolve()
-    _refuse_unsafe_destination(destination, (project_control_root, skills_root))
+    unsafe_roots = [project_control_root]
+    if skills_root is not None:
+        unsafe_roots.append(skills_root)
+    _refuse_unsafe_destination(destination, unsafe_roots)
     if offline and uv_cache_dir is None:
         raise InstallError("offline builds require an explicit writable uv cache directory")
     if offline and not uv_cache_dir.expanduser().is_dir():
@@ -295,7 +336,6 @@ def build_candidate(
     tree_inventory = {
         "schema_version": 1,
         "project_control": _working_tree_inventory(project_control_root, runner=runner),
-        "todo_orchestrator": _working_tree_inventory(Path(identity.todo_root), runner=runner),
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.building-", dir=destination.parent))
@@ -309,15 +349,13 @@ def build_candidate(
             commands = (
                 (uv, "--cache-dir", cache, "venv", "--python", sys.executable, str(temporary)),
                 (uv, "--cache-dir", cache, "pip", "install", "--offline", "--python",
-                 str(temporary / "bin" / "python"), str(skills_root / "todo-orchestrator"),
-                 str(project_control_root)),
+                 str(temporary / "bin" / "python"), str(project_control_root)),
             )
         else:
             commands = (
                 (sys.executable, "-m", "venv", str(temporary)),
                 (str(temporary / "bin" / "python"), "-m", "pip", "install",
-                 "--disable-pip-version-check", str(skills_root / "todo-orchestrator"),
-                 str(project_control_root)),
+                 "--disable-pip-version-check", str(project_control_root)),
             )
         for command in commands:
             completed = runner(command)
@@ -326,6 +364,7 @@ def build_candidate(
                     f"candidate command failed ({command[0]}): {completed.stderr.strip()}"
                 )
         release = _freeze_skills(skills_root, temporary, destination)
+        _bind_todo_package(temporary, destination, release)
         runtime_binding = _bind_project_control_runtime(temporary, allow_missing_stub=runner is not _run)
         if runtime_binding is not None:
             release["local_runtime_binding"] = runtime_binding

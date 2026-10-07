@@ -39,7 +39,6 @@ def _load_receiver_runtime(*, worker_core: bool = False) -> None:
         "local_worker.model_cache",
         "local_worker.supervisor",
         "local_worker.canonical_runtime",
-        "local_worker.production_checks",
         "local_worker.service",
         "local_worker.verification",
         "local_worker.workspace",
@@ -58,11 +57,6 @@ def _load_receiver_runtime(*, worker_core: bool = False) -> None:
         "CanonicalRuntimeError": modules["local_worker.canonical_runtime"].CanonicalRuntimeError,
         "bind_canonical_runtime": modules["local_worker.canonical_runtime"].bind,
         "subprocess_environment": modules["local_worker.canonical_runtime"].subprocess_environment,
-        "ProductionCheckError": modules["local_worker.production_checks"].ProductionCheckError,
-        "evaluate": modules["local_worker.production_checks"].evaluate,
-        "host_check": modules["local_worker.production_checks"].host_check,
-        "release_check": modules["local_worker.production_checks"].release_check,
-        "validate_policy": modules["local_worker.production_checks"].validate_policy,
         "AdapterError": modules["local_worker.service"].AdapterError,
         "VerificationError": modules["local_worker.verification"].VerificationError,
         "WorkspaceError": modules["local_worker.workspace"].WorkspaceError,
@@ -343,6 +337,7 @@ def main() -> int:
     # Deny before receiver imports or request reads; there is no environment,
     # profile, or command-line override for this boundary.
     inactive = args.command in INACTIVE_COMMANDS
+    inactive = inactive or (args.command == "policy" and args.policy_command == "validate")
     inactive = inactive or (args.command == "service" and args.service_command != "status")
     inactive = inactive or (args.command == "model-cache" and
                             args.cache_command in {"install", "activate", "remove"})
@@ -364,18 +359,6 @@ def main() -> int:
         if args.command == "service":
             result = SupervisorClient(args.repo_root).request(args.service_command)
             print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-            return 0
-        if args.command == "host-check":
-            print(json.dumps(host_check(args.scenario), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-            return 0
-        if args.command == "evaluate":
-            print(json.dumps(evaluate(args.phase), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-            return 0
-        if args.command == "policy":
-            print(json.dumps(validate_policy(), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-            return 0
-        if args.command == "release-check":
-            print(json.dumps(release_check(args.phase), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             return 0
         if args.command == "model-cache":
             cache = _model_cache()
@@ -451,7 +434,7 @@ def main() -> int:
         return 0 if result.get("eligible", True) else 2
     except (OSError, json.JSONDecodeError, WorkerError, IntegrationError, AdapterError,
             AcceptanceError, VerificationError, WorkspaceError, ModelCacheError,
-            ProductionCheckError, SupervisorError, CanonicalRuntimeError) as error:
+            SupervisorError, CanonicalRuntimeError) as error:
         print(json.dumps({"format": "LOCAL-CODING-WORKER-ERROR/1", "error": str(error)}, sort_keys=True,
                          separators=(",", ":")))
         return 2

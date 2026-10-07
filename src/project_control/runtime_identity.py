@@ -1,8 +1,7 @@
-"""Fail-closed identity checks for the in-process Todo runtime.
+"""Fail-closed identity checks for Project Control's bundled Todo runtime.
 
-Deployed runtimes bind to a digest-pinned release manifest and frozen Skills
-snapshot. Development mode retains strict live-source/package equivalence.
-Neither mode permits imported-package mutation or module rebinding.
+Todo is an ordinary sibling package in the Project Control distribution. Skills
+roots identify optional content only; they never select executable code.
 """
 
 from __future__ import annotations
@@ -12,13 +11,14 @@ import importlib
 import json
 import os
 import sys
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Protocol
 
 
 CANONICAL_ROOT_VARIABLE = "PROJECT_CONTROL_SKILLS_ROOT"
+OBSERVER_ROOT_VARIABLE = "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT"
+OBSERVER_ROOT_ALIAS_VARIABLE = "OBSERVER_SKILLS_ROOT"
 RELEASE_MANIFEST_VARIABLE = "PROJECT_CONTROL_RELEASE_MANIFEST"
 RELEASE_DIGEST_VARIABLE = "PROJECT_CONTROL_RELEASE_DIGEST"
 LEGACY_ROOT_VARIABLE = "CODING_WORKFLOW_SKILLS_ROOT"
@@ -42,25 +42,9 @@ def runtime_diagnostics(
     try:
         identity = bind(environment)
     except RuntimeIdentityError as exc:
-        configured = bool(
-            environment.get(CANONICAL_ROOT_VARIABLE)
-            or environment.get(LEGACY_ROOT_VARIABLE)
-            or environment.get(RELEASE_MANIFEST_VARIABLE)
-            or environment.get(RELEASE_DIGEST_VARIABLE)
-        )
-        if not configured:
-            return {
-                "status": "unavailable",
-                "reason": "runtime_not_configured",
-                "cause": str(exc),
-                "supported_action": "configure_verified_runtime",
-                "required_environment": [CANONICAL_ROOT_VARIABLE],
-            }
-        action = "restart_verified_runtime"
+        action = "repair_bundled_runtime"
         if exc.observed == "not importable":
             action = "install_paired_candidate"
-        elif exc.observed == "missing":
-            action = "verify_configured_skills_root"
         elif exc.observed == "incomplete release binding":
             action = "configure_complete_release_binding"
         return {
@@ -113,56 +97,53 @@ class RuntimeIdentity:
         }
 
 
-def _resolved_setting(environment: Mapping[str, str], canonical: str, legacy: str) -> str | None:
-    current = environment.get(canonical)
-    old = environment.get(legacy)
-    if current and old:
-        current_path = Path(current).expanduser().resolve()
-        old_path = Path(old).expanduser().resolve()
-        if current_path != old_path:
-            raise RuntimeIdentityError(
-                f"{canonical} and {legacy} identify different runtimes",
-                expected=str(current_path),
-                observed=str(old_path),
-            )
-        return current
-    if current:
-        return current
-    if old:
-        warnings.warn(
-            f"{legacy} is deprecated; configure {canonical}",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        return old
-    return None
-
-
 def locate_skills_root(environment: Mapping[str, str] = os.environ) -> Path:
-    configured = _resolved_setting(environment, CANONICAL_ROOT_VARIABLE, LEGACY_ROOT_VARIABLE)
-    if not configured:
-        raise RuntimeIdentityError(
-            f"Todo runtime root is not configured; set {CANONICAL_ROOT_VARIABLE}",
-            expected=CANONICAL_ROOT_VARIABLE,
-            observed="missing",
-        )
-    root = Path(configured).expanduser().resolve()
-    package = root / "todo-orchestrator" / "todo_orchestrator"
-    if not package.is_dir() or not (package / "__init__.py").is_file():
-        raise RuntimeIdentityError(
-            "configured Skills root does not contain todo-orchestrator",
-            expected=str(package),
-            observed="missing",
-        )
-    return root
+    """Return the optional content root without treating it as executable code."""
+    configured = (
+        environment.get(CANONICAL_ROOT_VARIABLE)
+        or environment.get(OBSERVER_ROOT_VARIABLE)
+        or environment.get(OBSERVER_ROOT_ALIAS_VARIABLE)
+    )
+    if configured:
+        return Path(configured).expanduser().resolve()
+    try:
+        from .config import configured_observer_skills_root, load_config
+
+        return configured_observer_skills_root(load_config(), environment).resolve()
+    except Exception:
+        # Identity of the bundled workflow engine must remain independent of
+        # optional/malformed content configuration. This is only a compatibility
+        # value for older callers which display or forward a Skills root.
+        return (Path.home() / ".agents" / "skills").resolve()
 
 
-def package_fingerprint(package_root: Path) -> str:
+def package_fingerprint(package_root: Path, *, allow_empty: bool = False) -> str:
     """Hash the importable Python source tree without machine-specific paths."""
 
+    package_root = Path(package_root)
+    if package_root.is_symlink():
+        raise RuntimeIdentityError(
+            "runtime fingerprint root must not be a symlink",
+            expected=str(package_root),
+            observed="symlink",
+        )
     digest = hashlib.sha256()
-    sources = sorted(path for path in package_root.rglob("*.py") if path.is_file())
-    if not sources:
+    if not package_root.is_dir():
+        raise RuntimeIdentityError(
+            "runtime fingerprint root is unavailable",
+            expected=str(package_root),
+            observed="missing",
+        )
+    paths = tuple(package_root.rglob("*"))
+    symlinks = [path for path in paths if path.is_symlink()]
+    if symlinks:
+        raise RuntimeIdentityError(
+            "runtime package contains a symlink",
+            expected="all package paths remain inside the bundled package",
+            observed=str(symlinks[0]),
+        )
+    sources = sorted(path for path in paths if path.suffix == ".py" and path.is_file())
+    if not sources and not allow_empty:
         raise RuntimeIdentityError(
             "Todo runtime package contains no Python sources",
             expected=str(package_root),
@@ -178,14 +159,7 @@ def package_fingerprint(package_root: Path) -> str:
 
 def _expected_fingerprint(environment: Mapping[str, str]) -> str | None:
     canonical = environment.get(CANONICAL_FINGERPRINT_VARIABLE)
-    legacy = environment.get(LEGACY_FINGERPRINT_VARIABLE)
-    if canonical and legacy and canonical != legacy:
-        raise RuntimeIdentityError(
-            "canonical and compatibility Todo fingerprints disagree",
-            expected=canonical,
-            observed=legacy,
-        )
-    return canonical or legacy
+    return canonical
 
 
 def _release(environment: Mapping[str, str]) -> tuple[Path, str, dict] | None:
@@ -200,8 +174,21 @@ def _release(environment: Mapping[str, str]) -> tuple[Path, str, dict] | None:
         raw = path.read_bytes()
         observed = hashlib.sha256(raw).hexdigest()
         data = json.loads(raw)
-        if observed != digest or data.get("schema_version") != 2 or len(data.get("todo_runtime_fingerprint", "")) != 64 or not isinstance(data.get("skills_root"), str) or not Path(data["skills_root"]).is_absolute():
+        version = data.get("schema_version")
+        fingerprint = data.get("todo_runtime_fingerprint")
+        if (observed != digest or version not in {2, 3}
+                or not isinstance(fingerprint, str) or len(fingerprint) != 64
+                or any(char not in "0123456789abcdef" for char in fingerprint)):
             raise ValueError("release identity mismatch")
+        if version == 3:
+            package_root = data.get("todo_package_root")
+            if not isinstance(package_root, str) or not Path(package_root).is_absolute():
+                raise ValueError("release Todo package path is invalid")
+            if Path(package_root).expanduser().is_symlink():
+                raise ValueError("release Todo package root is a symlink")
+        # Skills roots and their optional digests/resources are content
+        # metadata. They are checked by the relevant skill provider when that
+        # capability is invoked, never while binding the core workflow engine.
     except (OSError, ValueError, TypeError, AttributeError) as exc:
         raise RuntimeIdentityError("Invalid release manifest", expected=digest, observed=str(exc)) from exc
     pc_fingerprint = data.get("project_control_fingerprint")
@@ -209,29 +196,6 @@ def _release(environment: Mapping[str, str]) -> tuple[Path, str, dict] | None:
         observed = package_fingerprint(Path(__file__).parent)
         if observed != pc_fingerprint:
             raise RuntimeIdentityError("Installed Project Control changed", expected=pc_fingerprint, observed=observed)
-    tools_fingerprint = data.get("tools_fingerprint")
-    if tools_fingerprint:
-        observed = package_fingerprint(Path(data["skills_root"]))
-        if observed != tools_fingerprint:
-            raise RuntimeIdentityError("Frozen Skills tools changed", expected=tools_fingerprint, observed=observed)
-    if "frozen_skill_resources" in data:
-        resources = data["frozen_skill_resources"]
-        allowed = {"integrations/native-skill-catalog.json", "integrations/native-skill-routing.md"}
-        if not isinstance(resources, dict) or set(resources) != allowed:
-            raise RuntimeIdentityError("Invalid frozen Skills resources", expected=str(sorted(allowed)), observed=str(resources))
-        root = Path(data["skills_root"]).resolve()
-        for relative, expected in resources.items():
-            if not isinstance(expected, str) or len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected):
-                raise RuntimeIdentityError("Invalid frozen Skills resource digest", expected="SHA256", observed=str(expected))
-            resource = root / relative
-            try:
-                if any(parent.is_symlink() for parent in (resource.parent, resource)) or not resource.resolve().is_relative_to(root):
-                    raise ValueError("resource must remain within frozen Skills without symlinks")
-                observed = hashlib.sha256(resource.read_bytes()).hexdigest()
-            except (OSError, ValueError) as exc:
-                raise RuntimeIdentityError("Frozen Skills resource changed", expected=f"{relative}:{expected}", observed=str(exc)) from exc
-            if observed != expected:
-                raise RuntimeIdentityError("Frozen Skills resource changed", expected=f"{relative}:{expected}", observed=observed)
     return path, digest, data
 
 
@@ -248,13 +212,40 @@ def bind_runtime(
     """
 
     release = _release(environment)
-    release_environment = dict(environment)
-    if release:
-        release_environment.pop(LEGACY_ROOT_VARIABLE, None)
-        release_environment[CANONICAL_ROOT_VARIABLE] = release[2]["skills_root"]
-    skills_root = locate_skills_root(release_environment)
-    source_root = (skills_root / "todo-orchestrator" / "todo_orchestrator").resolve()
+    # A digest-pinned installed release owns its frozen content location when
+    # one is recorded. Do not let ambient user configuration redirect release
+    # tools such as the CUDA controller to a live, unverified Skills tree.
+    release_content_root = release[2].get("skills_root") if release else None
+    skills_root = (
+        Path(release_content_root).expanduser().resolve()
+        if isinstance(release_content_root, str) and release_content_root
+        else locate_skills_root(environment)
+    )
+    source_candidate = Path(__file__).resolve().parent.parent / "todo_orchestrator"
+    if source_candidate.is_symlink():
+        raise RuntimeIdentityError(
+            "bundled Todo package root must not be a symlink",
+            expected=str(source_candidate),
+            observed="symlink",
+        )
+    source_root = source_candidate.resolve()
+    if not (source_root / "__init__.py").is_file():
+        raise RuntimeIdentityError(
+            "bundled todo_orchestrator package is missing",
+            expected=str(source_root / "__init__.py"), observed="missing",
+        )
     source_fingerprint = package_fingerprint(source_root)
+    if release and release[2].get("schema_version") == 3:
+        declared_candidate = Path(release[2]["todo_package_root"]).expanduser()
+        if declared_candidate.is_symlink():
+            raise RuntimeIdentityError(
+                "Installed Todo package path is a symlink",
+                expected=str(source_root),
+                observed=str(declared_candidate),
+            )
+        declared_root = declared_candidate.resolve()
+        if declared_root != source_root:
+            raise RuntimeIdentityError("Installed Todo package path differs from release manifest", expected=str(declared_root), observed=str(source_root))
     if release and source_fingerprint != release[2]["todo_runtime_fingerprint"]:
         raise RuntimeIdentityError("Frozen Todo source changed", expected=release[2]["todo_runtime_fingerprint"], observed=source_fingerprint)
     pinned_fingerprint = _expected_fingerprint(environment)
@@ -271,7 +262,7 @@ def bind_runtime(
             module = importer("todo_orchestrator")
         except (ImportError, ModuleNotFoundError) as exc:
             raise RuntimeIdentityError(
-                "todo-orchestrator is not installed in the Project Control runtime",
+            "bundled todo_orchestrator is not importable in the Project Control runtime",
                 expected=str(source_root),
                 observed="not importable",
             ) from exc
@@ -282,14 +273,21 @@ def bind_runtime(
             expected=str(source_root / "__init__.py"),
             observed="missing __file__",
         )
-    module_file = Path(module_value).resolve()
+    module_candidate = Path(module_value)
+    if module_candidate.is_symlink():
+        raise RuntimeIdentityError(
+            "imported Todo module path is a symlink",
+            expected=str(source_root / "__init__.py"),
+            observed=str(module_candidate),
+        )
+    module_file = module_candidate.resolve()
     package_root = module_file.parent
     observed_fingerprint = package_fingerprint(package_root)
-    if observed_fingerprint != source_fingerprint:
+    if package_root != source_root or module_file != source_root / "__init__.py" or observed_fingerprint != source_fingerprint:
         raise RuntimeIdentityError(
-            "imported todo_orchestrator does not match the configured Skills source",
-            expected=f"{source_root}:{source_fingerprint}",
-            observed=f"{package_root}:{observed_fingerprint}",
+            "imported todo_orchestrator is not the bundled Project Control package",
+            expected=f"{source_root / '__init__.py'}:{source_fingerprint}",
+            observed=f"{module_file}:{observed_fingerprint}",
         )
     return RuntimeIdentity(skills_root, source_root, package_root, module_file, source_fingerprint, release[0] if release else None, release[1] if release else None)
 
@@ -306,6 +304,8 @@ def validate_runtime(identity: RuntimeIdentity) -> None:
     package_fingerprint_now = package_fingerprint(identity.package_root)
     if (
         observed_file != identity.module_file
+        or identity.package_root != identity.source_package_root
+        or identity.package_root != (Path(__file__).resolve().parent.parent / "todo_orchestrator").resolve()
         or source_fingerprint != identity.fingerprint
         or package_fingerprint_now != identity.fingerprint
     ):
@@ -324,8 +324,8 @@ def runtime_environment(
 
     validate_runtime(identity)
     clean = dict(environment)
-    clean.pop(LEGACY_ROOT_VARIABLE, None)
     clean.pop(LEGACY_FINGERPRINT_VARIABLE, None)
+    clean.pop(LEGACY_ROOT_VARIABLE, None)
     if identity.release_manifest:
         clean[RELEASE_MANIFEST_VARIABLE] = str(identity.release_manifest)
         clean[RELEASE_DIGEST_VARIABLE] = str(identity.release_digest)

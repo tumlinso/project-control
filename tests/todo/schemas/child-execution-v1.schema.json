@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://todo-orchestrator.local/schemas/child-execution-v1.schema.json",
+  "title": "todo child execution result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schema_version", "child_execution_id", "parent_task_id", "status", "objective", "summary", "changed_paths", "changed_paths_omitted", "authorized_gates", "evidence", "evidence_omitted", "acceptance", "completed_at"],
+  "properties": {
+    "format": {"const": "TODO-CHILD-RESULT/1"},
+    "schema_version": {"const": 1},
+    "child_execution_id": {"type": "string", "format": "uuid"},
+    "parent_task_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["completed", "needs_codex", "no_change", "failed"]},
+    "objective": {"type": "string", "maxLength": 500},
+    "summary": {"type": "string", "maxLength": 500},
+    "changed_paths": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "changed_paths_omitted": {"type": "integer", "minimum": 0},
+    "authorized_gates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "evidence": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/evidence"}},
+    "evidence_omitted": {"type": "integer", "minimum": 0},
+    "acceptance": {"$ref": "#/$defs/acceptance"},
+    "completed_at": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "gate_id", "status", "accepted", "artifact"],
+      "properties": {
+        "evidence_id": {"type": "string", "format": "uuid"},
+        "gate_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["passed", "failed", "evaluated_not_promoted"]},
+        "accepted": {"type": "boolean"},
+        "artifact": {"$ref": "runtime/artifact-ref-v1.schema.json"}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "pending_gates", "commands"],
+      "properties": {
+        "state": {"enum": ["ready", "accepted", "superseded", "no_evidence", "not_applicable"]},
+        "pending_gates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["gate_id", "command"],
+            "properties": {
+              "gate_id": {"type": "string", "minLength": 1},
+              "command": {"$ref": "runtime/command-spec-v1.schema.json"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

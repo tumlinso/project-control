@@ -11,7 +11,7 @@ from project_control.as1_contracts import SourceLocator
 from project_control.as1_surface import InquiryFreshness, public_inquiry
 from project_control.as1_packets import SQLitePacketStore
 from project_control.as1_skill import SkillService
-from test_pc_as1_surface import servers, run
+from tests.as1.test_pc_as1_surface import servers, run
 
 
 def test_registered_inquiry_targets_are_labeled_separately_from_installed_skills(servers, tmp_path):
@@ -50,7 +50,7 @@ def test_composed_broker_moves_to_v2_without_moving_packet_store(servers):
 
 def test_dispatch_passes_trusted_target_context_without_hint_override(tmp_path):
     from project_control.as1_jobs import JobService
-    from test_pc_as1_jobs import wait
+    from tests.as1.test_pc_as1_jobs import wait
     store = SQLitePacketStore(tmp_path / 'packets')
     scope = {'principal': 'alice', 'profile': 'observer', 'project': 'p'}
     hint = store.create(tool='read', access_scope=scope, payload={

@@ -757,3 +757,18 @@ def test_experiment_planner_rejects_uncited_or_ungranted_proposals(citation, arg
     request = {"tools": ["python3"], "sources": [{"path": "src/window.py", "sha256": "a" * 64}]}
     with pytest.raises(ValueError, match=error):
         _json_proposal(proposal, request)
+
+
+def test_experiment_planner_incomplete_proposal_reports_schema_and_missing_fields():
+    from project_control.assistance.lab_cli import _json_proposal
+
+    proposal = {
+        "hypothesis": " ", "source_citations": [], "artifacts": [],
+        "argv": [], "measurements": [], "stop_rule": "", "done": False,
+    }
+    with pytest.raises(ValueError) as exc_info:
+        _json_proposal(proposal, {"tools": ["python3"], "sources": []})
+    assert str(exc_info.value) == (
+        "lab_planner_incomplete_proposal schema=experiment-plan-v1 "
+        "missing_fields=argv,artifacts,hypothesis,measurements,source_citations,stop_rule"
+    )

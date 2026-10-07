@@ -43,12 +43,6 @@ OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + OBSERVER_ONLY_TOOL_NAMES
 CODEX_TOOL_NAMES = RICH_READ_TOOL_NAMES + WORKFLOW_TOOL_NAMES
 MUTATOR_TOOL_NAMES = RICH_READ_TOOL_NAMES + ("investigate",) + WORKFLOW_TOOL_NAMES + MUTATION_TOOL_NAMES
 INTERNAL_TOOL_NAMES = RICH_READ_TOOL_NAMES + ("command", "log")
-TEMPORARILY_INACTIVE = {
-    name: {"preserve_implementation": True, "dispatch": "temporarily_inactive",
-           "reason": "local coding delegation is inactive",
-           "reenable": "explicit operator decision; no timed reactivation"}
-    for name in ("delegate_task", "collect_delegation")
-}
 CODEX_RICH_READ_DESCRIPTION_PREFIX = "Read-only project context: use deliberately when needed. "
 
 
@@ -62,8 +56,6 @@ class ProfilePolicy:
         return tool_name in self.tool_names
 
     def require_allowed(self, tool_name: str) -> None:
-        if tool_name in TEMPORARILY_INACTIVE:
-            raise ToolError("temporarily_inactive: explicit operator decision required to reenable " + tool_name)
         if not self.allows(tool_name):
             raise ToolError(f"tool {tool_name!r} is unavailable in the {self.profile.value} profile")
 
@@ -75,7 +67,7 @@ _PROFILE_POLICIES: Mapping[MCPProfile, ProfilePolicy] = MappingProxyType({
         (MCPProfile.CODEX, CODEX_TOOL_NAMES), (MCPProfile.MUTATOR, MUTATOR_TOOL_NAMES),
         (MCPProfile.INVESTIGATOR, INTERNAL_TOOL_NAMES), (MCPProfile.SKILL_ASSEMBLER, INTERNAL_TOOL_NAMES))
 })
-_KNOWN_TOOL_NAMES = frozenset(OBSERVER_TOOL_NAMES + CODEX_TOOL_NAMES + MUTATOR_TOOL_NAMES + INTERNAL_TOOL_NAMES + tuple(TEMPORARILY_INACTIVE))
+_KNOWN_TOOL_NAMES = frozenset(OBSERVER_TOOL_NAMES + CODEX_TOOL_NAMES + MUTATOR_TOOL_NAMES + INTERNAL_TOOL_NAMES)
 
 
 def profile_policy(profile: MCPProfile | str) -> ProfilePolicy:
@@ -113,7 +105,7 @@ class ProfiledFastMCP(FastMCP):
         if kwargs.get("tools"):
             raise ProfileConfigurationError("profiled servers require explicit add_tool registration")
         self._profile_policy = profile_policy(profile)
-        self.feature_metadata = {"temporarily_inactive": TEMPORARILY_INACTIVE, "automatic_overview": False}
+        self.feature_metadata = {"automatic_overview": False}
         super().__init__(*args, **kwargs)
 
     @property

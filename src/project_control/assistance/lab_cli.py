@@ -157,7 +157,21 @@ def _json_proposal(value: str | Mapping[str, Any], request: Mapping[str, Any]) -
             raise ValueError("lab_planner_done_must_not_include_effects")
     else:
         if not citations or not artifacts or not argv or not measurements or not proposal["hypothesis"].strip() or not proposal["stop_rule"].strip():
-            raise ValueError("lab_planner_incomplete_proposal")
+            missing = []
+            for field, present in (
+                ("argv", bool(argv)),
+                ("artifacts", bool(artifacts)),
+                ("hypothesis", bool(proposal["hypothesis"].strip())),
+                ("measurements", bool(measurements)),
+                ("source_citations", bool(citations)),
+                ("stop_rule", bool(proposal["stop_rule"].strip())),
+            ):
+                if not present:
+                    missing.append(field)
+            raise ValueError(
+                "lab_planner_incomplete_proposal "
+                f"schema=experiment-plan-v1 missing_fields={','.join(missing)}"
+            )
         scope_tools = request.get("tools", ("python3",))
         if not isinstance(scope_tools, (list, tuple)) or argv[0] not in scope_tools:
             raise ValueError("lab_planner_tool_outside_scope")

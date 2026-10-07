@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openai.local/core4/source-identity-v1.schema.json",
+  "title": "CORE4 source identity v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "repo_root",
+    "git_head",
+    "dirty_paths",
+    "fingerprint"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "repo_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "git_head": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{40,64}$"
+    },
+    "dirty_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

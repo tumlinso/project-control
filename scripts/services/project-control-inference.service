@@ -1,0 +1,23 @@
+[Unit]
+Description=Optional Project Control source demand-only inference supervisor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/project-control
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/as1-observer-analysis
+Environment=TODO_BACKGROUND_HOST_RUNTIME_DIR=/tmp/codex-todo-orchestrator-1000
+ExecStart=%h/project-control/scripts/pc-inference
+Restart=no
+UMask=0077
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=%h/.cache/project-control %h/.local/state/project-control %h/.config/project-control /tmp/codex-todo-orchestrator-1000
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=default.target

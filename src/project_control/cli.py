@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -18,7 +19,8 @@ from .migration import MigrationError
 from .mutation import MutationRejected
 from .preledger import PreledgerError
 from .registry import RegistryError, WorkspaceRegistry
-from .snapshot import SnapshotBuilder, resolve_skills_root, resolve_todo_provider
+from .snapshot import SnapshotBuilder
+from .todo_authority import resolve_skills_root, resolve_todo_provider
 from .terminal import BubblewrapSandbox
 from .runtime_identity import runtime_diagnostics
 
@@ -27,6 +29,70 @@ _ASSISTANCE_ASK_TIMEOUT_SECONDS = 300.0
 _ASSISTANCE_ASK_POLL_SECONDS = 1.0
 _ASSISTANCE_STARTUP_MAX_SECONDS = 120.0
 _ASSISTANCE_ASK_CLEANUP_SECONDS = 120.0
+
+_LAB_CHILD_ERROR_CODES = frozenset({
+    "lab_cli_interpreter_unavailable",
+    "lab_cli_source_identity_unavailable",
+    "lab_delegated_cgroup_unavailable",
+    "lab_planner_done_must_not_include_effects",
+    "lab_planner_incomplete_proposal",
+    "lab_planner_invalid_json",
+    "lab_planner_invalid_shape",
+    "lab_planner_prompt_budget_exceeded",
+    "lab_planner_response_missing_text",
+    "lab_planner_source_context_does_not_fit",
+    "lab_planner_source_identity_invalid",
+    "lab_planner_source_identity_mismatch",
+    "lab_planner_source_outside_scope",
+    "lab_planner_tool_outside_scope",
+    "lab_planner_unavailable",
+    "lab_scope_project_mismatch",
+    "lab_scope_wall_budget_exhausted",
+    "lab_session_project_resolver_unavailable",
+    "lab_session_project_unavailable",
+    "lab_transient_result_unavailable",
+    "lab_transient_runner_unavailable",
+})
+_LAB_PROPOSAL_FIELDS = frozenset({
+    "argv", "artifacts", "hypothesis", "measurements", "source_citations", "stop_rule",
+})
+
+
+def _lab_transient_failure(returncode: int, stderr: bytes | str | None) -> ValueError:
+    """Format child failure diagnostics without exposing child-controlled text."""
+    if isinstance(stderr, bytes):
+        raw_stderr = stderr
+    elif isinstance(stderr, str):
+        raw_stderr = stderr.encode("utf-8", errors="replace")
+    else:
+        raw_stderr = b""
+    diagnostic = (
+        "lab_transient_execution_failed "
+        f"child_exit_code={returncode} "
+        f"stderr_bytes={len(raw_stderr)} "
+        f"stderr_sha256={hashlib.sha256(raw_stderr).hexdigest()}"
+    )
+    text = raw_stderr.decode("utf-8", errors="replace")
+    # The child CLI's stable prefix is the only source of a structured code.
+    # Keep the allowlist here so arbitrary stderr (including model output) is
+    # never copied into this process's error message.
+    for line in text.splitlines():
+        match = re.fullmatch(
+            r"project-control: ([a-z][a-z0-9_]*)(?: "
+            r"schema=([a-z0-9-]+) missing_fields=([a-z,]*))?",
+            line,
+        )
+        if not match or match.group(1) not in _LAB_CHILD_ERROR_CODES:
+            continue
+        diagnostic += f" child_error_code={match.group(1)}"
+        schema, fields_text = match.group(2), match.group(3)
+        if match.group(1) == "lab_planner_incomplete_proposal":
+            fields = fields_text.split(",") if fields_text else []
+            if schema == "experiment-plan-v1" and fields and all(
+                    field in _LAB_PROPOSAL_FIELDS for field in fields):
+                diagnostic += f" proposal_schema={schema} missing_fields={','.join(sorted(set(fields)))}"
+        break
+    return ValueError(diagnostic)
 
 
 def _lab_delegated_properties(runtime_limit: int) -> tuple[str, ...]:
@@ -638,13 +704,13 @@ def _lab_run_in_transient_unit(args, command_argv: Sequence[str]) -> int:
                  *_lab_command_argv(args, command_argv)))
     try:
         completed = subprocess.run(
-            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=50, check=False, env=env,
+            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=50, check=False, env=env,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ValueError("lab_transient_runner_unavailable") from exc
     if completed.returncode != 0:
-        raise ValueError("lab_transient_execution_failed")
+        raise _lab_transient_failure(completed.returncode, completed.stderr)
     try:
         payload = json.loads(completed.stdout)
     except (TypeError, json.JSONDecodeError) as exc:
@@ -693,13 +759,13 @@ def _scoped_lab_in_transient_unit(command: str, scope_id: str) -> int:
                  "assistance", "lab", command, "--scope-id", scope_id))
     try:
         completed = subprocess.run(
-            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=timeout, check=False, env=env,
+            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=timeout, check=False, env=env,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ValueError("lab_transient_runner_unavailable") from exc
     if completed.returncode != 0:
-        raise ValueError("lab_transient_execution_failed")
+        raise _lab_transient_failure(completed.returncode, completed.stderr)
     try:
         payload = json.loads(completed.stdout)
     except (TypeError, json.JSONDecodeError) as exc:
@@ -1005,10 +1071,10 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
     probe = terminal_sandbox.probe_diagnostics()
     service_constraints = _terminal_service_constraints()
     service_compatible = service_constraints.get("compatible")
-    from .profiles import profile_policy, MCPProfile, TEMPORARILY_INACTIVE
+    from .profiles import profile_policy, MCPProfile
     checks: dict[str, object] = {
         "surface": {"profiles": {p.value: list(profile_policy(p).tool_names) for p in MCPProfile},
-                    "temporarily_inactive": TEMPORARILY_INACTIVE, "automatic_overview": False},
+                    "automatic_overview": False},
         "config_path": str(config_path()),
         "internal_command_sandbox": {
             "backend": "bubblewrap",
@@ -1050,8 +1116,18 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
             provider = resolve_todo_provider(config, workspace_id)
             snapshot = builder.build(workspace_id)
             todo_warnings = snapshot.warnings_for("todo")
+            content_root = resolve_skills_root(config, workspace_id)
             providers[workspace_id] = {
-                "skills_root": "ok" if resolve_skills_root(config, workspace_id) else "unavailable",
+                # Compatibility status for consumers that still display this
+                # key. Skills content is optional and does not gate Todo.
+                "skills_root": "ok" if content_root else "unavailable",
+                "content_root": str(content_root) if content_root else None,
+                "todo_kernel": {
+                    "status": "ok" if provider.compatible else "unavailable",
+                    "source": provider.selection_source,
+                    "package_root": str(provider.package_root) if provider.package_root else None,
+                    "cause": provider.error_code,
+                },
                 "todo_provider": provider.local_diagnostics(),
                 "todo": {
                     "status": "ok" if snapshot.todo_revision is not None else "unavailable",

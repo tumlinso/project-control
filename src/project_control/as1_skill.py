@@ -1,8 +1,4 @@
-"""Observer skill broker: worker-selected sources, direct authority, shared jobs.
-
-No lexical or semantic routing occurs here. Startup supplies registered roots;
-the installed guide and catalog are navigation data for the local worker.
-"""
+"""Observer skill broker: worker-selected sources, direct authority, shared jobs."""
 from __future__ import annotations
 
 import hashlib
@@ -11,13 +7,76 @@ import os
 from pathlib import Path
 import time
 
-import yaml
-
 from .as1_contracts import RESPONSE_BUDGETS_BYTES, SKILL_ASSEMBLY_DETAIL, SkillSelection, SourceLocator
 from .as1_jobs import TERMINAL, stamp
 from .as1_packets import mask_payload
-from .security import redact_output, stable_public_id
+from .security import redact_output
 from .skills import MAX_FILE_BYTES, SkillError, SkillRegistry, _relative, _stamp
+
+RETIRED_SKILLS = frozenset({'local-coding-worker'})
+
+
+def _catalog_snapshot(skills_root, registrations=None):
+    """Build a bounded catalog from real installed entries and trusted roots.
+
+    ``SkillRegistry`` bounds root inventory and reads entry files through its
+    descriptor-pinned, no-symlink reader. Catalog identity is derived from the
+    effective entries, not a synthetic file or a Skills-repository sidecar.
+    """
+    root = Path(skills_root).expanduser().absolute()
+    registry = SkillRegistry(root)
+    discovered, incomplete, rejected = registry._discover()
+    registration_check = registrations is not None
+    registrations = dict(registrations or {})
+    counts = {}
+    for skill in discovered:
+        if skill.name not in RETIRED_SKILLS and skill.directory not in RETIRED_SKILLS:
+            counts[skill.name] = counts.get(skill.name, 0) + 1
+    rows, sources, accepted = [], [], {}
+    for skill in discovered:
+        if skill.name in RETIRED_SKILLS or skill.directory in RETIRED_SKILLS:
+            continue
+        entry = f'{skill.directory}/SKILL.md'
+        row = {'id': skill.id, 'name': skill.name, 'description': skill.description,
+               'entry': entry, 'directory': skill.directory, 'status': 'unregistered'}
+        try:
+            _raw, digest = _read(registry, entry)
+            row['content_sha256'] = digest
+            registered = registrations.get(skill.name) if registration_check else None
+            expected_root = (root / skill.directory).absolute()
+            if counts.get(skill.name, 0) > 1:
+                row['status'] = 'duplicate_name'
+            elif not registration_check:
+                row['status'] = 'accessible'
+            elif registered is not None:
+                if isinstance(registered, dict):
+                    registered_root = Path(registered.get('root', '')).absolute()
+                    row['status'] = 'accessible' if registered.get('name') == skill.name and registered_root == expected_root else 'registration_mismatch'
+                else:
+                    row['status'] = 'registration_mismatch'
+            if row['status'] == 'accessible':
+                accepted[skill.name] = {'name': skill.name, 'root': str(expected_root)}
+            sources.append(SourceLocator(project='skills', repository=str(root), path=entry,
+                                         content_sha256=digest))
+        except (SkillError, OSError, ValueError):
+            row['status'] = 'unavailable'
+        rows.append(row)
+    identity = {'root': str(root), 'skills': [
+        {key: row[key] for key in ('name', 'entry', 'content_sha256', 'status') if key in row}
+        for row in rows], 'incomplete': bool(incomplete), 'rejected': int(rejected)}
+    digest = hashlib.sha256(json.dumps(identity, ensure_ascii=False, sort_keys=True,
+        separators=(',', ':')).encode()).hexdigest()
+    complete = not incomplete and not rejected and all(row['status'] != 'unavailable' for row in rows)
+    return {'skills': rows, 'complete': complete, 'incomplete': bool(incomplete),
+            'rejected': int(rejected), 'catalog_sha256': digest}, sources, accepted
+
+
+def registered_skill_roots(skills_root):
+    """Resolve the active, real skill registrations from the configured root."""
+    snapshot, _sources, registrations = _catalog_snapshot(skills_root)
+    if snapshot['incomplete']:
+        raise SkillError('inventory_limit', 'Skill root inventory exceeds the limit')
+    return registrations
 
 
 class SkillObserverFactory:
@@ -25,12 +84,14 @@ class SkillObserverFactory:
 
     Wrap a receipt-verified TrustedObserverFactory. The original port still
     controls the loop, command sandbox, observations, checkpoints and fences.
-    This extends identity validation, never skill relevance or native routing.
+    Project Control supplies discovery instructions and real registrations.
     """
-    def __init__(self, trusted_factory, *, skills_root, catalog='integrations/native-skill-catalog.json'):
+    def __init__(self, trusted_factory, *, skills_root):
         self.trusted = trusted_factory
-        self.skills = dict(trusted_factory.skills)
-        self.root, self.catalog = Path(skills_root).absolute(), catalog
+        self.skills = {name: item for name, item in trusted_factory.skills.items()
+                       if name not in RETIRED_SKILLS}
+        self.trusted.skills = dict(self.skills)
+        self.root = Path(skills_root).absolute()
 
     def __call__(self, service, job):
         worker = self.trusted(service, job)
@@ -79,18 +140,25 @@ class SkillObserverFactory:
 
         worker._validate_selection = validate_registered
         original_backend = worker.backend
-        catalog = str(self.root / self.catalog)
-        allowed = json.dumps(self.skills, ensure_ascii=False, sort_keys=True)
+        snapshot, _sources, _accepted = _catalog_snapshot(self.root, registrations)
+        allowed = json.dumps([
+            {'name': row['name'], 'entry': row['entry'], 'content_sha256': row.get('content_sha256'),
+             'description': row['description'], 'root': str(self.root / row['directory'])}
+            for row in snapshot['skills'] if row['status'] == 'accessible'
+        ], ensure_ascii=False, sort_keys=True)
         class NativeNavigation:
             def run_observer_turn(self, request):
                 request = {**request, 'messages': [dict(m) for m in request['messages']]}
                 request['messages'][0]['content'] += (
-                    ' Registered catalog is ' + catalog + '. Registered identities and roots: ' + allowed + '. '
-                    'Read each selected skill\'s installed SKILL.md before its resources. '
+                    ' Project Control discovered this bounded catalog from the configured observer content root; '
+                    'there is no bootstrap skill or external catalog file. Effective catalog SHA256: '
+                    + snapshot['catalog_sha256'] + '. Registered identities, entry hashes, descriptions and roots: '
+                    + allowed + '. Read a relevant registered SKILL.md before its resources. '
                     'Follow its own routes, maps and cross-skill prerequisites; indexes are only navigation aids. '
-                    'The initial discovery guide is bootstrap navigation, not a competing routing policy. '
-                    'For an explicitly supplied skill, keep normal navigation scoped to it and identify cross-skill '
-                    'dependencies explicitly. Missing/external/unregistered references must be unresolved. '
+                    'When a skill name is supplied, keep normal navigation scoped to it and identify cross-skill '
+                    'dependencies explicitly. When no skill name is supplied, inspect the registered entries, '
+                    'choose relevant skills from their own instructions, and explain why. '
+                    'Missing/external/unregistered references must be unresolved. '
                     'Selection reasons and prerequisites must cite resource identities; synthesis must be tiny and evidence-linked.')
                 return original_backend.run_observer_turn(request)
             def preemption_status(self, session):
@@ -151,21 +219,23 @@ def _read(registry, resource):
 class SkillService:
     """Public adapter seam; host owns JobService lifespan and trusted scope.
 
-    ``catalog`` is installed navigation metadata, not a routing policy. No name
-    dispatch uses ``discovery_skill``: a registered installed guide chosen at
-    startup, never inferred from question text. Port must support that guide's
-    registered cross-skill references for unscoped worker selection.
+    The bounded catalog is derived directly from real skill entries. Unnamed
+    inquiries are routed by the observer over those entries without a pseudo
+    bootstrap skill.
     """
-    def __init__(self, jobs, *, skills_root, catalog=None, discovery_skill='local-coding-worker',
-                 clock=time.time):
+    def __init__(self, jobs, *, skills_root, clock=time.time):
         self.jobs, self.packets, self.clock = jobs, jobs.packets, clock
         self.root = Path(skills_root).absolute()
         self.registry = SkillRegistry(self.root)
-        self.catalog_path = catalog or 'integrations/native-skill-catalog.json'
-        self.discovery_skill = discovery_skill
         # Roots are host-owned registrations. No caller can supply another root.
-        self.skills = dict(getattr(jobs.worker_factory, 'skills', {}))
+        self.skills = {name: item for name, item in getattr(jobs.worker_factory, 'skills', {}).items()
+                       if name not in RETIRED_SKILLS}
         self.readers = {name: SkillRegistry(Path(entry['root'])) for name, entry in self.skills.items()}
+        if jobs.skill_catalog_identity_provider is None:
+            jobs.skill_catalog_identity_provider = self.catalog_identity
+
+    def catalog_identity(self):
+        return _catalog_snapshot(self.root, self.skills)[0]['catalog_sha256']
 
     @staticmethod
     def _authorize(scope):
@@ -175,37 +245,11 @@ class SkillService:
     def catalog(self, *, access_scope):
         self._authorize(access_scope)
         try:
-            raw, digest = _read(self.registry, self.catalog_path)
-            catalog = json.loads(raw)
-        except (SkillError, ValueError, UnicodeError):
-            return {'status': 'unavailable', 'complete': False, 'reason': 'installed_catalog_unavailable'}
-        sources = [SourceLocator(project='skills', repository=str(self.root), path=self.catalog_path, content_sha256=digest)]
-        rows = []
-        for entry in catalog.get('entries', []):
-            name = entry.get('name', '')
-            row = dict(entry)
-            row['id'] = stable_public_id('skill', self.root, Path(entry.get('entry', '')).parent.as_posix())
-            row['description'] = ''
-            try:
-                data, current = _read(self.registry, entry['entry'])
-                text = data.decode('utf-8')
-                if not text.startswith('---\n') or '\n---' not in text[4:]:
-                    raise ValueError('invalid_frontmatter')
-                metadata = yaml.safe_load(text.split('---', 2)[1])
-                row['description'] = metadata.get('description', '')
-                row['content_sha256'] = current
-                sources.append(SourceLocator(project='skills', repository=str(self.root), path=entry['entry'], content_sha256=current))
-                row['status'] = 'accessible' if current == entry.get('sha256') else 'stale'
-                if name not in self.skills:
-                    row['status'] = 'unregistered'
-                elif Path(self.skills[name]['root']).absolute() != self.root / Path(entry['entry']).parent:
-                    row['status'] = 'registration_mismatch'
-            except (SkillError, ValueError, KeyError, UnicodeError, yaml.YAMLError, AttributeError):
-                row['status'] = 'unavailable'
-            rows.append(row)
-        payload = {'status': 'ok', 'skills': rows, 'external_dependencies': catalog.get('external_dependencies', []),
-                   'unsupported': catalog.get('unsupported', []), 'complete': True, 'continuation': None,
-                   'catalog_sha256': digest, 'authority': 'installed catalog metadata',
+            catalog, sources, _accepted = _catalog_snapshot(self.root, self.skills)
+        except (SkillError, OSError, ValueError, UnicodeError):
+            return {'status': 'unavailable', 'complete': False, 'reason': 'skill_catalog_unavailable'}
+        payload = {'status': 'ok', **catalog, 'external_dependencies': [], 'unsupported': [],
+                   'continuation': None, 'authority': 'Project Control bounded skill discovery',
                    'freshness': {'checked_at': stamp(self.clock()), 'max_age_seconds': 0}}
         packet = self.packets.create(tool='skill', payload=payload, access_scope=access_scope,
                                      freshness=payload['freshness'], sources=sources)
@@ -218,16 +262,14 @@ class SkillService:
             raise ValueError('invalid detail')
         if not query and not skill:
             return self.catalog(access_scope=access_scope)
-        selected = skill or self.discovery_skill
-        if selected not in self.skills:
+        selected = skill
+        if selected is not None and selected not in self.skills:
             return {'status': 'unavailable', 'reason': 'unregistered_skill', 'skill': selected}
         question = query if query is not None else 'Read the installed entry and select the instructions relevant to using this skill.'
         execution = question
         if not skill:
-            execution += ('\nNo skill name was supplied. Read the installed native routing guide and catalog at '
-                + str(self.root / self.catalog_path)
-                + '; choose relevant registered skills using their own SKILL.md and references. '
-                'Report missing, external or unregistered dependencies explicitly.')
+            execution += ('\nNo skill name was supplied. Use Project Control registered skill entries to discover '
+                'relevant instructions and references. Report missing, external or unregistered dependencies explicitly.')
         value = self.jobs.inquire(question=question, execution_question=execution, access_scope=access_scope,
             mode='skill', skill=selected, hints=hints, request_id=request_id)
         if value.get('job') and value['status'] in {'completed', 'partial'}:
@@ -242,17 +284,15 @@ class SkillService:
             return self.poll(job_id, access_scope=access_scope, detail=detail)
         if not query and not skill:
             return self.catalog(access_scope=access_scope)
-        selected = skill or self.discovery_skill
-        if selected not in self.skills:
+        selected = skill
+        if selected is not None and selected not in self.skills:
             return {'accepted': False, 'reason': 'unregistered_skill', 'skill': selected}
         question = query or 'Read the installed entry and select the instructions relevant to using this skill.'
         if not skill:
             # Explicit discovery request. The worker decides; PC does not match
             # the question to names, maps, architecture or reference paths.
-            question += ('\nNo skill name was supplied. Read the installed native routing guide and catalog at '
-                         + str(self.root / self.catalog_path)
-                         + '; choose relevant registered skills using their own SKILL.md and references. '
-                         'Report missing, external or unregistered dependencies explicitly.')
+            question += ('\nNo skill name was supplied. Use Project Control registered skill entries to discover '
+                         'relevant instructions and references. Report missing, external or unregistered dependencies explicitly.')
         return self.jobs.submit(question=question, access_scope=access_scope, request_id=request_id,
                                 mode='skill', skill=selected, hints=hints)
 

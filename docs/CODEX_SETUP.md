@@ -112,11 +112,9 @@ direct canonical exact lookup; discovery queries retain their existing behavior.
 There is no public Project Control `find`. Removed legacy names are not aliases
 in ordinary discovery or dispatch. See [routing examples](as1-surface.md).
 
-`delegate_task` and `collect_delegation` preserve implementation/history but are
-absent from discovery and rejected at dispatch as `temporarily_inactive`.
-Feature metadata specifies explicit operator reenable; no timer reactivates them.
-Use configured Codex subagents for scoped coding/research assignments under the
-owning root's active task claim.
+Delegated coding and research assignments use configured Codex subagents under
+the owning root's active task claim. Project Control exposes no delegation
+workflow tools.
 
 For substantial work, call `next_task` first. When its context is ready,
 proceed; use `inspect_task` only for missing needed current-task context, and
