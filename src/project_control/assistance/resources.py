@@ -14,6 +14,7 @@ import re
 import sqlite3
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .power import PowerPolicy, PowerPolicyError, ReleaseIntent
@@ -25,6 +26,47 @@ _HEX_32 = re.compile(r"^[0-9a-f]{32}$")
 _SESSION = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _STATES = frozenset({"active", "idle_owned", "release_pending", "released_verified", "stale", "superseded"})
 _ACK_SEAL = object()
+_TERMINAL_JOB_STATES = frozenset({"completed", "partial", "failed", "cancelled"})
+
+
+def _process_start_time(pid: int) -> str | None:
+    """Read one exact Linux process generation; unreadable is not evidence of death."""
+    try:
+        raw = (Path("/proc") / str(pid) / "stat").read_text(encoding="ascii")
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise ResourceControllerError("orphan_execution_slot_owner_identity_unavailable") from error
+    close = raw.rfind(")")
+    if close < 0:
+        raise ResourceControllerError("orphan_execution_slot_owner_identity_invalid")
+    fields = raw[close + 1:].split()
+    if len(fields) <= 19 or not fields[19].isdigit():
+        raise ResourceControllerError("orphan_execution_slot_owner_identity_invalid")
+    return fields[19]
+
+
+def _validate_orphan_execution_slots(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 16:
+        raise ResourceControllerError("orphan_execution_slot_attestation_invalid")
+    accepted = []
+    seen = set()
+    for slot in value:
+        fields = {"job_id", "attempt", "cleanup_pending", "owner_pid", "owner_process_start"}
+        if not isinstance(slot, Mapping) or set(slot) != fields:
+            raise ResourceControllerError("orphan_execution_slot_attestation_invalid")
+        job_id, attempt = slot.get("job_id"), slot.get("attempt")
+        owner_pid, owner_start = slot.get("owner_pid"), slot.get("owner_process_start")
+        if (not isinstance(job_id, str) or not job_id or len(job_id) > 256 or
+                type(attempt) is not int or attempt <= 0 or slot.get("cleanup_pending") is not True or
+                type(owner_pid) is not int or owner_pid <= 0 or
+                not isinstance(owner_start, str) or not owner_start.isdigit() or len(owner_start) > 128 or
+                (job_id, attempt) in seen):
+            raise ResourceControllerError("orphan_execution_slot_attestation_invalid")
+        seen.add((job_id, attempt))
+        accepted.append({"job_id": job_id, "attempt": attempt, "cleanup_pending": True,
+            "owner_pid": owner_pid, "owner_process_start": owner_start})
+    return accepted
 
 
 class ResourceControllerError(ValueError):
@@ -238,14 +280,16 @@ class ResourceController:
                 not isinstance(getattr(proof, "host", None), str) or not proof.host):
             raise ResourceControllerError("physical_release_proof_invalid")
         # Recheck the broker's authority in the same database as these rows.
+        attested_slots = _validate_orphan_execution_slots(proof.get("orphan_execution_slots", []))
         try:
             active_jobs = self.db.execute("""SELECT count(*) FROM jobs
-                WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled')""").fetchone()[0]
-            execution_slots = self.db.execute("SELECT count(*) FROM execution_slots").fetchone()[0]
+                WHERE COALESCE(json_extract(record,'$.status'),'') NOT IN ('completed','partial','failed','cancelled')""").fetchone()[0]
+            slot_count = self.db.execute("SELECT count(*) FROM execution_slots").fetchone()[0]
         except sqlite3.OperationalError as error:
             raise ResourceControllerError("controller_quiescence_unavailable") from error
-        if active_jobs != 0 or execution_slots != 0:
+        if active_jobs != 0:
             raise ResourceControllerError("controller_work_not_quiescent")
+        self._validate_recoverable_execution_slots(attested_slots, expected_count=slot_count)
         rows = self._rows()
         active_rows = []
         for row in rows:
@@ -274,6 +318,20 @@ class ResourceController:
         proof_digest = hashlib.sha256(encoded_proof.encode("utf-8")).hexdigest()
         self.db.execute("SAVEPOINT pa1_orphan_reconcile")
         try:
+            # Re-read the broker rows after the savepoint so that a concurrent
+            # claim, cancellation, or cleanup cannot widen the captured set.
+            try:
+                active_jobs_now = self.db.execute("""SELECT count(*) FROM jobs
+                    WHERE COALESCE(json_extract(record,'$.status'),'') NOT IN ('completed','partial','failed','cancelled')""").fetchone()[0]
+                current_slot_count = self.db.execute("SELECT count(*) FROM execution_slots").fetchone()[0]
+            except sqlite3.OperationalError as error:
+                raise ResourceControllerError("controller_quiescence_unavailable") from error
+            if active_jobs_now != 0:
+                raise ResourceControllerError("controller_work_not_quiescent")
+            self._validate_recoverable_execution_slots(attested_slots, expected_count=current_slot_count)
+            for slot in attested_slots:
+                if _process_start_time(slot["owner_pid"]) == slot["owner_process_start"]:
+                    raise ResourceControllerError("orphan_execution_slot_owner_still_running")
             self.db.execute("""INSERT INTO pa1_orphan_resource_reconciliation_audit
                 (receipt_id,release_request_id,daemon_epoch,session_ids,proof,proof_sha256,controller_host,reconciled_at)
                 VALUES(?,?,?,?,?,?,?,?)""",
@@ -292,6 +350,47 @@ class ResourceController:
             self.db.execute("RELEASE SAVEPOINT pa1_orphan_reconcile")
             raise
         return session_ids
+
+    def _validate_recoverable_execution_slots(self, attested: list[dict[str, Any]], *,
+                                              expected_count: int) -> list[dict[str, Any]]:
+        """Match every remaining execution row to a terminal failed generation."""
+        if expected_count != len(attested):
+            raise ResourceControllerError("controller_work_not_quiescent")
+        if not attested:
+            return []
+        try:
+            columns = {row[1] for row in self.db.execute("PRAGMA table_info(execution_slots)")}
+            required = {"job", "attempt", "owner_pid", "owner_start", "cleanup_failed"}
+            if not required.issubset(columns):
+                raise ResourceControllerError("controller_quiescence_unavailable")
+            rows = self.db.execute("""SELECT job,attempt,owner_pid,owner_start,cleanup_failed
+                FROM execution_slots ORDER BY job""").fetchall()
+        except sqlite3.OperationalError as error:
+            raise ResourceControllerError("controller_quiescence_unavailable") from error
+        captured_by_key = {(item["job_id"], item["attempt"]): item for item in attested}
+        observed = []
+        for row in rows:
+            job_id, attempt, owner_pid, owner_start, cleanup_failed = tuple(row)
+            captured = captured_by_key.get((job_id, attempt))
+            if (captured is None or type(owner_pid) is not int or type(cleanup_failed) is not int or
+                    cleanup_failed != 1 or owner_pid != captured["owner_pid"] or
+                    owner_start != captured["owner_process_start"]):
+                raise ResourceControllerError("orphan_execution_slot_state_invalid")
+            try:
+                job_row = self.db.execute("SELECT record FROM jobs WHERE id=?", (job_id,)).fetchone()
+                job = json.loads(job_row[0]) if job_row is not None else None
+            except (sqlite3.OperationalError, TypeError, ValueError, json.JSONDecodeError) as error:
+                raise ResourceControllerError("orphan_execution_slot_job_state_unavailable") from error
+            if (not isinstance(job, dict) or job.get("status") not in _TERMINAL_JOB_STATES or
+                    type(job.get("attempt")) is not int or job["attempt"] < attempt):
+                raise ResourceControllerError("orphan_execution_slot_job_not_terminal")
+            observed.append(captured)
+        if len(observed) != len(attested):
+            raise ResourceControllerError("orphan_execution_slot_state_invalid")
+        for slot in observed:
+            if _process_start_time(slot["owner_pid"]) == slot["owner_process_start"]:
+                raise ResourceControllerError("orphan_execution_slot_owner_still_running")
+        return observed
 
     def _rows(self):
         return self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,release_request_id

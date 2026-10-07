@@ -58,6 +58,45 @@ def _proc_start_time(pid: int) -> str | None:
     return fields[19]
 
 
+def _orphan_cleanup_slots_from_status(before: dict[str, Any]) -> list[dict[str, Any]]:
+    """Accept only exact failed broker slots whose recorded process generation is gone.
+
+    ``active_work`` is independently required to be complete and empty by the
+    caller.  This allows a terminal job's failed cleanup marker to remain in
+    the broker snapshot while physical resources are reconciled, without
+    treating a live borrower as stopped.
+    """
+    slots = before.get("active_execution_slots")
+    if (before.get("active_execution_slots_truncated") is not False or
+            not isinstance(slots, list) or len(slots) > 16):
+        raise RuntimeError("physical_release_controller_not_quiescent")
+    accepted = []
+    seen = set()
+    for slot in slots:
+        if (not isinstance(slot, dict) or set(slot) != {
+                "job_id", "attempt", "cleanup_pending", "owner_pid", "owner_process_start"}):
+            raise RuntimeError("physical_release_execution_slot_invalid")
+        job_id, attempt = slot.get("job_id"), slot.get("attempt")
+        owner_pid, owner_start = slot.get("owner_pid"), slot.get("owner_process_start")
+        if (not isinstance(job_id, str) or not job_id or len(job_id) > 256 or
+                type(attempt) is not int or attempt <= 0 or slot.get("cleanup_pending") is not True or
+                type(owner_pid) is not int or owner_pid <= 0 or
+                not isinstance(owner_start, str) or not owner_start.isdigit() or len(owner_start) > 128 or
+                (job_id, attempt) in seen):
+            raise RuntimeError("physical_release_execution_slot_invalid")
+        try:
+            current_start = _proc_start_time(owner_pid)
+        except RuntimeError:
+            raise RuntimeError("physical_release_execution_slot_owner_identity_unavailable") from None
+        if current_start == owner_start:
+            raise RuntimeError("physical_release_execution_slot_owner_still_running")
+        seen.add((job_id, attempt))
+        accepted.append({"job_id": job_id, "attempt": attempt,
+            "cleanup_pending": True, "owner_pid": owner_pid,
+            "owner_process_start": owner_start})
+    return accepted
+
+
 def observer_analysis_state_root(*, create: bool = True) -> Path:
     """Return the private service state root, never an observed project root."""
     configured = os.environ.get("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR")
@@ -453,9 +492,9 @@ class SkillsObserverAnalysisProvider:
             raise RuntimeError("physical_release_record_identity_invalid")
         before = record.get("broker_before")
         if (not isinstance(before, dict) or before.get("active_work_truncated") is not False or
-                before.get("active_execution_slots_truncated") is not False or
-                before.get("active_work") != [] or before.get("active_execution_slots") != []):
+                before.get("active_work") != []):
             raise RuntimeError("physical_release_controller_not_quiescent")
+        orphan_execution_slots = _orphan_cleanup_slots_from_status(before)
         release = record.get("release")
         if (not isinstance(release, dict) or release.get("status") != "released_verified" or
                 release.get("released_verified") is not True or release.get("quiescent") is not True or
@@ -585,7 +624,8 @@ class SkillsObserverAnalysisProvider:
             "daemon_epoch": release["daemon_epoch"], "supervisor_pid": release["supervisor_pid"],
             "supervisor_process_start": release["supervisor_process_start"],
             "runtime_fingerprint": release["runtime_fingerprint"], "quiescent": True,
-            "evicted": True, "stopped": True, "gpu_uuids": sorted(seen_gpus), "cleanup_receipts": normalized}
+            "evicted": True, "stopped": True, "gpu_uuids": sorted(seen_gpus),
+            "cleanup_receipts": normalized, "orphan_execution_slots": orphan_execution_slots}
         token_value["captured_at"] = now
         token_value["source_proof_captured_at"] = float(captured)
         return _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, token_value, socket.gethostname())

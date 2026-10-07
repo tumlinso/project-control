@@ -39,18 +39,20 @@ def _load_assistance_components():
     JobService. Delaying these imports avoids a package-init cycle while
     retaining ordinary canonical module identities.
     """
-    global ChildFrameSpec, FrameError, FrameStore, PowerPolicy, policy_for, ResourceController, trusted_operator_control
+    global ChildFrameSpec, FrameError, FrameStore, PowerPolicy, policy_for, ResourceController, ResourceControllerError, trusted_operator_control
     global automatic_read_scope_from_dependencies
     if 'FrameStore' not in globals():
         from .assistance.frames import (ChildFrameSpec as child_spec, FrameError as frame_error,
             FrameStore as frame_store, automatic_read_scope_from_dependencies as seal_read_scope)
         from .assistance.power import PowerPolicy as power_policy, trusted_operator_control as mint_operator_control
         from .assistance.policies import policy_for as select_policy
-        from .assistance.resources import ResourceController as resource_controller
+        from .assistance.resources import (ResourceController as resource_controller,
+            ResourceControllerError as resource_controller_error)
         ChildFrameSpec, FrameError, FrameStore = child_spec, frame_error, frame_store
         automatic_read_scope_from_dependencies = seal_read_scope
         PowerPolicy, policy_for = power_policy, select_policy
         ResourceController = resource_controller
+        ResourceControllerError = resource_controller_error
         trusted_operator_control = mint_operator_control
 
 # Operator diagnostics intentionally expose only stable, non-content classes.
@@ -89,6 +91,12 @@ _COLD_SUPERVISOR_FAILURES = frozenset({
     'central_supervisor_timeout',
     'central_supervisor_transport_timeout',
     'central_supervisor_transport_error',
+})
+_CLOSE_RECEIPT_ERROR_CODES = frozenset({
+    'session_id_invalid', 'active_session_record_required',
+    'close_receipt_fields_invalid', 'close_receipt_identity_invalid',
+    'close_receipt_gpu_scope_invalid', 'session_not_active',
+    'resource_metadata_must_be_json',
 })
 
 
@@ -2782,19 +2790,39 @@ class JobService:
                 'unresolved_questions': ['Retry from retained observations']})
         finally:
             cleanup_failed = False
+            cleanup_error_code = None
             try:
                 if session:
-                    closed = self.backend.close_session(session)
+                    try:
+                        closed = self.backend.close_session(session)
+                    except Exception:
+                        # Keep the diagnostic bounded and private.  The raw
+                        # transport exception can contain endpoint details and
+                        # must not become a job or model observation.
+                        cleanup_error_code = 'observer_session_close_failed'
+                        raise
                     if isinstance(closed, dict) and (closed.get('released') is False
                             or closed.get('status') in {'unavailable', 'busy', 'failed'}):
-                        raise RuntimeError('session_cleanup_unproved')
+                        cleanup_error_code = 'observer_session_close_unproved'
+                        raise RuntimeError(cleanup_error_code)
                     if tracked_session:
                         receipt = closed.get('owned_resource_receipt') if isinstance(closed, dict) else None
                         if isinstance(receipt, dict):
-                            with self._db() as db:
-                                db.execute('BEGIN IMMEDIATE')
-                                ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
-                                    clock=self.clock).record_session(session, receipt)
+                            try:
+                                with self._db() as db:
+                                    db.execute('BEGIN IMMEDIATE')
+                                    ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                                        clock=self.clock).record_session(session, receipt)
+                            except Exception as error:
+                                cleanup_error_code = 'observer_close_receipt_persist_failed'
+                                # ResourceControllerError messages are stable
+                                # internal codes. Preserve only the narrow
+                                # allowlist relevant to recording this receipt;
+                                # never persist arbitrary exception text.
+                                if (isinstance(error, ResourceControllerError)
+                                        and str(error) in _CLOSE_RECEIPT_ERROR_CODES):
+                                    cleanup_error_code += '_' + str(error)
+                                raise
                         else:
                             # The ordinary idle close may succeed while its exact
                             # process-bound capability is unavailable. Preserve
@@ -2803,7 +2831,7 @@ class JobService:
                             self.last_error = 'observer_close_receipt_missing'
             except Exception:
                 cleanup_failed = True
-                self.last_error = 'session_cleanup_unproved'
+                self.last_error = cleanup_error_code or 'observer_session_cleanup_failed'
                 with self._db() as db:
                     db.execute('UPDATE execution_slots SET cleanup_failed=1 WHERE job=? AND attempt=?', (job.job_id, job.attempt))
             finally:

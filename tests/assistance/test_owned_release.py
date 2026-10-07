@@ -163,8 +163,9 @@ class ResourceControllerTests(unittest.TestCase):
 
     def _release_reconciliation_fixture(self):
         db = sqlite3.connect(":memory:")
-        db.execute("CREATE TABLE jobs(record TEXT NOT NULL)")
-        db.execute("CREATE TABLE execution_slots(job TEXT PRIMARY KEY)")
+        db.execute("CREATE TABLE jobs(id TEXT, record TEXT NOT NULL)")
+        db.execute("""CREATE TABLE execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL,
+            owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0)""")
         power = PowerPolicy(db, clock=time.time)
         resources = ResourceController(db, power_policy=power, clock=time.time)
         control = trusted_operator_control()
@@ -224,6 +225,76 @@ class ResourceControllerTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_orphan_reconciliation_accepts_only_exact_dead_terminal_failed_slot(self):
+        from project_control.assistance import resources as resources_module
+
+        db, power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
+        try:
+            resources.record_active_session("orphan-session", epoch)
+            db.execute("INSERT INTO jobs(id,record) VALUES(?,?)",
+                ("terminal-job", json.dumps({"status": "partial", "attempt": 2})))
+            db.execute("""INSERT INTO execution_slots(job,attempt,owner_pid,owner_start,cleanup_failed)
+                VALUES(?,?,?,?,1)""", ("terminal-job", 1, 2147483647, "98765"))
+            proof["orphan_execution_slots"] = [{"job_id": "terminal-job", "attempt": 1,
+                "cleanup_pending": True, "owner_pid": 2147483647,
+                "owner_process_start": "98765"}]
+            db.commit()
+            with patch.object(resources_module, "_process_start_time", return_value=None):
+                self.assertEqual(resources.record_orphaned_sessions_after_physical_release(
+                    control, intent, proof), ["orphan-session"])
+            # Aggregate recovery records the exact slot attestation but leaves
+            # slot deletion to JobService's supported stale-slot API.
+            row = db.execute("SELECT attempt,owner_pid,owner_start,cleanup_failed FROM execution_slots").fetchone()
+            self.assertEqual(tuple(row), (1, 2147483647, "98765", 1))
+            stored_proof, stored_digest = db.execute(
+                "SELECT proof,proof_sha256 FROM pa1_orphan_resource_reconciliation_audit").fetchone()
+            self.assertEqual(json.loads(stored_proof)["orphan_execution_slots"],
+                proof["orphan_execution_slots"])
+            import hashlib
+            self.assertEqual(hashlib.sha256(stored_proof.encode()).hexdigest(), stored_digest)
+        finally:
+            db.close()
+
+    def test_orphan_reconciliation_refuses_live_failed_slot_owner(self):
+        from project_control.assistance import resources as resources_module
+
+        db, _power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
+        try:
+            resources.record_active_session("orphan-session", epoch)
+            db.execute("INSERT INTO jobs(id,record) VALUES(?,?)",
+                ("terminal-job", json.dumps({"status": "partial", "attempt": 1})))
+            db.execute("""INSERT INTO execution_slots(job,attempt,owner_pid,owner_start,cleanup_failed)
+                VALUES(?,?,?,?,1)""", ("terminal-job", 1, 222, "98766"))
+            proof["orphan_execution_slots"] = [{"job_id": "terminal-job", "attempt": 1,
+                "cleanup_pending": True, "owner_pid": 222,
+                "owner_process_start": "98766"}]
+            db.commit()
+            with patch.object(resources_module, "_process_start_time", return_value="98766"):
+                with self.assertRaisesRegex(ResourceControllerError, "owner_still_running"):
+                    resources.record_orphaned_sessions_after_physical_release(control, intent, proof)
+        finally:
+            db.close()
+
+    def test_orphan_reconciliation_refuses_unfailed_execution_slot(self):
+        db, _power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
+        try:
+            resources.record_active_session("orphan-session", epoch)
+            db.execute("INSERT INTO jobs(id,record) VALUES(?,?)",
+                ("terminal-job", json.dumps({"status": "partial", "attempt": 1})))
+            db.execute("""INSERT INTO execution_slots(job,attempt,owner_pid,owner_start,cleanup_failed)
+                VALUES(?,?,?,?,0)""", ("terminal-job", 1, 2147483647, "98765"))
+            proof["orphan_execution_slots"] = [{"job_id": "terminal-job", "attempt": 1,
+                "cleanup_pending": True, "owner_pid": 2147483647,
+                "owner_process_start": "98765"}]
+            db.commit()
+            with self.assertRaisesRegex(ResourceControllerError, "execution_slot_state_invalid"):
+                resources.record_orphaned_sessions_after_physical_release(control, intent, proof)
+            self.assertEqual(db.execute("SELECT cleanup_failed FROM execution_slots").fetchone()[0], 0)
+            self.assertEqual(db.execute(
+                "SELECT count(*) FROM pa1_orphan_resource_reconciliation_audit").fetchone()[0], 0)
+        finally:
+            db.close()
+
     def test_orphan_reconciliation_rejects_nonzero_gpu_observation(self):
         db, power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
         try:
@@ -244,6 +315,9 @@ class ResourceControllerTests(unittest.TestCase):
         from unittest.mock import patch
 
         record = self._physical_release_record()
+        captured_slot = {"job_id": "terminal-job", "attempt": 1, "cleanup_pending": True,
+            "owner_pid": 987654, "owner_process_start": "98767"}
+        record["broker_before"]["active_execution_slots"] = [captured_slot]
         record["captured_at"] -= 3600
         for item in record["release"]["cleanup_receipts"]:
             item["observation"]["observed_unix"] = record["captured_at"] - 1
@@ -289,6 +363,22 @@ class ResourceControllerTests(unittest.TestCase):
             proof = provider.verify_saved_physical_release(record)
         self.assertLessEqual(time.time() - proof["captured_at"], 2)
         self.assertEqual(proof["source_proof_captured_at"], record["captured_at"])
+        self.assertEqual(proof["orphan_execution_slots"], [captured_slot])
+
+    def test_saved_release_proof_rejects_live_or_unqualified_execution_slots(self):
+        from project_control.observer_analysis import _orphan_cleanup_slots_from_status
+
+        slot = {"job_id": "terminal-job", "attempt": 1, "cleanup_pending": True,
+            "owner_pid": 987654, "owner_process_start": "98768"}
+        with patch("project_control.observer_analysis._proc_start_time", return_value="98768"):
+            with self.assertRaisesRegex(RuntimeError, "owner_still_running"):
+                _orphan_cleanup_slots_from_status({"active_execution_slots_truncated": False,
+                    "active_execution_slots": [slot]})
+        unfailed = dict(slot, cleanup_pending=False)
+        with patch("project_control.observer_analysis._proc_start_time", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "execution_slot_invalid"):
+                _orphan_cleanup_slots_from_status({"active_execution_slots_truncated": False,
+                    "active_execution_slots": [unfailed]})
 
     def test_close_receipt_is_required_and_verified_release_is_exact(self):
         self.resources.record_active_session(self.session_id, self.epoch)
