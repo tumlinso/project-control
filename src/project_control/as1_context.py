@@ -93,7 +93,9 @@ class InformationService:
                 data = {'projects': [{'project': p, 'repositories': sorted(self.config.workspaces[p].repositories)}
                                      for p in sorted(self.host.projects & self.config.workspaces.keys())]}
             else:
-                data = {'orientation': context.get('orientation', []), 'work': project_overview(snapshot, detail='compact').data,
+                overview_detail = {'compact': 'compact', 'standard': 'standard',
+                                   'extended': 'expanded'}[detail]
+                data = {'orientation': context.get('orientation', []), 'work': project_overview(snapshot, detail=overview_detail).data,
                         'entry_points': [{'repository': a, 'path': p} for a in self.config.workspaces[project].repositories
                                          for p in GitReadAdapter(self.registry.repository(project, a).root).tracked_files()
                                          if p in {'README.md', 'AGENTS.md', 'pyproject.toml', 'CMakeLists.txt'}],

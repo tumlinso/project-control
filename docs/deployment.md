@@ -53,6 +53,49 @@ systemctl --user restart project-control-inference.service
 systemctl --user restart project-control-inference.service project-control.service
 ```
 
+### Allow source HTTP to read registered Todo state
+
+The HTTP unit runs with `ProtectHome=read-only`. SQLite query-only access can
+still need to create or update `-wal`/`-shm` bookkeeping files beside a
+canonical Todo database. When HTTP reads fail with a Todo database-open error,
+inspect the exact paths first and use the checkout utility to render the
+additive user-service permission drop-in. Its default is a dry run over all
+registered workspaces; it includes only existing canonical Todo state
+directories and does not initialize missing ledgers:
+
+```sh
+scripts/pc-dev python scripts/configure_source_state_paths.py --all-projects
+```
+
+For one workspace, use its configured workspace ID instead:
+
+```sh
+scripts/pc-dev python scripts/configure_source_state_paths.py --project project-control
+```
+
+After reviewing the rendered paths, apply either an explicitly selected
+workspace or the reviewed all-workspaces set:
+
+```sh
+scripts/pc-dev python scripts/configure_source_state_paths.py --all-projects --apply
+# Or: scripts/pc-dev python scripts/configure_source_state_paths.py --project project-control --apply
+systemctl --user daemon-reload
+systemctl --user restart project-control-inference.service project-control.service
+```
+
+The utility writes the managed
+`~/.config/systemd/user/project-control.service.d/90-todo-state-paths.conf`
+drop-in. `ReadWritePaths` is additive to the unit's existing protections and
+grants writes only within the selected canonical Todo metadata directories;
+it does not grant access to repository source files or make application
+queries semantically writable. A replaced drop-in is preserved as a
+timestamped `.bak-*` file. To roll back, stop using the added permissions,
+restore the exact prior drop-in from that backup (or remove the managed file
+if the utility created it), then run `systemctl --user daemon-reload` and
+restart the paired services. Keep the backup until the rollback is verified.
+Never remove or rewrite a Todo database, WAL, or SHM file to repair this
+service permission issue.
+
 The inference supervisor remains demand-driven; refreshing it does not request
 model or GPU work. Do not treat the paired process restart as inference/GPU
 qualification.
@@ -71,6 +114,23 @@ separately and do not disable core reads. Reconnect the configured MCP client,
 list its tools, and make a real read-only workflow request. For rescue mutation,
 verify the advertised inputs and exercise authorization against temporary state
 before relying on it against live state.
+
+For the finite PA1 server/assistance delivery, record the public information
+surface through both transports:
+
+```sh
+scripts/pc-dev python scripts/verify_pa1_bootstrap.py \
+  --project project-control --output /tmp/pa1-public-surface.json --timeout 60
+```
+
+Grounded project and skill answers require separate actual consultation and
+source-identity checks. LAB is deferred and does not gate this deployment.
+Use `scripts/pc-dev run assistance status`, an explicit `ask` or `chat`, and
+`scripts/pc-dev run assistance stop` for demand-driven inference and owner-proven
+release. A stop veto can be cleared with `assistance resume --release`, which
+does not load a model. `already_stopped_no_owned_resources` combines an inactive
+service census with settled durable ownership; it does not fabricate physical
+release proof for an empty target set. Unresolved ownership stays pending.
 
 If the source process fails, inspect that unit's status and journal, correct the
 source/configuration problem, then restart the affected process. Do not alter

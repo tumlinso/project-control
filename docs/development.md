@@ -51,6 +51,14 @@ of optional CUDA/C++ or skill documentation. The old
 Changing a content tree does not require rebuilding or re-identifying bundled
 application code.
 
+The source HTTP unit also needs SQLite's query-only WAL/SHM bookkeeping to be
+permitted in canonical Todo state directories. If HTTP reports that a Todo
+database cannot be opened while host-side reads work, follow the reviewed
+metadata-only `ReadWritePaths` procedure in [deployment](deployment.md#allow-source-http-to-read-registered-todo-state).
+The helper defaults to a dry run; applying requires an explicit `--project`
+or `--all-projects` selector. It does not initialize Todo state or restart
+services.
+
 ## Run tests
 
 Make changes in small steps. For a bug, first reproduce it with a focused test

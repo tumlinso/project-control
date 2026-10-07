@@ -8,6 +8,7 @@ Prepare the repository-local Python environment once, then run this checkout:
 scripts/pc-dev setup
 scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768
 scripts/pc-dev run serve mutator
+scripts/pc-dev run codex
 scripts/pc-dev test
 scripts/pc-dev test tests/test_workflow_binding.py -q
 systemctl --user restart project-control-inference.service project-control.service
@@ -26,6 +27,32 @@ documentation changes do not change executable identity. The inference
 supervisor remains demand-driven. Installed-release deployments keep using
 their selected release until switched. See [development notes](docs/development.md)
 for setup, test selection, and evidence boundaries.
+
+## On-demand assistance
+
+Use a registered project ID. These commands use the same source runtime as
+the MCP server; questions are advisory and do not modify canonical sources:
+
+```sh
+scripts/pc-dev run assistance status
+scripts/pc-dev run assistance resume --release
+scripts/pc-dev run assistance ask --project project-control \
+  "What are the source setup, test, and restart commands? Cite the current documentation."
+scripts/pc-dev run assistance chat --project project-control
+scripts/pc-dev run assistance stop
+```
+
+`resume --release` clears an explicit stop veto without loading a model. An
+explicit question starts inference on demand. Idle time alone does not evict a
+warm model; explicit stop and the established resource-owner mechanism govern
+release. `/readyz` reports core readiness independently of inference and optional
+domain content.
+
+The current PA1 delivery covers coordination, authorized mutation/rescue, and
+grounded on-demand assistance. LAB, CUDA experimentation, broad recovery and
+performance studies, and frozen-release qualification are deferred. Preserve
+their existing state and evidence. See the
+[current qualification guide](docs/pa1/source-qualification.md).
 
 `project-control` reads registered engineering workspaces and coordinates
 authorized workflow operations through startup-bound MCP profiles. The current

@@ -196,7 +196,7 @@
       "repository": "project-control",
       "title": "Turn permitted questions into isolated tests and mechanism experiments",
       "difficulty": "high",
-      "objective": "Reuse snapshot, patch and verification machinery for a service-owned scratch laboratory. Support bounded CPU tests and explicitly authorized GPU experiments that release inference resources first. Return empirical evidence and unpromoted candidates only.",
+      "objective": "Deferred follow-up: autonomous CPU/GPU experiments and scratch-laboratory qualification are outside the current PA1 delivery. Preserve implementation, existing task state, sessions, receipts, and historical evidence. Do not run or qualify LAB as a delivery prerequisite.",
       "depends_on": [
         "PC-PA1-FRAMES",
         "PC-PA1-KNOWLEDGE"
@@ -229,18 +229,18 @@
         "CPU/GPU execution policy and owned-process cleanup",
         "Counterexample/negative-result/patch evidence without canonical application"
       ],
-      "acceptance_summary": "A new scratch test detects a fixture defect, resource and repository sentinels remain intact, and a GPU experiment never waits behind its own retained inference lease.",
-      "gate_module": "tests.assistance.test_lab"
+      "acceptance_summary": "Deferred from current delivery. No LAB experiment, implementation repair, or LAB test gate is required or performed for the coordination-server and on-demand-assistance delivery.",
+      "deferred": true,
+      "gate_argv": []
     },
     {
       "id": "PC-PA1-QUALIFY",
       "repository": "project-control",
-      "title": "Qualify useful workflows and promote one reversible candidate",
+      "title": "Verify the Project Control coordination server and on-demand assistance",
       "difficulty": "high",
-      "objective": "Measure prepared-context usefulness, foreground overhead, bounded real-model behavior and permitted GPU lifecycle on the integrated source. Preserve current MCP contracts, test migration/rollback and promote only a selected candidate with explicit activation settings.",
+      "objective": "Verify reliable source-mode HTTP and stdio entrypoints; public project information tools; ordinary bundled-Todo workflow lifecycle; authorized plan/project mutation and rescue without external Todo skills or optional CUDA/cpp content; grounded advisory investigate, CLI ask/chat, and registered skill consultation with verified source identities; and demand-driven inference startup/status/owner-proven stop-release. LAB and broad qualification campaigns are deferred.",
       "depends_on": [
-        "PC-PA1-ASSIST",
-        "PC-PA1-LAB"
+        "PC-PA1-ASSIST"
       ],
       "scopes": [
         "src/project_control",
@@ -272,8 +272,11 @@
         "MCP compatibility and old/new runtime isolation results",
         "Candidate promotion/rollback and explicit feature activation record"
       ],
-      "acceptance_summary": "The complete product is useful on representative cases and safe under lifecycle pressure; no fixture-only result is labeled live qualification and unsupported optional features stay off.",
-      "gate_module": "tests.assistance.test_release"
+      "acceptance_summary": "All revised PC-PA1-RUN-1 server and on-demand assistance criteria pass with source/process identity recorded. Autonomous CPU LAB, CUDA lifecycle qualification, broad cancellation/crash campaigns, performance/model-quality studies, and frozen-release qualification remain explicitly deferred. The original full PA1/A01-A40 contract is not represented as passed.",
+      "gate_argv": [
+        "scripts/pc-dev",
+        "test"
+      ]
     },
     {
       "id": "SK-PA1-HANDOFF",

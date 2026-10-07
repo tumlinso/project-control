@@ -370,7 +370,6 @@ class Service:
 
     def plan_diff(self, path: str) -> dict[str, object]:
         data = load_plan(path)
-        validate_plan(data, self.paths.repo_root)
         with self.db.read() as conn:
             return plan_diff(conn, data, self.paths.repo_root)
 

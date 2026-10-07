@@ -97,6 +97,8 @@ class AssistanceOperator:
                       "quiet_active": False, "quiet_until": None,
                       "release_veto_active": False, "physical_state": "not_requested",
                       "release_request_id": None, "release_verified_sessions": 0},
+            "owned_resources": {"status": "not_observed", "session_count": None,
+                                "current_sessions": None, "release_pending": None},
             "dispatcher": "not_observed",
         }
 
@@ -109,6 +111,18 @@ class AssistanceOperator:
         try:
             tables = {row[0] for row in db.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'")}
+            if "pa1_owned_resource_sessions" in tables:
+                counts = {row[0]: int(row[1]) for row in db.execute(
+                    "SELECT state,count(*) FROM pa1_owned_resource_sessions GROUP BY state")}
+                current = sum(counts.get(state, 0) for state in
+                              ("active", "idle_owned", "release_pending", "stale"))
+                result["owned_resources"] = {
+                    "status": "pending" if current else "no_owned_resources",
+                    "session_count": sum(counts.values()),
+                    "current_sessions": current,
+                    "release_pending": bool(current),
+                    "states": counts,
+                }
             if "pa1_attention_focus" in tables:
                 row = db.execute("SELECT focus_id,project,source_paths,goal_card_id,state,"
                                  "starts_at,expires_at,permit_automatic,reserved_turns,active_seconds "
@@ -298,11 +312,17 @@ class AssistanceOperator:
             # This reuses the same idempotent intent and the JobService's real
             # SupervisorClient release RPC plus ResourceController proof path.
             outcome = job_service._deliver_owned_release(intent)
-        state = self.status()["power"]
+        if outcome == "pending_no_owned_resources":
+            # This is an ownership census result, not proof that a supervisor
+            # process stopped. Keep PowerPolicy's physical state pending.
+            outcome = "no_owned_resources"
+        full_state = self.status()
+        state = full_state["power"]
         return {"status": outcome, "release_veto_active": state["release_veto_active"],
                 "physical_state": state["physical_state"],
                 "release_request_id": intent.request_id,
-                "verified_sessions": state["release_verified_sessions"]}
+                "verified_sessions": state["release_verified_sessions"],
+                "owned_resources": full_state["owned_resources"]}
 
     def resume(self, *, quiet: bool = False, release: bool = False) -> dict[str, Any]:
         if not quiet and not release:

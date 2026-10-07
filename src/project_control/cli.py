@@ -538,7 +538,6 @@ def _assistance_ask(composition, question: str, project: str) -> dict[str, objec
     value = composition.jobs.inquire(question=question, access_scope=scope,
                                      foreground_timeout=0,
                                      startup_timeout=min(_ASSISTANCE_STARTUP_MAX_SECONDS, remaining))
-    saw_thinking = value.get("status") == "thinking"
     while value.get("status") == "thinking":
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -553,8 +552,11 @@ def _assistance_ask(composition, question: str, project: str) -> dict[str, objec
         value = composition.jobs.inquire(question=question, access_scope=scope,
                                          foreground_timeout=0,
                                          startup_timeout=min(_ASSISTANCE_STARTUP_MAX_SECONDS, remaining))
-        saw_thinking = saw_thinking or value.get("status") == "thinking"
-    if saw_thinking and value.get("status") not in {"completed", "partial"}:
+    # A failed/unavailable response is already terminal from the broker's
+    # perspective.  Cancellation is only meaningful when the final poll still
+    # reports an in-flight inquiry; otherwise it can replace the actual broker
+    # outcome with a misleading "cancellation unconfirmed" timeout.
+    if value.get("status") == "thinking":
         cancel = getattr(composition.jobs, "cancel_inquiry", None)
         if not callable(cancel):
             composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)

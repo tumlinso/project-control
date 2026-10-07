@@ -9,6 +9,7 @@ from typing import Any
 from ..config import utc_now
 from ..models import TodoError
 from .foundation import NEXT_TASK_BUDGET_BYTES, WorkflowDatabase, content_hash, require_bounded_payload
+from .context_fragments import FragmentOwner, publish_generated_fragment_in_transaction
 
 
 RUN_STATES = frozenset({"active", "attention_required", "completed", "cancelled"})
@@ -120,13 +121,24 @@ class RunService:
         return {**result, "project_revision": revision}
 
     def revise_charter(self, *, run_id: str, charter: dict[str, Any], actor_session_id: str | None = None) -> dict[str, object]:
+        def operation(conn, revision):
+            result = revise_charter_in_transaction(conn, revision, run_id=run_id, charter=charter)
+            fragment, refreshed = publish_generated_fragment_in_transaction(
+                conn, revision, owner=FragmentOwner(run_id), kind="run_charter", content=charter,
+            )
+            return {**result, "context_fragment": fragment.reference(), "context_refreshed": refreshed}
+
         result, revision = self.database.mutate(
             actor_session_id=actor_session_id,
             entity_type="workflow_run",
             entity_id=run_id,
             event_type="workflow.run_charter.revised",
-            payload=lambda value: {"run_id": run_id, "charter_version": value["charter_version"], "changed": value["changed"]},
-            operation=lambda conn, rev: revise_charter_in_transaction(conn, rev, run_id=run_id, charter=charter),
+            payload=lambda value: {
+                "run_id": run_id, "charter_version": value["charter_version"],
+                "changed": value["changed"], "context_refreshed": value["context_refreshed"],
+                "context_fragment_version": value["context_fragment"]["version"],
+            },
+            operation=operation,
         )
         return {**result, "project_revision": revision}
 

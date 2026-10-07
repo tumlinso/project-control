@@ -60,7 +60,7 @@
       "id": "PC-PA1-0000",
       "kind": "epic",
       "title": "Project Assistance v1: useful persistent local engineering intelligence",
-      "objective": "Aggregate the verified outcome results; this record is not an initial coordinator gate. Complete last after the outcome and cross-authority evidence is accepted.",
+      "objective": "Aggregate evidence that Project Control provides a reliable source-mode coordination server and on-demand grounded advisory assistance. Complete only after the revised server, workflow, mutation, content-independence, assistance, and inference lifecycle acceptance is verified; preserve the original full PA1/A01-A40 acceptance history without claiming it passed.",
       "parallel_policy": "serial",
       "priority": 10,
       "invariants": [
@@ -75,7 +75,7 @@
         "PC-PA1-MODULAR",
         "PC-PA1-USEFUL"
       ],
-      "notes": "Intent and non-goals: planning/project-assistance-v1/docs/01-intent.md. Read the outcome briefs and cross-authority.json. Do not start this aggregate before its serial outcome queue has completed. No child depends on the epic.",
+      "notes": "Current completion criteria are defined by PC-PA1-RUN-1 charter revision. The historical machine/acceptance.json and prior full PA1 evidence remain unchanged. Do not claim autonomous experimentation, CUDA lifecycle qualification, broad cancellation/crash campaigns, performance/model-quality studies, or frozen-release qualification as passed; record them as deferred follow-up obligations.",
       "result_policy": {
         "allowed_dispositions": [
           "validated"
@@ -417,7 +417,7 @@
       "parent_id": "PC-PA1-0000",
       "kind": "task",
       "title": "Turn permitted questions into isolated tests and mechanism experiments",
-      "objective": "Reuse snapshot, patch and verification machinery for a service-owned scratch laboratory. Support bounded CPU tests and explicitly authorized GPU experiments that release inference resources first. Return empirical evidence and unpromoted candidates only.",
+      "objective": "Deferred follow-up: autonomous CPU/GPU experiments and scratch-laboratory qualification are outside the current PA1 delivery. Preserve implementation, existing task state, sessions, receipts, and historical evidence. Do not run or qualify LAB as a delivery prerequisite.",
       "priority": 95,
       "parallel_policy": "serial",
       "scope": {
@@ -450,27 +450,14 @@
         "PC-PA1-MODULAR",
         "PC-PA1-USEFUL"
       ],
-      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-LAB\",\"difficulty\":\"high\",\"sources\":[\"S08\",\"S10\",\"S11\",\"S12\",\"S14\",\"S15\",\"S19\",\"O03\",\"O04\"],\"deliverables\":[\"Consistent dirty-source materialization with containment\",\"Typed experiment request/receipt and bounded effect runner\",\"CPU/GPU execution policy and owned-process cleanup\",\"Counterexample/negative-result/patch evidence without canonical application\"],\"acceptance\":\"A new scratch test detects a fixture defect, resource and repository sentinels remain intact, and a GPU experiment never waits behind its own retained inference lease.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-LAB\",\"difficulty\":\"high\",\"sources\":[\"S08\",\"S10\",\"S11\",\"S12\",\"S14\",\"S15\",\"S19\",\"O03\",\"O04\"],\"deliverables\":[\"Preserve existing LAB implementation and historical experiment evidence for a separately authorized follow-up.\"],\"acceptance\":\"Deferred from current PA1 completion. No LAB experiment, implementation repair, or LAB test gate is required or performed for the coordination-server and on-demand-assistance delivery.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\",\"deferred_follow_up\":true}",
       "result_policy": {
         "allowed_dispositions": [
           "validated",
           "no_change_required"
         ]
       },
-      "gates": [
-        {
-          "id": "PC-PA1-LAB-TEST",
-          "type": "command",
-          "argv": [
-            "python",
-            "-m",
-            "unittest",
-            "tests.assistance.test_lab",
-            "-v"
-          ],
-          "required": true
-        }
-      ],
+      "gates": [],
       "depends_on": [
         {
           "type": "task",
@@ -486,8 +473,8 @@
       "id": "PC-PA1-QUALIFY",
       "parent_id": "PC-PA1-0000",
       "kind": "validation_task",
-      "title": "Qualify useful workflows and promote one reversible candidate",
-      "objective": "Measure prepared-context usefulness, foreground overhead, bounded real-model behavior and permitted GPU lifecycle on the integrated source. Preserve current MCP contracts, test migration/rollback and promote only a selected candidate with explicit activation settings.",
+      "title": "Verify the Project Control coordination server and on-demand assistance",
+      "objective": "Verify reliable source-mode HTTP and stdio entrypoints; public project information tools; ordinary bundled-Todo workflow lifecycle; authorized plan/project mutation and rescue without external Todo skills or optional CUDA/cpp content; grounded advisory investigate, CLI ask/chat, and registered skill consultation with verified source identities; and demand-driven inference startup/status/owner-proven stop-release. LAB and broad qualification campaigns are deferred.",
       "priority": 94,
       "parallel_policy": "serial",
       "scope": {
@@ -498,10 +485,12 @@
           "docs",
           "packaging",
           "deployment",
-          "planning/project-assistance-v1"
+          "planning/project-assistance-v1",
+          "src/todo_orchestrator",
+          "AGENTS.md",
+          "README.md"
         ],
         "read_paths": [
-          "README.md",
           "pyproject.toml"
         ],
         "forbidden_paths": [
@@ -522,7 +511,7 @@
         "PC-PA1-MODULAR",
         "PC-PA1-USEFUL"
       ],
-      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-QUALIFY\",\"difficulty\":\"high\",\"sources\":[\"S01\",\"S03\",\"S04\",\"S05\",\"S15\",\"S22\",\"S23\",\"O03\",\"O04\"],\"deliverables\":[\"Executed acceptance matrix with source/measurement identity\",\"Finite model-quality comparison and end-to-end usefulness report\",\"MCP compatibility and old/new runtime isolation results\",\"Candidate promotion/rollback and explicit feature activation record\"],\"acceptance\":\"The complete product is useful on representative cases and safe under lifecycle pressure; no fixture-only result is labeled live qualification and unsupported optional features stay off.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\"}",
+      "notes": "{\"package\":\"planning/project-assistance-v1\",\"outcome\":\"PC-PA1-QUALIFY\",\"difficulty\":\"high\",\"sources\":[\"S01\",\"S03\",\"S04\",\"S05\",\"S15\",\"S22\",\"S23\",\"O03\",\"O04\"],\"deliverables\":[\"HTTP and fresh stdio MCP initialize/tools-list plus registered-project information reads\",\"Temporary-state ordinary workflow lifecycle, authorized plan mutation, rescue, and optional-content absence checks\",\"Grounded project answer and focused registered-skill answer with verified source identities\",\"Demand-driven inference startup/status and owner-proven stop/release evidence\",\"Default source smoke and focused regressions for changed boundaries\"],\"acceptance\":\"All revised PC-PA1-RUN-1 server and on-demand assistance criteria pass with source/process identity recorded. Autonomous CPU LAB, CUDA lifecycle qualification, broad cancellation/crash campaigns, performance/model-quality studies, and frozen-release qualification remain explicitly deferred. The original full PA1/A01-A40 contract is not represented as passed.\",\"external_handoffs\":[],\"design_questions\":\"Ask the user at consequential ambiguity/authorization boundaries described in machine/decision-register.json; ordinary implementation details are delegated.\",\"fast_development\":\"Follow docs/06-fast-development.md; no per-prompt full release rebuild.\",\"test_contract\":\"Create/extend the actual-source suite for this gate, require nonzero test count and scenario coverage; missing or empty tests cannot establish success.\",\"deferred_follow_up\":[\"autonomous CPU LAB\",\"CUDA lifecycle qualification\",\"broad cancellation/crash campaigns\",\"performance and model-quality studies\",\"frozen-release qualification\"]}",
       "result_policy": {
         "allowed_dispositions": [
           "validated",
@@ -530,6 +519,15 @@
         ]
       },
       "gates": [
+        {
+          "id": "PC-PA1-QUALIFY-SOURCE-SMOKE",
+          "type": "command",
+          "argv": [
+            "scripts/pc-dev",
+            "test"
+          ],
+          "required": true
+        },
         {
           "id": "PC-PA1-QUALIFY-TEST",
           "type": "command",
@@ -540,17 +538,13 @@
             "tests.assistance.test_release",
             "-v"
           ],
-          "required": true
+          "required": false
         }
       ],
       "depends_on": [
         {
           "type": "task",
           "task_id": "PC-PA1-ASSIST"
-        },
-        {
-          "type": "task",
-          "task_id": "PC-PA1-LAB"
         }
       ]
     }
@@ -560,20 +554,30 @@
       "id": "PC-PA1-RUN-1",
       "root_task_id": "PC-PA1-0000",
       "charter": {
-        "objective": "Improve human and agent engineering work through prepared evidence, resumable local intelligence and safe experiments while retaining a small Project Control surface.",
+        "objective": "Deliver a usable Project Control coordination server and on-demand grounded advisory assistant through the configured source-mode HTTP and stdio surfaces. Preserve Todo as workflow authority, protect canonical sources, and keep inference demand-driven with established residency ownership.",
         "boundaries": [
-          "Todo authority is unchanged.",
-          "No automatic durable repository edits or canonical publication.",
-          "Two interchangeable same-weight model slots; waiting owns no inference lease.",
-          "Production is not the tuning harness.",
-          "Preserve existing work and explicit source/resource identities.",
-          "Cross-authority handoffs must be verified by the root, not assumed from native queue order.",
-          "Ask the user about consequential design/authority ambiguity; choose ordinary local details independently."
+          "Todo remains the sole project workflow authority; use bundled Todo transactions for task and plan changes.",
+          "Assistance is advisory and may navigate registered sources; it does not autonomously modify canonical sources.",
+          "Preserve project identities, ledgers, claims, queued work, snapshots, sessions, receipts, event history, and source/resource identities.",
+          "HTTP and stdio retain configured profiles, principal bindings, ports, and state locations.",
+          "Inference starts on demand; status does not load a model, and explicit stop/release uses established ownership proof and warm-residency policy.",
+          "Optional CUDA/cpp documentation absence does not disable core reads or rescue mutation.",
+          "Coordinate active ownership through supported history-preserving workflow operations before overlapping work."
         ],
         "acceptance_conditions": [
-          "Applicable machine/acceptance.json cases have executed evidence.",
-          "All outcomes and external handoffs accepted before aggregate completion.",
-          "Optional features without justified usefulness or authority remain disabled."
+          "Configured HTTP and fresh stdio connections pass health/readiness, MCP initialization, and tools/list.",
+          "Public project information tools and ordinary workflow lifecycle work against registered projects and bundled Todo authority.",
+          "Authorized plan/project mutation and rescue work in temporary-state fixtures without external Todo skill or optional domain content.",
+          "One useful grounded project answer and one focused registered-skill answer cite source content identities that are verified.",
+          "Inference startup/status and owner-proven stop/release work with honest no-owned-resources status.",
+          "Default source smoke and focused changed-boundary regressions pass; acceptance evidence identifies the running source/process."
+        ],
+        "deferred_obligations": [
+          "Autonomous CPU LAB and experimentation",
+          "CUDA lifecycle qualification",
+          "Broad cancellation and crash-recovery campaigns",
+          "Performance and model-quality studies",
+          "Frozen-release qualification and original full PA1/A01-A40 acceptance"
         ]
       },
       "lanes": [

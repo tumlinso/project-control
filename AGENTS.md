@@ -61,6 +61,13 @@
 
 ## Runtime boundaries
 
+- The revised PA1 bootstrap delivers the coordination server and advisory
+  on-demand assistance. LAB implementation, repair, execution, and qualification
+  are deferred; preserve its tasks, sessions, receipts, and historical evidence.
+  CUDA experiments, broad cancellation/crash campaigns, performance/model-quality
+  studies, and frozen-release qualification do not gate this delivery. Complete
+  native PA1 only against its revised charter and actual required evidence.
+
 - Project Control and bundled Todo executable code are verified independently
   of optional domain documentation. `PROJECT_CONTROL_OBSERVER_SKILLS_ROOT` is
   the preferred content root; `PROJECT_CONTROL_SKILLS_ROOT` is a content-only

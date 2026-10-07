@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -241,6 +242,35 @@ def test_inquiry_startup_timeout_bounds_readiness_and_keeps_zero_budget_cache_re
         s.shutdown()
 
 
+@pytest.mark.as1_case('JOB-03')
+def test_dispatch_readiness_failure_retains_only_stable_private_reason(tmp_path):
+    class Backend:
+        def open_sessions(self, *_args, **_kwargs):
+            pytest.fail('model session must not open after readiness failure')
+
+    def unexpected_worker(*_args):
+        pytest.fail('worker must not be created after readiness failure')
+
+    s = make(tmp_path, backend=Backend(), worker_factory=unexpected_worker)
+    s.demand_runtime_ready = lambda **_kwargs: {
+        'status': 'unavailable',
+        'reason': 'inference_project_control_fingerprint_mismatch: /private/runtime/path',
+    }
+    s.start()
+    try:
+        admitted = s.submit(question='retain readiness reason', access_scope=SCOPE)
+        def failed_readiness():
+            value = s.lookup(admitted['job_id'], access_scope=SCOPE)
+            return (value if value['job'].get('failure_reason') is not None else None)
+        value = wait(failed_readiness)
+        job = value['job']
+        assert job['failure_reason'] == 'inference_project_control_fingerprint_mismatch'
+        assert '/private/runtime/path' not in json.dumps(job)
+        assert s._inquiry_failure_class(job) == 'runtime_mismatch'
+    finally:
+        s.shutdown()
+
+
 @pytest.mark.as1_case('JOB-04')
 def test_real_sqlite_restart_eviction_cancellation_and_fenced_late_writes(tmp_path):
     now = [1000.0]
@@ -329,7 +359,7 @@ def trusted(tmp_path, backend, tools=lambda *a: {'text': 'shared'}):
 
 
 @pytest.mark.as1_case('JOB-06')
-def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_path):
+def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_path, monkeypatch):
     skill = tmp_path/'fixture'; skill.mkdir()
     entry = '# Fixture\nUse maps.md\n'; resource = 'Exact selected instructions\n'
     (skill/'SKILL.md').write_text(entry); (skill/'maps.md').write_text(resource)
@@ -358,12 +388,63 @@ def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_
         {'tool': 'command', 'arguments': {'argv': ['cat', str(skill/'maps.md')], 'cwd': str(skill)}},
         {'tool': 'search', 'arguments': {'query': 'fixture'}}, final])
     factory = trusted(tmp_path, backend, tools)
-    s = make(tmp_path, worker_factory=factory).start()
+    # This test qualifies the real broker/observer/skill-selection path. The
+    # host's Bubblewrap cannot create its network namespace here
+    # (NETLINK_ROUTE: Operation not permitted), so use a strict, read-only
+    # direct-cat executor while retaining the runner's root check and broker
+    # packetization. Bubblewrap isolation remains a separate host-qualified
+    # boundary and is not claimed by this fixture.
+    runtime = factory.load_runtime_module()
+    def fixture_direct_cat(runner, argv, cwd, timeout_seconds=10, max_output_bytes=8192,
+                           *, guard=None, deadline_epoch=None):
+        if (not isinstance(argv, list) or len(argv) != 2 or argv[0] != 'cat'
+                or not isinstance(argv[1], str)):
+            raise ValueError('fixture command accepts direct cat only')
+        working = Path(cwd).resolve(strict=True)
+        path = Path(argv[1]).resolve(strict=True)
+        if not runner.allows(working) or not runner.allows(path) or not path.is_file():
+            return runner._packet({'status': 'denied', 'exit_code': None, 'stdout': '',
+                'stderr': '', 'truncated': False, 'timed_out': False,
+                'reason': 'fixture_path_outside_allowed_roots'}, guard)
+        raw = path.read_bytes()
+        truncated = len(raw) > max_output_bytes
+        output = raw[:max_output_bytes].decode('utf-8', errors='strict')
+        payload = {'status': 'completed', 'exit_code': 0, 'stdout': output,
+            'stderr': '', 'truncated': truncated, 'timed_out': False,
+            'duration_seconds': 0.0, 'cwd': str(working),
+            'scope': {'roots': [str(root) for root in runner.roots],
+                      'external': False, 'provenance': 'fixture_direct_cat'}}
+        if not truncated:
+            payload['source_reads'] = [{'path': str(path),
+                'content_sha256': hashlib.sha256(raw).hexdigest(),
+                'line_count': len(output.splitlines()), 'method': 'direct_cat'}]
+        return runner._packet(payload, guard)
+    monkeypatch.setattr(runtime.ReadOnlyCommandRunner, 'run', fixture_direct_cat)
+    project_root = tmp_path/'project-repo'; project_root.mkdir()
+    from project_control.as1_jobs import source_locator_for_registered_roots
+    s = make(tmp_path, worker_factory=factory,
+        source_locator_provider=lambda job, path, digest:
+            source_locator_for_registered_roots(path, digest, [
+                    ('skills', str(tmp_path), str(tmp_path)),
+                    ('pc', 'repo', str(project_root)),
+                ])).start()
     try:
-        scope = {k: v for k, v in SCOPE.items() if k != 'project'}
+        scope = dict(SCOPE)
         a = s.submit(question='select useful instruction', access_scope=scope, mode='skill', skill='fixture')
         value = wait(lambda: (v if (v := s.lookup(a['job_id'], access_scope=scope))['job']['status'] in {'completed','partial'} else None))
-        assert value['job']['status'] == 'completed', value
+        assert value['job']['status'] == 'completed', repr(value['observations'][0].get('stderr'))
+        # Public MCP inquiry reconciles the cross-store outbox before reading
+        # its answer packet; mirror that ordering instead of racing the commit.
+        s.reconcile()
+        answer_packet = s.packets.lookup(value['job']['result_packet'], access_scope=scope)
+        assert answer_packet.status == 'ok', {
+            'result_packet': value['job']['result_packet'],
+            'job_scope': value['job']['scope'], 'lookup': answer_packet.status}
+        assert {(source.project, source.repository, source.path)
+                for source in answer_packet.packet.sources} == {
+                    ('skills', str(tmp_path.resolve()), 'fixture/SKILL.md'),
+                    ('skills', str(tmp_path.resolve()), 'fixture/maps.md'),
+                }
         assert calls == [('search', scope)]
         context = json.loads(backend.requests[0]['messages'][1]['content'])
         assert set(context) == {'question', 'scope', 'hints', 'skill', 'progress', 'instruction',
@@ -383,11 +464,127 @@ def test_actual_port_shared_tools_no_injection_and_agentic_registered_skill(tmp_
         assert not any(message['role'] == 'assistant' for message in backend.requests[0]['messages'])
         assert not calls or 'overview' not in [c[0] for c in calls]
         assert SHARED_TOOLS == {'overview','delta','frontier','search','evidence','impact','history','machine'}
-        assert value['job']['project'] is None
+        assert value['job']['project'] == 'pc'
     finally:
         s.shutdown()
     with pytest.raises(ValueError, match='receipt mismatch'):
         TrustedObserverFactory(RUNTIME_ROOT, '0'*64, backend=backend, roots=[tmp_path], tools=tools)
+
+
+def test_answer_packet_promotes_verified_command_reads_and_stales_when_file_changes(tmp_path):
+    from project_control.as1_surface import InquiryFreshness
+    from project_control.as1_contracts import InformationPacket
+
+    skills_root = tmp_path/'skills'
+    source = skills_root/'fixture'/'resource.md'
+    source.parent.mkdir(parents=True)
+    content = 'Exact source text\n'
+    source.write_text(content)
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    project_root = tmp_path/'project-repo'; project_root.mkdir()
+    from project_control.as1_jobs import source_locator_for_registered_roots
+    service = make(tmp_path/'broker', source_locator_provider=lambda job, path, digest:
+        source_locator_for_registered_roots(path, digest, [
+            ('skills', str(skills_root), str(skills_root)),
+            ('pc', 'repo', str(project_root)),
+        ]))
+    job = SimpleNamespace(job_id='job_source_proof_fixture', scope=SCOPE,
+        mode='investigate', refresh_context=None)
+    project_source = project_root/'src'/'module.py'
+    project_source.parent.mkdir()
+    project_source.write_text('project-owned source\n')
+    project_digest = hashlib.sha256(project_source.read_bytes()).hexdigest()
+    project_locator = service.source_locator_provider(job, project_source.resolve(), project_digest)
+    assert project_locator.model_dump(exclude_none=True) == {
+        'project': 'pc', 'repository': 'repo', 'path': 'src/module.py',
+        'content_sha256': project_digest}
+    command_payload = {'status': 'completed', 'exit_code': 0, 'truncated': False,
+        'timed_out': False, 'stdout': content,
+        'source_reads': [{'method': 'direct_cat', 'path': str(source),
+                          'content_sha256': digest}]}
+    with service._db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        command_id, _ = service._packet(db, job, command_payload, 'command')
+        answer_id, _ = service._packet(db, job, {'answer': 'The source says this.',
+            'findings': [{'text': 'The source says this.', 'evidence_packets': [command_id]}]},
+            'investigate', parents=[command_id])
+        command = json.loads(db.execute('SELECT packet FROM outbox WHERE id=?',
+            (command_id,)).fetchone()['packet'])
+        answer = json.loads(db.execute('SELECT packet FROM outbox WHERE id=?',
+            (answer_id,)).fetchone()['packet'])
+    service.packets.put(InformationPacket.model_validate(command))
+    service.packets.put(InformationPacket.model_validate(answer))
+    service.packets.pin(job.job_id, [command_id, answer_id])
+    result = service.packets.lookup(answer_id, access_scope=SCOPE)
+    assert result.status == 'ok'
+    assert [source.model_dump(exclude_none=True) for source in result.packet.sources] == [{
+        'project': 'skills', 'repository': str(skills_root.resolve()),
+        'path': 'fixture/resource.md', 'content_sha256': digest,
+    }]
+    assert result.packet.freshness['dependencies'] == {
+        f'file:{skills_root.resolve()}/fixture/resource.md': digest}
+
+    composition = SimpleNamespace(store=service.packets,
+        skills=SimpleNamespace(root=skills_root),
+        host=SimpleNamespace(projects=frozenset()),
+        control=SimpleNamespace(), information=SimpleNamespace(), jobs=service)
+    freshness = InquiryFreshness(composition)
+    inquiry = {'scope': SCOPE, 'mode': 'investigate', 'hints': [],
+        'evidence_packets': [command_id],
+        'findings': [{'text': 'The source says this.', 'evidence_packets': [command_id]}],
+        'result_packet': answer_id}
+    assert freshness(inquiry)['fresh']
+    source.write_text('Changed source text\n')
+    stale = freshness(inquiry)
+    assert not stale['fresh']
+    assert {'path': str(source), 'reason': 'changed'} in stale['changed_sources']
+
+
+def test_registered_source_root_ambiguity_is_not_guessed(tmp_path):
+    from project_control.as1_jobs import source_locator_for_registered_roots
+
+    outer = tmp_path/'repository'; skills = outer/'skills'
+    skills.mkdir(parents=True)
+    source = skills/'guide.md'; source.write_text('source\n')
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    # The path is contained by both roots. Neither scope nor prefix depth
+    # determines which registered identity owns it.
+    assert source_locator_for_registered_roots(source.resolve(), digest, [
+        ('skills', str(skills), str(skills)),
+        ('pc', 'repo', str(outer)),
+    ]) is None
+    assert source_locator_for_registered_roots(source.resolve(), digest, [
+        ('pc', 'repo-a', str(skills)),
+        ('pc', 'repo-b', str(skills)),
+    ]) is None
+
+
+def test_answer_packet_does_not_promote_truncated_or_unrecognized_command_reads(tmp_path):
+    from project_control.as1_contracts import InformationPacket
+
+    source = tmp_path/'resource.md'
+    source.write_text('Exact source text\n')
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    service = make(tmp_path/'broker')
+    job = SimpleNamespace(job_id='job_unverified_source_fixture', scope=SCOPE,
+        mode='investigate', refresh_context=None)
+    with service._db() as db:
+        db.execute('BEGIN IMMEDIATE')
+        truncated_id, _ = service._packet(db, job, {
+            'status': 'completed', 'exit_code': 0, 'truncated': True,
+            'source_reads': [{'method': 'direct_cat', 'path': str(source),
+                              'content_sha256': digest}]}, 'command')
+        unknown_id, _ = service._packet(db, job, {
+            'status': 'completed', 'exit_code': 0, 'truncated': False,
+            'source_reads': [{'method': 'unknown', 'path': str(source),
+                              'content_sha256': digest}]}, 'command')
+        answer_id, _ = service._packet(db, job, {'answer': 'No trusted source.'},
+            'investigate', parents=[truncated_id, unknown_id])
+        answer = json.loads(db.execute('SELECT packet FROM outbox WHERE id=?',
+            (answer_id,)).fetchone()['packet'])
+    packet = InformationPacket.model_validate(answer)
+    assert packet.sources == []
+    assert packet.freshness == {'volatile': True, 'max_age_seconds': 0}
 
 
 @pytest.mark.as1_case('JOB-07')

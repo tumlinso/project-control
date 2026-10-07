@@ -60,6 +60,7 @@ def status(expected: RuntimePin) -> dict:
 class DemandRuntimeTests(unittest.TestCase):
     def runtime(self, *, provider=None, pin_factory=None, release_veto=None,
                 release_request=None, systemctl=None, process_matches=None,
+                owned_resource_status=None,
                 state_reader=None, admission_guard_factory=None,
                 clock=time.time, sleeper=time.sleep):
         selected = pin()
@@ -71,6 +72,9 @@ class DemandRuntimeTests(unittest.TestCase):
                                             "ActiveState": "active", "SubState": "running", "MainPID": "123"}),
             release_veto=release_veto or (lambda: False),
             release_request=release_request or (lambda: {"release_veto_active": True}),
+            owned_resource_status=owned_resource_status or (lambda: {
+                "status": "no_owned_resources", "current_sessions": 0,
+                "release_pending": False}),
             admission_guard_factory=admission_guard_factory or (lambda deadline: nullcontext()),
             process_matches=process_matches or (lambda pid, selected_pin: True),
             clock=clock,
@@ -663,6 +667,75 @@ class DemandRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(DemandRuntimeError, "assistance_release_veto_active"):
             runtime.ensure_ready(provider=Mock(), deadline_epoch=time.time() + 10)
         self.assertEqual(systemctl.call_args.args[0], "stop")
+
+    def test_stop_is_idempotent_when_fresh_service_and_resource_censuses_are_empty(self):
+        systemctl = Mock()
+        coordinated = []
+        runtime = self.runtime(systemctl=systemctl,
+            state_reader=lambda **_: {"status": "ok", "LoadState": "loaded",
+                "ActiveState": "inactive", "SubState": "dead", "MainPID": "0"},
+            release_request=lambda: {"release_veto_active": True, "physical_state": "pending"},
+            owned_resource_status=lambda: {"status": "no_owned_resources",
+                "session_count": 3, "current_sessions": 0, "release_pending": False,
+                "states": {"released_verified": 2, "superseded": 1}})
+        def coordinate():
+            coordinated.append(True)
+            return {"active_work_cancelled": True, "owned_resources_released": True}
+
+        first = runtime.stop(coordinate_stop=coordinate)
+        second = runtime.stop(coordinate_stop=coordinate)
+
+        self.assertEqual(first["status"], "already_stopped_no_owned_resources")
+        self.assertEqual(second["status"], "already_stopped_no_owned_resources")
+        self.assertEqual(first["physical_state"], "pending")
+        self.assertEqual(len(coordinated), 2)
+        self.assertNotIn("stop_status", runtime.status())
+        systemctl.assert_not_called()
+
+    def test_inactive_service_and_empty_resource_table_still_require_work_coordination(self):
+        systemctl = Mock()
+        runtime = self.runtime(systemctl=systemctl,
+            state_reader=lambda **_: {"status": "ok", "LoadState": "loaded",
+                "ActiveState": "inactive", "SubState": "dead", "MainPID": "0"},
+            release_request=lambda: {"release_veto_active": True, "physical_state": "pending"},
+            owned_resource_status=lambda: {"status": "no_owned_resources",
+                "session_count": 0, "current_sessions": 0, "release_pending": False})
+
+        without_coordinator = runtime.stop()
+        coordinator_calls = []
+        def coordinate_queued_work():
+            coordinator_calls.append("cancel-check")
+            return {"active_work_cancelled": False, "owned_resources_released": True,
+                    "active_jobs": 1, "execution_slots": 0}
+        with_queued_work = runtime.stop(coordinate_stop=coordinate_queued_work)
+
+        self.assertEqual(without_coordinator["status"], "needs_coordination")
+        self.assertEqual(with_queued_work["status"], "not_stopped")
+        self.assertEqual(coordinator_calls, ["cancel-check"])
+        systemctl.assert_not_called()
+
+    def test_stop_does_not_treat_unknown_or_stale_ownership_as_empty(self):
+        systemctl = Mock()
+        states = iter([
+            {"status": "ok", "LoadState": "loaded", "ActiveState": "inactive",
+             "SubState": "dead", "MainPID": "0"},
+            {"status": "ok", "LoadState": "loaded", "ActiveState": "inactive",
+             "SubState": "dead", "MainPID": "0"},
+        ])
+        ownership = {"status": "pending", "session_count": 1,
+                     "current_sessions": 1, "release_pending": True,
+                     "states": {"stale": 1}}
+        runtime = self.runtime(systemctl=systemctl,
+            state_reader=lambda **_: next(states),
+            release_request=lambda: {"release_veto_active": True},
+            owned_resource_status=lambda: ownership)
+
+        result = runtime.stop(coordinate_stop=lambda: {
+            "active_work_cancelled": True, "owned_resources_released": True})
+
+        self.assertEqual(result["status"], "not_stopped")
+        self.assertEqual(result["reason"], "owned_resource_census_unsettled")
+        systemctl.assert_not_called()
 
 
 if __name__ == "__main__":

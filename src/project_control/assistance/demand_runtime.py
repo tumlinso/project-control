@@ -200,6 +200,14 @@ def _power_release_veto() -> bool:
     return bool(AssistanceOperator().status().get("power", {}).get("release_veto_active"))
 
 
+def _owned_resource_status() -> Mapping[str, Any]:
+    """Read the broker's durable ownership census without starting inference."""
+    from .operator import AssistanceOperator
+
+    return AssistanceOperator().status().get("owned_resources", {
+        "status": "not_observed", "current_sessions": None, "release_pending": None})
+
+
 def _request_release_veto() -> Mapping[str, Any]:
     """Persist the explicit stop veto before cancelling or stopping anything."""
     from .operator import AssistanceOperator
@@ -345,6 +353,7 @@ class DemandRuntime:
                  state_reader: Callable[..., dict[str, str]] = _systemd_state,
                  release_veto: Callable[[], bool] = _power_release_veto,
                  release_request: Callable[[], Mapping[str, Any]] = _request_release_veto,
+                 owned_resource_status: Callable[[], Mapping[str, Any]] = _owned_resource_status,
                  admission_guard_factory: Callable[[float], Any] = _admission_guard,
                  process_matches: Callable[[int, RuntimePin], bool] = _process_release_matches,
                  clock: Callable[[], float] = time.time,
@@ -355,6 +364,7 @@ class DemandRuntime:
         self._state_reader = state_reader
         self._release_veto = release_veto
         self._release_request = release_request
+        self._owned_resource_status = owned_resource_status
         self._admission_guard_factory = admission_guard_factory
         self._process_matches = process_matches
         self._clock = clock
@@ -367,13 +377,24 @@ class DemandRuntime:
             veto = self._release_veto()
         except Exception:
             veto = None
+        try:
+            owned_resources = self._owned_resource_status()
+            if not isinstance(owned_resources, Mapping):
+                owned_resources = {"status": "not_observed", "current_sessions": None,
+                                   "release_pending": None}
+            else:
+                owned_resources = dict(owned_resources)
+        except Exception:
+            owned_resources = {"status": "not_observed", "current_sessions": None,
+                               "release_pending": None}
         result: dict[str, Any] = {"status": state.get("status", "unavailable"),
                                   "service": INFERENCE_SERVICE,
                                   "active_state": state.get("ActiveState"),
                                   "sub_state": state.get("SubState"),
                                   "main_pid": _int_or_none(state.get("MainPID")),
                                   "release_veto_active": veto,
-                                  "readiness": "inactive"}
+                                  "readiness": "inactive",
+                                  "owned_resources": owned_resources}
         if veto is True:
             result["next_action"] = ("project-control assistance stop" if result["active_state"] == "active"
                                       else "project-control assistance resume --release")
@@ -554,19 +575,53 @@ class DemandRuntime:
                     "release_veto_active": False}
         next_action = "project-control assistance resume --release"
         if coordinate_stop is None:
+            owned_resources = self._read_owned_resources()
             return {"status": "needs_coordination", "reason": "cancel_and_release_owned_work_first",
-                    "release_veto_active": True, "next_action": next_action}
+                    "release_veto_active": True, "owned_resources": owned_resources,
+                    "next_action": next_action}
+        owned_resources = self._read_owned_resources()
         proof = coordinate_stop()
         if (not isinstance(proof, Mapping) or proof.get("active_work_cancelled") is not True
                 or proof.get("owned_resources_released") is not True):
             return {"status": "not_stopped", "reason": "owned_work_not_quiescent",
-                    "release_veto_active": True, "next_action": next_action}
+                    "release_veto_active": True, "owned_resources": owned_resources,
+                    "next_action": next_action}
+        # Re-census after coordination. Caller booleans cannot override an
+        # unknown or still-pending durable ownership record.
+        service_state = self._state_reader()
+        owned_resources = self._read_owned_resources()
+        if self._already_stopped_without_owned_resources(service_state, owned_resources):
+            return {"status": "already_stopped_no_owned_resources",
+                    "service": INFERENCE_SERVICE, "release_veto_active": True,
+                    "physical_state": release.get("physical_state", "pending"),
+                    "owned_resources": owned_resources,
+                    "next_action": next_action}
+        if owned_resources.get("release_pending") is not False:
+            return {"status": "not_stopped", "reason": "owned_resource_census_unsettled",
+                    "release_veto_active": True, "owned_resources": owned_resources,
+                    "next_action": next_action}
         result = self._systemctl("stop", timeout=min(30.0, max(0.1, timeout)))
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()[:300]
             raise DemandRuntimeError("inference_service_stop_failed" + (f": {detail}" if detail else ""))
         return {"status": "stopped", "service": INFERENCE_SERVICE,
                 "release_veto_active": True, "next_action": next_action}
+
+    def _read_owned_resources(self) -> dict[str, Any]:
+        try:
+            value = self._owned_resource_status()
+        except Exception:
+            value = None
+        return dict(value) if isinstance(value, Mapping) else {
+            "status": "not_observed", "current_sessions": None, "release_pending": None}
+
+    @staticmethod
+    def _already_stopped_without_owned_resources(service_state: Mapping[str, Any],
+                                                  owned_resources: Mapping[str, Any]) -> bool:
+        return (service_state.get("status") == "ok"
+                and service_state.get("ActiveState") == "inactive"
+                and owned_resources.get("release_pending") is False
+                and owned_resources.get("current_sessions") == 0)
 
 
 def _int_or_none(value: object) -> int | None:

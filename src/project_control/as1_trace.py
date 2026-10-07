@@ -448,6 +448,69 @@ class TraceService:
                             origin='project_declared', witness={'basis': e['basis'], 'revision': snapshot.todo_revision}) for e in graph.edges]
         return ProviderFragment('todo/1', generation, inputs, edges, list(nodes.values()), tuple(sorted({e['relation'] for e in edges})), True, 'current', ['workflow_declarations_do_not_prove_source_calls'])
 
+    def _task_impact_state(self, project: str) -> dict:
+        """Build a bounded Todo-only graph for exact task-impact requests.
+
+        Task dependency traversal needs the selected project's Todo snapshot.
+        Running the full source graph builder here needlessly enumerated every
+        permitted repository and parsed every supported source file before
+        returning those same Todo edges. The omitted source and cross-project
+        relationships are explicit so this fast path never claims full coverage.
+        """
+        snapshot = self.snapshots(project)
+        workspace = self.registry.workspace(project)
+        alias = workspace.authority_repository or sorted(workspace.repositories)[0]
+        root = self.registry.repository(project, alias).root
+        git = GitReadAdapter(root)
+        repository = alias + '@' + digest(str(git.common_dir()))[:24]
+        obs = {
+            'project': project,
+            'project_uuid': snapshot.project_uuid,
+            'repository': repository,
+            'alias': alias,
+            'root': root,
+            'git': git,
+            'deny': [*DEFAULT_DENY_PATTERNS, *workspace.deny_patterns],
+            'membership': (),
+            'fragments': {},
+            'freshness': 'current',
+            'semantic_revision': snapshot.todo_revision,
+            'observed_at': snapshot.observed_at,
+        }
+        fragment = self._todo(obs, snapshot)
+        nodes = {node_key(node): node for node in fragment.nodes}
+        edges = {edge_key(edge): edge for edge in fragment.edges}
+        provider = {
+            'project': project,
+            'project_uuid': snapshot.project_uuid,
+            'repository': repository,
+            'provider': fragment.provider,
+            'generation': fragment.generation,
+            'relations': list(fragment.relations),
+            'complete': fragment.complete,
+            'freshness': fragment.freshness,
+            'input_manifest': fragment.inputs,
+            'gaps': fragment.gaps,
+        }
+        return {
+            'generation': digest({'project_uuid': snapshot.project_uuid,
+                                  'todo_revision': snapshot.todo_revision,
+                                  'nodes': nodes, 'edges': edges,
+                                  'coverage': [provider]}),
+            'nodes': nodes,
+            'edges': edges,
+            'providers': [provider],
+            'unknown': [
+                {'project': project, 'reason': 'task_impact_source_relationships_not_observed'},
+                {'project': project, 'reason': 'task_impact_cross_project_declarations_not_observed'},
+            ],
+            'repositories': [{'project': project, 'project_uuid': snapshot.project_uuid,
+                              'repository': repository, 'observed_at': snapshot.observed_at,
+                              'todo_revision': snapshot.todo_revision,
+                              'source_observation': 'not_performed'}],
+            '_lookup': {(snapshot.project_uuid, repository): obs},
+        }
+
     def _declarations(self, observations, unknown):
         """Consume canonical Service.project_context declarations, never SQLite."""
         if self.semantic is None:
@@ -642,7 +705,17 @@ class TraceService:
         if max_payload_bytes is not None and (not isinstance(max_payload_bytes, int) or max_payload_bytes < 1024):
             raise ValueError('invalid_payload_budget')
         with self._lock:
-            state = self._build(project, watcher_lost)
+            exact_task_targets = (
+                not self.providers and not watcher_lost and not since and not cursor and not query
+                and isinstance(targets, list)
+                and all(isinstance(target, dict)
+                        and target.get('kind') == 'task'
+                        and isinstance(target.get('id'), str)
+                        and target.get('project', project) == project
+                        and set(target) <= {'project', 'repository', 'kind', 'id'}
+                        for target in targets)
+            )
+            state = self._task_impact_state(project) if exact_task_targets else self._build(project, watcher_lost)
             result = self._trace(state, project, targets, mode, change_class, max_nodes, max_edges, time_budget_ms, since, cursor, query)
             return self._bound_result(result, max_payload_bytes) if max_payload_bytes is not None else result
 

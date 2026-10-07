@@ -1,5 +1,37 @@
 # Project Control assistance qualification
 
+## Current PA1 delivery: server and advisory assistance
+
+The operator revised PA1 on 2026-10-07. Delivery requires usable source-mode
+HTTP/stdio coordination, project information, ordinary bundled-Todo workflow,
+authorized mutation/rescue, grounded project and skill consultation, and
+demand-driven inference startup/status/owner-proven stop. LAB is entirely
+deferred, including its repairs and qualification. Preserve its implementation,
+tasks, sessions, receipts, and evidence. Do not require a CPU LAB journey to
+finish this delivery.
+
+CUDA lifecycle experiments, broad cancellation/crash campaigns, performance
+and model-quality studies, full A01–A40 acceptance, and frozen-release
+qualification are deferred follow-up obligations. Historical receipts retain
+their original meaning; completion of the revised bootstrap does not establish
+that the original full PA1 contract passed.
+
+The finite model-free public-surface check uses actual HTTP and fresh stdio:
+
+```sh
+scripts/pc-dev python scripts/verify_pa1_bootstrap.py \
+  --project project-control --output /tmp/pa1-public-surface.json --timeout 60
+```
+
+It records initialization, current tool schemas, and registered-project reads.
+Inspect partial/error results rather than equating transport success with a
+useful answer. Model-backed consultation is separate and must verify cited
+source/content identities. Exercise workflow lifecycle and authorized
+mutation/rescue against temporary state, not production tasks used as fixtures.
+After fixing a required case, retry that case; do not expand the delivery into
+unrelated workloads. Keep passing core operations available while reporting
+independent failures.
+
 This is the current checkout-first guide for testing the assistance work. It
 supersedes the executable recipes in the R10-era
 [testing handoff](testing-handoff.md),
@@ -24,9 +56,8 @@ running Project Control service, task assignment, inference, or GPU.
 ```sh
 scripts/pc-dev setup
 scripts/pc-dev test -q
-scripts/pc-dev test tests/assistance/test_broker_close_persistence.py \
-  tests/assistance/test_execution_cleanup_recovery.py \
-  tests/assistance/test_lab_snapshot.py
+scripts/pc-dev test tests/assistance/test_owned_release.py \
+  tests/assistance/test_demand_runtime.py
 scripts/pc-dev test tests --collect-only -q
 ```
 
@@ -43,7 +74,7 @@ identity from current files. A code edit needs a new process; it does not need a
 wheel build, frozen candidate, or receiver-manifest refresh. Optional domain
 content is independent of executable identity.
 
-## Inert qualification commands
+## Additional qualification helpers (not delivery prerequisites)
 
 The qualification helpers support explicit `source` and `release` identity.
 Release is the default and retains strict digest-pinned manifest, package,
@@ -71,6 +102,9 @@ starting a service or making an assistance request. The second prints the LAB
 plan; dry-run is its default. Inspect the printed `runtime_provenance` and
 confirm both package paths resolve under this checkout before proceeding.
 Neither command is live model, source-access, or LAB-effect evidence.
+
+The scoped LAB helper above is retained for future authorized work and is not
+part of the revised PA1 delivery. Do not execute it in this delivery.
 
 To inspect the current helper interface, use `--help` through the same source
 launcher. Do not omit `--runtime source` when the purpose is checkout

@@ -70,6 +70,22 @@ def test_catalog_orientation_packet_sources(world):
     assert any('unavailable' in x['reason'] for x in result['coverage']['omissions'])
 
 
+@pytest.mark.as1_case('CTX-01')
+def test_overview_detail_selects_workflow_budget(world):
+    service = world[3]
+    world[1].todo_workflow['active_run_id'] = 'R1'
+    compact = service.call('overview', project='demo', detail='compact')
+    standard = service.call('overview', project='demo', detail='standard')
+    extended = service.call('overview', project='demo', detail='extended')
+
+    compact_workflow = compact['data']['work']['workflow']
+    assert 'active_run' not in compact_workflow
+    for result in (standard, extended):
+        workflow = result['data']['work']['workflow']
+        assert workflow['active_run']['id'] == 'R1'
+        assert 'lanes' in workflow['active_run']
+
+
 @pytest.mark.as1_case('CTX-02')
 def test_delta_material_and_missing_baselines(world):
     result = full(world, 'delta', since={'todo_revision': 8, 'commits': {'source': world[1].repositories['source'].commit}})

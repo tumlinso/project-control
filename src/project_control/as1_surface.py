@@ -15,7 +15,8 @@ from .as1_context import ContextHost, InformationService
 from .as1_contracts import (ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAIL,
                             SourceLocator, canonical_digest, relative_path)
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
-from .as1_jobs import JobService, TrustedObserverFactory, InvalidToolArguments, ObserverLogArguments
+from .as1_jobs import (JobService, TrustedObserverFactory, InvalidToolArguments,
+                       ObserverLogArguments, source_locator_for_registered_roots)
 from .as1_packets import SQLitePacketStore
 from .as1_skill import (SkillService, SkillObserverFactory, _verified_reads,
                         _entry_precedes_resource, registered_skill_roots)
@@ -616,6 +617,16 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
         for project in sorted(c.host.projects)
         for alias, repository in sorted(config.workspaces[project].repositories.items()))
     installed_skill_roots = (str(root),)
+    def source_locator(job, source_path, digest):
+        # Skill jobs mount only registered content. Project investigations also
+        # mount that content root plus repositories for their explicit project.
+        # A path matching multiple roots is intentionally left unresolved.
+        registered_roots = [('skills', str(root), str(root))]
+        project = job.scope.get('project')
+        if job.mode != 'skill' and project in c.host.projects:
+            registered_roots.extend((project, alias, str(repository.root))
+                for alias, repository in config.workspaces[project].repositories.items())
+        return source_locator_for_registered_roots(source_path, digest, registered_roots)
     def inquiry_context(job):
         scope = job.scope
         project = scope.get('project')
@@ -799,7 +810,8 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                         packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,
                         inquiry_context_provider=inquiry_context,
                         analysis_runtime_identity=analysis_runtime_identity,
-                        skill_catalog_identity_provider=skill_catalog_identity)
+                        skill_catalog_identity_provider=skill_catalog_identity,
+                        source_locator_provider=source_locator)
     def ensure_explicit_demand_runtime(*, deadline_epoch=None):
         # Imported lazily so cold composition and model-free requests never
         # inspect or start the inference unit.

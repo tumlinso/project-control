@@ -33,8 +33,21 @@ def load_plan(path: str | Path) -> dict[str, Any]:
     return data
 
 
-def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[str, object]:
+def validate_plan(
+    data: dict[str, Any],
+    repo_root: Path | None = None,
+    *,
+    known_references: dict[str, set[str]] | None = None,
+) -> dict[str, object]:
+    """Validate a plan, optionally resolving refs against current authority.
+
+    Public standalone validation stays self-contained and strict. Incremental
+    diff/apply paths pass references loaded from the authoritative database so
+    preserved contracts can point to definitions outside the supplied fragment.
+    """
+
     errors: list[str] = []
+    known_references = known_references or {}
 
     def validate_path(value: object, label: str, *, allow_root: bool = False) -> None:
         try:
@@ -81,6 +94,12 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
     if duplicates:
         errors.append(f"duplicate task IDs: {duplicates}")
     task_ids = set(ids)
+    known_task_ids = task_ids | known_references.get("tasks", set())
+    for task in tasks:
+        if not isinstance(task, dict) or not task.get("parent_id"):
+            continue
+        if str(task["parent_id"]) not in known_task_ids:
+            errors.append(f"task {task.get('id', '?')} has unknown parent {task['parent_id']}")
     interfaces = data.get("interfaces", []) if isinstance(data.get("interfaces", []), list) else []
     barriers = data.get("barriers", []) if isinstance(data.get("barriers", []), list) else []
     decisions = data.get("decisions", []) if isinstance(data.get("decisions", []), list) else []
@@ -110,7 +129,7 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
         if run_id in run_ids:
             errors.append(f"duplicate run ID: {run_id}")
         run_ids.add(run_id)
-        if run.get("root_task_id") and run["root_task_id"] not in task_ids:
+        if run.get("root_task_id") and run["root_task_id"] not in (task_ids | known_references.get("tasks", set())):
             errors.append(f"run {run_id} has unknown root task {run.get('root_task_id')}")
         local_lanes: set[str] = set()
         for lane in run.get("lanes", []):
@@ -127,10 +146,10 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
             workspace = lane.get("workspace", {})
             if workspace and workspace.get("mode", "exclusive") not in {"exclusive", "read_shared", "isolated_merge", "contract_split"}:
                 errors.append(f"lane {lane_id} has unsupported workspace mode")
-            if workspace.get("integration_task_id") and workspace["integration_task_id"] not in task_ids:
+            if workspace.get("integration_task_id") and workspace["integration_task_id"] not in (task_ids | known_references.get("tasks", set())):
                 errors.append(f"lane {lane_id} has unknown integration task")
             for task in lane.get("tasks", []):
-                if task not in task_ids:
+                if task not in (task_ids | known_references.get("tasks", set())):
                     errors.append(f"lane {lane_id} has unknown task {task}")
                 key = (run_id, str(task))
                 if key in assigned_tasks:
@@ -147,7 +166,12 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
             if isinstance(lane, dict) and lane.get("parent_lane_id") and lane["parent_lane_id"] not in local_lanes:
                 errors.append(f"lane {lane.get('id')} has unknown parent {lane.get('parent_lane_id')}")
         for rendezvous in run.get("rendezvous", []):
-            if rendezvous.get("join_task_id") not in task_ids or rendezvous.get("barrier_id") not in barrier_ids:
+            known_rendezvous_tasks = task_ids | known_references.get("tasks", set())
+            known_rendezvous_barriers = set(barrier_ids) | known_references.get("barriers", set())
+            if (
+                rendezvous.get("join_task_id") not in known_rendezvous_tasks
+                or rendezvous.get("barrier_id") not in known_rendezvous_barriers
+            ):
                 errors.append(f"run {run_id} rendezvous {rendezvous.get('id')} has unknown join task or barrier")
             participants = set(rendezvous.get("participants", []))
             if not participants or not participants <= local_lanes:
@@ -162,17 +186,23 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
         if repeated:
             errors.append(f"duplicate {label} IDs: {repeated}")
 
-    known_checkpoints, known_interfaces = set(checkpoint_ids), set(interface_ids)
-    known_barriers, known_decisions = set(barrier_ids), set(decision_ids)
-    known_invariants, known_locks = set(invariant_ids), set(lock_names)
-    known_resource_classes, known_resource_instances = set(resource_class_ids), set(resource_instance_ids)
+    known_checkpoints = set(checkpoint_ids) | known_references.get("checkpoints", set())
+    known_interfaces = set(interface_ids) | known_references.get("interfaces", set())
+    known_barriers = set(barrier_ids) | known_references.get("barriers", set())
+    known_decisions = set(decision_ids) | known_references.get("decisions", set())
+    known_invariants = set(invariant_ids) | known_references.get("invariants", set())
+    known_locks = set(lock_names) | known_references.get("locks", set())
+    known_resource_classes = set(resource_class_ids) | known_references.get("resource_classes", set())
+    known_resource_instances = set(resource_instance_ids) | known_references.get("resource_instances", set())
+    known_tasks = task_ids | known_references.get("tasks", set())
+    known_gates = set(gate_ids) | known_references.get("gates", set())
 
     def selector_known(selector: object) -> bool:
         value = str(selector)
         return (value.endswith(":any") and value[:-4] in known_resource_classes) or value in known_resource_instances
 
     for interface in interfaces:
-        if not isinstance(interface, dict) or not interface.get("id") or interface.get("owner_task_id") not in task_ids:
+        if not isinstance(interface, dict) or not interface.get("id") or interface.get("owner_task_id") not in known_tasks:
             errors.append(f"interface {interface.get('id') if isinstance(interface, dict) else '?'} requires a known owner_task_id")
         if isinstance(interface, dict):
             for value in interface.get("contract_paths", []):
@@ -191,7 +221,7 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
         for dependency in task.get("depends_on", []):
             kind = dependency.get("type")
             reference = {
-                "task": (dependency.get("task_id"), task_ids),
+                "task": (dependency.get("task_id"), known_tasks),
                 "checkpoint": (dependency.get("checkpoint_id"), known_checkpoints),
                 "interface": (dependency.get("interface_id"), known_interfaces),
                 "barrier": (dependency.get("barrier_id"), known_barriers),
@@ -218,7 +248,7 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
             if artifact.get("path"):
                 validate_path(artifact["path"], f"task {task_id} artifact")
     valid_requirement_types = {"task", "validation_task", "checkpoint", "interface", "gate"}
-    requirement_sets = {"task": task_ids, "validation_task": task_ids, "checkpoint": known_checkpoints, "interface": known_interfaces, "gate": set(gate_ids)}
+    requirement_sets = {"task": known_tasks, "validation_task": known_tasks, "checkpoint": known_checkpoints, "interface": known_interfaces, "gate": known_gates}
     for barrier in barriers:
         if not isinstance(barrier, dict) or not barrier.get("id"):
             errors.append("barriers require an id")
@@ -236,7 +266,20 @@ def validate_plan(data: dict[str, Any], repo_root: Path | None = None) -> dict[s
                 errors.append(f"barrier {barrier['id']} has unknown {kind} requirement {entity_id}")
     if not errors:
         try:
-            validate_acyclic(tasks)
+            # Check cycles among supplied tasks here. The complete effective
+            # database graph is checked after transactional upsert below.
+            graph_tasks = []
+            for task in tasks:
+                graph_task = dict(task)
+                parent = graph_task.get("parent_id")
+                if parent and str(parent) not in task_ids:
+                    graph_task["parent_id"] = None
+                graph_task["depends_on"] = [
+                    dependency for dependency in graph_task.get("depends_on", [])
+                    if dependency.get("type") != "task" or dependency.get("task_id") in task_ids
+                ]
+                graph_tasks.append(graph_task)
+            validate_acyclic(graph_tasks)
         except TodoError as exc:
             errors.append(exc.message)
     if errors:
@@ -260,7 +303,7 @@ def _task_order(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         task_id = pending.popleft()
         task = by_id[task_id]
         parent = task.get("parent_id")
-        if parent and str(parent) not in inserted:
+        if parent and str(parent) in by_id and str(parent) not in inserted:
             pending.append(task_id)
             continue
         ordered.append(task)
@@ -274,8 +317,8 @@ def _clear_task_details(conn: sqlite3.Connection, task_id: str) -> None:
 
 
 def apply_plan(conn: sqlite3.Connection, data: dict[str, Any], repo_root: Path, revision: int, *, _comparison=False) -> dict[str, object]:
-    validate_plan(data, repo_root)
     data = _preserve_omitted_task_fields(conn, data)
+    validate_plan(data, repo_root, known_references=_existing_reference_ids(conn))
     if not _comparison and not _plan_changes(conn, data, repo_root, revision):
         return Unchanged({"status": "noop", "tasks_upserted": 0, "barriers": [], "workflow": {"runs": []}})
     now = utc_now()
@@ -459,8 +502,100 @@ def apply_plan(conn: sqlite3.Connection, data: dict[str, Any], repo_root: Path, 
 
     barrier_changes = reevaluate_barriers(conn, revision)
     workflow = _apply_workflow_plan(conn, data, revision)
+    if not data.get("runs"):
+        _refresh_bound_task_briefs(conn, data, revision)
     barrier_changes.extend(reevaluate_barriers(conn, revision))
+    _validate_authoritative_task_graph(conn)
     return {"tasks_upserted": len(tasks), "barriers": barrier_changes, "workflow": workflow}
+
+
+def _refresh_bound_task_briefs(conn: sqlite3.Connection, data: dict[str, Any], revision: int) -> None:
+    """Refresh existing run-bound task briefs after an incremental task plan."""
+    from .workflow.context_fragments import FragmentOwner, publish_generated_fragment_in_transaction
+
+    task_definitions = {str(task["id"]): dict(task) for task in data.get("tasks", [])}
+    for task_id, task_definition in task_definitions.items():
+        rows = conn.execute(
+            "SELECT * FROM workflow_context_fragments WHERE task_id=? AND kind='task_brief' "
+            "AND invalidated_at IS NULL ORDER BY run_id,lane_id,version DESC",
+            (task_id,),
+        ).fetchall()
+        for row in rows:
+            task = dict(task_definition)
+            prior_content = json.loads(row["content_json"])
+            for key in (
+                "completion_contract", "motivation", "desired_end_state", "conceptual_end_state",
+                "rationale", "uncertainties", "risks", "delegated_choices", "delegated_judgment", "references",
+            ):
+                if key in prior_content:
+                    task.setdefault(key, prior_content[key])
+            prior_scope = prior_content.get("scope", {})
+            current_scope = task.get("scope", {})
+            scope_keys = set(prior_scope) | set(current_scope)
+            if all(sorted(prior_scope.get(key, [])) == sorted(current_scope.get(key, [])) for key in scope_keys):
+                task["scope"] = prior_scope
+            gates = task.get("gates", [])
+            brief = {
+                "objective": str(task.get("objective", task.get("title", task_id))),
+                "next_action": str(task.get("next_action", task.get("objective", task.get("title", task_id)))),
+                "scope": dict(task.get("scope", {})),
+                "completion_contract": task.get("completion_contract"),
+                "tests": [gate.get("id") for gate in gates],
+                "gates": [gate.get("id") for gate in gates],
+                "forbidden_mutations": list(dict(task.get("scope", {})).get("forbidden_paths", [])),
+            }
+            if task.get("consumes_interfaces"):
+                brief["consumes_interfaces"] = [dict(item) for item in task["consumes_interfaces"]]
+            for key in ("tests", "gates"):
+                if key in prior_content and sorted(prior_content[key]) == sorted(brief[key]):
+                    brief[key] = prior_content[key]
+            for key in (
+                "motivation", "desired_end_state", "conceptual_end_state", "rationale", "uncertainties",
+                "risks", "delegated_choices", "delegated_judgment", "references",
+            ):
+                if key in task:
+                    brief[key] = task[key]
+            publish_generated_fragment_in_transaction(
+                conn, revision,
+                owner=FragmentOwner(str(row["run_id"]), str(row["lane_id"]), task_id),
+                kind="task_brief", content=brief,
+            )
+
+
+def _existing_reference_ids(conn: sqlite3.Connection) -> dict[str, set[str]]:
+    """Return current authoritative definition IDs for incremental plan refs."""
+
+    tables = {
+        "tasks": ("tasks", "id"),
+        "checkpoints": ("checkpoints", "id"),
+        "gates": ("gates", "id"),
+        "interfaces": ("interfaces", "id"),
+        "barriers": ("barriers", "id"),
+        "decisions": ("decisions", "id"),
+        "invariants": ("invariants", "id"),
+        "locks": ("named_locks", "name"),
+        "resource_classes": ("resource_classes", "id"),
+        "resource_instances": ("resource_instances", "id"),
+    }
+    return {
+        kind: {str(row[0]) for row in conn.execute(f'SELECT "{column}" FROM "{table}"')}
+        for kind, (table, column) in tables.items()
+    }
+
+
+def _validate_authoritative_task_graph(conn: sqlite3.Connection) -> None:
+    tasks: list[dict[str, object]] = []
+    for row in conn.execute("SELECT id,parent_id FROM tasks"):
+        task_id = str(row["id"])
+        dependencies = [
+            {"type": "task", "task_id": str(dep[0])}
+            for dep in conn.execute(
+                "SELECT prerequisite_task_id FROM task_dependencies WHERE task_id=? AND type='task'",
+                (task_id,),
+            )
+        ]
+        tasks.append({"id": task_id, "parent_id": row["parent_id"], "depends_on": dependencies})
+    validate_acyclic(tasks)
 
 
 def _apply_workflow_plan(conn: sqlite3.Connection, data: dict[str, Any], revision: int) -> dict[str, object]:

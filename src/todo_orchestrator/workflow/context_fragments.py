@@ -264,6 +264,49 @@ def _owner_sql(owner: FragmentOwner) -> tuple[str, list[object]]:
     )
 
 
+def publish_generated_fragment_in_transaction(
+    conn: Any, revision: int, *, owner: FragmentOwner, kind: str,
+    content: Mapping[str, Any],
+) -> tuple[ContextFragment, bool]:
+    """Version a generated execution fragment inside its caller's transaction.
+
+    Run and plan mutations use this helper so their immutable context view is
+    committed at the same revision as the authority it describes.
+    """
+    if kind not in {"run_charter", "lane_brief", "task_brief"}:
+        raise TodoError("invalid_generated_fragment_kind", "Only generated execution fragments are supported")
+    owner.validate(kind)
+    _validate_owner_binding(conn, owner)
+    normalized = dict(content)
+    _reject_secrets(normalized)
+    digest = content_hash(normalized)
+    prior = conn.execute(
+        "SELECT * FROM workflow_context_fragments WHERE run_id=? AND lane_id IS ? "
+        "AND task_id IS ? AND kind=? AND series_key='' ORDER BY version DESC LIMIT 1",
+        (owner.run_id, owner.lane_id, owner.task_id, kind),
+    ).fetchone()
+    if prior is not None and prior["content_hash"] == digest and prior["invalidated_at"] is None:
+        return _fragment_from_row(prior), False
+    version = int(prior["version"]) + 1 if prior is not None else 1
+    fragment_id = f"{owner.run_id}:{kind}:{owner.lane_id or '-'}:{owner.task_id or '-'}:{version}"
+    if conn.execute("SELECT 1 FROM workflow_context_fragments WHERE id=?", (fragment_id,)).fetchone():
+        fragment_id = str(uuid.uuid4())
+    now = utc_now()
+    conn.execute(
+        "INSERT INTO workflow_context_fragments(id,run_id,lane_id,task_id,kind,owner_scope_json,series_key,version,"
+        "content_json,content_hash,creation_revision,created_at) VALUES(?,?,?,?,?,?,'',?,?,?,?,?)",
+        (fragment_id, owner.run_id, owner.lane_id, owner.task_id, kind,
+         canonical_json(owner.as_json()), version, canonical_json(normalized), digest, revision, now),
+    )
+    if prior is not None and prior["invalidated_at"] is None:
+        conn.execute(
+            "UPDATE workflow_context_fragments SET invalidated_at=?,invalidation_revision=?,superseded_by=? WHERE id=?",
+            (now, revision, fragment_id, prior["id"]),
+        )
+    row = conn.execute("SELECT * FROM workflow_context_fragments WHERE id=?", (fragment_id,)).fetchone()
+    return _fragment_from_row(row), True
+
+
 class ContextFragmentStore:
     """Transactional store and bounded composer for workflow context."""
 

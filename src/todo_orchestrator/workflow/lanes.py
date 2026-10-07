@@ -460,6 +460,98 @@ def advance_lane_in_transaction(
     }
 
 
+def defer_lane_task_in_transaction(
+    conn: sqlite3.Connection,
+    revision: int,
+    *,
+    run_id: str,
+    task_id: str,
+    reason: str,
+    charter_version: int,
+    charter_hash: str,
+    actor_session_id: str,
+) -> dict[str, object]:
+    """Defer one queued run entry without changing its Todo task or history.
+
+    The immutable workflow event records the actor, reason, and exact active
+    charter binding. Only the lane queue row is marked skipped, allowing run
+    closure to proceed under a revised charter while retaining the original
+    task, claims, sessions, results, and prior evidence.
+    """
+
+    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 2048:
+        raise TodoError("workflow_deferral_reason_invalid", "Deferral reason must contain 1 to 2048 characters")
+    if not isinstance(charter_version, int) or charter_version < 1 or not charter_hash:
+        raise TodoError("workflow_deferral_charter_invalid", "Deferral requires the current charter version and hash")
+    actor = conn.execute("SELECT state FROM sessions WHERE id=?", (actor_session_id,)).fetchone()
+    if not actor or actor["state"] != "active":
+        raise TodoError("workflow_deferral_actor_inactive", "Deferral actor must be an active session")
+    run = _run_active(conn, run_id)
+    charter = conn.execute(
+        "SELECT version,content_hash FROM workflow_run_charters WHERE run_id=? AND version=?",
+        (run_id, run["active_charter_version"]),
+    ).fetchone()
+    if (
+        not charter
+        or int(charter["version"]) != charter_version
+        or str(charter["content_hash"]) != charter_hash
+    ):
+        raise TodoError("workflow_deferral_charter_stale", "Deferral is not bound to the active run charter")
+
+    entry = conn.execute(
+        "SELECT lt.lane_id,lt.state FROM workflow_lane_tasks lt "
+        "JOIN workflow_lanes l ON l.id=lt.lane_id WHERE l.run_id=? AND lt.task_id=?",
+        (run_id, task_id),
+    ).fetchone()
+    if not entry:
+        raise TodoError("workflow_deferral_task_missing", f"Task {task_id} is not queued in run {run_id}")
+    if entry["state"] != "queued":
+        raise TodoError(
+            "workflow_deferral_task_not_queued",
+            f"Task {task_id} lane entry is {entry['state']}; only a queued entry may be deferred",
+        )
+    active_claim = conn.execute(
+        "SELECT id FROM claims WHERE task_id=? AND state='active' LIMIT 1", (task_id,)
+    ).fetchone()
+    if active_claim:
+        raise TodoError(
+            "workflow_deferral_active_claim",
+            f"Task {task_id} still has an active claim",
+            details={"claim_id": str(active_claim["id"])},
+        )
+    active_dispatch = conn.execute(
+        "SELECT id FROM workflow_dispatches WHERE lane_id=? AND state IN ('active','revoking') LIMIT 1",
+        (entry["lane_id"],),
+    ).fetchone()
+    if active_dispatch:
+        raise TodoError(
+            "workflow_deferral_active_dispatch",
+            f"Lane {entry['lane_id']} still has an active dispatch",
+            details={"dispatch_id": str(active_dispatch["id"])},
+        )
+
+    task = conn.execute("SELECT status,version,result FROM tasks WHERE id=?", (task_id,)).fetchone()
+    if not task:
+        raise TodoError("workflow_deferral_task_missing", f"Task {task_id} does not exist")
+    now = utc_now()
+    conn.execute(
+        "UPDATE workflow_lane_tasks SET state='skipped',completed_at=?,revision=? WHERE lane_id=? AND task_id=? AND state='queued'",
+        (now, revision, entry["lane_id"], task_id),
+    )
+    return {
+        "run_id": run_id,
+        "lane_id": str(entry["lane_id"]),
+        "task_id": task_id,
+        "status": "deferred",
+        "previous_entry_state": str(entry["state"]),
+        "task_status_preserved": str(task["status"]),
+        "task_version_preserved": int(task["version"]),
+        "reason": reason.strip(),
+        "charter_version": charter_version,
+        "charter_hash": charter_hash,
+    }
+
+
 def reconcile_stale_dispatches_in_transaction(
     conn: sqlite3.Connection,
     revision: int,
@@ -694,6 +786,44 @@ class LaneService:
             actor=actor_session_id, entity_id=lane_id, event_type="workflow.lane.advanced",
             payload={"lane_id": lane_id, "task_id": task_id, "dispatch_id": dispatch_id},
             operation=lambda conn, rev: advance_lane_in_transaction(conn, rev, lane_id=lane_id, task_id=task_id, dispatch_id=dispatch_id),
+        )
+
+    def defer_task(
+        self,
+        *,
+        run_id: str,
+        task_id: str,
+        reason: str,
+        charter_version: int,
+        charter_hash: str,
+        actor_session_id: str,
+    ) -> dict[str, object]:
+        """History-preservingly defer a queued task from the active run lane."""
+
+        if not actor_session_id:
+            raise TodoError("workflow_deferral_actor_required", "Deferral requires an attributed actor session")
+        payload = {
+            "run_id": run_id,
+            "task_id": task_id,
+            "reason": reason.strip() if isinstance(reason, str) else reason,
+            "charter_version": charter_version,
+            "charter_hash": charter_hash,
+        }
+        return self._mutate(
+            actor=actor_session_id,
+            entity_id=task_id,
+            event_type="workflow.lane_task.deferred",
+            payload=payload,
+            operation=lambda conn, rev: defer_lane_task_in_transaction(
+                conn,
+                rev,
+                run_id=run_id,
+                task_id=task_id,
+                reason=reason,
+                charter_version=charter_version,
+                charter_hash=charter_hash,
+                actor_session_id=actor_session_id,
+            ),
         )
 
     def reconcile_stale(self, *, stale_before: str, actor_session_id: str | None = None) -> dict[str, object]:

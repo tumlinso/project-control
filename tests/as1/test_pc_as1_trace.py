@@ -70,6 +70,28 @@ def test_multi_hop_direction_cycle_fanout_and_witness(world):
     with pytest.raises(ValueError): service(project='demo', targets=['base.py'], change_class='silent')
 
 
+@pytest.mark.as1_case('TRC-09')
+def test_exact_task_impact_uses_todo_graph_without_source_census(world, monkeypatch):
+    _roots, _snapshots, _contexts, service, *_ = world
+
+    def unexpected_source_census(*_args, **_kwargs):
+        raise AssertionError('task-only impact must not census repositories or parse source files')
+
+    monkeypatch.setattr(service, '_repository', unexpected_source_census)
+    result = service(project='demo', targets=[{'project': 'demo', 'kind': 'task', 'id': 'T1'}])
+
+    assert [item['node']['id'] for item in result['dependencies']] == ['T2', 'T3']
+    assert result['status'] == 'partial'
+    assert result['coverage']['providers'][0]['provider'] == 'todo/1'
+    assert result['coverage']['providers'][0]['complete'] is True
+    assert result['coverage']['repositories'][0]['source_observation'] == 'not_performed'
+    assert {item['reason'] for item in result['unknown_scope']} == {
+        'task_impact_source_relationships_not_observed',
+        'task_impact_cross_project_declarations_not_observed',
+    }
+    assert service.read_count == 0
+
+
 class ExportProvider:
     """Installed compiler export port; source determinants are independently checked."""
     name = 'compiler-export/1'

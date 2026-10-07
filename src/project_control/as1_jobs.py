@@ -120,6 +120,13 @@ _INQUIRY_FAILURE_CLASSES = {
     'runtime_identity_mismatch': 'runtime_mismatch',
     'central_supervisor_runtime_mismatch': 'runtime_mismatch',
     'central_supervisor_root_mismatch': 'runtime_mismatch',
+    'assistance_release_veto_active': 'release_veto_active',
+    'demand_runtime_not_ready': 'runtime_unavailable',
+    'demand_runtime_unavailable': 'runtime_unavailable',
+    'demand_deadline_exhausted_before_start': 'deadline_exhausted',
+    'inference_supervisor_readiness_timeout': 'runtime_readiness_unavailable',
+    'inference_service_start_failed': 'runtime_start_failed',
+    'inference_start_lock_timeout': 'runtime_start_timeout',
     'attempt_or_deadline_exhausted': 'attempt_or_deadline_exhausted',
     'deadline_exhausted': 'deadline_exhausted',
     'analysis_deadline_exhausted': 'deadline_exhausted',
@@ -142,6 +149,24 @@ _CLOSE_RECEIPT_ERROR_CODES = frozenset({
     'close_receipt_gpu_scope_invalid', 'session_not_active',
     'resource_metadata_must_be_json',
 })
+
+
+def _demand_readiness_failure_reason(value):
+    """Keep a bounded stable readiness code in private job diagnostics.
+
+    Demand startup errors may include operator guidance, paths or systemd
+    stderr. Persist only their leading stable code; unknown strings collapse
+    to a generic class rather than becoming durable inquiry content.
+    """
+    reason = value.get('reason') if isinstance(value, dict) else None
+    if not isinstance(reason, str) or not reason.strip():
+        return 'demand_runtime_not_ready'
+    code = reason.strip().split(';', 1)[0].split(':', 1)[0].strip()
+    if (len(code) <= 96 and re.fullmatch(r'[a-z][a-z0-9_]*', code)
+            and code.startswith(('assistance_', 'central_supervisor_', 'demand_',
+                                 'inference_', 'observer_'))):
+        return code
+    return 'demand_runtime_unavailable'
 
 
 def _public_wait_reason(value):
@@ -172,6 +197,21 @@ def stamp(now):
 
 def wire(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+
+
+def source_locator_for_registered_roots(source_path, digest, roots):
+    """Resolve a verified source to one host-authorized root, fail closed on overlap."""
+    matches = []
+    for project, repository, root_value in roots:
+        try:
+            root = Path(root_value).resolve(strict=True)
+            relative = source_path.relative_to(root).as_posix()
+            if relative:
+                matches.append(SourceLocator(project=project, repository=repository,
+                    path=relative, content_sha256=digest))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+    return matches[0] if len(matches) == 1 else None
 
 
 class TrustedObserverFactory:
@@ -276,7 +316,8 @@ class JobService:
                  hard_limit=100, max_storage_bytes=64 * 1024 * 1024,
                  lease_seconds=120, retry_seconds=None, clock=time.time, freshness_provider=None, inquiry_access=None, can_execute=None,
                  inquiry_context_provider=None, legacy_directory=None,
-                 analysis_runtime_identity=None, skill_catalog_identity_provider=None):
+                 analysis_runtime_identity=None, skill_catalog_identity_provider=None,
+                 source_locator_provider=None):
         _load_assistance_components()
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -296,6 +337,7 @@ class JobService:
         self.can_execute = can_execute
         self.inquiry_context_provider = inquiry_context_provider
         self.skill_catalog_identity_provider = skill_catalog_identity_provider
+        self.source_locator_provider = source_locator_provider
         if analysis_runtime_identity is not None:
             if (not isinstance(analysis_runtime_identity, str)
                     or not analysis_runtime_identity or len(analysis_runtime_identity) > 512):
@@ -973,8 +1015,11 @@ class JobService:
         except Exception as error:
             reason = str(error).strip()[:160] or type(error).__name__
             return {'status': 'unavailable', 'reason': reason}
-        if not isinstance(receipt, dict) or receipt.get('status') != 'ready':
+        if not isinstance(receipt, dict):
             return {'status': 'unavailable', 'reason': 'demand_runtime_not_ready'}
+        if receipt.get('status') != 'ready':
+            return {'status': 'unavailable',
+                'reason': _demand_readiness_failure_reason(receipt)}
         return None
 
     @staticmethod
@@ -1837,7 +1882,7 @@ class JobService:
                 if reason.startswith(('Extra data:', 'JSONDecodeError:', 'json.JSONDecodeError:')):
                     return 'model_output_invalid_json'
                 if (reason.endswith('_mismatch')
-                        and reason.startswith(('central_supervisor_', 'runtime_identity_'))):
+                        and reason.startswith(('central_supervisor_', 'runtime_identity_', 'inference_'))):
                     return 'runtime_mismatch'
         return 'worker_failure'
 
@@ -2354,6 +2399,63 @@ class JobService:
             elif isinstance(value, list):
                 for child in value:
                     collect(child)
+        def collect_command_reads(value):
+            """Promote the runner's exact file-read receipt to a source locator.
+
+            ReadOnlyCommandRunner records a path and the digest of the bytes it
+            returned.  That is enough for InquiryFreshness to revalidate the
+            observation, but without a locator the public answer packet loses
+            the source identity.  Keep this conversion deliberately narrow:
+            only successful, untruncated direct-cat or bounded-sed receipts
+            with a valid SHA256 and an absolute regular-file path are eligible.
+            The digest is copied from the receipt, never recomputed or inferred.
+            """
+            if not isinstance(value, dict) or value.get('tool') != 'command':
+                return
+            payload = value.get('payload')
+            if (not isinstance(payload, dict) or payload.get('status') != 'completed'
+                    or payload.get('exit_code') != 0 or payload.get('truncated')
+                    or payload.get('timed_out')):
+                return
+            for read in payload.get('source_reads', []):
+                if not isinstance(read, dict):
+                    continue
+                method = read.get('method')
+                ranges = read.get('line_ranges')
+                valid_ranges = (method == 'direct_sed_lines'
+                    and isinstance(read.get('line_count'), int)
+                    and not isinstance(read.get('line_count'), bool)
+                    and read['line_count'] > 0
+                    and isinstance(ranges, list) and 1 <= len(ranges) <= 16
+                    and all(isinstance(item, dict)
+                        and isinstance(item.get('start'), int)
+                        and not isinstance(item.get('start'), bool)
+                        and isinstance(item.get('end'), int)
+                        and not isinstance(item.get('end'), bool)
+                        and 1 <= item['start'] <= item['end'] <= read['line_count']
+                        for item in ranges))
+                if method != 'direct_cat' and not valid_ranges:
+                    continue
+                digest = read.get('content_sha256')
+                path = read.get('path')
+                if (not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest)
+                        or not isinstance(path, str)):
+                    continue
+                try:
+                    source_path = Path(path)
+                    if not source_path.is_absolute():
+                        continue
+                    source_path = source_path.resolve(strict=True)
+                    if not source_path.is_file():
+                        continue
+                    source = (self.source_locator_provider(job, source_path, digest)
+                        if self.source_locator_provider else None)
+                    if source is None:
+                        continue
+                    source = SourceLocator.model_validate(source)
+                except (OSError, RuntimeError, ValueError):
+                    continue
+                sources[wire(source.model_dump(exclude={'content_sha256'}))] = source
         if job.refresh_context:
             prior = job.refresh_context.get('prior_job', {})
             for ref in prior.get('evidence_packets', []) + ([prior['result_packet']] if prior.get('result_packet') else []):
@@ -2363,7 +2465,9 @@ class JobService:
         # Derived answers preserve material source authority even when their text
         # contains no source list. Caller/profile never constrain these sources.
         for row in db.execute('SELECT packet FROM outbox WHERE job=?', (job.job_id,)):
-            collect(json.loads(row['packet']).get('sources', []))
+            packet_value = json.loads(row['packet'])
+            collect(packet_value.get('sources', []))
+            collect_command_reads(packet_value)
         collect(cleaned)
         packet = InformationPacket(packet_id=ident, alias='job-' + letters,
             created_at=stamp(self.clock()), tool=tool, payload=cleaned,
@@ -2741,7 +2845,7 @@ class JobService:
                     unavailable = self._ensure_demand_runtime()
                     if unavailable:
                         self.finish(job.job_id, job.attempt, {'status': 'yielding',
-                            'reason': 'session_unavailable'})
+                            'reason': _demand_readiness_failure_reason(unavailable)})
                         return
                     # Startup can take time. Re-read the durable release/focus
                     # policy immediately before owner admission so a stop,

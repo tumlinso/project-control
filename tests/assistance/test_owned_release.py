@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
+import tempfile
 import threading
 import time
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from unittest.mock import patch
 
 from project_control.assistance.power import PowerPolicy, PowerPolicyError, ReleaseIntent, trusted_operator_control
 from project_control.assistance.resources import ResourceController, ResourceControllerError
+from project_control.assistance.operator import AssistanceOperator
 from project_control.observer_analysis import (
     SkillsObserverAnalysisProvider, _PHYSICAL_RELEASE_SEAL, _VerifiedPhysicalRelease,
 )
@@ -909,6 +911,49 @@ class ResourceControllerTests(unittest.TestCase):
         changed = {**self.receipt, "daemon_epoch": "e" * 64}
         with self.assertRaises(ResourceControllerError):
             self.resources.record_session(self.session_id, changed)
+
+
+class OwnedResourceOperatorStatusTests(unittest.TestCase):
+    def test_repeated_empty_release_is_explicit_without_claiming_physical_proof(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            operator = AssistanceOperator(state_root=Path(temporary) / "state")
+
+            class NoOwnedResources:
+                def _deliver_owned_release(self, _intent):
+                    return "pending_no_owned_resources"
+
+            backend = NoOwnedResources()
+            first = operator.request_release(job_service=backend)
+            second = operator.request_release(job_service=backend)
+
+            self.assertEqual(first["status"], "no_owned_resources")
+            self.assertEqual(second["status"], "no_owned_resources")
+            self.assertEqual(first["release_request_id"], second["release_request_id"])
+            self.assertTrue(first["release_veto_active"])
+            self.assertEqual(first["physical_state"], "pending")
+            self.assertEqual(first["verified_sessions"], 0)
+            self.assertEqual(first["owned_resources"]["status"], "no_owned_resources")
+            self.assertFalse(first["owned_resources"]["release_pending"])
+
+    def test_stale_ownership_remains_pending_in_public_status(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            operator = AssistanceOperator(state_root=Path(temporary) / "state")
+            operator.request_release()
+            db = sqlite3.connect(operator.db_path)
+            try:
+                db.execute("""INSERT INTO pa1_owned_resource_sessions(
+                    session_id,supervisor_epoch,state,close_receipt,updated)
+                    VALUES('stale-session','{}','stale','{}',1)""")
+                db.commit()
+            finally:
+                db.close()
+
+            status = operator.status()
+
+            self.assertEqual(status["owned_resources"]["status"], "pending")
+            self.assertEqual(status["owned_resources"]["current_sessions"], 1)
+            self.assertTrue(status["owned_resources"]["release_pending"])
+            self.assertEqual(status["power"]["physical_state"], "pending")
 
 
 class OwnedReleaseRpcTests(unittest.TestCase):

@@ -71,6 +71,29 @@ class WorkflowPlanSnapshotTests(unittest.TestCase):
         self.assertEqual(brief["motivation"], "avoid repeated archaeology")
         self.assertEqual(brief["delegated_choices"], ["local decomposition"])
 
+    def test_incremental_task_plan_versions_existing_task_brief(self):
+        plan = base_plan([safe_task("A", "src/a")])
+        plan["schema_version"] = 3
+        plan["runs"] = [{
+            "id": "RUN", "root_task_id": "A", "charter": {"objective": "bounded"},
+            "lanes": [{"id": "ROOT", "role": "coordinator", "tasks": ["A"]}],
+        }]
+        self.repo.apply(plan)
+        incremental = base_plan([safe_task("A", "src/a")])
+        incremental["tasks"][0]["objective"] = "Updated objective from task-only plan"
+
+        self.repo.apply(incremental)
+
+        with self.repo.service.db.read() as conn:
+            versions = conn.execute(
+                "SELECT version,content_json,invalidated_at,superseded_by FROM workflow_context_fragments "
+                "WHERE run_id='RUN' AND task_id='A' AND kind='task_brief' ORDER BY version",
+            ).fetchall()
+        self.assertEqual([1, 2], [row["version"] for row in versions])
+        self.assertEqual("Updated objective from task-only plan", json.loads(versions[-1]["content_json"])["objective"])
+        self.assertIsNotNone(versions[0]["invalidated_at"])
+        self.assertEqual("RUN:task_brief:ROOT:A:2", versions[0]["superseded_by"])
+
     def test_v3_mode_update_refuses_closed_or_active_lane_and_rolls_back(self):
         _, updated = self._workspace_plan()
         for state in ("closed", "cancelled", "active", "active_lane"):

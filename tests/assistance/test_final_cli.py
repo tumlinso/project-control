@@ -129,6 +129,23 @@ class FinalAssistanceCliTests(unittest.TestCase):
                           "reason": "foreground_timeout_cancellation_unconfirmed"}, result)
         self.assertEqual([120.0], composition.jobs.shutdown_timeouts)
 
+    def test_terminal_failure_after_thinking_is_not_relabelled_as_timeout(self):
+        composition = _Composition()
+        statuses = iter((
+            {"status": "thinking"},
+            {"status": "unavailable", "reason": "analysis_unavailable"},
+        ))
+        composition.jobs.inquire = lambda **_kwargs: next(statuses)
+        composition.jobs.cancel_inquiry = lambda **_kwargs: self.fail(
+            "terminal inquiry must not be cancelled")
+        with patch("project_control.cli.time.sleep"), \
+             patch("project_control.cli._ASSISTANCE_ASK_TIMEOUT_SECONDS", 10), \
+             patch("project_control.as1_surface.public_inquiry", side_effect=lambda value: value):
+            result = _assistance_ask(composition, "terminal failure", "demo")
+
+        self.assertEqual({"status": "unavailable", "reason": "analysis_unavailable"}, result)
+        self.assertFalse(composition.jobs.stopped)
+
     def test_foreground_timeout_cancels_exact_inquiry_and_joins_dispatcher(self):
         composition = _Composition()
         composition.jobs.inquire = lambda **_kwargs: {"status": "thinking"}

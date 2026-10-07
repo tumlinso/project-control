@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import unittest
 
@@ -17,7 +18,8 @@ from todo_orchestrator.workflow.lanes import (
     wait_graph,
 )
 from todo_orchestrator.workflow.roles import allowed_actions, require_role_action
-from todo_orchestrator.workflow.runs import RunService
+from todo_orchestrator.workflow.context_fragments import ContextFragmentStore, FragmentOwner
+from todo_orchestrator.workflow.runs import RunService, revise_charter_in_transaction
 
 
 class WorkflowRunsLanesTests(unittest.TestCase):
@@ -90,6 +92,138 @@ class WorkflowRunsLanesTests(unittest.TestCase):
                 with self.repo.service.db.read() as conn:
                     self.assertEqual("exclusive", conn.execute("SELECT workspace_mode FROM workflow_lanes WHERE id='A'").fetchone()[0])
 
+    def _actor_session(self) -> str:
+        result, _ = self.repo.service.db.mutate(
+            actor_session_id=None,
+            entity_type="session",
+            entity_id="defer-actor",
+            event_type="test.defer_actor",
+            payload={},
+            operation=lambda conn, revision: {
+                "session_id": create_session(conn, self.repo.root, {"test": True})[0]["agent_id"]
+            },
+        )
+        return str(result["session_id"])
+
+    def _defer_args(self, *, run_id: str, task_id: str, actor: str) -> dict[str, object]:
+        charter = self.runs.inspect(run_id)["charter"]
+        return {
+            "run_id": run_id,
+            "task_id": task_id,
+            "reason": "The revised delivery explicitly defers autonomous experimentation.",
+            "charter_version": int(charter["version"]),
+            "charter_hash": str(charter["content_hash"]),
+            "actor_session_id": actor,
+        }
+
+    def test_defer_preserves_task_authority_and_audits_current_charter_binding(self) -> None:
+        actor = self._actor_session()
+        self.repo.service.db.mutate(
+            actor_session_id=None,
+            entity_type="fixture",
+            entity_id="T-A1",
+            event_type="test.historical_result",
+            payload={},
+            operation=lambda conn, revision: conn.execute(
+                "UPDATE tasks SET result='historical LAB receipt' WHERE id='T-A1'"
+            ),
+        )
+        old_charter = self.runs.inspect("RUN")["charter"]
+        self.runs.revise_charter(
+            run_id="RUN",
+            charter={"objective": "revised coordination and assistance acceptance"},
+        )
+        stale = {
+            **self._defer_args(run_id="RUN", task_id="T-A1", actor=actor),
+            "charter_version": int(old_charter["version"]),
+            "charter_hash": str(old_charter["content_hash"]),
+        }
+        with self.assertRaises(TodoError) as stale_error:
+            self.lanes.defer_task(**stale)
+        self.assertEqual("workflow_deferral_charter_stale", stale_error.exception.code)
+
+        with self.repo.service.db.read() as conn:
+            before = dict(conn.execute("SELECT status,version,result FROM tasks WHERE id='T-A1'").fetchone())
+            counts_before = {
+                table: int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+                for table in ("claims", "sessions", "events")
+            }
+        result = self.lanes.defer_task(**self._defer_args(run_id="RUN", task_id="T-A1", actor=actor))
+        with self.repo.service.db.read() as conn:
+            after = dict(conn.execute("SELECT status,version,result FROM tasks WHERE id='T-A1'").fetchone())
+            counts_after = {
+                table: int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+                for table in ("claims", "sessions", "events")
+            }
+        self.assertEqual("deferred", result["status"])
+        self.assertEqual((before["status"], before["version"], before["result"]),
+                         (after["status"], after["version"], after["result"]))
+        self.assertEqual(counts_before["claims"], counts_after["claims"])
+        self.assertEqual(counts_before["sessions"], counts_after["sessions"])
+        self.assertEqual(counts_before["events"] + 1, counts_after["events"])
+        with self.repo.service.db.read() as conn:
+            lane_entry = conn.execute(
+                "SELECT state FROM workflow_lane_tasks WHERE lane_id='A' AND task_id='T-A1'"
+            ).fetchone()
+            event = conn.execute(
+                "SELECT actor_session_id,payload_json FROM events WHERE event_type='workflow.lane_task.deferred' ORDER BY revision DESC LIMIT 1"
+            ).fetchone()
+        self.assertEqual("skipped", lane_entry["state"])
+        self.assertEqual(actor, event["actor_session_id"])
+        payload = json.loads(event["payload_json"])
+        self.assertEqual(result["reason"], payload["reason"])
+        self.assertEqual(result["charter_hash"], payload["charter_hash"])
+        self.assertEqual(result["charter_version"], payload["charter_version"])
+
+    def test_defer_refuses_active_claim_and_lane_dispatch(self) -> None:
+        actor = self._actor_session()
+        args = self._defer_args(run_id="RUN", task_id="T-A1", actor=actor)
+        session_id, claim_id = self._claim("T-A1")
+        with self.assertRaises(TodoError) as active_claim:
+            self.lanes.defer_task(**args)
+        self.assertEqual("workflow_deferral_active_claim", active_claim.exception.code)
+
+        dispatch = self.lanes.dispatch(
+            run_id="RUN", lane_id="A", session_id=session_id, claim_id=claim_id, context_version=1
+        )
+        args["task_id"] = "T-A2"
+        with self.assertRaises(TodoError) as active_dispatch:
+            self.lanes.defer_task(**args)
+        self.assertEqual("workflow_deferral_active_dispatch", active_dispatch.exception.code)
+        self.assertTrue(dispatch["dispatch_id"])
+
+    def test_deferred_lane_entry_does_not_block_run_closure(self) -> None:
+        run_id = "RUN-CLOSE"
+        self.runs.create(
+            run_id=run_id,
+            root_task_id="T-ROOT",
+            charter={"objective": "coordination and assistance only"},
+        )
+        self.lanes.create(run_id=run_id, lane_id="ROOT-CLOSE", role="coordinator")
+        self.lanes.create(run_id=run_id, lane_id="LAB-CLOSE", parent_lane_id="ROOT-CLOSE", role="implementer")
+        self.lanes.enqueue(lane_id="ROOT-CLOSE", task_ids=["T-ROOT"])
+        self.lanes.enqueue(lane_id="LAB-CLOSE", task_ids=["T-A1"])
+        actor = self._actor_session()
+        self.lanes.defer_task(**self._defer_args(run_id=run_id, task_id="T-A1", actor=actor))
+
+        session_id, claim_id = self._claim("T-ROOT")
+        dispatch = self.lanes.dispatch(
+            run_id=run_id, lane_id="ROOT-CLOSE", session_id=session_id, claim_id=claim_id, context_version=1
+        )
+        self.repo.service.db.mutate(
+            actor_session_id=session_id,
+            entity_type="fixture",
+            entity_id="T-ROOT",
+            event_type="test.root_done",
+            payload={},
+            operation=lambda conn, revision: conn.execute("UPDATE tasks SET status='done' WHERE id='T-ROOT'"),
+        )
+        closed = self.lanes.advance(
+            lane_id="ROOT-CLOSE", task_id="T-ROOT", dispatch_id=str(dispatch["dispatch_id"]), actor_session_id=session_id
+        )
+        self.assertTrue(closed["run_completed"])
+        self.assertEqual("completed", self.runs.inspect(run_id)["run"]["status"])
+
     def test_integrator_batch_checkpoint_is_dispatchable_but_inflight_apply_is_not(self) -> None:
         def seed(state: str) -> None:
             self.repo.service.db.mutate(
@@ -157,6 +291,41 @@ class WorkflowRunsLanesTests(unittest.TestCase):
         inspected = self.runs.inspect("RUN")
         self.assertEqual("parallel run v2", inspected["charter"]["content"]["objective"])
         self.assertEqual(64, len(inspected["charter"]["content_hash"]))
+
+    def test_revising_same_charter_repairs_stale_generated_context_without_new_charter_version(self) -> None:
+        original = {"objective": "parallel run", "invariants": ["children are subordinate"]}
+        revised = {"objective": "server and advisory assistance", "boundaries": ["LAB deferred"]}
+        store = ContextFragmentStore(self.repo.service.db)
+        store.publish(
+            actor_session_id=None, owner=FragmentOwner("RUN"), kind="run_charter", content=original,
+        )
+        # Reproduce the prior behavior: the authoritative charter advances, but
+        # its generated context fragment remains at version 1.
+        self.repo.service.db.mutate(
+            actor_session_id=None, entity_type="workflow_run", entity_id="RUN",
+            event_type="fixture.charter_revised_without_context", payload={},
+            operation=lambda conn, revision: revise_charter_in_transaction(
+                conn, revision, run_id="RUN", charter=revised,
+            ),
+        )
+
+        result = self.runs.revise_charter(run_id="RUN", charter=revised)
+
+        self.assertFalse(result["changed"])
+        self.assertTrue(result["context_refreshed"])
+        inspected = self.runs.inspect("RUN")
+        self.assertEqual(2, inspected["charter"]["version"])
+        active = store.active_for(run_id="RUN", lane_id="ROOT", task_id="T-ROOT")
+        charter = next(fragment for fragment in active if fragment.kind == "run_charter")
+        self.assertEqual(2, charter.version)
+        self.assertEqual(revised, charter.content)
+        with self.repo.service.db.read() as conn:
+            old = conn.execute(
+                "SELECT invalidated_at,superseded_by FROM workflow_context_fragments "
+                "WHERE run_id='RUN' AND kind='run_charter' AND version=1",
+            ).fetchone()
+        self.assertIsNotNone(old["invalidated_at"])
+        self.assertEqual(charter.id, old["superseded_by"])
 
     def test_lane_tree_and_server_side_role_enforcement(self) -> None:
         self.assertIn("fork", allowed_actions("coordinator"))

@@ -292,7 +292,8 @@ def fixture_cache(tmp_path):
     root = tmp_path/'skills'; root.mkdir(); (root/'fixture').mkdir()
     store = SQLitePacketStore(tmp_path/'packets')
     jobs = SimpleNamespace(packets=store, worker_factory=SimpleNamespace(skills={
-        'fixture': {'name': 'fixture', 'root': str(root/'fixture')}}))
+        'fixture': {'name': 'fixture', 'root': str(root/'fixture')}}),
+        skill_catalog_identity_provider=None)
     skills = SkillService(jobs, skills_root=root)
     composition = SimpleNamespace(store=store, jobs=jobs, skills=skills,
         host=SimpleNamespace(projects=frozenset()), control=SimpleNamespace())
