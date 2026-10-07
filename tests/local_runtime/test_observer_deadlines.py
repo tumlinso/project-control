@@ -3,6 +3,7 @@ import json
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -66,6 +67,36 @@ def test_startup_lifetime_stops_only_owned_process(tmp_path):
     assert killed == [424242]
     assert processes[0].poll() is not None
     assert all(server["evicted"] for server in adapter._servers.values())
+
+
+def test_spawn_guard_covers_only_process_creation_not_readiness(tmp_path):
+    guarded = {"active": False, "spawned": False}
+    def transport(method, url, body, timeout):
+        assert guarded["active"] is False
+        return 200, {}
+    adapter, model, processes, _ = adapter_fixture(tmp_path, transport)
+    original_factory = adapter.process_factory
+    def spawn(*args, **kwargs):
+        assert guarded["active"] is True
+        guarded["spawned"] = True
+        return original_factory(*args, **kwargs)
+    adapter.process_factory = spawn
+
+    @contextmanager
+    def guard(deadline_epoch):
+        assert deadline_epoch > time.time()
+        guarded["active"] = True
+        try:
+            yield
+        finally:
+            guarded["active"] = False
+
+    handle = adapter.start({"model_path": str(model), "startup_timeout_seconds": .2,
+        "spawn_guard_factory": guard, "spawn_deadline_epoch": time.time() + 2,
+        "require_spawn_guard": True})
+    assert guarded["spawned"] is True
+    assert guarded["active"] is False
+    assert adapter._servers[handle]["process"] is processes[0]
 
 
 def test_inference_timeout_waits_for_transport_and_stops_owned_operation(tmp_path):

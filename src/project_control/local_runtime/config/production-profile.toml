@@ -64,6 +64,9 @@ real_local_enabled = true
 reviewer_enabled = false
 double_solve_enabled = false
 hot_idle_seconds = 900
+# Keep loaded models resident until native resource preemption or explicit
+# release. The legacy TTL remains available to profiles that omit this flag.
+hot_idle_eviction = false
 max_real_workers = 2
 initial_warm_workers = 1
 worker_layout = "one-per-runtime-discovered-island"

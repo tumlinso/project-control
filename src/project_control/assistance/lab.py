@@ -221,6 +221,38 @@ class LabService:
                 REFERENCES lab_experiments(experiment_id));
             CREATE INDEX IF NOT EXISTS lab_attempts_exp
                 ON lab_attempts(experiment_id, intent_at);
+            CREATE TABLE IF NOT EXISTS lab_sessions(
+                session_id TEXT PRIMARY KEY, project TEXT NOT NULL, source_root TEXT NOT NULL,
+                repository TEXT NOT NULL, scope_json TEXT NOT NULL, state TEXT NOT NULL,
+                preview_snapshot TEXT NOT NULL, preview_manifest_sha256 TEXT NOT NULL,
+                preview_identity TEXT NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL,
+                authorized_at REAL, deadline REAL, experiment_count INTEGER NOT NULL DEFAULT 0,
+                planning_count INTEGER NOT NULL DEFAULT 0, cancel_requested INTEGER NOT NULL DEFAULT 0,
+                run_owner TEXT, run_pid INTEGER, run_start_ticks INTEGER);
+            CREATE TABLE IF NOT EXISTS lab_session_proposals(
+                proposal_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
+                proposal_json TEXT NOT NULL, proposal_sha256 TEXT NOT NULL,
+                source_identity TEXT NOT NULL, proposal_root TEXT NOT NULL,
+                done INTEGER NOT NULL, created_at REAL NOT NULL,
+                FOREIGN KEY(session_id) REFERENCES lab_sessions(session_id));
+            CREATE INDEX IF NOT EXISTS lab_session_proposals_order
+                ON lab_session_proposals(session_id, ordinal);
+            CREATE TABLE IF NOT EXISTS lab_session_effects(
+                effect_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, proposal_id TEXT NOT NULL,
+                ordinal INTEGER NOT NULL, state TEXT NOT NULL, intent_at REAL NOT NULL,
+                started_at REAL, finished_at REAL, snapshot_root TEXT NOT NULL,
+                proposal_root TEXT NOT NULL, argv TEXT NOT NULL, receipt_json TEXT,
+                error TEXT, process_identity TEXT,
+                FOREIGN KEY(session_id) REFERENCES lab_sessions(session_id),
+                FOREIGN KEY(proposal_id) REFERENCES lab_session_proposals(proposal_id));
+            CREATE INDEX IF NOT EXISTS lab_session_effects_order
+                ON lab_session_effects(session_id, ordinal);
+            CREATE TABLE IF NOT EXISTS lab_session_events(
+                event_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, kind TEXT NOT NULL,
+                payload TEXT NOT NULL, created_at REAL NOT NULL,
+                FOREIGN KEY(session_id) REFERENCES lab_sessions(session_id));
+            CREATE INDEX IF NOT EXISTS lab_session_events_order
+                ON lab_session_events(session_id, created_at);
         """)
 
     def select(self, operator: LabOperator, selection: LabSelection, *,
@@ -829,6 +861,14 @@ def _sha256_file(path: Path) -> str:
     finally:
         os.close(fd)
     return digest.hexdigest()
+
+
+def __getattr__(name: str) -> Any:
+    """Expose autonomous-session types without introducing an import cycle."""
+    if name in {"LabScope", "LabSessionService"}:
+        from .lab_session import LabScope, LabSessionService
+        return {"LabScope": LabScope, "LabSessionService": LabSessionService}[name]
+    raise AttributeError(name)
 
 
 def _verify_snapshot(snapshot: Path, expected_manifest_sha256: str) -> dict[str, Any]:

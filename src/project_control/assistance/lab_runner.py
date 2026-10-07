@@ -253,6 +253,7 @@ def _make_bwrap_command(
     artifact: Path,
     argv: tuple[str, ...],
     artifact_bytes: int,
+    proposal: Path | None = None,
 ) -> list[str]:
     command = [
         executable,
@@ -264,7 +265,10 @@ def _make_bwrap_command(
             command.extend(("--ro-bind", str(base), str(base)))
     command.extend(("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/home",
                     "--tmpfs", "/root", "--tmpfs", "/run", "--dir", "/tmp/home", "--dir", "/workspace",
-                    "--ro-bind", str(snapshot), "/workspace", "--dir", "/artifacts",
+                    "--ro-bind", str(snapshot), "/workspace"))
+    if proposal is not None:
+        command.extend(("--dir", "/proposal", "--ro-bind", str(proposal), "/proposal"))
+    command.extend(("--dir", "/artifacts",
                     "--bind", str(artifact), f"/artifacts/{ARTIFACT_NAME}", "--chdir", "/workspace",
                     "--clearenv", "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin",
                     "--setenv", "HOME", "/tmp/home", "--setenv", "TMPDIR", "/tmp",
@@ -361,6 +365,8 @@ def run_cpu(
     cgroup_parent: Path | None = None,
     effect_id: str | None = None,
     on_started: Callable[[OwnedProcessIdentity], None] | None = None,
+    proposal_root: Path | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> ExecutionResult:
     """Execute argv against a captured RO source under a delegated cgroup.
 
@@ -383,6 +389,33 @@ def run_cpu(
     attempt = _private_directory(Path(attempt_root))
     if snapshot == attempt or snapshot in attempt.parents or attempt in snapshot.parents:
         raise InvalidExecutionRequest("snapshot and attempt directories must not overlap")
+    proposal: Path | None = None
+    if proposal_root is not None:
+        raw_proposal = Path(proposal_root)
+        if raw_proposal.is_symlink():
+            raise InvalidExecutionRequest("proposal root must not be a symlink")
+        try:
+            proposal = raw_proposal.resolve(strict=True)
+        except OSError as exc:
+            raise InvalidExecutionRequest("proposal root is unavailable") from exc
+        if (not proposal.is_dir() or proposal == Path("/") or snapshot == proposal
+                or snapshot in proposal.parents or proposal in snapshot.parents
+                or attempt == proposal or attempt in proposal.parents or proposal in attempt.parents):
+            raise InvalidExecutionRequest("proposal root must be a separate immutable directory")
+        total_proposal_bytes = 0
+        for directory, dirnames, filenames in os.walk(proposal, followlinks=False):
+            base = Path(directory)
+            for name in dirnames + filenames:
+                item = base / name
+                info = item.lstat()
+                if stat.S_ISLNK(info.st_mode) or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+                    raise InvalidExecutionRequest("proposal tree contains a link or special file")
+                if stat.S_ISREG(info.st_mode):
+                    if info.st_nlink != 1:
+                        raise InvalidExecutionRequest("proposal tree contains a hard-linked file")
+                    total_proposal_bytes += info.st_size
+                    if total_proposal_bytes > MAX_ARTIFACT_BYTES:
+                        raise InvalidExecutionRequest("proposal tree exceeds the 64 MiB limit")
     effect = uuid.uuid4().hex if effect_id is None else effect_id
     if not isinstance(effect, str) or not effect or "\0" in effect or len(effect.encode("utf-8")) > 256:
         raise InvalidExecutionRequest("effect_id must be a bounded non-empty string")
@@ -407,7 +440,7 @@ def run_cpu(
         _remove_cgroup(cgroup)
         raise InvalidExecutionRequest("attempt artifact path already exists or is unavailable") from exc
     os.close(fd)
-    command = _make_bwrap_command(bwrap, snapshot, artifact, args, grant.artifact_bytes)
+    command = _make_bwrap_command(bwrap, snapshot, artifact, args, grant.artifact_bytes, proposal)
     # The trusted host-side gate joins the exact new process to its cgroup
     # before execing bubblewrap. Every descendant then inherits all three
     # kernel resource limits without a post-spawn race.
@@ -513,6 +546,9 @@ def run_cpu(
     deadline = started + grant.timeout_seconds
     try:
         while True:
+            if should_cancel is not None and should_cancel():
+                status = "interrupted"
+                break
             if time.monotonic() >= deadline:
                 status = "timeout"
                 break

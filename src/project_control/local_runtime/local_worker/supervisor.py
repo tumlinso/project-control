@@ -194,6 +194,9 @@ class Backend(Protocol):
     def cancel_admission(self, admission_id: str) -> dict[str, Any]: ...
     def warm(self, admission_id: str | None = None) -> dict[str, Any]: ...
     def release(self, service_lease_id: str | None = None) -> dict[str, Any]: ...
+    def quiesce_for_foreground(self, *, request_id: str, resource_ids: list[str], deadline_epoch: float) -> dict[str, Any]: ...
+    def resume_after_foreground(self, *, request_id: str, continuation_id: str, resource_ids: list[str],
+                                deadline_epoch: float, veto: bool = False) -> dict[str, Any]: ...
     def preemption_status(self, service_lease_id: str | None = None) -> dict[str, Any]: ...
     def drain(self) -> dict[str, Any]: ...
     def evict(self) -> dict[str, Any]: ...
@@ -247,7 +250,10 @@ class ProductionBackend:
                  profile: dict[str, Any] | None = None,
                  cache: Any = None, runtime: Any = None, adapter: Any = None,
                  service: Any = None, topology_classifier: Any = None,
-                 residency_observer: Any = None):
+                 residency_observer: Any = None,
+                 spawn_guard_factory: Callable[[float], Any] | None = None,
+                 release_veto_check: Callable[[], bool] | None = None,
+                 admission_guard_factory: Callable[[float], Any] | None = None):
         self.repo_root = Path(repo_root).resolve()
         self.service_state_root = (Path(service_state_root).expanduser().resolve()
                                    if service_state_root is not None else None)
@@ -279,6 +285,11 @@ class ProductionBackend:
         self.service = service or AdapterService()
         if service is None:
             self.service.register("llama", self.adapter)
+        from project_control.assistance.operator import AssistanceOperator
+        self._assistance_operator = AssistanceOperator()
+        self._spawn_guard_factory = spawn_guard_factory or self._assistance_operator.admission_guard
+        self._admission_guard_factory = admission_guard_factory or self._assistance_operator.admission_guard
+        self._release_veto_check = release_veto_check or self._assistance_release_veto_active
         policy = self.profile.get("deployment_policy", {})
         configured = int(policy.get("max_real_workers", 1))
         validation_override = os.environ.get("CORE4_VALIDATION_MAX_REAL_WORKERS")
@@ -287,6 +298,11 @@ class ProductionBackend:
         self._leases: dict[str, str] = {}
         self._admissions: dict[str, _Admission] = {}
         self._preempted_leases: set[str] = set()
+        self._non_veto_release_ids: set[str] = set()
+        # Continuations are private to this supervisor epoch. They only retain
+        # metadata for slots which this process successfully evicted; they do
+        # not reserve GPU resources or authorize a restart by themselves.
+        self._foreground_continuations: dict[str, dict[str, Any]] = {}
         self._pool_lock = threading.RLock()
         self._start_lock = threading.Lock()
         self._analysis_capacity = threading.BoundedSemaphore(2)
@@ -295,7 +311,31 @@ class ProductionBackend:
         self.cleanup_receipts: list[dict[str, Any]] = []
         self._recovery_checked = False
         self.ttl = float(policy.get("hot_idle_seconds", 900))
+        # Old profiles retain their historical TTL behavior. Production can
+        # explicitly disable idle eviction without assigning special meaning
+        # to TTL=0 (which remains immediate eviction for legacy profiles).
+        idle_eviction = policy.get("hot_idle_eviction", True)
+        if type(idle_eviction) is not bool:
+            raise SupervisorError("hot_idle_eviction_invalid")
+        self.idle_eviction_enabled = idle_eviction
         self.admission_ttl = 60.0
+
+    def _assistance_release_veto_active(self) -> bool:
+        status = self._assistance_operator.status()
+        power = status.get("power") if isinstance(status, dict) else None
+        if not isinstance(power, dict) or type(power.get("release_veto_active")) is not bool:
+            raise SupervisorError("assistance_release_veto_state_unavailable")
+        return power["release_veto_active"]
+
+    def _check_assistance_release_veto(self) -> None:
+        try:
+            vetoed = self._release_veto_check()
+        except SupervisorError:
+            raise
+        except Exception as error:
+            raise SupervisorError("assistance_release_veto_state_unavailable") from error
+        if vetoed is not False:
+            raise SupervisorError("assistance_release_veto_active")
 
     def _reconcile_host_owners(self) -> list[str]:
         """Discard only this process's unrepresented CORE4 reservations."""
@@ -688,6 +728,7 @@ class ProductionBackend:
             "draining": self.draining, "clients": active, "active_leases": active,
             "active_admissions": len(self._admissions),
             "capacity": self.max_slots, "idle_ttl_seconds": self.ttl,
+            "idle_eviction_enabled": self.idle_eviction_enabled,
             "endpoint": endpoint, "slots": summaries,
         }
 
@@ -750,6 +791,7 @@ class ProductionBackend:
         if compute_profile not in {"narrow", "wide"}:
             raise SupervisorError("compute_profile_invalid")
         resolved_parallelism = self._resolved_parallelism(compute_profile, parallelism)
+        self._check_assistance_release_veto()
         self._recover_residencies()
         self._enforce_host_topology()
         self._reconcile_host_owners()
@@ -855,6 +897,12 @@ class ProductionBackend:
     def warm(self, admission_id: str | None = None, compute_profile: str = "narrow", parallelism: str = "default", *, deadline_epoch=None) -> dict[str, Any]:
         if deadline_epoch is not None:
             remaining_seconds(deadline_epoch)
+        try:
+            self._check_assistance_release_veto()
+        except SupervisorError:
+            if admission_id is not None and admission_id in self._admissions:
+                self.cancel_admission(admission_id)
+            raise
         if compute_profile not in {"narrow", "wide"}:
             raise SupervisorError("compute_profile_invalid")
         resolved_parallelism = self._resolved_parallelism(compute_profile, parallelism)
@@ -870,18 +918,24 @@ class ProductionBackend:
             admission = self._admissions.pop(admission_id, None)
             if admission is None:
                 raise SupervisorError("unknown, expired, or already consumed admission")
+            try:
+                self._check_assistance_release_veto()
+            except SupervisorError:
+                self._release_admission(admission)
+                raise
             if admission.slot_id is not None:
                 slot = self._slots.get(admission.slot_id)
                 if slot is None or slot.service_lease_id is not None or not self._healthy(slot):
                     self._release_admission(admission)
                     raise SupervisorError("resource_unavailable: admitted model slot is no longer usable; retryable=false")
-                return self._lease(slot, reused=True)
-            return self._start_slot(admission=admission, compute_profile=admission.compute_profile,
-                                    resolved_parallelism=admission.parallelism, deadline_epoch=deadline_epoch)
+                return self._lease_with_veto_check(slot, reused=True)
+            return self._start_slot_with_veto_check(admission=admission,
+                compute_profile=admission.compute_profile,
+                resolved_parallelism=admission.parallelism, deadline_epoch=deadline_epoch)
         bound_slots = {item.slot_id for item in self._admissions.values() if item.slot_id is not None}
         for slot in sorted(self._slots.values(), key=lambda item: item.slot_id):
             if slot.slot_id not in bound_slots and slot.service_lease_id is None and self._slot_matches_profile(slot, compute_profile, resolved_parallelism) and self._healthy(slot):
-                return self._lease(slot, reused=True)
+                return self._lease_with_veto_check(slot, reused=True)
         for slot in list(self._slots.values()):
             if slot.slot_id not in bound_slots and slot.service_lease_id is None and (not self._slot_matches_profile(slot, compute_profile, resolved_parallelism) or not self._healthy(slot)):
                 self._evict_slot(slot.slot_id)
@@ -892,10 +946,31 @@ class ProductionBackend:
             bound_slots = {item.slot_id for item in self._admissions.values() if item.slot_id is not None}
             for slot in sorted(self._slots.values(), key=lambda item: item.slot_id):
                 if slot.slot_id not in bound_slots and slot.service_lease_id is None and self._slot_matches_profile(slot, compute_profile, resolved_parallelism) and self._healthy(slot):
-                    return self._lease(slot, reused=True)
+                    return self._lease_with_veto_check(slot, reused=True)
             if len(self._slots) >= self.max_slots:
                 raise SupervisorError("resource_unavailable: all model service slots are leased; retryable=true")
-            return self._start_slot(compute_profile=compute_profile, resolved_parallelism=resolved_parallelism, deadline_epoch=deadline_epoch)
+            return self._start_slot_with_veto_check(compute_profile=compute_profile,
+                resolved_parallelism=resolved_parallelism, deadline_epoch=deadline_epoch)
+
+    def _lease_with_veto_check(self, slot: _ServiceSlot, *, reused: bool) -> dict[str, Any]:
+        lease = self._lease(slot, reused=reused)
+        try:
+            self._check_assistance_release_veto()
+        except SupervisorError:
+            if not self._evict_slot(slot.slot_id, preempted=True):
+                raise SupervisorError("assistance_release_veto_cleanup_unverified")
+            raise
+        return lease
+
+    def _start_slot_with_veto_check(self, **kwargs) -> dict[str, Any]:
+        lease = self._start_slot(**kwargs)
+        try:
+            self._check_assistance_release_veto()
+        except SupervisorError:
+            if not self._evict_slot(str(lease["slot_id"]), preempted=True):
+                raise SupervisorError("assistance_release_veto_cleanup_unverified")
+            raise
+        return lease
 
     def _start_slot(self, *, compute_profile: str, resolved_parallelism: str,
                     admission: _Admission | None = None, deadline_epoch=None) -> dict[str, Any]:
@@ -1001,6 +1076,11 @@ class ProductionBackend:
                 "repo_root": str(self.repo_root), "model_path": str(model_path), "port": port,
                 "service_profile": service_profile,
                 "on_spawn": record_spawn,
+                # The adapter holds this canonical guard only while invoking
+                # Popen; readiness polling happens after the transaction ends.
+                "spawn_guard_factory": self._spawn_guard_factory,
+                "spawn_deadline_epoch": deadline_epoch or (time.time() + 300),
+                "require_spawn_guard": True,
                 **({"deadline_epoch": deadline_epoch} if deadline_epoch is not None else {}),
             })
             owned_descriptor = getattr(self.adapter, "owned_process_descriptor", self.adapter.describe)
@@ -1072,9 +1152,280 @@ class ProductionBackend:
             raise
 
     @_pool_synchronized
+    def _veto_foreground_continuations(self, service_lease_id: str | None = None) -> None:
+        for continuation in self._foreground_continuations.values():
+            for slot in continuation.get("slots", []):
+                if (service_lease_id is None or slot.get("service_lease_id") == service_lease_id):
+                    if slot.get("rewarmed") is not True:
+                        slot["vetoed"] = True
+
+    def _release_ephemeral(self, service_lease_id: str) -> dict[str, Any]:
+        """Release a per-turn lease without treating it as user cancellation."""
+        with self._pool_lock:
+            self._non_veto_release_ids.add(service_lease_id)
+        try:
+            return self.release(service_lease_id)
+        finally:
+            with self._pool_lock:
+                self._non_veto_release_ids.discard(service_lease_id)
+
+    def quiesce_for_foreground(self, *, request_id: str, resource_ids: list[str],
+                               deadline_epoch: float) -> dict[str, Any]:
+        """Drain only overlapping warm slots and return proof after native release.
+
+        The call waits for each affected generation's current turn to finish.
+        Its token only describes a later, explicit re-admission attempt; it does
+        not hold or reserve accelerator resources.
+        """
+        self._validate_foreground_handoff(request_id, resource_ids, deadline_epoch)
+        requested = sorted(set(resource_ids))
+        with self._pool_lock:
+            prior = next((item for item in self._foreground_continuations.values()
+                          if item["request_id"] == request_id), None)
+            if prior is not None:
+                if prior["resource_ids"] != requested:
+                    raise SupervisorError("foreground_handoff_request_reused_with_different_resources")
+                if prior.get("receipt") is not None:
+                    return dict(prior["receipt"])
+                continuation = prior
+            else:
+                requested_set = set(requested)
+                token = secrets.token_urlsafe(32)
+                snapshots = []
+                for slot in sorted(self._slots.values(), key=lambda item: item.slot_id):
+                    reserved = set(slot.residency_resource_ids)
+                    reserved.update(f"accelerator:{gpu}" for gpu in slot.gpu_uuids)
+                    if not requested_set.intersection(reserved):
+                        continue
+                    try:
+                        identity = process_identity(int(slot.endpoint_descriptor["server_pid"]))
+                        process_start = identity["process_start"]
+                    except (OSError, ValueError, KeyError, TypeError):
+                        process_start = None
+                    snapshots.append({
+                        "slot_id": slot.slot_id,
+                        "prior_state": slot.state,
+                        "service_lease_id": slot.service_lease_id,
+                        "compute_profile": slot.compute_profile,
+                        "parallelism": slot.parallelism,
+                        "gpu_uuids": list(slot.gpu_uuids),
+                        "residency_resource_ids": sorted(slot.residency_resource_ids),
+                        "model_id": slot.endpoint_descriptor.get("model_id"),
+                        "model_sha256": slot.endpoint_descriptor.get("model_sha256"),
+                        "owner_id": slot.owner_id,
+                        "generation": slot.residency_generation,
+                        "server_pid": slot.endpoint_descriptor.get("server_pid"),
+                        "server_process_start": process_start,
+                        "memory_baseline": dict(slot.memory_baseline),
+                        "released": False,
+                        "rewarmed": False,
+                        "vetoed": False,
+                    })
+                    slot.state = "draining"
+                    self.service.drain("llama", slot.handle)
+                continuation = {"request_id": request_id, "resource_ids": requested,
+                                "continuation_id": token, "slots": snapshots,
+                                "receipt": None, "vetoed": False}
+                self._foreground_continuations[token] = continuation
+                # Bound private in-memory handoff state. Only completed records
+                # without a live suspended session may be discarded.
+                while len(self._foreground_continuations) > 64:
+                    removable = next((key for key, item in self._foreground_continuations.items()
+                                      if all(slot.get("rewarmed") or slot.get("vetoed")
+                                             for slot in item.get("slots", []))), None)
+                    if removable is None:
+                        raise SupervisorError("foreground_handoff_capacity_exhausted")
+                    self._foreground_continuations.pop(removable, None)
+
+        while True:
+            pending = False
+            with self._pool_lock:
+                for saved in continuation["slots"]:
+                    if saved.get("released"):
+                        continue
+                    slot = self._slots.get(saved["slot_id"])
+                    if slot is not None:
+                        if slot.active_turns:
+                            pending = True
+                            continue
+                        if not self._evict_slot(slot.slot_id, preempted=slot.service_lease_id is not None):
+                            pending = True
+                            continue
+                    proof = next((item for item in reversed(self.cleanup_receipts)
+                                  if item.get("owner_id") == saved["owner_id"] and
+                                  item.get("owned_pid") == saved["server_pid"] and
+                                  item.get("server_process_start") == saved["server_process_start"] and
+                                  item.get("generation") == saved["generation"] and
+                                  item.get("gpu_uuids") == saved["gpu_uuids"] and
+                                  item.get("released") is True and
+                                  item.get("process_released") is True and
+                                  item.get("memory_released") is True), None)
+                    if proof is None:
+                        pending = True
+                        continue
+                    saved["released"] = True
+                    saved["release_proof"] = {
+                        "released": True,
+                        "process_released": proof["process_released"],
+                        "memory_released": proof["memory_released"],
+                        "host_released": proof["released"],
+                        "observed_unix": proof.get("observation", {}).get("observed_unix"),
+                    }
+            if not pending:
+                break
+            try:
+                remaining_seconds(deadline_epoch)
+            except (ValueError, TimeoutError) as error:
+                raise SupervisorError("foreground_handoff_turn_or_cleanup_pending") from error
+            time.sleep(0.025)
+
+        receipt = {
+            "format": "PC-MODEL-FOREGROUND-HANDOFF/1",
+            "status": "quiesced",
+            "request_id": request_id,
+            "continuation_id": continuation["continuation_id"],
+            "resource_ids": list(requested),
+            "slots": [{key: value for key, value in saved.items()
+                       if key not in {"memory_baseline", "vetoed", "rewarmed"}}
+                      for saved in continuation["slots"]],
+        }
+        with self._pool_lock:
+            continuation["receipt"] = receipt
+        return dict(receipt)
+
+    def _validate_foreground_handoff(self, request_id: str, resource_ids: list[str],
+                                    deadline_epoch: float) -> None:
+        if (not isinstance(request_id, str) or not 1 <= len(request_id) <= 128 or
+                any(ord(char) < 33 or ord(char) > 126 for char in request_id) or
+                not isinstance(resource_ids, list) or not resource_ids or len(resource_ids) > 32 or
+                any(not isinstance(item, str) or len(item) > 192 or
+                    not (item.startswith("accelerator:GPU-") or item.startswith("interference:nvlink:"))
+                    for item in resource_ids) or
+                len(set(resource_ids)) != len(resource_ids) or
+                isinstance(deadline_epoch, bool) or not isinstance(deadline_epoch, (int, float))):
+            raise SupervisorError("supervisor_foreground_handoff_parameters_invalid")
+        try:
+            remaining_seconds(deadline_epoch)
+        except (TypeError, ValueError, TimeoutError) as error:
+            raise SupervisorError("supervisor_foreground_handoff_deadline_invalid") from error
+
+    def resume_after_foreground(self, *, request_id: str, continuation_id: str,
+                                resource_ids: list[str], deadline_epoch: float,
+                                veto: bool = False) -> dict[str, Any]:
+        """Re-admit prior residents through the normal native host interlock."""
+        self._validate_foreground_handoff(request_id, resource_ids, deadline_epoch)
+        if not isinstance(continuation_id, str) or not 20 <= len(continuation_id) <= 128 or type(veto) is not bool:
+            raise SupervisorError("supervisor_foreground_handoff_parameters_invalid")
+        with self._pool_lock:
+            continuation = self._foreground_continuations.get(continuation_id)
+            if (continuation is None or continuation["request_id"] != request_id or
+                    continuation["resource_ids"] != sorted(set(resource_ids))):
+                raise SupervisorError("foreground_handoff_continuation_identity_mismatch")
+            if continuation.get("resuming"):
+                raise SupervisorError("foreground_handoff_resume_already_in_progress")
+            if veto:
+                continuation["vetoed"] = True
+                for saved in continuation["slots"]:
+                    if not saved.get("rewarmed"):
+                        saved["vetoed"] = True
+            if continuation.get("vetoed"):
+                return {"status": "vetoed", "request_id": request_id,
+                        "continuation_id": continuation_id, "rewarmed_slots": []}
+            if continuation.get("receipt") is None or any(not saved.get("released") for saved in continuation["slots"]):
+                raise SupervisorError("foreground_handoff_release_proof_missing")
+            continuation["resuming"] = True
+
+        rewarmed = []
+        pending = []
+        try:
+            for saved in continuation["slots"]:
+                with self._pool_lock:
+                    if saved.get("rewarmed"):
+                        rewarmed.append(saved["slot_id"])
+                        continue
+                    if continuation.get("vetoed") or saved.get("vetoed"):
+                        continue
+                try:
+                    remaining_seconds(deadline_epoch)
+                    admission_id = str(self.admit(saved["compute_profile"], saved["parallelism"])["admission_id"])
+                    try:
+                        lease = self.warm(admission_id, deadline_epoch=deadline_epoch)
+                    except Exception:
+                        if admission_id in self._admissions:
+                            self.cancel_admission(admission_id)
+                        raise
+                except (SupervisorError, TimeoutError, ValueError) as error:
+                    if str(error) == "assistance_release_veto_active":
+                        with self._pool_lock:
+                            continuation["vetoed"] = True
+                            saved["vetoed"] = True
+                        continue
+                    pending.append({"slot_id": saved["slot_id"], "reason": str(error)[:300]})
+                    continue
+                new_lease = str(lease["service_lease_id"])
+                prior_lease = saved.get("service_lease_id")
+                try:
+                    # Reattaching the prior observer lease is a fresh model
+                    # admission. Serialize this short state change with the
+                    # durable stop veto, keeping the DB guard outside the pool
+                    # lock and away from warm/readiness waits.
+                    with self._admission_guard_factory(deadline_epoch):
+                        with self._pool_lock:
+                            slot = self._slots.get(str(lease["slot_id"]))
+                            if slot is None:
+                                pending.append({"slot_id": saved["slot_id"],
+                                                "reason": "rewarmed_slot_disappeared"})
+                                continue
+                            if continuation.get("vetoed") or saved.get("vetoed"):
+                                slot.state = "draining"
+                                if not self._evict_slot(slot.slot_id):
+                                    pending.append({"slot_id": saved["slot_id"],
+                                                    "reason": "vetoed_rewarm_cleanup_unverified"})
+                                continue
+                            if prior_lease:
+                                self._leases.pop(new_lease, None)
+                                self._leases[prior_lease] = slot.slot_id
+                                slot.service_lease_id = prior_lease
+                                slot.state = "active"
+                                self._preempted_leases.discard(prior_lease)
+                            else:
+                                self._release_ephemeral(new_lease)
+                            saved["rewarmed"] = True
+                            rewarmed.append(saved["slot_id"])
+                except (PermissionError, SupervisorError, TimeoutError, ValueError) as error:
+                    if str(error) not in {"assistance_release_veto_active"}:
+                        pending.append({"slot_id": saved["slot_id"], "reason": str(error)[:300]})
+                    with self._pool_lock:
+                        continuation["vetoed"] = True
+                        saved["vetoed"] = True
+                        slot = self._slots.get(str(lease["slot_id"]))
+                        if slot is not None:
+                            slot.state = "draining"
+                            if not self._evict_slot(slot.slot_id):
+                                pending.append({"slot_id": saved["slot_id"],
+                                                "reason": "vetoed_rewarm_cleanup_unverified"})
+            outstanding = [saved for saved in continuation["slots"]
+                           if not saved.get("rewarmed") and not saved.get("vetoed")]
+            vetoed_all = bool(continuation["slots"]) and not rewarmed and not outstanding
+            any_vetoed = any(saved.get("vetoed") for saved in continuation["slots"])
+            status = ("pending" if pending and not rewarmed else "partial" if pending or (any_vetoed and rewarmed)
+                      else "vetoed" if vetoed_all else "resumed")
+            with self._pool_lock:
+                if not pending:
+                    continuation["complete"] = True
+            return {"status": status, "request_id": request_id,
+                    "continuation_id": continuation_id, "rewarmed_slots": rewarmed,
+                    "pending_slots": pending}
+        finally:
+            with self._pool_lock:
+                continuation["resuming"] = False
+
+    @_pool_synchronized
     def release(self, service_lease_id: str | None = None) -> dict[str, Any]:
         if service_lease_id in self._preempted_leases:
             self._preempted_leases.discard(service_lease_id)
+            if service_lease_id not in self._non_veto_release_ids:
+                self._veto_foreground_continuations(service_lease_id)
             return {"released": True, "preempted": True, "service_lease_id": service_lease_id,
                     "clients": len(self._leases)}
         if service_lease_id is None:
@@ -1087,6 +1438,8 @@ class ProductionBackend:
         slot = self._slots.get(slot_id)
         if slot is None or slot.service_lease_id != service_lease_id:
             raise SupervisorError("service lease does not own the selected slot")
+        if service_lease_id not in self._non_veto_release_ids:
+            self._veto_foreground_continuations(service_lease_id)
         if slot.active_turns:
             raise SupervisorError("observer_session_cleanup_pending: model turn is still active")
         if slot.state == "draining" or self.runtime.host.preempt_requested(slot.owner_id) or not self._healthy(slot):
@@ -1226,7 +1579,7 @@ class ProductionBackend:
                         "source_identity": identity, "provider": "llama-server"}
                 finally:
                     if lease is not None:
-                        self.release(str(lease["service_lease_id"]))
+                        self._release_ephemeral(str(lease["service_lease_id"]))
                     else:
                         self.cancel_admission(str(admission["admission_id"]))
             finally:
@@ -1346,7 +1699,7 @@ class ProductionBackend:
                     return response
                 finally:
                     if session_id is None and lease is not None:
-                        self.release(str(lease["service_lease_id"]))
+                        self._release_ephemeral(str(lease["service_lease_id"]))
                     elif session_id is None and admission is not None:
                         admission_id = str(admission["admission_id"])
                         with self._pool_lock:
@@ -1403,6 +1756,7 @@ class ProductionBackend:
     @_pool_synchronized
     def drain(self) -> dict[str, Any]:
         self.draining = True
+        self._veto_foreground_continuations()
         for slot in self._slots.values():
             slot.state = "draining"
             self.service.drain("llama", slot.handle)
@@ -1418,10 +1772,14 @@ class ProductionBackend:
         try:
             self._clear_reasoning(slot, slot.service_lease_id)
             self.service.drain("llama", slot.handle)
+            owned_pid = int(slot.endpoint_descriptor["server_pid"])
+            try:
+                server_process_start = process_identity(owned_pid).get("process_start")
+            except (OSError, ValueError, KeyError):
+                server_process_start = None
             self.service.evict("llama", slot.handle)
             observation = self._residency_sample(list(slot.gpu_uuids))
             memory = memory_snapshot(observation, list(slot.gpu_uuids))
-            owned_pid = int(slot.endpoint_descriptor["server_pid"])
             process_released = not any(row["pid"] == owned_pid for row in observation["processes"])
             memory_released = all(memory[gpu] <= slot.memory_baseline[gpu] + 16 for gpu in slot.gpu_uuids)
             slot.last_cleanup = {"process_released": process_released,
@@ -1434,7 +1792,7 @@ class ProductionBackend:
                 "format": "CORE4-RESIDENCY-QUIESCENCE/1", "owner_id": slot.owner_id,
                 "owned_pid": owned_pid, "observed_unix": observation["observed_unix"], "observation": observation})
             self._marker_path(slot.slot_id).unlink(missing_ok=True)
-        except (RuntimeBindingError, OSError, ValueError, TypeError, AttributeError) as error:
+        except (RuntimeBindingError, AdapterError, OSError, ValueError, TypeError, AttributeError) as error:
             slot.last_cleanup = {"released": False, "reason": str(error)[:500]}
             return False
         if slot.service_lease_id is not None:
@@ -1444,6 +1802,8 @@ class ProductionBackend:
         self._slots.pop(slot_id, None)
         self.cleanup_receipts.append({"owner_id": slot.owner_id, "gpu_uuids": list(slot.gpu_uuids),
                                       "owned_pid": slot.endpoint_descriptor["server_pid"],
+                                      "server_process_start": server_process_start,
+                                      "generation": slot.residency_generation,
                                       "memory_baseline": slot.memory_baseline,
                                       "released": True, **slot.last_cleanup})
         self.cleanup_receipts[:] = self.cleanup_receipts[-64:]
@@ -1451,6 +1811,7 @@ class ProductionBackend:
 
     @_pool_synchronized
     def evict(self) -> dict[str, Any]:
+        self._veto_foreground_continuations()
         for admission in list(self._admissions.values()):
             self._release_admission(admission)
         self._admissions.clear()
@@ -1477,7 +1838,8 @@ class ProductionBackend:
             if slot.state == "draining" or not self._healthy(slot):
                 self._evict_slot(slot.slot_id, preempted=slot.service_lease_id is not None)
                 continue
-            if slot.service_lease_id is None and slot.idle_since is not None and self.ttl >= 0:
+            if (self.idle_eviction_enabled and slot.service_lease_id is None and
+                    slot.idle_since is not None and self.ttl >= 0):
                 if time.monotonic() - slot.idle_since >= self.ttl:
                     self._evict_slot(slot.slot_id)
 
@@ -1510,6 +1872,7 @@ class SupervisorServer:
         self.runtime_identity, self.runtime_context = bind_canonical_runtime(
             getattr(backend, "repo_root", Path.cwd())
         )
+        self.receiver_identity = bind_local_runtime()
         self._daemon_epoch = secrets.token_hex(32)
         self._runtime_fingerprint = hashlib.sha256(json.dumps(
             self.runtime_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
@@ -1534,11 +1897,15 @@ class SupervisorServer:
                         "model_sha256": slot.endpoint_descriptor.get("model_sha256")} if slot is not None else {})
             summaries.append({**summary, **details})
         return {**status, "slots": summaries, "idle_ttl_seconds": getattr(self.backend, "ttl", 900),
+                "idle_eviction_enabled": getattr(self.backend, "idle_eviction_enabled", True),
                 "runtime_identity": self.runtime_context,
                 "observer_contract": "PC-OBSERVER-SUPERVISOR/1",
                 "supervisor_pid": os.getpid(), "supervisor_process_start": self._process_start,
                 "daemon_epoch": self._daemon_epoch, "runtime_fingerprint": self._runtime_fingerprint,
                 "source_sha256": self._source_sha256, "runtime_root": str(self.root),
+                "receiver_manifest_sha256": self.receiver_identity.manifest_sha256,
+                "receiver_fingerprint": self.receiver_identity.fingerprint,
+                "receiver_source_commit": self.receiver_identity.source_commit,
                 "service_state_root": str(getattr(self.backend, "service_state_root", None)),
                 "allowed_gpu_uuids": list(getattr(self.backend, "profile", {}).get(
                     "deployment_policy", {}).get("allowed_gpu_uuids", [])),
@@ -1557,6 +1924,8 @@ class SupervisorServer:
             "observer-turn": {"request"},
             "observer-open": {"count", "compute_profile", "parallelism", "deadline_epoch"},
             "observer-close": {"session_id", "deadline_epoch"},
+            "observer-quiesce": {"request_id", "resource_ids", "deadline_epoch"},
+            "observer-resume": {"request_id", "continuation_id", "resource_ids", "deadline_epoch", "veto"},
             "observer-release-owned": {"records", "request_id", "deadline_epoch"}}
         if operation in observer_parameters:
             if set(request) - {"operation"} - observer_parameters[operation]:
@@ -1599,6 +1968,34 @@ class SupervisorServer:
                     if result.get("released") is True:
                         self._borrowers.pop(session_id, None)
                     return result
+            if operation == "observer-quiesce":
+                if (not isinstance(request.get("request_id"), str) or
+                        not isinstance(request.get("resource_ids"), list)):
+                    raise SupervisorError("supervisor_observer_parameters_invalid")
+                result = self.backend.quiesce_for_foreground(
+                    request_id=request["request_id"], resource_ids=request["resource_ids"],
+                    deadline_epoch=min(time.time() + 300, request.get("deadline_epoch") or time.time() + 300))
+                with self._borrowers_lock:
+                    self._invalidate_owned_slots({str(item["slot_id"]) for item in result.get("slots", [])})
+                return {**result, "daemon_epoch": self._daemon_epoch,
+                        "supervisor_pid": os.getpid(),
+                        "supervisor_process_start": self._process_start,
+                        "runtime_fingerprint": self._runtime_fingerprint}
+            if operation == "observer-resume":
+                if (not isinstance(request.get("request_id"), str) or
+                        not isinstance(request.get("continuation_id"), str) or
+                        not isinstance(request.get("resource_ids"), list) or
+                        type(request.get("veto", False)) is not bool):
+                    raise SupervisorError("supervisor_observer_parameters_invalid")
+                result = self.backend.resume_after_foreground(
+                    request_id=request["request_id"], continuation_id=request["continuation_id"],
+                    resource_ids=request["resource_ids"],
+                    deadline_epoch=min(time.time() + 300, request.get("deadline_epoch") or time.time() + 300),
+                    veto=request.get("veto", False))
+                return {**result, "daemon_epoch": self._daemon_epoch,
+                        "supervisor_pid": os.getpid(),
+                        "supervisor_process_start": self._process_start,
+                        "runtime_fingerprint": self._runtime_fingerprint}
             if operation == "observer-release-owned":
                 return self._release_owned_observer_resources(request)
             key = "packet" if operation == "observer-analyze" else "request"
@@ -1612,7 +2009,18 @@ class SupervisorServer:
                 on_slot_use = self._all_closed_capabilities_on_slot_use
             else:
                 on_slot_use = self._observer_turn_slot_use(payload, peer_pid, peer_process_start)
-            if not self._observer_executions.acquire(blocking=False):
+            # This semaphore acquisition is the bounded generation admission
+            # point. Serialize it with operator release, then drop the SQLite
+            # transaction before any provider/HTTP work so stop remains quick.
+            guard_factory = getattr(self.backend, "_admission_guard_factory", None)
+            if not callable(guard_factory):
+                operator = getattr(self.backend, "_assistance_operator", None)
+                guard_factory = getattr(operator, "admission_guard", None)
+            if not callable(guard_factory):
+                raise SupervisorError("assistance_admission_guard_unavailable")
+            with guard_factory(payload["deadline_epoch"]):
+                admitted = self._observer_executions.acquire(blocking=False)
+            if not admitted:
                 return {"status": "unavailable", "authoritative": False, "provider": "llama-server",
                         "reason": "observer_provider_busy", "fallback": "project_control_read_broker"}
             try:
@@ -1640,12 +2048,17 @@ class SupervisorServer:
         if operation == "evict":
             return self.backend.evict()
         if operation == "stop":
+            prior_receipt_ids = {id(item) for item in getattr(self.backend, "cleanup_receipts", [])}
             result = self.backend.evict()
             if result.get("quiescent") is not True:
                 raise SupervisorError("supervisor_stop_not_quiescent")
             self.stopping = True
             self._stop_event.set()
-            return {**result, "stopped": True}
+            return {**result, "stopped": True,
+                    "cleanup_receipts": [item for item in getattr(self.backend, "cleanup_receipts", [])
+                                         if id(item) not in prior_receipt_ids],
+                    "daemon_epoch": self._daemon_epoch, "supervisor_pid": os.getpid(),
+                    "supervisor_process_start": self._process_start}
         raise SupervisorError(f"unknown supervisor operation: {operation!r}")
 
     def _record_closed_resource(self, session_id: str, borrower: dict[str, Any]) -> dict[str, Any] | None:
@@ -2050,6 +2463,7 @@ class SupervisorClient:
         self.root = root or runtime_root()
         self.socket_path = self.root / "supervisor.sock"
         self._observer_owner: tuple[int, str] | None = None
+        self._observer_daemon_epoch: str | None = None
         self.runtime_identity, self.runtime_context = bind_canonical_runtime(self.repo_root)
 
     def _validate_status(self, status: dict[str, Any]) -> None:
@@ -2154,6 +2568,10 @@ class SupervisorClient:
         result = self._observer_request("observer-status", deadline_epoch=deadline_epoch if deadline_epoch is not None else time.time() + 2)
         self._validate_status(result)
         self._observer_owner = (result["supervisor_pid"], result["supervisor_process_start"])
+        epoch = result.get("daemon_epoch")
+        if not isinstance(epoch, str) or len(epoch) != 64:
+            raise SupervisorError("central_supervisor_epoch_invalid")
+        self._observer_daemon_epoch = epoch
         return result
 
     def analyze_observer_packet(self, packet: dict[str, Any]) -> dict[str, Any]:
@@ -2169,6 +2587,49 @@ class SupervisorClient:
 
     def close_observer_session(self, session_id: str, *, deadline_epoch=None) -> dict[str, Any]:
         return self._observer_request("observer-close", session_id=session_id, deadline_epoch=deadline_epoch)
+
+    def quiesce_for_foreground(self, *, request_id: str, resource_ids: list[str],
+                               deadline_epoch: float) -> dict[str, Any]:
+        if self._observer_owner is None or self._observer_daemon_epoch is None:
+            self.observer_status(deadline_epoch=min(deadline_epoch, time.time() + 2))
+        result = self._observer_request("observer-quiesce", request_id=request_id,
+                                        resource_ids=resource_ids, deadline_epoch=deadline_epoch)
+        self._validate_handoff_daemon_identity(result)
+        if (result.get("format") != "PC-MODEL-FOREGROUND-HANDOFF/1" or
+                result.get("status") != "quiesced" or result.get("request_id") != request_id or
+                result.get("resource_ids") != sorted(set(resource_ids)) or
+                not isinstance(result.get("continuation_id"), str) or
+                not isinstance(result.get("slots"), list)):
+            raise SupervisorError("foreground_handoff_receipt_invalid")
+        for slot in result["slots"]:
+            proof = slot.get("release_proof") if isinstance(slot, dict) else None
+            if (not isinstance(proof, dict) or proof.get("released") is not True or
+                    proof.get("process_released") is not True or
+                    proof.get("memory_released") is not True or
+                    proof.get("host_released") is not True):
+                raise SupervisorError("foreground_handoff_release_proof_invalid")
+        return result
+
+    def resume_after_foreground(self, *, request_id: str, continuation_id: str,
+                                resource_ids: list[str], deadline_epoch: float,
+                                veto: bool = False) -> dict[str, Any]:
+        if self._observer_owner is None or self._observer_daemon_epoch is None:
+            self.observer_status(deadline_epoch=min(deadline_epoch, time.time() + 2))
+        result = self._observer_request("observer-resume", request_id=request_id,
+            continuation_id=continuation_id, resource_ids=resource_ids,
+            deadline_epoch=deadline_epoch, veto=veto)
+        self._validate_handoff_daemon_identity(result)
+        if result.get("request_id") != request_id or result.get("continuation_id") != continuation_id:
+            raise SupervisorError("foreground_handoff_resume_identity_invalid")
+        if result.get("status") not in {"resumed", "partial", "pending", "vetoed"}:
+            raise SupervisorError("foreground_handoff_resume_status_invalid")
+        return result
+
+    def _validate_handoff_daemon_identity(self, result: dict[str, Any]) -> None:
+        if (self._observer_owner is None or self._observer_daemon_epoch is None or
+                result.get("daemon_epoch") != self._observer_daemon_epoch or
+                (result.get("supervisor_pid"), result.get("supervisor_process_start")) != self._observer_owner):
+            raise SupervisorError("central_supervisor_process_identity_mismatch")
 
     def release_owned_observer_resources(self, records: list[dict[str, Any]], *, request_id: str,
                                          deadline_epoch=None) -> dict[str, Any]:
@@ -2292,6 +2753,33 @@ class SupervisorClient:
                 return {"format": "CORE4-MODEL-SUPERVISOR/1", "running": False, "healthy": False}
             return {"running": False, "operation": operation}
         return self._request(operation, **parameters)
+
+    def stop_if_quiescent(self, deadline_epoch: float) -> dict[str, Any]:
+        """Stop the current owner only after authenticated strict eviction.
+
+        This path deliberately never calls ``ensure_running``. A missing owner
+        is reported as such; it cannot turn a release request into a model
+        startup. A live observer owner is identity-pinned before stop and the
+        response must come from that same daemon epoch and process.
+        """
+        try:
+            remaining_seconds(deadline_epoch)
+        except (TypeError, ValueError, TimeoutError) as error:
+            raise SupervisorError("central_supervisor_deadline_invalid") from error
+        if not self.socket_path.exists():
+            return {"stopped": False, "running": False, "quiescent": True,
+                    "cleanup_receipts": []}
+        status = self.observer_status(deadline_epoch=min(deadline_epoch, time.time() + 2))
+        self._validate_handoff_daemon_identity(status)
+        result = self._request("stop", timeout=remaining_seconds(deadline_epoch),
+                               deadline_epoch=deadline_epoch)
+        self._validate_handoff_daemon_identity(result)
+        if result.get("stopped") is not True or result.get("quiescent") is not True:
+            raise SupervisorError("supervisor_stop_not_quiescent")
+        receipts = result.get("cleanup_receipts")
+        if not isinstance(receipts, list):
+            raise SupervisorError("supervisor_stop_cleanup_receipts_invalid")
+        return result
 
 
 def main(argv: list[str] | None = None) -> int:

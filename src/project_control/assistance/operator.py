@@ -6,6 +6,7 @@ waiting for operator input.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -31,7 +32,7 @@ class AssistanceOperator:
         self.clock = clock
         self.control = trusted_operator_control()
 
-    def _open(self, *, create: bool) -> sqlite3.Connection | None:
+    def _open(self, *, create: bool, timeout: float = 10) -> sqlite3.Connection | None:
         if not create and not self.db_path.is_file():
             return None
         if create:
@@ -40,7 +41,7 @@ class AssistanceOperator:
                 self.db_path.parent.chmod(0o700)
             except OSError:
                 pass
-            db = sqlite3.connect(self.db_path, timeout=10)
+            db = sqlite3.connect(self.db_path, timeout=timeout)
             try:
                 os.chmod(self.db_path, 0o600)
             except OSError:
@@ -51,6 +52,40 @@ class AssistanceOperator:
         db = sqlite3.connect(uri, uri=True, timeout=3)
         db.row_factory = sqlite3.Row
         return db
+
+    @contextmanager
+    def admission_guard(self, deadline_epoch: float):
+        """Serialize only an external runtime-spawn effect with release veto.
+
+        The canonical broker database write lock gives start and release one
+        ordering: the short spawn or request-admission effect completes before
+        the veto commits, or the guard observes the veto and refuses it.
+        Callers must leave the context before model warming, readiness polling,
+        or execution waits; never hold it through inference.
+        """
+        if (isinstance(deadline_epoch, bool) or not isinstance(deadline_epoch, (int, float))
+                or deadline_epoch <= self.clock()):
+            raise ValueError("runtime_admission_deadline_invalid")
+        remaining = min(10.0, float(deadline_epoch) - float(self.clock()))
+        if remaining <= 0:
+            raise TimeoutError("runtime_admission_deadline_expired")
+        db = self._open(create=True, timeout=remaining)
+        try:
+            db.execute(f"PRAGMA busy_timeout={int(remaining * 1000)}")
+            db.execute("BEGIN IMMEDIATE")
+            policy = PowerPolicy(db, clock=self.clock)
+            if policy.snapshot().get("release_veto_active"):
+                raise PermissionError("assistance_release_veto_active")
+            if deadline_epoch <= self.clock():
+                raise TimeoutError("runtime_admission_deadline_expired")
+            yield
+            db.commit()
+        except BaseException:
+            if db.in_transaction:
+                db.rollback()
+            raise
+        finally:
+            db.close()
 
     @staticmethod
     def _default_status() -> dict[str, Any]:

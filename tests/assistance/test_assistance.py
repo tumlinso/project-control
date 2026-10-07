@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import tempfile
 import sqlite3
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -235,6 +237,28 @@ class AssistanceOperatorTests(unittest.TestCase):
         state = self.operator.status()["power"]
         self.assertFalse(state["release_veto_active"])
         self.assertEqual(state["physical_state"], "pending")
+
+    def test_runtime_spawn_guard_serializes_with_release_veto_commit(self):
+        release_done = threading.Event()
+        result = []
+        with self.operator.admission_guard(self.clock() + 5):
+            def request_release():
+                result.append(self.operator.request_release(reason="serialized stop"))
+                release_done.set()
+            thread = threading.Thread(target=request_release)
+            thread.start()
+            time.sleep(.05)
+            self.assertFalse(release_done.is_set())
+        self.assertTrue(release_done.wait(2))
+        thread.join(2)
+        self.assertEqual(result[0]["status"], "pending_owner_unavailable")
+        self.assertTrue(self.operator.status()["power"]["release_veto_active"])
+
+    def test_runtime_spawn_guard_refuses_committed_release_veto(self):
+        self.operator.request_release(reason="stop before start")
+        with self.assertRaisesRegex(PermissionError, "assistance_release_veto_active"):
+            with self.operator.admission_guard(self.clock() + 5):
+                self.fail("spawn guard entered after release veto")
 
     def test_unknown_projects_and_timezone_free_expiries_are_rejected(self):
         with self.assertRaises(PermissionError):

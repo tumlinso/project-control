@@ -87,7 +87,11 @@ class TurnPolicyTests(unittest.TestCase):
         observed = {}
         observed_lock = threading.Lock()
 
-        def run_slot(_self, _slot, request):
+        def run_slot(_self, _slot, request, *, on_slot_use=None):
+            # Mirror ProductionBackend._run_slot's callback contract so the
+            # concurrent policy test continues to exercise the call site.
+            if on_slot_use is not None:
+                on_slot_use(_slot.slot_id)
             rendezvous.wait(timeout=5)
             with observed_lock:
                 observed[request["turn_policy_id"]] = {

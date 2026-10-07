@@ -405,3 +405,12 @@ class ResourceController:
             FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
         return [{"session_id": row[0], "state": row[1], "release_request_id": row[2], "updated": row[3]}
                 for row in rows]
+
+    def summary(self) -> dict[str, Any]:
+        """Return safe counts for operator readiness and stop diagnostics."""
+        rows = self.db.execute("SELECT state,count(*) FROM pa1_owned_resource_sessions GROUP BY state").fetchall()
+        counts = {state: int(count) for state, count in rows}
+        return {"session_count": sum(counts.values()), "states": counts,
+            "release_pending": bool(counts.get("active", 0) or counts.get("idle_owned", 0)
+                                    or counts.get("release_pending", 0) or counts.get("stale", 0)),
+            "release_verified_sessions": counts.get("released_verified", 0)}

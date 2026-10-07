@@ -1,11 +1,13 @@
 # Local assistance controls
 
-Project Control's assistance CLI keeps goals, source preparation, and local
-inference under separate operator controls. It is demand-only by default, and
-notifications are off. `status`, `goal`, `focus`, `quiet`, `release`, and
-`resume` do not start an inference worker. An explicit `ask` or `run` starts the
-existing observer broker for that request; ordinary chat lines are also
-explicit questions.
+Project Control's CLI and Codex use one local assistance runtime. An explicit
+`ask`, `run`, question in `chat`, or supported MCP/HTTP `investigate` or `skill`
+request can start that runtime on demand. A model-free status or control call
+does not start it. Notifications and automatic preparation are off by default.
+The model stays warm while GPU resources are available; idle time alone does
+not evict it. Pertinent CUDA or GPU LAB work can preempt it through resource
+admission, after which eligible inference can rewarm when those resources are
+released.
 
 Replace `<project>` with a registered workspace ID. If a workspace has an
 authority repository, that repository is used by default. For a workspace
@@ -16,13 +18,24 @@ does not guess between multiple repositories.
 
 ```sh
 project-control assistance status
+project-control assistance start
 project-control assistance goal <project> "Understand the parser's quoted-token behavior"
 ```
 
-`status` reads the saved focus and power state without starting the dispatcher
-or contacting the model service. A goal is saved as a user-authored notebook
-card. It does not enable automatic work, create a project task, or grant source
-access.
+`status` reads operator, runtime, and active-work state without starting
+inference. `start` explicitly starts the shared inference service and waits up
+to 120 seconds for the selected release and its receiver and Todo runtime
+identities to verify. Explicit questions use the same service, so concurrent
+cold requests share one serialized startup. On a mismatch or timeout, read the
+reported reason and status; do not treat a failed readiness check as a
+successful start. A goal is saved as a user-authored notebook card. It does
+not enable automatic work, create a project task, or grant source access.
+
+The model stays resident until resource admission, a release request, or an
+explicit stop requires it to yield. Do not use elapsed idle time as evidence
+that it was evicted or restarted. Status reports the service and available
+release, residency, wait, active-work, and release information without asking
+the model to run.
 
 Set a focus to record what matters now. Source paths are optional for a
 non-automatic focus:
@@ -77,6 +90,21 @@ released. Resume each control independently, or clear both explicitly:
 project-control assistance resume --all
 ```
 
+Stop the shared service only after Project Control has cancelled active work
+and verified release of resources it owns:
+
+```sh
+project-control assistance stop
+project-control assistance status
+```
+
+If stop reports `needs_coordination` or `not_stopped`, the release veto remains
+active and the service may still be running. Inspect status and resolve the
+owned work or release proof first. To withdraw the durable release veto and
+allow future explicit demand, use `project-control assistance resume --release`.
+That command clears the veto; it does not itself start inference. Use `start`
+or an explicit question when ready to make the runtime available again.
+
 ## Ask, chat, and review suggestions
 
 An ask is explicit model-backed work when the configured local observer runtime
@@ -92,6 +120,12 @@ In chat, enter `/status`, `/quiet 45m`, `/release`, `/resume quiet`,
 `/resume release`, `/resume all`, `/accept NOTE_ID`, or `/exit`. Use `/ask TEXT`
 for an explicit question; any other non-command line is also treated as a
 question. Waiting for input does not hold an inference session.
+
+The CLI and Codex question paths share the same broker, inference service, and
+resource admission. A fresh cached answer can be returned without starting
+inference; new or stale work uses verified demand startup. Choose CLI `start`
+and `stop` for explicit service controls; ordinary model-free controls remain
+available while inference is stopped.
 
 Request a proposed handoff for the current or named focus:
 
@@ -120,8 +154,18 @@ Todo task. Source text and model output cannot run these controls by themselves.
 
 ## Qualification status
 
-These controls are implemented in the source checkout; installation,
-activation, and live qualification of this candidate remain pending. The
-isolated scratch laboratory is not yet available. Status and control commands
-above are model-free. The `ask`, `run`, and question lines in `chat` are the
-explicit inference entry points.
+Automatic preparation remains off unless enabled explicitly with selected
+registered source paths and a finite duration. Keep it off during an initial
+manual trial. LAB provides a separate scope preview, one-time authorization,
+and bounded autonomous execution; see [the practical trial walkthrough](practical-trial.md)
+for a short sequence and [the finalization plan](finalization-plan.md) for the
+acceptance boundaries.
+
+The command surface and source implementation do not by themselves prove that
+the selected installed release is current or live-qualified. Check the
+candidate-bound receipts in [the qualification handoff](qualification-handoff.md)
+and [the live qualification plan](live-qualification-plan.md). Existing
+case-level and live receipts remain in [acceptance results](acceptance-results.json)
+and [live validation](live-validation.json); preserve their original scope and
+limitations when deciding what is currently usable. A feature with no current
+installation and live evidence remains pending qualification.

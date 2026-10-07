@@ -39,8 +39,11 @@ def central(monkeypatch, tmp_path):
               'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
               'service_state_root': str(state), 'runtime_root': str(state / 'runtime'),
               'observer_only': True, 'supervisor_pid': 42, 'supervisor_process_start': '123',
+              'daemon_epoch': 'f' * 64, 'runtime_fingerprint': 'e' * 64,
               'allowed_gpu_uuids': [], 'model_id': 'warm-model'}
     client = Mock()
+    client._observer_owner = (42, '123')
+    client._observer_daemon_epoch = 'f' * 64
     client.observer_status.return_value = status
     client.run_observer_turn.return_value = {'status': 'available', 'model_id': 'warm-model'}
     module = SimpleNamespace(__file__=str(source), SupervisorClient=Mock(return_value=client),
@@ -78,6 +81,96 @@ def test_reasoning_mode_is_forwarded_and_validated_at_frontend(central):
     assert turn(SkillsObserverAnalysisProvider(), reasoning_mode='hidden') == {
         'status': 'unavailable', 'reason': 'local_investigator_reasoning_mode_invalid'}
     client.run_observer_turn.assert_not_called()
+
+
+def test_trusted_policy_id_is_forwarded_without_caller_budget_overrides(central):
+    _, client, _, _ = central
+    result = turn(SkillsObserverAnalysisProvider(), turn_policy_id='gather-v1',
+                  max_tokens='caller-controlled-invalid-budget', reasoning_mode='hidden')
+    assert result['status'] == 'available'
+    request = client.run_observer_turn.call_args.args[0]
+    assert request['turn_policy_id'] == 'gather-v1'
+    assert 'max_tokens' not in request
+    assert 'reasoning_mode' not in request
+    client.run_observer_turn.reset_mock()
+
+    invalid = turn(SkillsObserverAnalysisProvider(), turn_policy_id='gather-v999')
+    assert invalid == {'status': 'unavailable', 'reason': 'observer_turn_policy_unknown'}
+    client.run_observer_turn.assert_not_called()
+
+
+def test_legacy_turn_without_policy_keeps_existing_budget_contract(central):
+    _, client, _, _ = central
+    assert turn(SkillsObserverAnalysisProvider(), max_tokens=321, reasoning_mode='off')['status'] == 'available'
+    request = client.run_observer_turn.call_args.args[0]
+    assert request['max_tokens'] == 321
+    assert request['reasoning_mode'] == 'off'
+    assert 'turn_policy_id' not in request
+
+
+def test_release_idle_runtime_requires_physical_cleanup_receipts(central):
+    _, client, status, _ = central
+    gpu = 'GPU-12345678-1234-1234-1234-123456789abc'
+    status.update(active_leases=0, active_admissions=0, slots=[{
+        'slot_id': 'slot-a', 'state': 'idle', 'leased': False,
+        'owner_id': 'owner-a', 'server_pid': 987, 'gpu_uuids': [gpu],
+    }])
+    client.stop_if_quiescent.return_value = {
+        'stopped': True, 'evicted': True, 'quiescent': True,
+        'supervisor_pid': 42, 'supervisor_process_start': '123', 'daemon_epoch': 'f' * 64,
+        'cleanup_receipts': [{
+            'owner_id': 'owner-a', 'owned_pid': 987, 'gpu_uuids': [gpu],
+            'released': True, 'process_released': True, 'memory_released': True,
+        }],
+    }
+    result = SkillsObserverAnalysisProvider().release_idle_runtime(deadline_epoch=time.time() + 30)
+    assert result['status'] == 'released_verified'
+    assert result['released_verified'] is True
+    assert result['stopped'] is True
+    assert result['supervisor_pid'] == 42
+    assert result['supervisor_process_start'] == '123'
+    assert result['daemon_epoch'] == 'f' * 64
+    assert result['runtime_fingerprint'] == 'e' * 64
+    client.stop_if_quiescent.assert_called_once()
+
+
+def test_release_idle_runtime_refuses_failed_cleanup_receipt(central):
+    _, client, status, _ = central
+    gpu = 'GPU-12345678-1234-1234-1234-123456789abc'
+    status.update(active_leases=0, active_admissions=0, slots=[{
+        'slot_id': 'slot-a', 'state': 'idle', 'leased': False,
+        'owner_id': 'owner-a', 'server_pid': 987, 'gpu_uuids': [gpu],
+    }])
+    client.stop_if_quiescent.return_value = {
+        'stopped': True, 'evicted': False, 'quiescent': False,
+        'cleanup_receipts': [{
+            'owner_id': 'owner-a', 'owned_pid': 987, 'gpu_uuids': [gpu],
+            'released': False, 'process_released': False, 'memory_released': False,
+        }],
+    }
+    with pytest.raises(RuntimeError, match='observer_runtime_release_not_quiescent'):
+        SkillsObserverAnalysisProvider().release_idle_runtime(deadline_epoch=time.time() + 30)
+
+
+def test_release_idle_runtime_never_stops_leased_or_foreign_slot(central):
+    _, client, status, _ = central
+    status.update(active_leases=0, active_admissions=0, slots=[{
+        'slot_id': 'foreign-slot', 'state': 'active', 'leased': True,
+        'owner_id': 'foreign-owner', 'server_pid': 987,
+        'gpu_uuids': ['GPU-12345678-1234-1234-1234-123456789abc'],
+    }])
+    with pytest.raises(RuntimeError, match='observer_runtime_release_slot_not_idle'):
+        SkillsObserverAnalysisProvider().release_idle_runtime(deadline_epoch=time.time() + 30)
+    client.stop_if_quiescent.assert_not_called()
+
+
+def test_release_idle_runtime_proves_empty_pool_without_stopping_owner(central):
+    _, client, status, _ = central
+    status.update(active_leases=0, active_admissions=0, slots=[])
+    result = SkillsObserverAnalysisProvider().release_idle_runtime(deadline_epoch=time.time() + 30)
+    assert result == {'status': 'released', 'quiescent': True, 'evicted': True,
+                      'stopped': False, 'already_empty': True, 'cleanup_receipts': []}
+    client.stop_if_quiescent.assert_not_called()
 
 
 def test_turn_transport_envelope_allows_extended_context_without_changing_public_answer_cap(central):
@@ -142,6 +235,10 @@ def test_two_process_clients_share_unix_owner_and_total_ipc_deadline(tmp_path):
     status = {'observer_contract': 'PC-OBSERVER-SUPERVISOR/1',
               'runtime_identity': {'fixture': True}, 'observer_only': True,
               'supervisor_pid': os.getpid(), 'supervisor_process_start': Path('/proc/self/stat').read_text().split(')')[-1].split()[19],
+              'daemon_epoch': 'a' * 64,
+              'receiver_manifest_sha256': identity.manifest_sha256,
+              'receiver_fingerprint': identity.fingerprint,
+              'receiver_source_commit': identity.source_commit,
               'source_sha256': hashlib.sha256((identity.package_root / 'supervisor.py').read_bytes()).hexdigest(),
               'service_state_root': str(state), 'runtime_root': str(runtime), 'allowed_gpu_uuids': [],
               'slots': [{'server_pid': 987, 'owner_id': 'single-owner', 'model_id': 'warm', 'model_sha256': 'a' * 64}]}

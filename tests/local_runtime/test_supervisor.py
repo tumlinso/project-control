@@ -8,7 +8,7 @@ import time
 import unittest
 import shutil
 import weakref
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -33,10 +33,14 @@ class FakeBackend:
         self.polls = 0
         self.leases = []
         self.admissions = []
+        self.cleanup_receipts = []
 
     def status(self):
         return {"format": "CORE4-MODEL-SUPERVISOR/1", "running": self.loaded,
                 "healthy": self.loaded, "clients": self.clients, "draining": self.draining}
+
+    def observer_status(self):
+        return {**self.status(), "slots": []}
 
     def admit(self):
         admission = f"admission-{len(self.admissions) + 1}"
@@ -78,6 +82,8 @@ class FakeBackend:
         self.clients = 0
         self.draining = False
         self.admissions.clear()
+        self.cleanup_receipts.append({"owner_id": f"cleanup-{len(self.cleanup_receipts) + 1}",
+                                      "released": True})
         return {"evicted": True, "quiescent": True}
 
     def poll(self):
@@ -118,6 +124,46 @@ class _CanonicalRuntimeFixture(unittest.TestCase):
 
 
 class SupervisorTests(_CanonicalRuntimeFixture):
+    def test_veto_committed_before_observer_http_admission_rejects_backend_call(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            backend = FakeBackend()
+            entered = threading.Event()
+            committed = threading.Event()
+            calls = []
+            backend.run_observer_turn = lambda *args, **kwargs: calls.append(args) or {"status": "ok"}
+
+            @contextmanager
+            def admission_guard(deadline_epoch):
+                entered.set()
+                if not committed.wait(2):
+                    raise TimeoutError("test barrier timed out")
+                raise PermissionError("assistance_release_veto_active")
+                yield
+
+            backend._admission_guard_factory = admission_guard
+            server = SupervisorServer(backend, root=Path(temporary) / "runtime")
+            outcome = []
+            request = {"operation": "observer-turn", "request": {
+                "format": "PC-LOCAL-INVESTIGATOR-TURN/2", "messages": [],
+                "max_tokens": 8, "timeout_seconds": 1}}
+            thread = threading.Thread(target=lambda: self._capture_dispatch(server, request, outcome))
+            thread.start()
+            self.assertTrue(entered.wait(1))
+            # This is the durable stop commit in the barrier fixture. Dispatch
+            # may not cross the canonical admission guard after this point.
+            committed.set()
+            thread.join(timeout=2)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(outcome, ["assistance_release_veto_active"])
+            self.assertEqual(calls, [])
+
+    @staticmethod
+    def _capture_dispatch(server, request, outcome):
+        try:
+            server._dispatch(request)
+        except Exception as error:
+            outcome.append(str(error))
+
     def test_rpc_frame_fits_one_mib_utf8_normalized_message_with_unicode_and_controls(self):
         content = "😀" * 250_000 + "\x01\n\t"
         messages = [{"role": "user", "content": content}]
@@ -152,7 +198,10 @@ class SupervisorTests(_CanonicalRuntimeFixture):
             self.assertEqual(os.stat(root).st_mode & 0o777, 0o700)
             self.assertEqual(client.request("release", service_lease_id=first["service_lease_id"])["clients"], 1)
             self.assertTrue(client.request("drain")["draining"])
-            self.assertTrue(client.request("stop")["stopped"])
+            stopped = client.stop_if_quiescent(time.time() + 2)
+            self.assertTrue(stopped["stopped"])
+            self.assertTrue(stopped["quiescent"])
+            self.assertEqual(stopped["cleanup_receipts"], [{"owner_id": "cleanup-1", "released": True}])
             thread.join(timeout=2)
             self.assertFalse(thread.is_alive())
             self.assertFalse(server.socket_path.exists())
@@ -180,6 +229,15 @@ class SupervisorTests(_CanonicalRuntimeFixture):
             self.assertEqual(client.request("status"), {
                 "format": "CORE4-MODEL-SUPERVISOR/1", "running": False, "healthy": False,
             })
+
+    def test_stop_if_quiescent_does_not_start_absent_supervisor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            client = SupervisorClient(temporary, root=Path(temporary) / "runtime")
+            with mock.patch("local_worker.supervisor.subprocess.Popen",
+                            side_effect=AssertionError("stop must not start supervisor")):
+                result = client.stop_if_quiescent(time.time() + 2)
+            self.assertEqual(result, {"stopped": False, "running": False, "quiescent": True,
+                                      "cleanup_receipts": []})
 
     def test_stale_runtime_identity_is_removed(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -347,13 +405,16 @@ class _Service:
     def evict(self, name, handle): self.handles[handle] = False; return {"evicted": True}
 
 
-def _profile(*, maximum=2, ttl=900):
+def _profile(*, maximum=2, ttl=900, idle_eviction=None):
+    deployment_policy = {"max_real_workers": maximum, "hot_idle_seconds": ttl}
+    if idle_eviction is not None:
+        deployment_policy["hot_idle_eviction"] = idle_eviction
     return {
         "storage": {"cache_root": "/cache", "canonical_root": "/cold"},
         "server": {"binary": "/bin/true", "base_port": 8080, "startup_timeout_seconds": 1,
                    "gpu_layers": 999, "split_mode": "layer"},
         "experiment": {"initial_context": 32768},
-        "deployment_policy": {"max_real_workers": maximum, "hot_idle_seconds": ttl},
+        "deployment_policy": deployment_policy,
         "compute_profiles": {"narrow": "fixture", "wide": "fixture-next"},
         "candidates": [{"id": "fixture", "profile": "one-island"},
                        {"id": "fixture-next", "profile": "all-gpu-single-wide"}],
@@ -374,7 +435,7 @@ class _PoolBackend(ProductionBackend):
     def _healthy(self, slot):
         return bool(self.service.health("llama", slot.handle).get("healthy"))
 
-    def _version(self, binary): return "fixture"
+    def _version(self, binary, deadline_epoch=None): return "fixture"
 
 
 class ServicePoolTests(_CanonicalRuntimeFixture):
@@ -488,13 +549,17 @@ class ServicePoolTests(_CanonicalRuntimeFixture):
         backend.release(lease["service_lease_id"])
         backend.close()
 
-    def backend(self, *, islands=2, maximum=2, ttl=900, service=None):
+    def backend(self, *, islands=2, maximum=2, ttl=900, idle_eviction=None, service=None,
+                release_veto_check=None):
         runtime = _Runtime(islands=islands)
         service = service or _Service()
         topology = {"value": SimpleNamespace(mode="normal", status="available")}
-        backend = _PoolBackend(".", profile=_profile(maximum=maximum, ttl=ttl), cache=_Cache(),
+        backend = _PoolBackend(".", profile=_profile(maximum=maximum, ttl=ttl,
+                                                     idle_eviction=idle_eviction), cache=_Cache(),
                                runtime=runtime, adapter=_Adapter(), service=service,
-                               topology_classifier=lambda: topology["value"])
+                               topology_classifier=lambda: topology["value"],
+                               release_veto_check=release_veto_check,
+                               admission_guard_factory=lambda deadline: nullcontext())
         backend.test_topology = topology
         return backend, runtime, service
 
@@ -762,6 +827,139 @@ class ServicePoolTests(_CanonicalRuntimeFixture):
         self.assertEqual(backend.status()["slots"][0]["server_pid"], first["server_pid"])
         backend.release(first["service_lease_id"])
         self.assertTrue(backend.warm()["reused"])
+        backend.close()
+
+    def test_disabled_idle_eviction_keeps_a_slot_warm_past_the_legacy_ttl(self):
+        backend, _, _ = self.backend(ttl=900, idle_eviction=False)
+        endpoint = backend.warm()
+        backend.release(endpoint["service_lease_id"])
+        slot = backend._slots[endpoint["slot_id"]]
+        slot.idle_since = time.monotonic() - 901
+        backend.poll()
+        self.assertEqual(backend.status()["slots"][0]["state"], "idle")
+        self.assertTrue(backend.status()["slots"][0]["healthy"])
+        backend.close()
+
+    def test_foreground_handoff_drains_exact_turn_and_rewarms_through_native_admission(self):
+        service = _Service(run_delay=.05)
+        backend, runtime, _ = self.backend(service=service)
+        endpoint = backend.warm()
+        slot = backend._slots[endpoint["slot_id"]]
+        result = []
+        turn = threading.Thread(target=lambda: result.append(backend._run_slot(slot, {
+            "messages": [], "max_tokens": 1, "timeout_seconds": 1})))
+        turn.start()
+        deadline = time.time() + 2
+        while not slot.active_turns and time.time() < deadline:
+            time.sleep(.005)
+        receipt = backend.quiesce_for_foreground(request_id="lab-run-1",
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 2)
+        turn.join(timeout=2)
+        self.assertFalse(turn.is_alive())
+        self.assertEqual(receipt["status"], "quiesced")
+        self.assertEqual(len(receipt["slots"]), 1)
+        proof = receipt["slots"][0]["release_proof"]
+        self.assertEqual((proof["released"], proof["process_released"],
+                          proof["memory_released"], proof["host_released"]),
+                         (True, True, True, True))
+        self.assertFalse(runtime.host.owners)
+        resumed = backend.resume_after_foreground(request_id="lab-run-1",
+            continuation_id=receipt["continuation_id"], resource_ids=["accelerator:GPU-a"],
+            deadline_epoch=time.time() + 2)
+        self.assertEqual(resumed["status"], "resumed")
+        self.assertEqual(len(backend.status()["slots"]), 1)
+        backend.close()
+
+    def test_foreground_handoff_is_selective_and_native_admission_failure_stays_pending(self):
+        backend, runtime, _ = self.backend()
+        first, second = backend.warm(), backend.warm()
+        receipt = backend.quiesce_for_foreground(request_id="lab-pair-a",
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 2)
+        self.assertEqual(len(receipt["slots"]), 1)
+        self.assertEqual(len(backend.status()["slots"]), 1)
+        original_reserve = runtime.host.reserve_service
+        runtime.host.reserve_service = lambda **kwargs: None
+        pending = backend.resume_after_foreground(request_id="lab-pair-a",
+            continuation_id=receipt["continuation_id"], resource_ids=["accelerator:GPU-a"],
+            deadline_epoch=time.time() + 2)
+        self.assertEqual(pending["status"], "pending")
+        runtime.host.reserve_service = original_reserve
+        resumed = backend.resume_after_foreground(request_id="lab-pair-a",
+            continuation_id=receipt["continuation_id"], resource_ids=["accelerator:GPU-a"],
+            deadline_epoch=time.time() + 2)
+        self.assertEqual(resumed["status"], "resumed")
+        restored_pairs = {frozenset(item["gpu_uuids"]) for item in backend.status()["slots"]}
+        self.assertEqual(restored_pairs,
+                         {frozenset({"GPU-a", "GPU-b"}), frozenset({"GPU-c", "GPU-d"})})
+        backend.close()
+
+    def test_explicit_release_vetoes_rewarming_after_foreground_handoff(self):
+        backend, _, service = self.backend(service=_Service(delay=.08))
+        endpoint = backend.warm()
+        receipt = backend.quiesce_for_foreground(request_id="lab-release-veto",
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 2)
+        self.assertTrue(backend.release(endpoint["service_lease_id"])["preempted"])
+        resumed = backend.resume_after_foreground(request_id="lab-release-veto",
+            continuation_id=receipt["continuation_id"], resource_ids=["accelerator:GPU-a"],
+            deadline_epoch=time.time() + 2)
+        self.assertEqual(resumed["status"], "vetoed")
+        self.assertFalse(backend.status()["running"])
+        backend.close()
+
+    def test_global_release_veto_during_slow_rewarm_evicts_new_slot(self):
+        veto = {"active": False}
+        backend, runtime, service = self.backend(service=_Service(delay=.12),
+            release_veto_check=lambda: veto["active"])
+        endpoint = backend.warm()
+        receipt = backend.quiesce_for_foreground(request_id="lab-release-race",
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 2)
+        results = []
+        resume = threading.Thread(target=lambda: results.append(backend.resume_after_foreground(
+            request_id="lab-release-race", continuation_id=receipt["continuation_id"],
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 3)))
+        resume.start()
+        deadline = time.time() + 2
+        service = backend.service
+        while service.starts < 2 and time.time() < deadline:
+            time.sleep(.005)
+        veto["active"] = True
+        resume.join(timeout=3)
+        self.assertFalse(resume.is_alive())
+        self.assertEqual(results[0]["status"], "vetoed")
+        self.assertFalse(backend.status()["running"])
+        self.assertFalse(runtime.host.owners)
+        backend.close()
+
+    def test_stop_veto_before_rewarmed_lease_reattachment_evicts_resident(self):
+        backend, runtime, _ = self.backend()
+        endpoint = backend.warm()
+        receipt = backend.quiesce_for_foreground(request_id="lab-attach-veto",
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 2)
+        entered = threading.Event()
+        stop_committed = threading.Event()
+
+        @contextmanager
+        def reattach_guard(deadline_epoch):
+            entered.set()
+            if not stop_committed.wait(2):
+                raise TimeoutError("test stop barrier timed out")
+            raise PermissionError("assistance_release_veto_active")
+            yield
+
+        backend._admission_guard_factory = reattach_guard
+        results = []
+        resume = threading.Thread(target=lambda: results.append(backend.resume_after_foreground(
+            request_id="lab-attach-veto", continuation_id=receipt["continuation_id"],
+            resource_ids=["accelerator:GPU-a"], deadline_epoch=time.time() + 3)))
+        resume.start()
+        self.assertTrue(entered.wait(2))
+        stop_committed.set()
+        resume.join(timeout=3)
+        self.assertFalse(resume.is_alive())
+        self.assertEqual(results[0]["status"], "vetoed")
+        self.assertEqual(backend.status()["slots"], [])
+        self.assertFalse(runtime.host.owners)
+        self.assertNotIn(endpoint["service_lease_id"], backend._leases)
         backend.close()
 
     def test_single_island_fallback_remains_unchanged(self):

@@ -205,19 +205,27 @@ class SkillsObserverAnalysisProvider:
             messages = request.get("messages")
             if not isinstance(messages, list) or not messages:
                 raise ValueError("local_investigator_messages_missing")
-            reasoning_mode = request.get("reasoning_mode", "auto")
-            if reasoning_mode not in {"auto", "off"}:
-                raise ValueError("local_investigator_reasoning_mode_invalid")
+            turn_policy_id = request.get("turn_policy_id")
+            if turn_policy_id is None:
+                reasoning_mode = request.get("reasoning_mode", "auto")
+                if reasoning_mode not in {"auto", "off"}:
+                    raise ValueError("local_investigator_reasoning_mode_invalid")
+            else:
+                reasoning_mode = None
             response_format = request.get("response_format")
             if "response_format" in request and not isinstance(response_format, dict):
                 raise ValueError("local_investigator_response_format_invalid")
+            # The broker selects a trusted policy; the supervisor resolves its
+            # budgets and instructions from its own registry. Never translate
+            # that selector into caller-provided numeric generation settings.
+            if turn_policy_id is not None:
+                from .assistance.policies import validate_policy_id
+                turn_policy_id = validate_policy_id(turn_policy_id)
             write_event({"event": "model_request", "phase": "started", "call_id": call_id_var.get(),
                          "operation": "investigate_turn", "messages": summarize_messages(messages)})
             backend_request = {
                 "format": "PC-LOCAL-INVESTIGATOR-TURN/2",
                 "messages": messages,
-                "max_tokens": int(request.get("max_tokens", 2048)),
-                "reasoning_mode": reasoning_mode,
                 "timeout_seconds": min(60.0, float(request.get("timeout_seconds", 60))),
                 "compute_profile": request.get("compute_profile", "wide"),
                 "parallelism": request.get("parallelism", "default"),
@@ -225,6 +233,12 @@ class SkillsObserverAnalysisProvider:
                 **({"deadline_epoch": request["deadline_epoch"]} if "deadline_epoch" in request else {}),
                 **({"session_id": request["session_id"]} if request.get("session_id") else {}),
             }
+            if turn_policy_id is None:
+                # Keep the established generation contract for legacy callers.
+                backend_request["max_tokens"] = int(request.get("max_tokens", 2048))
+                backend_request["reasoning_mode"] = reasoning_mode
+            else:
+                backend_request["turn_policy_id"] = turn_policy_id
             backend_request["deadline_epoch"] = min(float(backend_request.get("deadline_epoch", time.time() + backend_request["timeout_seconds"])), time.time() + backend_request["timeout_seconds"])
             encoded = json.dumps(backend_request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             if len(encoded.encode("utf-8")) > 1024 * 1024:
@@ -260,6 +274,86 @@ class SkillsObserverAnalysisProvider:
         if not isinstance(result, dict) or result.get("released") is not True:
             raise RuntimeError("observer_session_not_quiescent")
         return result
+
+    def release_idle_runtime(self, *, deadline_epoch: float) -> dict[str, Any]:
+        """Physically release verified idle model slots before broker stop proof.
+
+        This is deliberately not a general stop API. The broker must first set
+        the durable release veto; then this method requires an authenticated
+        central owner snapshot with no leases/admissions and only known idle,
+        unleased slots. A missing daemon is never started to perform cleanup.
+        """
+        if isinstance(deadline_epoch, bool) or not isinstance(deadline_epoch, (int, float)):
+            raise ValueError("observer_runtime_release_deadline_invalid")
+        deadline_epoch = float(deadline_epoch)
+        if deadline_epoch <= time.time():
+            raise TimeoutError("observer_runtime_release_deadline_expired")
+
+        client = self._checked_client(deadline_epoch)
+        status = self.central_status(deadline_epoch=deadline_epoch)
+        owner = (status.get("supervisor_pid"), status.get("supervisor_process_start"))
+        if (getattr(client, "_observer_owner", None) != owner or
+                getattr(client, "_observer_daemon_epoch", None) != status.get("daemon_epoch")):
+            raise RuntimeError("observer_runtime_release_owner_changed")
+        runtime_fingerprint = status.get("runtime_fingerprint")
+        daemon_epoch = status.get("daemon_epoch")
+        if (not isinstance(runtime_fingerprint, str) or len(runtime_fingerprint) != 64 or
+                not isinstance(daemon_epoch, str) or len(daemon_epoch) != 64):
+            raise RuntimeError("observer_runtime_release_owner_identity_invalid")
+        if (type(status.get("active_leases")) is not int or status["active_leases"] != 0 or
+                type(status.get("active_admissions")) is not int or status["active_admissions"] != 0):
+            raise RuntimeError("observer_runtime_release_not_quiescent")
+        slots = status.get("slots")
+        if not isinstance(slots, list):
+            raise RuntimeError("observer_runtime_release_slots_invalid")
+        for slot in slots:
+            if (not isinstance(slot, dict) or slot.get("state") != "idle" or
+                    slot.get("leased") is not False or not isinstance(slot.get("slot_id"), str) or
+                    not isinstance(slot.get("owner_id"), str) or
+                    isinstance(slot.get("server_pid"), bool) or not isinstance(slot.get("server_pid"), int) or
+                    slot.get("server_pid") <= 0 or not isinstance(slot.get("gpu_uuids"), list) or
+                    not slot["gpu_uuids"] or any(not isinstance(uuid, str) or not uuid for uuid in slot["gpu_uuids"])):
+                raise RuntimeError("observer_runtime_release_slot_not_idle")
+        if not slots:
+            return {"status": "released", "quiescent": True, "evicted": True,
+                    "stopped": False, "already_empty": True, "cleanup_receipts": []}
+
+        stop = getattr(client, "stop_if_quiescent", None)
+        if not callable(stop):
+            raise RuntimeError("observer_runtime_release_operation_unavailable")
+        receipt = stop(deadline_epoch=deadline_epoch)
+        if (not isinstance(receipt, dict) or receipt.get("stopped") is not True or
+                receipt.get("quiescent") is not True or receipt.get("evicted") is not True):
+            raise RuntimeError("observer_runtime_release_not_quiescent")
+        if (receipt.get("supervisor_pid") != status.get("supervisor_pid") or
+                receipt.get("supervisor_process_start") != status.get("supervisor_process_start") or
+                receipt.get("daemon_epoch") != daemon_epoch):
+            raise RuntimeError("observer_runtime_release_owner_changed")
+        cleanup = receipt.get("cleanup_receipts")
+        if not isinstance(cleanup, list) or len(cleanup) != len(slots):
+            raise RuntimeError("observer_runtime_release_receipts_incomplete")
+        expected = {(slot["owner_id"], slot["server_pid"], tuple(sorted(set(slot["gpu_uuids"]))))
+                    for slot in slots}
+        observed = set()
+        for item in cleanup:
+            if not isinstance(item, dict):
+                raise RuntimeError("observer_runtime_release_receipt_invalid")
+            key = (item.get("owner_id"), item.get("owned_pid"),
+                   tuple(sorted(set(item.get("gpu_uuids", []))))
+                   if isinstance(item.get("gpu_uuids"), list) and
+                   all(isinstance(uuid, str) for uuid in item["gpu_uuids"]) else ())
+            if (item.get("released") is not True or item.get("process_released") is not True or
+                    item.get("memory_released") is not True or key not in expected or key in observed):
+                raise RuntimeError("observer_runtime_release_receipt_invalid")
+            observed.add(key)
+        if observed != expected:
+            raise RuntimeError("observer_runtime_release_receipts_incomplete")
+        return {"status": "released_verified", "released_verified": True,
+                "supervisor_pid": status["supervisor_pid"],
+                "supervisor_process_start": status["supervisor_process_start"],
+                "daemon_epoch": daemon_epoch, "runtime_fingerprint": runtime_fingerprint,
+                "quiescent": True, "evicted": True, "stopped": True,
+                "cleanup_receipts": cleanup}
 
     def close(self) -> None:
         """Disconnect this frontend; global residency belongs to the operator."""

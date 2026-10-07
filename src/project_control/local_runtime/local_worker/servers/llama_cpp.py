@@ -161,8 +161,22 @@ class LlamaCppServerAdapter:
             except TimeoutError:
                 log_stream.close()
                 raise
-        process = self.process_factory(argv, stdout=log_stream, stderr=subprocess.STDOUT, text=True,
-                                       env=environment, start_new_session=True)
+        spawn_guard = context.get("spawn_guard_factory")
+        if context.get("require_spawn_guard") and not callable(spawn_guard):
+            log_stream.close()
+            raise AdapterError("assistance_spawn_guard_unavailable")
+        spawn_deadline = context.get("spawn_deadline_epoch", deadline_epoch)
+        try:
+            if callable(spawn_guard):
+                with spawn_guard(spawn_deadline):
+                    process = self.process_factory(argv, stdout=log_stream, stderr=subprocess.STDOUT,
+                                                   text=True, env=environment, start_new_session=True)
+            else:
+                process = self.process_factory(argv, stdout=log_stream, stderr=subprocess.STDOUT,
+                                               text=True, env=environment, start_new_session=True)
+        except BaseException:
+            log_stream.close()
+            raise
         handle = str(uuid.uuid4())
         self._servers[handle] = {
             "process": process, "base_url": f"http://{host}:{port}", "accepting": True,

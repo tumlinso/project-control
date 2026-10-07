@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Sequence
@@ -119,6 +120,8 @@ def _parser() -> argparse.ArgumentParser:
     assistance = commands.add_parser("assistance", help="use demand-only local assistance controls")
     assistance_commands = assistance.add_subparsers(dest="assistance_command", required=True)
     assistance_commands.add_parser("status")
+    assistance_commands.add_parser("start", help="start and verify the selected inference runtime")
+    assistance_commands.add_parser("stop", help="release owned assistance work and stop inference")
     goal = assistance_commands.add_parser("goal")
     goal.add_argument("project")
     goal.add_argument("text")
@@ -179,6 +182,9 @@ def _parser() -> argparse.ArgumentParser:
     lab_candidate.add_argument("--patch-file", type=Path, required=True)
     lab_verify = lab_commands.add_parser("verify", help="verify one candidate against its experiment")
     lab_verify.add_argument("--candidate", required=True)
+    from .assistance.lab_cli import add_scoped_lab_parsers, configure_scoped_run_parser
+    add_scoped_lab_parsers(lab_commands)
+    configure_scoped_run_parser(lab_run)
     chat = assistance_commands.add_parser("chat")
     chat.add_argument("--project")
 
@@ -400,6 +406,28 @@ def _assistance_composition(project: str):
     return config, composition
 
 
+def _assistance_demand_work_status() -> dict[str, object]:
+    """Read content-free broker work state without starting its dispatcher."""
+    config = load_config()
+    if not config.workspaces:
+        return {"status": "unavailable", "reason": "owner_workspace_unavailable"}
+    try:
+        _config, composition = _assistance_composition(sorted(config.workspaces)[0])
+    except (OSError, RuntimeError, ValueError, PermissionError) as error:
+        return {"status": "unavailable", "reason": f"owner_work_status_{type(error).__name__.lower()}"}
+    try:
+        reader = getattr(composition.jobs, "demand_work_status", None)
+        if not callable(reader):
+            return {"status": "unavailable", "reason": "owner_work_status_unavailable"}
+        value = reader()
+        return value if isinstance(value, dict) else {
+            "status": "unavailable", "reason": "owner_work_status_invalid"}
+    except Exception as error:
+        return {"status": "unavailable", "reason": f"owner_work_status_{type(error).__name__.lower()}"}
+    finally:
+        composition.jobs.shutdown(timeout=1)
+
+
 def _assistance_repository(config, project: str, repository: str | None = None) -> tuple[str, Path]:
     workspace = config.workspaces.get(project)
     if workspace is None:
@@ -415,7 +443,7 @@ def _assistance_repository(config, project: str, repository: str | None = None) 
 
 
 def _assistance_ask(composition, question: str, project: str) -> dict[str, object]:
-    """An explicit ask starts the ordinary two-worker broker for this process."""
+    """Submit a demand; the broker starts inference only after its cache gate."""
     from .as1_surface import public_inquiry
 
     composition.start()
@@ -447,6 +475,19 @@ def _lab_service(project: str | None = None):
         config = load_config()
         repository, trusted_root = _assistance_repository(config, project)
         projects[project] = LabProject(project=project, root=trusted_root, repository=repository)
+    return LabService(projects=projects)
+
+
+def _scoped_lab_service(project: str | None = None):
+    """Build the trusted registry needed to resolve durable scoped LAB sessions."""
+    from .assistance.lab import LabProject, LabService
+
+    config = load_config()
+    selected = [project] if project is not None else sorted(config.workspaces)
+    projects = {}
+    for project_id in selected:
+        repository, trusted_root = _assistance_repository(config, project_id)
+        projects[project_id] = LabProject(project=project_id, root=trusted_root, repository=repository)
     return LabService(projects=projects)
 
 
@@ -549,10 +590,131 @@ def _lab_run_in_transient_unit(args, command_argv: Sequence[str]) -> int:
     return 0
 
 
+def _scoped_lab_in_transient_unit(command: str, scope_id: str) -> int:
+    """Run one authorized scope in its delegated cgroup under the same release."""
+    try:
+        from .assistance.lab_runner import current_cgroup_ready
+        if current_cgroup_ready():
+            return -1
+    except Exception as exc:
+        raise ValueError("lab_delegated_cgroup_unavailable") from exc
+    if _lab_transient_unit_active():
+        raise ValueError("lab_delegated_cgroup_unavailable")
+    systemd_run = shutil.which("systemd-run", path="/usr/bin:/bin")
+    if systemd_run is None:
+        raise ValueError("lab_transient_runner_unavailable")
+    interpreter, source_root = _lab_runtime_identity()
+    unit = f"project-control-lab-{uuid.uuid4().hex}.service"
+    runtime_limit = 600
+    timeout = runtime_limit + 30
+    argv = [
+        systemd_run, "--user", "--wait", "--pipe", "--collect", "--quiet",
+        f"--unit={unit}", "--property=Delegate=yes",
+        "--property=DelegateSubgroup=controller", f"--property=RuntimeMaxSec={runtime_limit}s",
+        f"--working-directory={source_root}",
+    ]
+    env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(Path.home()),
+           "PYTHONPATH": str(source_root)}
+    for name in (
+        "XDG_CONFIG_HOME", "XDG_STATE_HOME", "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR",
+        "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "SYSTEMD_BUS_ADDRESS",
+        "PROJECT_CONTROL_RELEASE_MANIFEST", "PROJECT_CONTROL_RELEASE_DIGEST",
+        "PROJECT_CONTROL_SKILLS_ROOT", "PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256",
+        "PROJECT_CONTROL_OBSERVER_GPU_UUIDS", "TODO_ORCHESTRATOR_STATE_DIR",
+    ):
+        value = os.environ.get(name)
+        if value:
+            env[name] = value
+    for name, value in env.items():
+        argv.append(f"--setenv={name}={value}")
+    argv.extend(("--", str(interpreter), "-m", "project_control.cli",
+                 "assistance", "lab", command, "--scope-id", scope_id))
+    try:
+        completed = subprocess.run(
+            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, timeout=timeout, check=False, env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError("lab_transient_runner_unavailable") from exc
+    if completed.returncode != 0:
+        raise ValueError("lab_transient_execution_failed")
+    try:
+        payload = json.loads(completed.stdout)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("lab_transient_result_unavailable") from exc
+    print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
+def _assistance_scoped_lab_command(args) -> int:
+    from .assistance.lab_cli import handle_scoped_lab, make_experiment_planner
+    from .assistance.demand_runtime import capture_runtime_pin, ensure_demand_runtime_ready
+    from .observer_analysis import SkillsObserverAnalysisProvider
+
+    provider: SkillsObserverAnalysisProvider | None = None
+
+    def get_provider():
+        nonlocal provider
+        if provider is None:
+            provider = SkillsObserverAnalysisProvider()
+        return provider
+
+    def ensure_ready():
+        return ensure_demand_runtime_ready(
+            deadline_epoch=time.time() + 120.0, provider=get_provider())
+
+    def gpu_executor(*effect_args, **effect_kwargs):
+        # The LAB service calls this only for an already-authorized GPU scope.
+        # Build no CUDA/supervisor adapter for previews, CPU runs, or controls.
+        from .assistance.lab_gpu import GpuLabExecutor, native_owner_reader
+
+        config = load_config()
+        roots = {}
+        for project_id in sorted(config.workspaces):
+            _repository, trusted_root = _assistance_repository(config, project_id)
+            roots[project_id] = trusted_root
+        pin = capture_runtime_pin()
+        skills_root = (pin.release_root / "runtime-skills").resolve(strict=True)
+        controller = skills_root / "cuda" / "scripts" / "cuda_controller.py"
+        if controller.is_symlink() or not controller.resolve(strict=True).is_relative_to(skills_root):
+            raise ValueError("lab_cuda_controller_outside_selected_runtime_skills")
+        active_provider = get_provider()
+        client = active_provider._checked_client(deadline_epoch=min(
+            float(effect_kwargs.get("deadline", time.time() + 5.0)), time.time() + 5.0))
+        executor = GpuLabExecutor(
+            project_roots=roots, cuda_controller=controller,
+            quiesce=client.quiesce_for_foreground,
+            resume=client.resume_after_foreground,
+            owner_reader=native_owner_reader,
+        )
+        return executor(*effect_args, **effect_kwargs)
+
+    if args.lab_command in {"run", "resume"}:
+        scope_id = getattr(args, "scope_id", None)
+        if not scope_id:
+            raise ValueError("scoped_lab_scope_id_required")
+        result = _scoped_lab_in_transient_unit(args.lab_command, scope_id)
+        if result != -1:
+            return result
+    return handle_scoped_lab(
+        args, lab_service_factory=lambda project: _scoped_lab_service(project),
+        planner=make_experiment_planner(get_provider),
+        demand_start=ensure_ready,
+        lifecycle_hooks={"gpu_executor": gpu_executor},
+    )
+
+
 def _assistance_lab_command(args) -> int:
+    if (args.lab_command in {"preview", "authorize", "resume", "cancel"}
+            or getattr(args, "scope_id", None) is not None):
+        return _assistance_scoped_lab_command(args)
     from .assistance.lab import LabSelection
 
     if args.lab_command == "run":
+        missing = [name for name in ("project", "source", "hypothesis", "reference", "measure", "stop_rule")
+                   if not getattr(args, name, None)]
+        if missing:
+            raise ValueError("lab_run_missing_required_arguments:" + ",".join(missing))
         argv = list(args.argv)
         if argv and argv[0] == "--":
             argv.pop(0)
@@ -674,7 +836,37 @@ def _assistance_command(args) -> int:
     operator = AssistanceOperator()
     command = args.assistance_command
     if command == "status":
-        result = operator.status()
+        from .assistance.demand_runtime import demand_runtime_status
+        result = {"operator": operator.status(), "runtime": demand_runtime_status(),
+                  "work": _assistance_demand_work_status()}
+    elif command == "start":
+        from .assistance.demand_runtime import start_demand_runtime
+        result = start_demand_runtime(deadline_epoch=time.time() + 120.0)
+    elif command == "stop":
+        from .assistance.demand_runtime import stop_demand_runtime
+
+        def coordinate_stop():
+            config = load_config()
+            if not config.workspaces:
+                return {"active_work_cancelled": False, "owned_resources_released": False,
+                        "reason": "owner_workspace_unavailable"}
+            _project, composition = _assistance_composition(sorted(config.workspaces)[0])
+            try:
+                coordinator = getattr(composition.jobs, "coordinate_demand_stop", None)
+                if not callable(coordinator):
+                    return {"active_work_cancelled": False, "owned_resources_released": False,
+                            "reason": "owner_stop_coordinator_unavailable"}
+                try:
+                    return coordinator(operator.control, timeout=95.0)
+                except Exception as error:
+                    return {"active_work_cancelled": False, "owned_resources_released": False,
+                            "reason": f"owner_stop_coordination_{type(error).__name__.lower()}"}
+            finally:
+                # The coordinator owns cancellation and release proof. This
+                # bounded shutdown only closes an unstarted/finished frontend.
+                composition.jobs.shutdown(timeout=1)
+
+        result = stop_demand_runtime(coordinate_stop=coordinate_stop)
     elif command == "chat":
         return _assistance_chat(args)
     elif command == "lab":
@@ -988,7 +1180,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             return 0
-    except (FileNotFoundError, PermissionError, RegistryError, MigrationError, MutationRejected, PreledgerError, ValueError) as exc:
+    except (FileNotFoundError, PermissionError, RegistryError, MigrationError, MutationRejected,
+            PreledgerError, ValueError, RuntimeError) as exc:
         print(f"project-control: {exc}", file=sys.stderr)
         return 2
     return 2

@@ -80,6 +80,22 @@ _INQUIRY_FAILURE_CLASSES = {
     'worker_deadline_exhausted': 'deadline_exhausted',
     'job_input_budget_exhausted': 'job_input_budget_exhausted',
 }
+_PUBLIC_WAIT_REASONS = frozenset({'release_veto_active', 'automatic_disabled',
+    'quiet_window_active', 'foreground_priority', 'session_unavailable',
+    'runtime_unavailable', 'capacity_wait', 'dispatch_policy_changed',
+    'preemption_requested', 'foreground_preemption', 'session_evicted'})
+
+
+def _public_wait_reason(value):
+    if not isinstance(value, str):
+        return None
+    if value in _PUBLIC_WAIT_REASONS:
+        return value
+    if value in _INQUIRY_FAILURE_CLASSES:
+        return _INQUIRY_FAILURE_CLASSES[value]
+    if value.startswith(('central_supervisor_', 'runtime_identity_')):
+        return 'runtime_mismatch'
+    return 'pending'
 
 
 class InvalidToolArguments(ValueError):
@@ -228,6 +244,11 @@ class JobService:
             # Hash caller supplied identity once so persisted inquiry keys stay bounded.
             analysis_runtime_identity = canonical_digest({'analysis_runtime_identity': analysis_runtime_identity})
         self._analysis_runtime_identity = analysis_runtime_identity
+        # Hosts may bind the unified, identity-verifying systemd demand gate.
+        # It is intentionally called only after inquiry cache/freshness reads
+        # establish that this explicit request needs live analysis.
+        self.demand_runtime_ready = None
+        self.demand_startup_timeout = 120.0
         self.last_error = None
         self._central_preflight_lock = threading.Lock()
         self._central_preflight_checked = 0.0
@@ -426,6 +447,36 @@ class JobService:
         return {'dispatcher': 'running' if self._thread and self._thread.is_alive() else 'stopped',
                 'last_error': self.last_error, 'durable': True}
 
+    def demand_work_status(self):
+        """Return bounded, content-free demand queue and owned-slot diagnostics."""
+        with self._db() as db:
+            rows = db.execute("""SELECT id,record,available,updated FROM jobs
+                WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled')
+                ORDER BY updated,id LIMIT 64""").fetchall()
+            slots = db.execute('SELECT job,attempt,owner_pid,owner_start,cleanup_failed FROM execution_slots ORDER BY job LIMIT 16').fetchall()
+            slot_count = db.execute('SELECT count(*) FROM execution_slots').fetchone()[0]
+            resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                                           clock=self.clock).summary()
+        active = []
+        now = self.clock()
+        for row in rows:
+            try:
+                job = json.loads(row['record'])
+                active.append({'job_id': row['id'], 'mode': job.get('mode'),
+                    'status': job.get('status'), 'attempt': job.get('attempt'),
+                    'wait_reason': _public_wait_reason(job.get('failure_reason')),
+                    'available_in_seconds': round(max(0.0, float(row['available']) - now), 2)})
+            except (TypeError, ValueError, AttributeError):
+                active.append({'job_id': row['id'], 'status': 'unavailable',
+                               'wait_reason': 'job_record_invalid'})
+        return {'active_work': active, 'active_work_truncated': len(rows) >= 64,
+            'active_execution_slots': [{'job_id': row['job'], 'attempt': row['attempt'],
+                'cleanup_pending': bool(row['cleanup_failed']),
+                'owner_pid': row['owner_pid'], 'owner_process_start': row['owner_start']}
+                for row in slots], 'active_execution_slots_truncated': slot_count > len(slots),
+            'owned_resources': resources,
+            'dispatcher': self.health()['dispatcher']}
+
     def release_owned_resources(self, control, *, callback=None, declared_end=None,
                                 reason='operator-requested'):
         """Persist release veto before asking the current supervisor to release owned sessions.
@@ -439,6 +490,232 @@ class JobService:
             policy = PowerPolicy(db, clock=self.clock)
             intent = policy.set_release(control, declared_end=declared_end, reason=reason)
         return self._deliver_owned_release(intent, callback=callback)
+
+    def coordinate_demand_stop(self, control, *, timeout=95.0):
+        """Cancel broker work, then prove its exact owned resources released.
+
+        This is the callback used by the unified demand-runtime stop operation.
+        A durable release veto is committed first, so neither automatic nor
+        foreground work can rewarm while cancellation and owner cleanup finish.
+        The supervisor remains running whenever logical cancellation or exact
+        physical release cannot be proved within the bounded wait.
+        """
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 120:
+            raise ValueError('demand_stop_timeout_out_of_bounds')
+        # Committing the veto before touching jobs closes the race with the
+        # dispatcher: any later claim fails its native power-policy admission.
+        with self._db() as db:
+            policy = PowerPolicy(db, clock=self.clock)
+            release_state = policy.snapshot()
+        if release_state.get('release_veto_active'):
+            outcome = self._reconcile_owned_release()
+        else:
+            outcome = self.release_owned_resources(control, reason='explicit-demand-stop')
+        deadline = time.monotonic() + float(timeout)
+        cancelled = self._cancel_active_work_for_stop()
+        self._wake.set()
+        settled = False
+        while time.monotonic() < deadline:
+            self._reconcile_owned_release()
+            active = self._active_work_snapshot()
+            if active['active_jobs'] == 0 and not active['execution_slots']:
+                settled = True
+                break
+            time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+        snapshot = self._active_work_snapshot()
+        cancelled = cancelled and snapshot['active_jobs'] == 0
+        try:
+            with self._db() as db:
+                state = PowerPolicy(db, clock=self.clock).snapshot()
+                resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                                               clock=self.clock).snapshot()
+            unresolved = any(item.get('state') in {'active', 'idle_owned', 'release_pending', 'stale'}
+                             for item in resources)
+            records_proved = (not unresolved and (state.get('physical_state') == 'released_verified'
+                or all(item.get('state') in {'released_verified', 'superseded'} for item in resources)))
+            current = self._central_quiescent_snapshot()
+            slots = current.get('slots') if current is not None else None
+            cleanup_proved = current is not None and slots == []
+            release_idle = getattr(self.backend, 'release_idle_runtime', None)
+            if records_proved and current is not None and slots:
+                # Idle warm slots are quiescent, not physically released.
+                # Ask the selected supervisor to stop only its own idle slots.
+                # Its response must pin the pre-stop owner and prove a physical
+                # cleanup receipt for every slot. The CPU daemon is stopping,
+                # so a post-stop central_status call would be invalid evidence.
+                if callable(release_idle):
+                    remaining = max(0.0, deadline - time.monotonic())
+                    if remaining > 0:
+                        receipt = release_idle(deadline_epoch=time.time() + remaining)
+                        cleanup = receipt.get('cleanup_receipts') if isinstance(receipt, dict) else None
+                        expected = set()
+                        for slot in slots:
+                            owner_id = slot.get('owner_id')
+                            owned_pid = slot.get('server_pid')
+                            gpu_uuids = slot.get('gpu_uuids')
+                            if (not isinstance(owner_id, str) or not owner_id
+                                    or type(owned_pid) is not int or owned_pid <= 0
+                                    or not isinstance(gpu_uuids, list) or not gpu_uuids
+                                    or any(not isinstance(uuid, str) or not uuid for uuid in gpu_uuids)):
+                                expected = set()
+                                break
+                            key = (owner_id, owned_pid, tuple(sorted(set(gpu_uuids))))
+                            if key in expected:
+                                expected = set()
+                                break
+                            expected.add(key)
+                        observed = set()
+                        receipts_valid = isinstance(cleanup, list) and len(cleanup) == len(slots)
+                        if receipts_valid:
+                            for item in cleanup:
+                                if not isinstance(item, dict):
+                                    receipts_valid = False
+                                    break
+                                gpu_uuids = item.get('gpu_uuids')
+                                key = (item.get('owner_id'), item.get('owned_pid'),
+                                    tuple(sorted(set(gpu_uuids))) if isinstance(gpu_uuids, list)
+                                    and all(isinstance(uuid, str) for uuid in gpu_uuids) else ())
+                                if (item.get('released') is not True
+                                        or item.get('process_released') is not True
+                                        or item.get('memory_released') is not True
+                                        or key not in expected or key in observed):
+                                    receipts_valid = False
+                                    break
+                                observed.add(key)
+                        cleanup_proved = (isinstance(receipt, dict)
+                            and receipt.get('status') == 'released_verified'
+                            and receipt.get('released_verified') is True
+                            and receipt.get('supervisor_pid') == current.get('supervisor_pid')
+                            and receipt.get('supervisor_process_start') == current.get('supervisor_process_start')
+                            and receipt.get('daemon_epoch') == current.get('daemon_epoch')
+                            and receipt.get('runtime_fingerprint') == current.get('runtime_fingerprint')
+                            and receipt.get('quiescent') is True
+                            and receipt.get('evicted') is True
+                            and receipt.get('stopped') is True
+                            and bool(expected) and receipts_valid and observed == expected)
+            final_work = self._active_work_snapshot()
+            owner_proof = (records_proved and cleanup_proved
+                and final_work['active_jobs'] == 0
+                and final_work['execution_slots'] == 0)
+        except Exception:
+            owner_proof = False
+        return {'active_work_cancelled': bool(cancelled and settled),
+                'owned_resources_released': bool(owner_proof),
+                'release_outcome': outcome,
+                'active_jobs': snapshot['active_jobs'],
+                'execution_slots': snapshot['execution_slots']}
+
+    def _active_work_snapshot(self):
+        """Read bounded active-work identities and physical execution slots."""
+        with self._db() as db:
+            count = db.execute("SELECT count(*) FROM jobs WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled')").fetchone()[0]
+            slots = db.execute('SELECT count(*) FROM execution_slots').fetchone()[0]
+        return {'active_jobs': int(count), 'execution_slots': int(slots)}
+
+    def _central_quiescent_snapshot(self):
+        """Read exact owner state and accept only zero-lease idle slots."""
+        status = getattr(self.backend, 'central_status', None)
+        current = status(deadline_epoch=time.time() + 3) if callable(status) else None
+        slots = current.get('slots') if isinstance(current, dict) else None
+        if not (isinstance(current, dict)
+                and current.get('status') in (None, 'available')
+                and type(current.get('supervisor_pid')) is int
+                and current.get('supervisor_pid') > 0
+                and isinstance(current.get('daemon_epoch'), str)
+                and len(current.get('daemon_epoch')) == 64
+                and isinstance(current.get('runtime_fingerprint'), str)
+                and len(current.get('runtime_fingerprint')) == 64
+                and type(current.get('active_leases')) is int
+                and current.get('active_leases') == 0
+                and type(current.get('active_admissions')) is int
+                and current.get('active_admissions') == 0
+                and isinstance(slots, list)
+                and len(slots) <= 4
+                and all(isinstance(slot, dict) and slot.get('leased') is False
+                        and slot.get('state') in {'idle', 'ready'} for slot in slots)
+                and isinstance(current.get('supervisor_process_start'), str)
+                and bool(current.get('supervisor_process_start'))
+                and isinstance(current.get('source_sha256'), str)
+                and len(current.get('source_sha256')) == 64):
+            return None
+        return current
+
+    @staticmethod
+    def _same_supervisor_owner(before, after):
+        return all(before.get(key) == after.get(key) for key in (
+            'supervisor_pid', 'supervisor_process_start', 'daemon_epoch',
+            'runtime_fingerprint', 'source_sha256'))
+
+    def _cancel_active_work_for_stop(self):
+        """Cancel exact public roots and opted-in preparation roots by service APIs."""
+        with self._db() as db:
+            rows = db.execute("""SELECT j.id,j.scope,j.record,
+                EXISTS(SELECT 1 FROM pa1_automatic_work a WHERE a.job_id=j.id) automatic
+                FROM jobs j
+                WHERE json_extract(j.record,'$.status') NOT IN ('completed','partial','failed','cancelled')
+                  AND NOT EXISTS(SELECT 1 FROM pa1_private_ids p WHERE p.job_id=j.id)
+                ORDER BY j.updated,j.id LIMIT 256""").fetchall()
+            active_roots = db.execute("""SELECT count(*) FROM jobs j
+                WHERE json_extract(j.record,'$.status') NOT IN ('completed','partial','failed','cancelled')
+                  AND NOT EXISTS(SELECT 1 FROM pa1_private_ids p WHERE p.job_id=j.id)""").fetchone()[0]
+        okay = active_roots <= len(rows)
+        for row in rows:
+            try:
+                scope = json.loads(row['scope'])
+                if row['automatic']:
+                    accepted = self.cancel_preparation(row['id'], access_scope=scope)
+                else:
+                    accepted = self.cancel(row['id'], access_scope=scope)
+                # A concurrent terminal transition is safe only if the exact
+                # row is now terminal; verify through the supported lookup.
+                if not accepted:
+                    current = self.lookup(row['id'], access_scope=scope)
+                    accepted = current.get('status') == 'ok' and current.get('job', {}).get('status') in TERMINAL
+                okay = okay and bool(accepted)
+            except Exception:
+                okay = False
+        return okay
+
+    def _ensure_demand_runtime(self):
+        """Start and verify the unified runtime for a fresh explicit demand."""
+        ensure = self.demand_runtime_ready
+        if not callable(ensure):
+            return None
+        deadline_epoch = self.clock() + float(self.demand_startup_timeout)
+        try:
+            receipt = ensure(deadline_epoch=deadline_epoch)
+        except Exception as error:
+            reason = str(error).strip()[:160] or type(error).__name__
+            return {'status': 'unavailable', 'reason': reason}
+        if not isinstance(receipt, dict) or receipt.get('status') != 'ready':
+            return {'status': 'unavailable', 'reason': 'demand_runtime_not_ready'}
+        return None
+
+    def _dispatch_gate(self, job_id, expected_attempt):
+        """Revalidate job generation and canonical operator policy at each admission edge."""
+        with self._db() as db:
+            row = db.execute('SELECT record FROM jobs WHERE id=?', (job_id,)).fetchone()
+            if not row:
+                return False, 'stale_attempt'
+            current = DurableJob.model_validate_json(row['record'])
+            if current.attempt != expected_attempt or current.status != 'running':
+                return False, 'stale_attempt'
+            frame = FrameStore(db).get_frame(job_id)
+            if frame is None:
+                return True, None
+            policy = PowerPolicy(db, clock=self.clock)
+            origin = policy.root_demand_origin(frame.root_id)
+            frame_class = ('automatic_root' if frame.origin_class == 'automatic' and frame.parent_id is None
+                           else 'public_root' if frame.parent_id is None else 'private_child')
+            automatic_work = (db.execute('SELECT * FROM pa1_automatic_work WHERE job_id=?',
+                (frame.root_id,)).fetchone() if origin.kind == 'automatic' else None)
+            permission = (trusted_operator_control().permission('dispatch_automatic')
+                          if origin.kind == 'automatic' else None)
+            decision = policy.allow_dispatch(frame_class, True, root_id=frame.root_id,
+                demand_origin=origin, permission=permission,
+                focus_id=automatic_work['focus_id'] if automatic_work else None,
+                project=automatic_work['project'] if automatic_work else None)
+            return decision.allowed, decision.reason
 
     def resume_owned_resources(self, control):
         """Clear quiet/release veto through the trusted local operator path."""
@@ -1028,10 +1305,16 @@ class JobService:
             if not self._inquiry_authorized(previous.model_dump(), scope):
                 return {'status': 'unavailable', 'reason': 'access_unavailable'}
             if previous.status not in TERMINAL:
+                unavailable = self._ensure_demand_runtime()
+                if unavailable:
+                    return unavailable
                 return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
             if not self._cache_eligible(previous.model_dump()):
                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
             if not self._settled(previous.job_id):
+                unavailable = self._ensure_demand_runtime()
+                if unavailable:
+                    return unavailable
                 return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
             freshness = self.freshness_provider(previous.model_dump()) if self.freshness_provider else {'fresh': False}
             freshness_snapshot = {'job_id': row['id'], 'record': row['record'], 'freshness': freshness}
@@ -1069,6 +1352,11 @@ class JobService:
                     if not self._inquiry_authorized(json.loads(current['record']), scope):
                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
                 return {'status': 'unavailable', 'reason': 'freshness_unverifiable'}
+        # This is the sole fresh-start boundary. Cache hits, access checks,
+        # freshness failures, and all model-free service reads return above.
+        unavailable = self._ensure_demand_runtime()
+        if unavailable:
+            return unavailable
         admitted = self.submit(question=question, access_scope=scope, mode=mode, skill=skill,
             hints=hints, request_id=request_id, _identity=identity, _execution_question=execution_question,
             _freshness_snapshot=freshness_snapshot)
@@ -2049,6 +2337,7 @@ class JobService:
         heartbeat.start()
         try:
             if self.backend:
+                origin = None
                 with self._db() as db:
                     frames = FrameStore(db)
                     frame = frames.get_frame(job.job_id)
@@ -2071,6 +2360,24 @@ class JobService:
                 if not allowed:
                     self.finish(job.job_id, job.attempt, {'status': 'yielding', 'reason': reason})
                     return
+                # Public inquiries and explicitly enabled finite-focus work
+                # use the same pinned unit. The frame policy above admits only
+                # explicit public demand or currently eligible opted-in work.
+                if frame is not None:
+                    unavailable = self._ensure_demand_runtime()
+                    if unavailable:
+                        self.finish(job.job_id, job.attempt, {'status': 'yielding',
+                            'reason': 'session_unavailable'})
+                        return
+                    # Startup can take time. Re-read the durable release/focus
+                    # policy immediately before owner admission so a stop,
+                    # cancel, or expiry during systemd start cannot rewarm a
+                    # model slot.
+                    still_allowed, reason = self._dispatch_gate(job.job_id, job.attempt)
+                    if not still_allowed:
+                        self.finish(job.job_id, job.attempt, {'status': 'yielding',
+                            'reason': reason or 'dispatch_policy_changed'})
+                        return
                 response = self.backend.open_sessions(1, compute_profile='narrow', parallelism='default', deadline_epoch=job.deadline_epoch)
                 sessions = response.get('session_ids', response.get('sessions', []))
                 if response.get('status') != 'available' or not sessions:
@@ -2156,6 +2463,15 @@ class JobService:
             # semantics; they must not get repeated one-turn runs without a
             # cumulative broker budget.
             run_slice = getattr(worker, 'run_slice', None) if frame is not None else None
+            if frame is not None:
+                # The owner session may have been opened while a release or
+                # automatic-window veto committed. Never call the model after
+                # that canonical policy change; finally still closes the slot.
+                still_allowed, reason = self._dispatch_gate(job.job_id, job.attempt)
+                if not still_allowed:
+                    self.finish(job.job_id, job.attempt, {'status': 'yielding',
+                        'reason': reason or 'dispatch_policy_changed'})
+                    return
             if callable(run_slice):
                 if frame is not None:
                     with self._db() as db:
@@ -2308,7 +2624,10 @@ class JobService:
             checked = time.monotonic()
             if (not self._central_preflight_allowed
                     and checked - self._central_preflight_checked < 1.0):
-                return False
+                # Durable jobs already encode a demand source. Let claim run
+                # the canonical policy gate and the verified demand start;
+                # cold status alone must not deadlock finite opted-in work.
+                return candidates if candidates else False
             try:
                 value = status()
                 if not isinstance(value, dict):
@@ -2320,6 +2639,7 @@ class JobService:
                 self.last_error = reason
                 self._central_preflight_error = reason
                 self._central_preflight_allowed = False
+                return candidates if candidates else False
             else:
                 if self._central_preflight_error and self.last_error == self._central_preflight_error:
                     self.last_error = None

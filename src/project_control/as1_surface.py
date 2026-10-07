@@ -792,6 +792,12 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                         packets=c.store, worker_factory=factory, backend=c.backend, inquiry_access=c.inquiry_access, can_execute=c.can_execute_inquiry,
                         inquiry_context_provider=inquiry_context,
                         analysis_runtime_identity=analysis_runtime_identity)
+    def ensure_explicit_demand_runtime(*, deadline_epoch=None):
+        # Imported lazily so cold composition and model-free requests never
+        # inspect or start the inference unit.
+        from .assistance.demand_runtime import ensure_demand_runtime_ready
+        return ensure_demand_runtime_ready(deadline_epoch=deadline_epoch, provider=c.backend)
+    c.jobs.demand_runtime_ready = ensure_explicit_demand_runtime
     c.store.authority_access = c.packet_access
     c.information.job_lookup = lambda ident, scope: c.jobs.lookup(ident, access_scope=scope)
     c.skills = SkillService(c.jobs, skills_root=root)

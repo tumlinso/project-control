@@ -241,6 +241,12 @@ class LabRunnerContractTests(unittest.TestCase):
             source_sentinel.write_text("preserve")
             artifact = root / "artifact.bin"
             artifact.touch(mode=0o600)
+            proposal = root / "proposal"
+            proposal.mkdir(mode=0o700)
+            proposal_file = proposal / "generated-test.py"
+            proposal_file.write_text("print('proposal')\n")
+            proposal_file.chmod(0o400)
+            proposal.chmod(0o500)
             host_secret = root / "host-secret.txt"
             host_secret.write_text("host-only")
             python = "\n".join((
@@ -250,6 +256,10 @@ class LabRunnerContractTests(unittest.TestCase):
                 "try:",
                 " try_write('/workspace/canonical-sentinel.txt'); result['source_write']='allowed'",
                 "except OSError as exc: result['source_write']=exc.__class__.__name__",
+                "result['proposal_visible']=pathlib.Path('/proposal/generated-test.py').read_text().strip()",
+                "try:",
+                " try_write('/proposal/generated-test.py'); result['proposal_write']='allowed'",
+                "except OSError as exc: result['proposal_write']=exc.__class__.__name__",
                 "try:",
                 f" try_write({str(host_secret)!r}); result['host_write']='allowed'",
                 "except OSError as exc: result['host_write']=exc.__class__.__name__",
@@ -262,13 +272,16 @@ class LabRunnerContractTests(unittest.TestCase):
                 "print(json.dumps(result),flush=True)",
                 "pathlib.Path('/artifacts/result.bin').write_bytes(b'x'*2048)",
             ))
-            command = _make_bwrap_command(bwrap, snapshot.resolve(), artifact, ("/usr/bin/python3", "-c", python), 1024)
+            command = _make_bwrap_command(bwrap, snapshot.resolve(), artifact,
+                                          ("/usr/bin/python3", "-c", python), 1024, proposal.resolve())
             result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, env={"PATH": "/usr/bin:/bin"}, timeout=5, check=False)
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue(result.stdout, result.stderr.decode("utf-8", "replace"))
             observations = json.loads(result.stdout.splitlines()[-1])
             self.assertNotEqual(observations["source_write"], "allowed")
+            self.assertEqual(observations["proposal_visible"], "print('proposal')")
+            self.assertNotEqual(observations["proposal_write"], "allowed")
             self.assertNotEqual(observations["host_write"], "allowed")
             self.assertFalse(observations["host_secret_visible"])
             self.assertFalse(observations["host_credential_visible"])
