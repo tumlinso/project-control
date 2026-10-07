@@ -93,21 +93,42 @@ class DemandRuntimeTests(unittest.TestCase):
                 release_manifest=manifest,
                 public=lambda: {"fingerprint": "todo-fingerprint", "skills_root": "skills"},
             )
-            receiver = SimpleNamespace(root=receiver_root, fingerprint="receiver-fingerprint",
+            receiver = SimpleNamespace(root=receiver_root, package_root=Path(__file__).resolve().parent,
+                                       fingerprint="receiver-fingerprint",
                                        source_commit="receiver-commit")
+            runtime_context = {
+                "contract": "TodoPCU-RUNTIME-IDENTITY/1",
+                "skills_root": "skills",
+                "package_root": "/skills/todo-orchestrator/todo_orchestrator",
+                "package_source": "/skills/todo-orchestrator",
+                "todo_schema_version": 4,
+                "fingerprint": "canonical-todo-fingerprint",
+            }
+            canonical_runtime = SimpleNamespace(
+                __file__=__file__, bind=Mock(return_value=(object(), runtime_context)))
+            service_state_root = Path(temporary) / "observer-state"
             with patch.dict(os.environ, {
                 "HOME": str(home), "PROJECT_CONTROL_RELEASE_MANIFEST": str(manifest),
                 "PROJECT_CONTROL_RELEASE_DIGEST": digest,
-            }, clear=False), patch("project_control.assistance.demand_runtime.local_runtime_identity",
+            }, clear=False), patch("project_control.assistance.demand_runtime.bind_local_runtime",
                                    return_value=receiver) as receiver_bind, \
-                 patch("project_control.assistance.demand_runtime.bind_runtime", return_value=todo):
+                 patch("project_control.assistance.demand_runtime.bind_runtime", return_value=todo), \
+                 patch("project_control.observer_analysis.observer_analysis_state_root",
+                       return_value=service_state_root), \
+                 patch("project_control.assistance.demand_runtime.importlib.import_module",
+                       return_value=canonical_runtime):
                 selected = capture_runtime_pin()
             self.assertEqual(selected.release_root, release_root.resolve())
             self.assertEqual(selected.release_digest, digest)
             self.assertEqual(selected.receiver_manifest_sha256, hashlib.sha256(receiver_raw).hexdigest())
             self.assertEqual(selected.receiver_fingerprint, "receiver-fingerprint")
-            self.assertEqual(selected.todo_identity, todo.public())
+            self.assertEqual(selected.todo_identity, runtime_context)
+            expected_fingerprint = hashlib.sha256(json.dumps(
+                runtime_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                default=str).encode("utf-8")).hexdigest()
+            self.assertEqual(selected.todo_runtime_fingerprint, expected_fingerprint)
             receiver_bind.assert_called_once_with(expected_release_digest=digest)
+            canonical_runtime.bind.assert_called_once_with(service_state_root)
 
     def test_status_is_cold_and_never_constructs_or_starts_provider(self):
         provider_factory = Mock(side_effect=AssertionError("status must stay cold"))
@@ -285,6 +306,26 @@ class DemandRuntimeTests(unittest.TestCase):
         runtime = self.runtime(provider=provider, systemctl=systemctl, sleeper=lambda _: None)
         with self.assertRaisesRegex(DemandRuntimeError, "inference_todo_fingerprint_mismatch"):
             runtime.ensure_ready(provider=provider, deadline_epoch=time.time() + 10)
+        self.assertEqual(systemctl.call_count, 1)
+        self.assertEqual(provider.central_status.call_count, 1)
+
+    def test_different_todo_domain_context_is_hard_failure_even_with_matching_fingerprint(self):
+        expected = pin()
+        foreign_context = {**expected.todo_identity, "package_root": "/other/todo/package"}
+        foreign_fingerprint = hashlib.sha256(json.dumps(
+            foreign_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            default=str).encode("utf-8")).hexdigest()
+        provider = Mock()
+        provider.central_status.return_value = {
+            **status(expected), "runtime_identity": foreign_context,
+            "runtime_fingerprint": foreign_fingerprint,
+        }
+        systemctl = Mock(return_value=Mock(returncode=0, stdout="", stderr=""))
+        runtime = self.runtime(provider=provider, systemctl=systemctl, sleeper=lambda _: None)
+
+        with self.assertRaisesRegex(DemandRuntimeError, "inference_todo_identity_mismatch"):
+            runtime.ensure_ready(provider=provider, deadline_epoch=time.time() + 10)
+
         self.assertEqual(systemctl.call_count, 1)
         self.assertEqual(provider.central_status.call_count, 1)
 

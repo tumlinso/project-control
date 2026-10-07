@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import importlib
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,11 @@ import threading
 import time
 from typing import Any, Callable, Mapping
 
-from ..runtime_binding import RELEASE_DIGEST_VARIABLE, RELEASE_MANIFEST_VARIABLE, local_runtime_identity
+from ..runtime_binding import (
+    RELEASE_DIGEST_VARIABLE,
+    RELEASE_MANIFEST_VARIABLE,
+    bind_local_runtime,
+)
 from ..runtime_identity import bind_runtime
 
 
@@ -47,12 +52,26 @@ class RuntimePin:
     receiver_manifest_sha256: str
     receiver_fingerprint: str
     receiver_source_commit: str
-    todo_identity: Mapping[str, str]
+    todo_identity: Mapping[str, Any]
     todo_runtime_fingerprint: str
 
 
 def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def _canonical_runtime_context(receiver: Any) -> dict[str, Any]:
+    """Bind the same Todo authority context used by the observer supervisor."""
+    module = importlib.import_module("local_worker.canonical_runtime")
+    source = Path(str(getattr(module, "__file__", ""))).resolve(strict=True)
+    if receiver.package_root != source.parent and receiver.package_root not in source.parents:
+        raise DemandRuntimeError("runtime_identity_mismatch")
+    from ..observer_analysis import observer_analysis_state_root
+
+    _, context = module.bind(observer_analysis_state_root(create=False))
+    if not isinstance(context, dict):
+        raise DemandRuntimeError("runtime_identity_mismatch")
+    return dict(context)
 
 
 def capture_runtime_pin() -> RuntimePin:
@@ -84,8 +103,9 @@ def capture_runtime_pin() -> RuntimePin:
         raise DemandRuntimeError("selected_runtime_release_mismatch")
 
     try:
-        receiver = local_runtime_identity(expected_release_digest=digest)
         todo = bind_runtime()
+        receiver = bind_local_runtime(expected_release_digest=digest)
+        runtime_context = _canonical_runtime_context(receiver)
     except Exception as error:
         raise DemandRuntimeError("runtime_identity_mismatch") from error
     if todo.release_digest != digest or todo.release_manifest is None:
@@ -95,7 +115,7 @@ def capture_runtime_pin() -> RuntimePin:
         receiver_digest = _sha256(receiver_manifest.read_bytes())
     except OSError as error:
         raise DemandRuntimeError("receiver_manifest_unavailable") from error
-    identity = dict(todo.public())
+    identity = runtime_context
     todo_runtime_fingerprint = _sha256(json.dumps(
         identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
         default=str).encode("utf-8"))
