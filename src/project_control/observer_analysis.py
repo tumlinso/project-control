@@ -8,7 +8,6 @@ import importlib
 import csv
 import os
 import re
-import secrets
 import socket
 import subprocess
 import threading
@@ -317,19 +316,26 @@ class SkillsObserverAnalysisProvider:
             raise RuntimeError("observer_session_not_quiescent")
         return result
 
-    def reclaim_orphaned_sessions(self, resources: Any) -> list[str]:
+    def reclaim_orphaned_sessions(self, resources: Any, release_request_id: str) -> list[str]:
         """Attach daemon-minted receipts for sessions whose borrower died."""
         rows = resources.snapshot()
-        session_ids = sorted(item["session_id"] for item in rows
-            if item.get("state") == "active" and isinstance(item.get("session_id"), str))
+        active = [item for item in rows if item.get("state") == "active"]
+        session_ids = sorted(item["session_id"] for item in active
+            if isinstance(item.get("session_id"), str))
         if not session_ids:
             return []
+        if (not isinstance(release_request_id, str) or
+                re.fullmatch(r"[0-9a-f]{32}", release_request_id) is None or
+                any(item.get("release_request_id") != release_request_id for item in active)):
+            raise RuntimeError("observer_reclaim_release_intent_mismatch")
         if len(session_ids) > 64:
             raise RuntimeError("observer_reclaim_session_batch_too_large")
         deadline = time.time() + 5
         client = self._checked_client(deadline)
+        request_id = hashlib.sha256(("PC-OBSERVER-RECLAIM/1\0" + release_request_id + "\0" +
+            "\n".join(session_ids)).encode("utf-8")).hexdigest()[:32]
         result = client.reclaim_closed_observer_sessions(session_ids,
-            request_id=secrets.token_hex(16), deadline_epoch=deadline)
+            request_id=request_id, deadline_epoch=deadline)
         receipts = result.get("receipts") if isinstance(result, dict) else None
         if (not isinstance(receipts, list) or len(receipts) != len(session_ids) or
                 result.get("status") != "available"):

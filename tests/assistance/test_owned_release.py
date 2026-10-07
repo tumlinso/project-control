@@ -569,6 +569,8 @@ class OwnedReleaseRpcTests(unittest.TestCase):
 
     def test_dead_borrower_reap_mints_one_shot_receipt_but_live_borrower_stays_bound(self):
         session_id = self.backend.session_id
+        old_reclaimer_pid = os.getpid() + 100000
+        old_reclaimer_start = "broker-one-generation"
         self.server._borrowers[session_id]["pid"] = os.getpid() + 100000
         self.server._borrowers[session_id]["process_start"] = "old-process-generation"
         with patch.object(supervisor, "process_start_time", return_value="reused-process-generation"), \
@@ -579,13 +581,29 @@ class OwnedReleaseRpcTests(unittest.TestCase):
             self.assertIn(session_id, self.server._reclaimed_closed)
             first = self.server._dispatch({"operation": "observer-reclaim-closed",
                 "session_ids": [session_id], "request_id": "a" * 32},
-                peer_pid=os.getpid(), peer_process_start=self.peer_start)
+                peer_pid=old_reclaimer_pid, peer_process_start=old_reclaimer_start)
             self.assertEqual(first["status"], "available")
             self.assertEqual(first["receipts"][0]["session_id"], session_id)
-            retry = self.server._dispatch({"operation": "observer-reclaim-closed",
+            # A second process cannot take an in-flight receipt from a live
+            # broker, even when it knows the stable release-intent request id.
+            with patch.object(supervisor, "process_start_time", return_value=old_reclaimer_start):
+                with self.assertRaisesRegex(supervisor.SupervisorError,
+                                            "observer_reclaim_request_owner_mismatch"):
+                    self.server._dispatch({"operation": "observer-reclaim-closed",
+                        "session_ids": [session_id], "request_id": "a" * 32},
+                        peer_pid=os.getpid(), peer_process_start=self.peer_start)
+            # Simulate the old broker dying before its SQLite transaction
+            # committed; a new process can recover the same response by proving
+            # the exact prior PID/start generation is gone.
+            with patch.object(supervisor, "process_start_time", side_effect=FileNotFoundError):
+                retry = self.server._dispatch({"operation": "observer-reclaim-closed",
+                    "session_ids": [session_id], "request_id": "a" * 32},
+                    peer_pid=os.getpid(), peer_process_start=self.peer_start)
+            self.assertEqual(retry, first)
+            retry_same_process = self.server._dispatch({"operation": "observer-reclaim-closed",
                 "session_ids": [session_id], "request_id": "a" * 32},
                 peer_pid=os.getpid(), peer_process_start=self.peer_start)
-            self.assertEqual(retry, first)
+            self.assertEqual(retry_same_process, first)
             unavailable = self.server._dispatch({"operation": "observer-reclaim-closed",
                 "session_ids": [session_id], "request_id": "b" * 32},
                 peer_pid=os.getpid(), peer_process_start=self.peer_start)
@@ -598,6 +616,25 @@ class OwnedReleaseRpcTests(unittest.TestCase):
             self.server._reap_borrowers()
         self.assertIn(session_id, self.server._borrowers)
         self.assertNotIn(session_id, self.server._reclaimed_closed)
+
+    def test_reclaim_request_id_is_stable_for_release_intent_and_exact_session_set(self):
+        provider = SkillsObserverAnalysisProvider()
+        session_rows = [{"session_id": "orphan-A", "state": "active", "release_request_id": "1" * 32},
+                        {"session_id": "orphan-B", "state": "active", "release_request_id": "1" * 32}]
+        resources = SimpleNamespace(snapshot=lambda: list(session_rows))
+        request_ids = []
+
+        class Client:
+            def reclaim_closed_observer_sessions(self, session_ids, *, request_id, deadline_epoch):
+                request_ids.append((tuple(session_ids), request_id))
+                return {"status": "pending", "receipts": []}
+
+        provider._checked_client = lambda _deadline: Client()
+        self.assertEqual(provider.reclaim_orphaned_sessions(resources, "1" * 32), [])
+        self.assertEqual(provider.reclaim_orphaned_sessions(resources, "1" * 32), [])
+        self.assertEqual(request_ids[0], request_ids[1])
+        with self.assertRaisesRegex(RuntimeError, "observer_reclaim_release_intent_mismatch"):
+            provider.reclaim_orphaned_sessions(resources, "2" * 32)
 
     def test_foreign_close_and_reused_or_active_slots_cannot_be_evicted(self):
         with patch.object(supervisor, "process_identity", side_effect=_identity), \

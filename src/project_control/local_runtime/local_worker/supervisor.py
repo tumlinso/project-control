@@ -1994,9 +1994,21 @@ class SupervisorServer:
                 with self._borrowers_lock, self.backend._pool_lock:
                     prior = self._reclaimed_deliveries.get(request_id)
                     if prior is not None:
-                        if (prior.get("pid") != peer_pid or prior.get("process_start") != peer_process_start or
-                                prior.get("session_ids") != sorted(session_ids)):
+                        if prior.get("session_ids") != sorted(session_ids):
                             raise SupervisorError("observer_reclaim_request_owner_mismatch")
+                        same_owner = (prior.get("pid") == peer_pid and
+                                      prior.get("process_start") == peer_process_start)
+                        if not same_owner:
+                            old_pid, old_start = prior.get("pid"), prior.get("process_start")
+                            if (type(old_pid) is not int or not isinstance(old_start, str) or
+                                    not self._process_generation_dead(old_pid, old_start)):
+                                raise SupervisorError("observer_reclaim_request_owner_mismatch")
+                            # A durable release-intent-derived id lets a new
+                            # broker process recover the same capability only
+                            # after the previous recipient's exact generation
+                            # is proven gone. A live recipient remains exclusive.
+                            prior["pid"] = peer_pid
+                            prior["process_start"] = peer_process_start
                         return dict(prior["response"])
                     reclaimed_items = [self._reclaimed_closed.get(session_id) for session_id in sorted(session_ids)]
                     available = all(item is not None and item.get("delivered_request_id") is None
@@ -2107,6 +2119,23 @@ class SupervisorServer:
                     "daemon_epoch": self._daemon_epoch, "supervisor_pid": os.getpid(),
                     "supervisor_process_start": self._process_start}
         raise SupervisorError(f"unknown supervisor operation: {operation!r}")
+
+    @staticmethod
+    def _process_generation_dead(pid: int, start: str) -> bool:
+        """Prove the exact prior local RPC recipient exited or its PID was reused."""
+        try:
+            current = process_start_time(pid)
+        except FileNotFoundError:
+            try:
+                (Path("/proc") / str(pid)).stat()
+            except FileNotFoundError:
+                return True
+            except OSError:
+                return False
+            return False
+        except (OSError, ValueError):
+            return False
+        return current != start
 
     def _record_closed_resource(self, session_id: str, borrower: dict[str, Any]) -> dict[str, Any] | None:
         """Mint a one-slot capability only for the exact borrower's idle slot."""
