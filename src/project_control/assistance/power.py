@@ -220,38 +220,46 @@ class PowerPolicy:
         verifier = getattr(self, "_owned_release_verifier", None)
         if verifier is None:
             raise PowerPolicyError("owned_release_verifier_unavailable")
-        row = self._row()
-        if (row["release_request_id"] != intent.request_id
-                or row["physical_state"] not in {"pending", "released_verified"}):
-            raise PowerPolicyError("release_intent_stale")
-        acknowledgment = verifier(intent)
-        # Lazy import avoids a module cycle: resources.py imports PowerPolicy.
-        from .resources import _is_verified_owned_release_ack
-        if not _is_verified_owned_release_ack(acknowledgment, intent.request_id):
-            raise PowerPolicyError("owned_release_proof_invalid")
-        targets = acknowledgment.target_session_ids
-        if not isinstance(targets, tuple) or not targets:
-            raise PowerPolicyError("owned_release_targets_empty")
-        proof_digest = acknowledgment.proof_digest
-        if not isinstance(proof_digest, str) or len(proof_digest) != 64:
-            raise PowerPolicyError("owned_release_proof_digest_invalid")
-        target_digest = hashlib.sha256(
-            json.dumps(sorted(targets), separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        # Re-read the current intent after owner verification to fence replacement
-        # between proof collection and the durable physical-state update.
-        current = self._row()
-        if current["release_request_id"] != intent.request_id:
-            raise PowerPolicyError("release_intent_replaced")
-        self.db.execute("""UPDATE pa1_power_state SET physical_state='released_verified',
-            release_verified_at=?,release_verified_sessions=?,release_verified_proof_digest=?,
-            release_verified_targets_digest=?,updated=?
-            WHERE singleton=1 AND release_request_id=?""",
-            (float(self.clock()), len(targets), proof_digest, target_digest,
-             float(self.clock()), intent.request_id))
-        if self.db.execute("SELECT changes()").fetchone()[0] != 1:
-            raise PowerPolicyError("release_intent_replaced")
-        return len(targets)
+        owner = getattr(verifier, "__self__", None)
+        locked_verifier = getattr(owner, "_verified_release_ack_under_lock", None)
+        if not callable(locked_verifier):
+            raise PowerPolicyError("owned_release_verifier_lock_unavailable")
+        try:
+            self.db.execute("BEGIN IMMEDIATE")
+            row = self._row()
+            if (row["release_request_id"] != intent.request_id
+                    or row["physical_state"] not in {"pending", "released_verified"}):
+                raise PowerPolicyError("release_intent_stale")
+            acknowledgment = locked_verifier(intent)
+            # Lazy import avoids a module cycle: resources.py imports PowerPolicy.
+            from .resources import _is_verified_owned_release_ack
+            if not _is_verified_owned_release_ack(acknowledgment, intent.request_id):
+                raise PowerPolicyError("owned_release_proof_invalid")
+            targets = acknowledgment.target_session_ids
+            if not isinstance(targets, tuple) or not targets:
+                raise PowerPolicyError("owned_release_targets_empty")
+            proof_digest = acknowledgment.proof_digest
+            if not isinstance(proof_digest, str) or len(proof_digest) != 64:
+                raise PowerPolicyError("owned_release_proof_digest_invalid")
+            target_digest = hashlib.sha256(
+                json.dumps(sorted(targets), separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            current = self._row()
+            if current["release_request_id"] != intent.request_id:
+                raise PowerPolicyError("release_intent_replaced")
+            self.db.execute("""UPDATE pa1_power_state SET physical_state='released_verified',
+                release_verified_at=?,release_verified_sessions=?,release_verified_proof_digest=?,
+                release_verified_targets_digest=?,updated=?
+                WHERE singleton=1 AND release_request_id=?""",
+                (float(self.clock()), len(targets), proof_digest, target_digest,
+                 float(self.clock()), intent.request_id))
+            if self.db.execute("SELECT changes()").fetchone()[0] != 1:
+                raise PowerPolicyError("release_intent_replaced")
+            return len(targets)
+        except Exception:
+            if self.db.in_transaction:
+                self.db.rollback()
+            raise
 
     def _invalidate_verified_release_for_new_target(self) -> bool:
         """Clear prior physical proof when trusted ownership records a new session."""

@@ -13,7 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from local_runtime import assert_receiver_module, receiver_runtime_path
+from tests.local_runtime import assert_receiver_module, receiver_runtime_path
 RECEIVER_ROOT = receiver_runtime_path()
 
 from local_worker import supervisor as _supervisor_module
@@ -415,9 +415,9 @@ def _profile(*, maximum=2, ttl=900, idle_eviction=None):
                    "gpu_layers": 999, "split_mode": "layer"},
         "experiment": {"initial_context": 32768},
         "deployment_policy": deployment_policy,
-        "compute_profiles": {"narrow": "fixture", "wide": "fixture-next"},
+        "compute_profiles": {"narrow": "fixture"},
         "candidates": [{"id": "fixture", "profile": "one-island"},
-                       {"id": "fixture-next", "profile": "all-gpu-single-wide"}],
+                       {"id": "fixture-next", "profile": "all-gpu-single"}],
     }
 
 
@@ -664,35 +664,36 @@ class ServicePoolTests(_CanonicalRuntimeFixture):
         reused = backend.warm(compute_profile="narrow")
         self.assertTrue(reused["reused"])
         backend.release(reused["service_lease_id"])
-        wide = backend.warm(compute_profile="wide")
-        self.assertEqual((wide["model_id"], wide["compute_profile"], len(wide["gpu_uuids"])), ("fixture-next", "wide", 4))
-        self.assertEqual(wide["gpu_uuids"], ["GPU-a", "GPU-b", "GPU-c", "GPU-d"])
-        self.assertTrue(wide["p2p_enabled"])
-        self.assertTrue(wide["topology_order"]["pair_adjacent"])
+        backend.profile["compute_profiles"]["narrow"] = "fixture-next"
+        four_gpu = backend.warm(compute_profile="narrow")
+        self.assertEqual((four_gpu["model_id"], four_gpu["compute_profile"], len(four_gpu["gpu_uuids"])), ("fixture-next", "narrow", 4))
+        self.assertEqual(four_gpu["gpu_uuids"], ["GPU-a", "GPU-b", "GPU-c", "GPU-d"])
+        self.assertTrue(four_gpu["p2p_enabled"])
+        self.assertTrue(four_gpu["topology_order"]["pair_adjacent"])
         self.assertEqual(service.contexts[-1]["service_profile"]["allocated_gpu_uuids"],
                          ["GPU-a", "GPU-b", "GPU-c", "GPU-d"])
-        self.assertFalse(wide["reused"])
+        self.assertFalse(four_gpu["reused"])
         self.assertEqual(service.starts, 2)
         backend.close()
 
     def test_profile_candidate_change_reloads_idle_slot(self):
         backend, _, service = self.backend()
-        first = backend.warm(compute_profile="wide")
-        self.assertEqual(first["model_id"], "fixture-next")
+        first = backend.warm(compute_profile="narrow")
+        self.assertEqual(first["model_id"], "fixture")
         backend.release(first["service_lease_id"])
-        backend.profile["compute_profiles"]["wide"] = "fixture"
-        reloaded = backend.warm(compute_profile="wide")
+        backend.profile["compute_profiles"]["narrow"] = "fixture-next"
+        reloaded = backend.warm(compute_profile="narrow")
         self.assertEqual((reloaded["model_id"], reloaded["reused"], service.starts),
-                         ("fixture", False, 2))
+                         ("fixture-next", False, 2))
         backend.close()
 
-    def test_wide_parallelism_override_participates_in_idle_compatibility(self):
+    def test_narrow_parallelism_override_participates_in_idle_compatibility(self):
         backend, _, service = self.backend()
-        layer = backend.warm(compute_profile="wide", parallelism="layer")
+        layer = backend.warm(compute_profile="narrow", parallelism="layer")
         self.assertEqual((layer["parallelism"], service.contexts[-1]["service_profile"]["split_mode"]),
                          ("layer", "layer"))
         backend.release(layer["service_lease_id"])
-        tensor = backend.warm(compute_profile="wide", parallelism="tensor")
+        tensor = backend.warm(compute_profile="narrow", parallelism="tensor")
         self.assertEqual((tensor["parallelism"], tensor["reused"], service.starts,
                           service.contexts[-1]["service_profile"]["split_mode"]),
                          ("tensor", False, 2, "tensor"))
@@ -728,30 +729,45 @@ class ServicePoolTests(_CanonicalRuntimeFixture):
     def test_row_parallelism_is_not_exposed(self):
         backend, _, _ = self.backend()
         with self.assertRaisesRegex(SupervisorError, "parallelism_invalid"):
-            backend.warm(compute_profile="wide", parallelism="row")
+            backend.warm(compute_profile="narrow", parallelism="row")
         backend.close()
 
-    def test_wide_never_evicts_an_active_incompatible_slot(self):
-        backend, runtime, service = self.backend()
+    def test_narrow_candidate_change_never_evicts_an_active_incompatible_slot(self):
+        backend, runtime, service = self.backend(maximum=1)
         active = backend.warm(compute_profile="narrow")
+        backend.profile["compute_profiles"]["narrow"] = "fixture-next"
         with self.assertRaisesRegex(SupervisorError, "resource_unavailable"):
-            backend.admit("wide")
+            backend.admit("narrow")
         self.assertEqual(service.starts, 1)
         self.assertEqual(backend.status()["slots"][0]["state"], "active")
         self.assertIn(active["owner_id"], runtime.host.owners)
         backend.close()
 
-    def test_observer_turn_defaults_to_wide_profile_metadata(self):
+    def test_observer_turn_defaults_to_narrow_profile_metadata(self):
         backend, _, service = self.backend()
         result = backend.run_observer_turn({"format": "PC-LOCAL-INVESTIGATOR-TURN/2", "messages": [
             {"role": "system", "content": "investigate"}, {"role": "user", "content": "question"},
         ], "max_tokens": 128, "timeout_seconds": 10})
         self.assertEqual((result["status"], result["model_id"], result["compute_profile"]),
-                         ("available", "fixture-next", "wide"))
+                         ("available", "fixture", "narrow"))
         self.assertEqual(result["parallelism"], "layer")
         self.assertTrue(result["p2p_enabled"])
-        self.assertEqual(result["topology_order"]["nvlink_island_sizes"], [2, 2])
-        self.assertEqual(len(backend.status()["slots"][0]["gpu_uuids"]), 4)
+        self.assertEqual(result["topology_order"]["nvlink_island_sizes"], [2])
+        self.assertEqual(len(backend.status()["slots"][0]["gpu_uuids"]), 2)
+        backend.close()
+
+    def test_retired_wide_compute_profile_is_rejected(self):
+        backend, _, _ = self.backend()
+        with self.assertRaisesRegex(SupervisorError, "compute_profile_invalid"):
+            backend.admit("wide")
+        with self.assertRaisesRegex(SupervisorError, "compute_profile_invalid"):
+            backend.warm(compute_profile="wide")
+        result = backend.run_observer_turn({"format": "PC-LOCAL-INVESTIGATOR-TURN/2", "messages": [
+            {"role": "system", "content": "investigate"}, {"role": "user", "content": "question"},
+        ], "max_tokens": 128, "timeout_seconds": 10, "compute_profile": "wide"})
+        self.assertEqual((result.get("status"), result.get("reason")),
+                         ("unavailable", "investigator_turn_invalid_request"), result)
+        self.assertEqual(backend.status()["slots"], [])
         backend.close()
 
     def test_admission_reserves_capacity_before_model_or_service_start(self):

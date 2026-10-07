@@ -17,6 +17,6 @@
   "status": "inert_not_applied",
   "production_runtime": "not_modified",
   "product_tests": "not_executed",
-  "native_validation": "requires_trusted_installed_kernel",
+  "native_validation": "optional_bundled_todo_validator_for_inert_payloads",
   "evaluation_policy": "machine/evaluation-policy.json"
 }

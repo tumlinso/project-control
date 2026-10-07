@@ -1,4 +1,21 @@
-# Local assistance controls
+# Historical assistance command cookbook
+
+> **Check the live checkout before using these recipes.** This cookbook was
+> written for an earlier installed runtime and contains candidate-specific
+> assumptions. It is not authoritative for current profile schemas, service
+> identity, task state, or authorization. Use
+> [`scripts/pc-dev run assistance --help`](../../scripts/pc-dev) and the current
+> [source qualification guide](source-qualification.md) for checkout behavior;
+> use [deployment](../deployment.md) for service operations and reconnect MCP
+> clients after a source restart. Current profile tools and arguments come from
+> that connection's `tools/list`. The mutator rescue flow is advertised in its
+> startup instructions and does not require the Todo Orchestrator skill.
+
+The commands below are retained as historical operational context. Confirm
+each command and permission against the current checkout and active Todo task
+before use; do not infer that a historical trial or candidate is current.
+
+## Historical recipes
 
 Project Control's stable CLI (`/home/tumlinson/.local/bin/project-control`) and
 Codex use one local assistance runtime. An explicit

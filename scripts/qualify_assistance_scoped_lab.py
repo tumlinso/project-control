@@ -73,18 +73,18 @@ def _invoke(argv: list[str], *, timeout: float, root: Path, label: str,
     except subprocess.TimeoutExpired as error:
         _write(root, label + "-result.json", {"state": "timeout_ambiguous",
                                              "elapsed_seconds": time.monotonic() - started})
-        raise RuntimeError("installed_cli_timeout_ambiguous") from error
+        raise RuntimeError("qualification_cli_timeout_ambiguous") from error
     record = {"returncode": result.returncode, "stdout": result.stdout,
               "stderr": result.stderr, "elapsed_seconds": time.monotonic() - started}
     _write(root, label + "-result.json", record)
     if result.returncode:
-        raise RuntimeError("installed_cli_failed:" + label)
+        raise RuntimeError("qualification_cli_failed:" + label)
     try:
         value = json.loads(result.stdout)
     except json.JSONDecodeError as error:
-        raise RuntimeError("installed_cli_returned_invalid_json:" + label) from error
+        raise RuntimeError("qualification_cli_returned_invalid_json:" + label) from error
     if not isinstance(value, dict):
-        raise RuntimeError("installed_cli_returned_non_object:" + label)
+        raise RuntimeError("qualification_cli_returned_non_object:" + label)
     return value
 
 
@@ -216,14 +216,14 @@ def main(argv: list[str] | None = None) -> int:
         preview = invoke(plan[0], timeout=30, label="preview")
         session_id = preview.get("session_id")
         if not isinstance(session_id, str) or not SESSION_ID.fullmatch(session_id):
-            raise RuntimeError("installed_cli_preview_session_id_invalid")
+            raise RuntimeError("qualification_cli_preview_session_id_invalid")
         if preview.get("authorized") is not False or preview.get("inference_started") is not False:
-            raise RuntimeError("installed_cli_preview_not_cold")
+            raise RuntimeError("qualification_cli_preview_not_cold")
         for command in plan[1:]:
             command[:] = [session_id if item == "<session-id>" else item for item in command]
         authorized = invoke(plan[1], timeout=15, label="authorize")
         if authorized.get("session_id") != session_id or authorized.get("state") != "authorized":
-            raise RuntimeError("installed_cli_authorization_invalid")
+            raise RuntimeError("qualification_cli_authorization_invalid")
         deadline = float(authorized["deadline"])
         invoke(plan[2], timeout=max(1, deadline - time.time()) + 15, label="run")
         status = invoke(plan[3], timeout=15, label="status")

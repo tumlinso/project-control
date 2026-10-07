@@ -180,6 +180,17 @@ class ResourceController:
             reconciled_at REAL NOT NULL,
             UNIQUE(release_request_id, daemon_epoch)
         )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS pa1_stale_resource_reconciliation_audit(
+            receipt_id TEXT PRIMARY KEY,
+            release_request_id TEXT NOT NULL,
+            daemon_epoch TEXT NOT NULL,
+            session_ids TEXT NOT NULL,
+            proof TEXT NOT NULL,
+            proof_sha256 TEXT NOT NULL,
+            controller_host TEXT NOT NULL,
+            reconciled_at REAL NOT NULL,
+            UNIQUE(release_request_id, daemon_epoch)
+        )""")
 
     def record_active_session(self, session_id: str, supervisor_epoch: Mapping[str, Any]) -> None:
         """Record a trusted observer-open before the broker exposes session work."""
@@ -396,6 +407,249 @@ class ResourceController:
         return self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,release_request_id
             FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
 
+    def reclaimable_session_ids(self, release_request_id: str) -> list[str]:
+        """Select only receiptless sessions attached to this exact release intent.
+
+        An interrupted broker can leave a row in ``release_pending`` before it
+        persists the daemon-minted close receipt. The public snapshot omits
+        receipt data, so orphan recovery must use this private, exact-intent
+        query instead of inferring eligibility from the snapshot state alone.
+        """
+        if not isinstance(release_request_id, str) or not _HEX_32.fullmatch(release_request_id):
+            raise ResourceControllerError("release_request_id_invalid")
+        rows = self.db.execute("""SELECT session_id FROM pa1_owned_resource_sessions
+            WHERE state IN ('active','release_pending') AND close_receipt IS NULL
+            AND release_request_id=? ORDER BY session_id""", (release_request_id,)).fetchall()
+        return [row[0] for row in rows]
+
+    def stale_sessions_matching_idle_owner(self, intent: ReleaseIntent,
+                                           status: Mapping[str, Any]) -> list[str]:
+        """Return exact stale targets only when current idle slots match their receipts."""
+        if not isinstance(intent, ReleaseIntent):
+            raise ResourceControllerError("release_intent_invalid")
+        power = self.power_policy.snapshot()
+        if (power.get("release_veto_active") is not True or power.get("release_until") is not None or
+                power.get("physical_state") != "pending" or
+                power.get("release_request_id") != intent.request_id):
+            raise ResourceControllerError("permanent_release_veto_required")
+        slots = status.get("slots") if isinstance(status, Mapping) else None
+        if (not isinstance(slots, list) or not slots or
+                status.get("active_leases") != 0 or status.get("active_admissions") != 0):
+            return []
+        rows = self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,release_request_id
+            FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
+        unresolved = [row for row in rows if tuple(row)[2] in
+                      {"active", "idle_owned", "release_pending", "stale"}]
+        if not unresolved or any(tuple(row)[2] != "stale" or tuple(row)[4] != intent.request_id
+                                 for row in unresolved):
+            return []
+        epoch = status.get("daemon_epoch")
+        if (not isinstance(epoch, str) or not _HEX_64.fullmatch(epoch) or
+                type(status.get("supervisor_pid")) is not int or
+                not isinstance(status.get("supervisor_process_start"), str) or
+                not isinstance(status.get("runtime_fingerprint"), str)):
+            return []
+        expected = {}
+        for row in unresolved:
+            session_id, epoch_text, _state, receipt_text, _request_id = tuple(row)
+            try:
+                row_epoch = json.loads(epoch_text)
+                receipt = _receipt(session_id, json.loads(receipt_text), row_epoch)
+            except (TypeError, ValueError, json.JSONDecodeError, ResourceControllerError):
+                return []
+            if (row_epoch.get("daemon_epoch") != epoch or
+                    row_epoch.get("supervisor_pid") != status.get("supervisor_pid") or
+                    row_epoch.get("supervisor_process_start") != status.get("supervisor_process_start") or
+                    row_epoch.get("runtime_fingerprint") != status.get("runtime_fingerprint") or
+                    _process_start_time(receipt["server_pid"]) != receipt["server_process_start"]):
+                return []
+            key = (receipt["slot_id"], receipt["owner_id"], receipt["server_pid"],
+                   tuple(sorted(receipt["gpu_uuids"])))
+            expected.setdefault(key, []).append((session_id, receipt))
+        observed = set()
+        for slot in slots:
+            if (not isinstance(slot, Mapping) or slot.get("state") != "idle" or
+                    slot.get("leased") is not False or not isinstance(slot.get("gpu_uuids"), list) or
+                    any(not isinstance(item, str) or not item.startswith("GPU-")
+                        for item in slot.get("gpu_uuids", []))):
+                return []
+            key = (slot.get("slot_id"), slot.get("owner_id"), slot.get("server_pid"),
+                   tuple(sorted(slot.get("gpu_uuids", []))))
+            if key not in expected or key in observed:
+                return []
+            observed.add(key)
+        if observed != set(expected):
+            return []
+        return sorted(tuple(row)[0] for row in unresolved)
+
+    def record_stale_sessions_after_physical_release(self, control: object, intent: ReleaseIntent,
+                                                     proof: object, session_ids: Sequence[str]) -> list[str]:
+        """Reconcile stale close receipts only against their sealed whole-epoch stop proof."""
+        from ..observer_analysis import _is_verified_physical_release
+
+        if not _is_verified_physical_release(proof):
+            raise ResourceControllerError("verified_physical_release_required")
+        if not isinstance(intent, ReleaseIntent):
+            raise ResourceControllerError("release_intent_invalid")
+        PowerPolicy._authorized(control, "request_release")
+        targets = sorted(set(session_ids)) if isinstance(session_ids, Sequence) else []
+        if not targets or targets != list(session_ids) or len(targets) != len(session_ids):
+            raise ResourceControllerError("stale_session_target_set_invalid")
+        captured = proof.get("captured_at")
+        now = float(self.clock())
+        if (isinstance(captured, bool) or not isinstance(captured, (int, float)) or
+                not math.isfinite(float(captured)) or now < float(captured) or now - float(captured) > 300):
+            raise ResourceControllerError("physical_release_proof_expired")
+        if (proof.get("format") != "PA1-PHYSICAL-RELEASE/1" or
+                proof.get("status") != "released_verified" or proof.get("released_verified") is not True or
+                proof.get("stopped") is not True or proof.get("evicted") is not True or
+                proof.get("quiescent") is not True or not isinstance(proof.get("daemon_epoch"), str) or
+                not _HEX_64.fullmatch(proof["daemon_epoch"]) or
+                type(proof.get("supervisor_pid")) is not int or proof["supervisor_pid"] <= 0 or
+                not isinstance(proof.get("supervisor_process_start"), str) or
+                not isinstance(proof.get("runtime_fingerprint"), str) or
+                not _HEX_64.fullmatch(proof["runtime_fingerprint"]) or
+                not isinstance(proof.get("cleanup_receipts"), list) or
+                not isinstance(proof.get("gpu_uuids"), list) or not proof["gpu_uuids"] or
+                any(not isinstance(item, str) or not item.startswith("GPU-") for item in proof["gpu_uuids"]) or
+                not isinstance(getattr(proof, "host", None), str) or not proof.host):
+            raise ResourceControllerError("physical_release_proof_invalid")
+        power = self.power_policy.snapshot()
+        if (power.get("release_veto_active") is not True or power.get("release_until") is not None or
+                power.get("physical_state") != "pending" or power.get("release_request_id") != intent.request_id):
+            raise ResourceControllerError("permanent_release_veto_required")
+        rows = self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,release_request_id
+            FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
+        unresolved = [row for row in rows if tuple(row)[2] in
+                      {"active", "idle_owned", "release_pending", "stale"}]
+        if (not unresolved or {tuple(row)[0] for row in unresolved} != set(targets) or
+                any(tuple(row)[2] != "stale" or tuple(row)[4] != intent.request_id for row in unresolved)):
+            raise ResourceControllerError("stale_session_target_set_incomplete")
+        expected_epochs = {tuple(row)[0]: tuple(row)[1] for row in unresolved}
+        proof_epoch = proof.get("daemon_epoch")
+        cleanup = proof["cleanup_receipts"]
+        cleanup_by_identity = {}
+        for item in cleanup:
+            if not isinstance(item, Mapping):
+                raise ResourceControllerError("physical_release_proof_invalid")
+            gpu_uuids = item.get("gpu_uuids")
+            if (item.get("released") is not True or item.get("process_released") is not True or
+                    item.get("memory_released") is not True or type(item.get("owned_pid")) is not int or
+                    not isinstance(item.get("owner_id"), str) or
+                    not isinstance(item.get("server_process_start"), str) or
+                    not isinstance(item.get("generation"), str) or not isinstance(gpu_uuids, list) or
+                    not gpu_uuids or any(not isinstance(uuid, str) or not uuid.startswith("GPU-")
+                        for uuid in gpu_uuids) or len(set(gpu_uuids)) != len(gpu_uuids)):
+                raise ResourceControllerError("physical_release_proof_invalid")
+            key = (item["owner_id"], item["owned_pid"], item["server_process_start"],
+                   item["generation"], tuple(sorted(gpu_uuids)))
+            if key in cleanup_by_identity:
+                raise ResourceControllerError("physical_release_proof_invalid")
+            cleanup_by_identity[key] = item
+        matched = []
+        expected_cleanup = set()
+        for row in unresolved:
+            session_id, epoch_text, _state, receipt_text, _request_id = tuple(row)
+            try:
+                epoch = json.loads(epoch_text)
+                receipt = _receipt(session_id, json.loads(receipt_text), epoch)
+            except (TypeError, ValueError, json.JSONDecodeError, ResourceControllerError) as error:
+                raise ResourceControllerError("stale_session_close_receipt_invalid") from error
+            if (epoch.get("daemon_epoch") != proof_epoch or
+                    epoch.get("supervisor_pid") != proof.get("supervisor_pid") or
+                    epoch.get("supervisor_process_start") != proof.get("supervisor_process_start") or
+                    epoch.get("runtime_fingerprint") != proof.get("runtime_fingerprint")):
+                raise ResourceControllerError("stale_session_epoch_mismatch")
+            key = (receipt["owner_id"], receipt["server_pid"], receipt["server_process_start"],
+                   receipt["residency_generation"], tuple(sorted(receipt["gpu_uuids"])))
+            expected_cleanup.add(key)
+            item = cleanup_by_identity.get(key)
+            if item is None:
+                raise ResourceControllerError("stale_session_physical_identity_mismatch")
+            matched.append((session_id, receipt, item))
+        if set(cleanup_by_identity) != expected_cleanup:
+            raise ResourceControllerError("stale_session_physical_target_set_mismatch")
+        observed_gpu_uuids = sorted({uuid for item in cleanup for uuid in item["gpu_uuids"]})
+        if observed_gpu_uuids != sorted(set(proof["gpu_uuids"])):
+            raise ResourceControllerError("physical_release_proof_gpu_scope_invalid")
+
+        if self.db.in_transaction:
+            raise ResourceControllerError("physical_release_requires_committed_state")
+        try:
+            self.db.execute("BEGIN IMMEDIATE")
+        except sqlite3.OperationalError as error:
+            raise ResourceControllerError("controller_quiescence_unavailable") from error
+        # Fence admissions and recheck every proof precondition after taking
+        # the write lock, before any row can become released_verified.
+        power = self.power_policy.snapshot()
+        if (power.get("release_veto_active") is not True or power.get("release_until") is not None or
+                power.get("physical_state") != "pending" or power.get("release_request_id") != intent.request_id):
+            self.db.rollback()
+            raise ResourceControllerError("permanent_release_veto_required")
+        try:
+            active_jobs = self.db.execute("""SELECT count(*) FROM jobs
+                WHERE COALESCE(json_extract(record,'$.status'),'') NOT IN
+                    ('completed','partial','failed','cancelled')""").fetchone()[0]
+            execution_slots = self.db.execute("SELECT count(*) FROM execution_slots").fetchone()[0]
+        except sqlite3.OperationalError as error:
+            self.db.rollback()
+            raise ResourceControllerError("controller_quiescence_unavailable") from error
+        if active_jobs != 0 or execution_slots != 0:
+            self.db.rollback()
+            raise ResourceControllerError("controller_work_not_quiescent")
+        current_rows = self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,release_request_id
+            FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
+        current_unresolved = [row for row in current_rows if tuple(row)[2] in
+                              {"active", "idle_owned", "release_pending", "stale"}]
+        expected_receipts = {session_id: _json(receipt) for session_id, receipt, _item in matched}
+        if (not current_unresolved or {tuple(row)[0] for row in current_unresolved} != set(targets) or
+                any(tuple(row)[2] != "stale" or tuple(row)[4] != intent.request_id or
+                    tuple(row)[3] != expected_receipts.get(tuple(row)[0]) or
+                    tuple(row)[1] != expected_epochs.get(tuple(row)[0])
+                    for row in current_unresolved)):
+            self.db.rollback()
+            raise ResourceControllerError("stale_session_target_set_incomplete")
+        proof_text = _json(proof)
+        proof_hash = hashlib.sha256(proof_text.encode("utf-8")).hexdigest()
+        audit_id = uuid.uuid4().hex
+        session_json = _json({"session_ids": targets})
+        audit_proof = {"format": "PA1-STALE-SESSION-RELEASE-AUDIT/1",
+            "request_id": intent.request_id, "daemon_epoch": proof_epoch,
+            "physical_release_proof_sha256": proof_hash,
+            "whole_epoch_proof": json.loads(proof_text),
+            "matches": [{"session_id": session_id, "owner_id": receipt["owner_id"],
+                "server_pid": receipt["server_pid"], "server_process_start": receipt["server_process_start"],
+                "residency_generation": receipt["residency_generation"],
+                "gpu_uuids": receipt["gpu_uuids"]} for session_id, receipt, _item in matched]}
+        audit_text = _json(audit_proof)
+        audit_hash = hashlib.sha256(audit_text.encode("utf-8")).hexdigest()
+        self.db.execute("SAVEPOINT pa1_stale_reconcile")
+        try:
+            self.db.execute("""INSERT INTO pa1_stale_resource_reconciliation_audit
+                (receipt_id,release_request_id,daemon_epoch,session_ids,proof,proof_sha256,controller_host,reconciled_at)
+                VALUES(?,?,?,?,?,?,?,?)""", (audit_id, intent.request_id, proof_epoch, session_json,
+                audit_text, audit_hash, proof.host, now))
+            for session_id, receipt, _item in matched:
+                rowproof = {"format": "PC-PA1-STALE-OWNED-RELEASE-PROOF/1",
+                    "request_id": intent.request_id, "session_id": session_id,
+                    "daemon_epoch": proof_epoch, "receipt_id": audit_id,
+                    "physical_release_proof_sha256": proof_hash, "audit_sha256": audit_hash,
+                    **{key: receipt[key] for key in ("slot_id", "owner_id", "host_lease_id",
+                        "residency_generation", "server_pid", "server_process_start", "gpu_uuids")},
+                    "process_released": True, "memory_released": True, "host_released": True}
+                changed = self.db.execute("""UPDATE pa1_owned_resource_sessions SET state='released_verified',
+                    release_proof=?,updated=? WHERE session_id=? AND state='stale' AND release_request_id=?
+                    AND close_receipt=?""",
+                    (_json(rowproof), now, session_id, intent.request_id, _json(receipt))).rowcount
+                if changed != 1:
+                    raise ResourceControllerError("stale_session_changed_during_reconcile")
+            self.db.execute("RELEASE SAVEPOINT pa1_stale_reconcile")
+        except Exception:
+            self.db.execute("ROLLBACK TO SAVEPOINT pa1_stale_reconcile")
+            self.db.execute("RELEASE SAVEPOINT pa1_stale_reconcile")
+            raise
+        return targets
+
     def release_owned(self, intent: ReleaseIntent,
                       callback: Callable[[str, str, Sequence[Mapping[str, Any]]], Mapping[str, Any]]) -> str:
         """Deliver a committed intent to the exact owner; only verified receipts complete it.
@@ -424,6 +678,13 @@ class ResourceController:
                                    tuple(row)[4] == intent.request_id for row in non_superseded)):
             self.power_policy.deliver_release_intent(intent, lambda _rid, _reason: None)
             return "released_verified"
+        # A fresh intent may follow resume/expiry after all current resources
+        # were already verified under an older intent. Carry that state forward
+        # only when there are no unresolved rows; acknowledgment revalidates
+        # every stored proof before updating PowerPolicy.
+        if (non_superseded and all(tuple(row)[2] == "released_verified" for row in non_superseded)):
+            self.power_policy.deliver_release_intent(intent, lambda _rid, _reason: None)
+            return "released_verified"
         tracked_rows = [row for row in all_rows if tuple(row)[2] not in {"released_verified", "superseded"}]
         rows = [row for row in tracked_rows if tuple(row)[2] != "released_verified"]
 
@@ -449,11 +710,11 @@ class ResourceController:
                 release_request_id=?,updated=? WHERE state IN ('active','idle_owned','release_pending','stale')""",
                 (intent.request_id, float(self.clock())))
             return "pending_sessions_open"
-        if stale_ids:
-            self.db.execute("""UPDATE pa1_owned_resource_sessions SET release_request_id=?,updated=?
-                WHERE state='stale'""", (intent.request_id, float(self.clock())))
         if not decoded:
             self.power_policy.deliver_release_intent(intent, lambda _rid, _reason: None)
+            if stale_ids:
+                self.db.execute("""UPDATE pa1_owned_resource_sessions SET release_request_id=?,updated=?
+                    WHERE state='stale'""", (intent.request_id, float(self.clock())))
             return "pending_reconciliation_required" if stale_ids else "pending_no_owned_resources"
 
         records = tuple(sorted(decoded, key=lambda item: item["session_id"]))
@@ -485,6 +746,12 @@ class ResourceController:
                 "stale" if "stale" in batch_statuses else "pending")
 
         self.power_policy.deliver_release_intent(intent, deliver)
+        # The owner callback boundary requires a committed intent and no open
+        # SQLite transaction. Project stale rows only after that validated
+        # callback has returned; they are not owner-releasable receipts.
+        if stale_ids:
+            self.db.execute("""UPDATE pa1_owned_resource_sessions SET release_request_id=?,updated=?
+                WHERE state='stale'""", (intent.request_id, float(self.clock())))
         requested = {item["session_id"] for item in records}
         outcomes = response.get("sessions")
         if isinstance(outcomes, list):
@@ -557,27 +824,58 @@ class ResourceController:
         """Verify committed owner rows and mint PowerPolicy's opaque acknowledgement."""
         if self.db.in_transaction:
             raise ResourceControllerError("verified_release_ack_requires_committed_rows")
+        return self._verify_release_ack(intent)
+
+    def _verified_release_ack_under_lock(self, intent: ReleaseIntent) -> _VerifiedOwnedReleaseAck:
+        """Revalidate rows while PowerPolicy holds BEGIN IMMEDIATE through its update."""
+        if not self.db.in_transaction:
+            raise ResourceControllerError("verified_release_ack_write_lock_required")
+        return self._verify_release_ack(intent)
+
+    def _verify_release_ack(self, intent: ReleaseIntent) -> _VerifiedOwnedReleaseAck:
+        before = self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,
+            release_request_id,release_proof FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
+        acknowledgment = self._verify_release_ack_rows(intent)
+        after = self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,
+            release_request_id,release_proof FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
+        if [tuple(row) for row in before] != [tuple(row) for row in after]:
+            raise ResourceControllerError("verified_release_target_set_changed")
+        return acknowledgment
+
+    def _verify_release_ack_rows(self, intent: ReleaseIntent) -> _VerifiedOwnedReleaseAck:
         if not isinstance(intent, ReleaseIntent):
             raise ResourceControllerError("release_intent_invalid")
         state = self.power_policy.snapshot()
         if state["release_request_id"] != intent.request_id:
             raise ResourceControllerError("release_intent_stale")
-        rows = self.db.execute("""SELECT session_id,state,close_receipt,release_request_id,release_proof
+        rows = self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,release_request_id,release_proof
             FROM pa1_owned_resource_sessions WHERE release_request_id=? ORDER BY session_id""",
             (intent.request_id,)).fetchall()
         if not rows:
-            raise ResourceControllerError("verified_release_target_set_empty")
+            return self._verified_historical_release_ack(intent)
         session_ids = []
         proofs = []
         aggregate_rows = []
+        stale_rows = []
         for row in rows:
-            session_id, status, receipt_text, request_id, proof_text = tuple(row)
+            session_id, epoch_text, status, receipt_text, request_id, proof_text = tuple(row)
             if status != "released_verified" or not receipt_text or request_id != intent.request_id or not proof_text:
                 raise ResourceControllerError("verified_release_target_incomplete")
             receipt = json.loads(receipt_text)
             proof = json.loads(proof_text)
             if receipt.get("format") == "PA1-ORPHANED-SESSION-RELEASE/1":
                 aggregate_rows.append((session_id, receipt, proof))
+                session_ids.append(session_id)
+                continue
+            if proof.get("format") == "PC-PA1-STALE-OWNED-RELEASE-PROOF/1":
+                if (proof.get("request_id") != intent.request_id or proof.get("session_id") != session_id or
+                        any(proof.get(key) != receipt.get(key) for key in
+                            ("daemon_epoch", "session_id", "slot_id", "owner_id", "host_lease_id",
+                             "residency_generation", "server_pid", "server_process_start", "gpu_uuids")) or
+                        any(proof.get(key) is not True for key in
+                            ("process_released", "memory_released", "host_released"))):
+                    raise ResourceControllerError("verified_release_proof_mismatch")
+                stale_rows.append((session_id, receipt, proof, json.loads(epoch_text)))
                 session_ids.append(session_id)
                 continue
             if (proof.get("format") != "PC-PA1-OWNED-RELEASE-PROOF/1" or
@@ -592,7 +890,7 @@ class ResourceController:
             session_ids.append(session_id)
             proofs.append(proof)
         if aggregate_rows:
-            if len(aggregate_rows) != len(rows):
+            if stale_rows or len(aggregate_rows) != len(rows):
                 raise ResourceControllerError("verified_release_proof_mismatch")
             _, first_receipt, first_proof = aggregate_rows[0]
             try:
@@ -631,6 +929,27 @@ class ResourceController:
                 "receipt_id": first_receipt["receipt_id"], "proof_sha256": audit_hash,
                 "target_session_ids": target_ids}).encode("utf-8")).hexdigest()
             return _VerifiedOwnedReleaseAck(_ACK_SEAL, intent.request_id, target_ids, digest)
+        if stale_rows:
+            if aggregate_rows:
+                raise ResourceControllerError("verified_release_proof_mismatch")
+            audit_ids = {proof.get("receipt_id") for _, _, proof, _ in stale_rows}
+            if len(audit_ids) != 1:
+                raise ResourceControllerError("verified_release_audit_mismatch")
+            audit_id = next(iter(audit_ids))
+            audit_info = self._verify_historical_stale_audit(intent.request_id, audit_id, stale_rows)
+            target_ids = sorted(session_ids)
+            outstanding = self.db.execute("""SELECT session_id,state,release_request_id
+                FROM pa1_owned_resource_sessions WHERE state<>'superseded'
+                AND (state<>'released_verified' OR release_request_id=?) ORDER BY session_id""",
+                (intent.request_id,)).fetchall()
+            if (not outstanding or any(tuple(item)[2] != intent.request_id for item in outstanding) or
+                    {tuple(item)[0] for item in outstanding} != set(target_ids)):
+                raise ResourceControllerError("verified_release_target_set_incomplete")
+            digest = hashlib.sha256(_json({"request_id": intent.request_id,
+                "audit_id": audit_id, "audit_sha256": audit_info["audit_sha256"],
+                "target_session_ids": target_ids,
+                "ordinary_proofs": proofs}).encode("utf-8")).hexdigest()
+            return _VerifiedOwnedReleaseAck(_ACK_SEAL, intent.request_id, target_ids, digest)
         outstanding = self.db.execute("""SELECT session_id,state,release_request_id
             FROM pa1_owned_resource_sessions WHERE state<>'superseded'
             AND (state<>'released_verified' OR release_request_id=?) ORDER BY session_id""",
@@ -641,6 +960,246 @@ class ResourceController:
         digest = hashlib.sha256(_json({"request_id": intent.request_id,
             "proofs": proofs}).encode("utf-8")).hexdigest()
         return _VerifiedOwnedReleaseAck(_ACK_SEAL, intent.request_id, session_ids, digest)
+
+    def _verified_historical_release_ack(self, intent: ReleaseIntent) -> _VerifiedOwnedReleaseAck:
+        """Carry forward complete ordinary and audited stale proofs with no current targets."""
+        all_rows = self.db.execute("""SELECT session_id,supervisor_epoch,state,close_receipt,release_request_id,release_proof
+            FROM pa1_owned_resource_sessions ORDER BY session_id""").fetchall()
+        current = [tuple(row) for row in all_rows if tuple(row)[2] != "superseded"]
+        if not current or any(row[2] != "released_verified" for row in current):
+            raise ResourceControllerError("verified_release_target_set_empty")
+        session_ids = []
+        historical = []
+        stale_groups: dict[tuple[str, str], list[tuple[str, Mapping[str, Any], Mapping[str, Any], Mapping[str, Any]]]] = {}
+        aggregate_groups: dict[str, list[tuple[str, Mapping[str, Any], Mapping[str, Any], Mapping[str, Any]]]] = {}
+        proof_kinds: dict[str, set[str]] = {}
+        for session_id, epoch_text, status, receipt_text, request_id, proof_text in current:
+            if (status != "released_verified" or not receipt_text or not proof_text or
+                    not isinstance(request_id, str) or not _HEX_32.fullmatch(request_id)):
+                raise ResourceControllerError("verified_release_target_incomplete")
+            try:
+                raw_receipt = json.loads(receipt_text)
+                proof = json.loads(proof_text)
+            except (TypeError, ValueError, json.JSONDecodeError, ResourceControllerError) as error:
+                raise ResourceControllerError("verified_release_proof_mismatch") from error
+            try:
+                epoch = json.loads(epoch_text)
+            except (TypeError, ValueError, json.JSONDecodeError) as error:
+                raise ResourceControllerError("verified_release_proof_mismatch") from error
+            if isinstance(raw_receipt, Mapping) and raw_receipt.get("format") == "PA1-ORPHANED-SESSION-RELEASE/1":
+                if (not isinstance(proof, Mapping) or proof.get("request_id") != request_id or
+                        raw_receipt.get("release_request_id") != request_id or
+                        not isinstance(raw_receipt.get("receipt_id"), str) or
+                        not _HEX_32.fullmatch(raw_receipt["receipt_id"])):
+                    raise ResourceControllerError("verified_release_proof_mismatch")
+                aggregate_groups.setdefault(request_id, []).append(
+                    (session_id, raw_receipt, proof, epoch))
+                proof_kinds.setdefault(request_id, set()).add("aggregate")
+                session_ids.append(session_id)
+                historical.append({"session_id": session_id, "request_id": request_id,
+                    "proof_sha256": hashlib.sha256(_json(proof).encode("utf-8")).hexdigest()})
+                continue
+            try:
+                receipt = _receipt(session_id, raw_receipt, epoch)
+            except ResourceControllerError as error:
+                raise ResourceControllerError("verified_release_proof_mismatch") from error
+            identity = ("daemon_epoch", "session_id", "slot_id", "owner_id", "host_lease_id",
+                        "residency_generation", "server_pid", "server_process_start", "gpu_uuids")
+            if (not isinstance(proof, Mapping) or proof.get("request_id") != request_id or
+                    any(proof.get(key) != receipt.get(key) for key in identity)):
+                raise ResourceControllerError("verified_release_proof_mismatch")
+            if proof.get("format") == "PC-PA1-OWNED-RELEASE-PROOF/1":
+                proof_kinds.setdefault(request_id, set()).add("ordinary")
+                if any(proof.get(key) is not True for key in
+                       ("process_released", "memory_released", "host_released")):
+                    raise ResourceControllerError("verified_release_proof_mismatch")
+                observation = proof.get("observation")
+                observed = observation.get("observed_unix") if isinstance(observation, Mapping) else None
+                processes = observation.get("processes") if isinstance(observation, Mapping) else None
+                if (isinstance(observed, bool) or not isinstance(observed, (int, float)) or
+                        not math.isfinite(float(observed)) or observed <= 0 or
+                        observed > float(self.clock()) + 5 or not isinstance(processes, list) or
+                        any(isinstance(item, Mapping) and item.get("pid") == receipt["server_pid"]
+                            for item in processes)):
+                    raise ResourceControllerError("verified_release_proof_mismatch")
+            elif proof.get("format") == "PC-PA1-STALE-OWNED-RELEASE-PROOF/1":
+                proof_kinds.setdefault(request_id, set()).add("stale")
+                if (any(proof.get(key) is not True for key in
+                        ("process_released", "memory_released", "host_released")) or
+                        not isinstance(proof.get("receipt_id"), str) or
+                        not _HEX_32.fullmatch(proof["receipt_id"]) or
+                        not isinstance(proof.get("audit_sha256"), str) or
+                        not _HEX_64.fullmatch(proof["audit_sha256"]) or
+                        not isinstance(proof.get("physical_release_proof_sha256"), str) or
+                        not _HEX_64.fullmatch(proof["physical_release_proof_sha256"])):
+                    raise ResourceControllerError("verified_release_proof_mismatch")
+                stale_groups.setdefault((request_id, proof["receipt_id"]), []).append(
+                    (session_id, receipt, proof, epoch))
+            else:
+                raise ResourceControllerError("verified_release_proof_mismatch")
+            session_ids.append(session_id)
+            historical.append({"session_id": session_id, "request_id": request_id,
+                "proof_sha256": hashlib.sha256(_json(proof).encode("utf-8")).hexdigest()})
+        audit_digests = []
+        if any("aggregate" in kinds and len(kinds) != 1 for kinds in proof_kinds.values()):
+            raise ResourceControllerError("verified_release_proof_mismatch")
+        audit_ids_by_request: dict[str, set[str]] = {}
+        for request_id, audit_id in stale_groups:
+            audit_ids_by_request.setdefault(request_id, set()).add(audit_id)
+        if any(len(audit_ids) != 1 for audit_ids in audit_ids_by_request.values()):
+            raise ResourceControllerError("verified_release_audit_mismatch")
+        for (request_id, audit_id), stale_rows in sorted(stale_groups.items()):
+            audit_digests.append(self._verify_historical_stale_audit(request_id, audit_id, stale_rows))
+        for request_id, aggregate_rows in sorted(aggregate_groups.items()):
+            audit_digests.append(self._verify_historical_aggregate(request_id, aggregate_rows))
+        digest = hashlib.sha256(_json({"request_id": intent.request_id,
+            "historical_verified_sessions": historical,
+            "historical_stale_audits": audit_digests}).encode("utf-8")).hexdigest()
+        return _VerifiedOwnedReleaseAck(_ACK_SEAL, intent.request_id, session_ids, digest)
+
+    def _verify_historical_stale_audit(self, request_id: str, audit_id: str,
+                                       stale_rows: Sequence[tuple[str, Mapping[str, Any], Mapping[str, Any], Mapping[str, Any]]]) -> dict[str, Any]:
+        """Revalidate a stored stale-session audit against its exact whole-epoch proof."""
+        audit_hashes = {proof.get("audit_sha256") for _, _, proof, _ in stale_rows}
+        physical_hashes = {proof.get("physical_release_proof_sha256") for _, _, proof, _ in stale_rows}
+        if len(audit_hashes) != 1 or len(physical_hashes) != 1:
+            raise ResourceControllerError("verified_release_audit_mismatch")
+        try:
+            audited = self.db.execute("""SELECT release_request_id,daemon_epoch,session_ids,proof,
+                proof_sha256,controller_host FROM pa1_stale_resource_reconciliation_audit
+                WHERE receipt_id=?""", (audit_id,)).fetchone()
+        except sqlite3.OperationalError as error:
+            raise ResourceControllerError("verified_release_audit_unavailable") from error
+        if audited is None:
+            raise ResourceControllerError("verified_release_audit_missing")
+        audit_request, audit_epoch, audit_sessions, audit_text, audit_digest, audit_host = tuple(audited)
+        try:
+            audit = json.loads(audit_text)
+            whole_epoch = audit["whole_epoch_proof"]
+            physical_digest = hashlib.sha256(_json(whole_epoch).encode("utf-8")).hexdigest()
+            session_set = json.loads(audit_sessions).get("session_ids")
+        except (TypeError, ValueError, KeyError, AttributeError, json.JSONDecodeError) as error:
+            raise ResourceControllerError("verified_release_audit_mismatch") from error
+        target_ids = sorted(session_id for session_id, _receipt, _proof, _epoch in stale_rows)
+        expected_matches = [{"session_id": session_id, "owner_id": receipt["owner_id"],
+            "server_pid": receipt["server_pid"], "server_process_start": receipt["server_process_start"],
+            "residency_generation": receipt["residency_generation"], "gpu_uuids": receipt["gpu_uuids"]}
+            for session_id, receipt, _proof, _epoch in stale_rows]
+        cleanup = whole_epoch.get("cleanup_receipts") if isinstance(whole_epoch, Mapping) else None
+        gpu_uuids = whole_epoch.get("gpu_uuids") if isinstance(whole_epoch, Mapping) else None
+        cleanup_by_identity = {}
+        if isinstance(cleanup, list):
+            for item in cleanup:
+                if not isinstance(item, Mapping):
+                    raise ResourceControllerError("verified_release_audit_mismatch")
+                item_uuids = item.get("gpu_uuids")
+                if (item.get("released") is not True or item.get("process_released") is not True or
+                        item.get("memory_released") is not True or type(item.get("owned_pid")) is not int or
+                        not isinstance(item.get("owner_id"), str) or not item["owner_id"] or
+                        not isinstance(item.get("server_process_start"), str) or not item["server_process_start"] or
+                        not isinstance(item.get("generation"), str) or not item["generation"] or
+                        not isinstance(item_uuids, list) or not item_uuids or
+                        any(not isinstance(uuid, str) or not uuid.startswith("GPU-") for uuid in item_uuids) or
+                        len(set(item_uuids)) != len(item_uuids)):
+                    raise ResourceControllerError("verified_release_audit_mismatch")
+                key = (item["owner_id"], item["owned_pid"], item["server_process_start"],
+                       item["generation"], tuple(sorted(item_uuids)))
+                if key in cleanup_by_identity:
+                    raise ResourceControllerError("verified_release_audit_mismatch")
+                cleanup_by_identity[key] = item
+        expected_cleanup = set()
+        for session_id, receipt, _proof, epoch in stale_rows:
+            if (epoch.get("daemon_epoch") != whole_epoch.get("daemon_epoch") or
+                    epoch.get("supervisor_pid") != whole_epoch.get("supervisor_pid") or
+                    epoch.get("supervisor_process_start") != whole_epoch.get("supervisor_process_start") or
+                    epoch.get("runtime_fingerprint") != whole_epoch.get("runtime_fingerprint")):
+                raise ResourceControllerError("verified_release_audit_mismatch")
+            expected_cleanup.add((receipt["owner_id"], receipt["server_pid"],
+                receipt["server_process_start"], receipt["residency_generation"],
+                tuple(sorted(receipt["gpu_uuids"]))))
+        observed_gpu_uuids = sorted({uuid for item in cleanup or [] for uuid in item["gpu_uuids"]})
+        captured_at = whole_epoch.get("captured_at") if isinstance(whole_epoch, Mapping) else None
+        if (audit_request != request_id or audit.get("format") != "PA1-STALE-SESSION-RELEASE-AUDIT/1" or
+                audit.get("request_id") != request_id or audit.get("daemon_epoch") != audit_epoch or
+                not isinstance(audit_host, str) or not audit_host or session_set != target_ids or
+                hashlib.sha256(audit_text.encode("utf-8")).hexdigest() != audit_digest or
+                audit.get("physical_release_proof_sha256") != physical_digest or
+                physical_digest not in physical_hashes or audit.get("matches") != expected_matches or
+                not isinstance(whole_epoch, Mapping) or
+                whole_epoch.get("format") != "PA1-PHYSICAL-RELEASE/1" or
+                whole_epoch.get("status") != "released_verified" or
+                whole_epoch.get("released_verified") is not True or
+                whole_epoch.get("stopped") is not True or whole_epoch.get("quiescent") is not True or
+                whole_epoch.get("evicted") is not True or
+                whole_epoch.get("daemon_epoch") != audit_epoch or
+                type(whole_epoch.get("supervisor_pid")) is not int or whole_epoch["supervisor_pid"] <= 0 or
+                not isinstance(whole_epoch.get("supervisor_process_start"), str) or
+                not whole_epoch["supervisor_process_start"] or
+                not isinstance(whole_epoch.get("runtime_fingerprint"), str) or
+                not _HEX_64.fullmatch(whole_epoch["runtime_fingerprint"]) or
+                isinstance(captured_at, bool) or not isinstance(captured_at, (int, float)) or
+                not math.isfinite(float(captured_at)) or self.clock() < float(captured_at) or
+                self.clock() - float(captured_at) > 300 or
+                not isinstance(gpu_uuids, list) or not gpu_uuids or
+                any(not isinstance(uuid, str) or not uuid.startswith("GPU-") for uuid in gpu_uuids) or
+                not isinstance(cleanup, list) or not cleanup or cleanup_by_identity.keys() != expected_cleanup or
+                sorted(set(gpu_uuids)) != observed_gpu_uuids or
+                any(proof.get("audit_sha256") != audit_digest for _, _, proof, _ in stale_rows)):
+            raise ResourceControllerError("verified_release_audit_mismatch")
+        return {"request_id": request_id, "audit_id": audit_id,
+                "audit_sha256": audit_digest, "target_session_ids": target_ids}
+
+    def _verify_historical_aggregate(self, request_id: str,
+            rows: Sequence[tuple[str, Mapping[str, Any], Mapping[str, Any], Mapping[str, Any]]]) -> dict[str, Any]:
+        """Revalidate orphan aggregate receipt rows and their authenticated audit."""
+        if not rows:
+            raise ResourceControllerError("verified_release_audit_missing")
+        session_ids = sorted(session_id for session_id, _receipt, _proof, _epoch in rows)
+        first_receipt, first_proof = rows[0][1], rows[0][2]
+        receipt_id = first_receipt.get("receipt_id")
+        if not isinstance(receipt_id, str) or not _HEX_32.fullmatch(receipt_id):
+            raise ResourceControllerError("verified_release_audit_mismatch")
+        try:
+            audited = self.db.execute("""SELECT release_request_id,daemon_epoch,session_ids,proof,
+                proof_sha256,controller_host FROM pa1_orphan_resource_reconciliation_audit
+                WHERE receipt_id=?""", (receipt_id,)).fetchone()
+        except sqlite3.OperationalError as error:
+            raise ResourceControllerError("verified_release_audit_unavailable") from error
+        if audited is None:
+            raise ResourceControllerError("verified_release_audit_missing")
+        audit_request, audit_epoch, audit_sessions, audit_text, audit_hash, audit_host = tuple(audited)
+        try:
+            audit_targets = json.loads(audit_sessions).get("session_ids")
+            audit_proof = json.loads(audit_text)
+            proof_hash = hashlib.sha256(_json(audit_proof).encode("utf-8")).hexdigest()
+        except (TypeError, ValueError, AttributeError, json.JSONDecodeError) as error:
+            raise ResourceControllerError("verified_release_audit_mismatch") from error
+        captured = first_proof.get("captured_at") if isinstance(first_proof, Mapping) else None
+        if (audit_request != request_id or audit_epoch != first_receipt.get("daemon_epoch") or
+                not isinstance(audit_host, str) or not audit_host or audit_targets != session_ids or
+                hashlib.sha256(audit_text.encode("utf-8")).hexdigest() != audit_hash or
+                proof_hash != audit_hash or first_proof != audit_proof or
+                first_receipt.get("release_request_id") != request_id or
+                first_receipt.get("session_ids") != session_ids or
+                first_receipt.get("physical_release_proof_sha256") != audit_hash or
+                not isinstance(first_proof, Mapping) or
+                first_proof.get("format") != "PA1-PHYSICAL-RELEASE/1" or
+                first_proof.get("daemon_epoch") != audit_epoch or
+                first_proof.get("stopped") is not True or first_proof.get("quiescent") is not True or
+                isinstance(captured, bool) or not isinstance(captured, (int, float)) or
+                not math.isfinite(float(captured)) or self.clock() < float(captured) or
+                self.clock() - float(captured) > 300 or
+                any(receipt != first_receipt or proof != first_proof
+                    for _session, receipt, proof, _epoch in rows)):
+            raise ResourceControllerError("verified_release_audit_mismatch")
+        for _session, _receipt, _proof, epoch in rows:
+            if (epoch.get("daemon_epoch") != audit_epoch or
+                    epoch.get("supervisor_pid") != first_proof.get("supervisor_pid") or
+                    epoch.get("supervisor_process_start") != first_proof.get("supervisor_process_start") or
+                    epoch.get("runtime_fingerprint") != first_proof.get("runtime_fingerprint")):
+                raise ResourceControllerError("verified_release_audit_mismatch")
+        return {"request_id": request_id, "receipt_id": receipt_id,
+                "proof_sha256": audit_hash, "target_session_ids": session_ids}
 
     def acknowledge_verified_release(self, intent: ReleaseIntent) -> None:
         """Update PowerPolicy only after owner proofs have been committed."""

@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.app import create_mcp
+from project_control.adapters.todo import TodoReadError
 from project_control.as1_context import ContextHost
 from project_control.models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, RepositoryIdentity, WorktreeIdentity
 from project_control.services.planning import plan_preview
@@ -127,6 +128,15 @@ class PlanPreviewTests(unittest.TestCase):
         self.assertFalse(result.data["valid"])
         self.assertIn("proposal_invalid", result.warnings)
         self.assertNotEqual(result.status.value, "internal_error")
+
+    def test_plan_preview_does_not_hide_todo_read_failures_as_invalid_proposals(self) -> None:
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.cache)}):
+            with patch("project_control.services.planning.TodoReadAdapter.plan_read",
+                       side_effect=TodoReadError("todo_read_database_busy")):
+                with self.assertRaisesRegex(TodoReadError, "todo_read_database_busy"):
+                    plan_preview(self.config, self.snapshot, PlanPreviewInput(
+                        project="demo", mode="validate", proposal=self.proposal,
+                    ))
 
     def test_inert_proposal_envelope_is_recognized_without_apply_authority(self) -> None:
         proposal = ProposalEnvelope.create(

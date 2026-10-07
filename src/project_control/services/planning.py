@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from ..adapters.git import GitReadAdapter
-from ..adapters.todo import TodoReadAdapter
+from ..adapters.todo import TodoReadAdapter, TodoReadError
 from ..config import ProjectControlConfig, ensure_private_directory
 from ..models import PlanPreviewInput, ProjectSnapshot, ProposalEnvelope, ToolEnvelope, envelope
 from ..normalize import bounded_envelope
@@ -229,8 +229,19 @@ def plan_preview(
             validate_json, diff_json = todo_plan_reader(temporary_path)
         else:
             assert todo_adapter is not None
-            validate_json = todo_adapter.plan_read("validate", temporary_path)
-            diff_json = todo_adapter.plan_read("diff", temporary_path)
+            try:
+                validate_json = todo_adapter.plan_read("validate", temporary_path)
+            except TodoReadError as exc:
+                # Todo reports schema/semantic plan rejection through its
+                # validation error code instead of a successful response with
+                # valid=false. That is an expected preview outcome; keep other
+                # provider failures visible as operational errors.
+                if exc.code != "todo_plan_validation_failed":
+                    raise
+                validate_json = {"ok": True, "data": {"valid": False}}
+                diff_json = {"data": {}}
+            else:
+                diff_json = todo_adapter.plan_read("diff", temporary_path)
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)

@@ -16,16 +16,16 @@ from project_control.observer_analysis import (
     SkillsObserverAnalysisProvider,
     observer_analysis_state_root,
 )
-from project_control.runtime_binding import _verify_receiver
+from project_control.runtime_binding import local_runtime_identity
 
 
 RECEIVER_SOURCE = Path(__file__).resolve().parents[1] / "src/project_control/local_runtime"
 
 
 def _receiver_fixture():
-    # Keep the receiver in its real src/project_control/local_runtime shape.
-    # A checkout source identity needs no installed-release pin.
-    return _verify_receiver(RECEIVER_SOURCE)
+    # Source fixtures use the current in-memory inventory, independent of the
+    # checked-in release manifest. Frozen-release tests keep strict verification.
+    return local_runtime_identity(root=RECEIVER_SOURCE)
 
 
 def _supervisor_module(identity, client_type):
@@ -184,7 +184,7 @@ print(json.dumps({"status": status["status"], "provider_available": provider.ava
                  mock.patch("project_control.observer_analysis.importlib.import_module", return_value=module):
                 result = SkillsObserverAnalysisProvider(base / "observed").investigate_turn({
                     "protocol": "PC-LOCAL-INVESTIGATOR-TURN/2", "max_tokens": 123, "timeout_seconds": 12,
-                    "compute_profile": "wide", "parallelism": "row", "messages": [{"role": "system", "content": "system"},
+                    "parallelism": "row", "messages": [{"role": "system", "content": "system"},
                         {"role": "user", "content": "question"}, {"role": "assistant", "content": "prior"}],
                 })
             self.assertEqual(result["status"], "available", result)
@@ -192,7 +192,7 @@ print(json.dumps({"status": status["status"], "provider_available": provider.ava
             self.assertEqual(captured[0]["messages"][0], {"role": "system", "content": "system"})
             self.assertEqual(captured[0]["messages"][1]["content"], "question")
             self.assertEqual(len(captured[0]["messages"]), 3)
-            self.assertEqual(captured[0]["compute_profile"], "wide")
+            self.assertEqual(captured[0]["compute_profile"], "narrow")
             self.assertEqual(captured[0]["parallelism"], "row")
             self.assertEqual(captured[0]["max_tokens"], 123)
             self.assertEqual(captured[0]["timeout_seconds"], 12)

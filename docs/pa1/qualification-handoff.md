@@ -1,4 +1,17 @@
-# PA1 qualification handoff — final evidence status
+# Historical PA1 qualification handoff — R10-era evidence
+
+> **Historical record, not current operating instructions or Todo status.**
+> This file describes the October 6 R10 candidate, its retired entry points,
+> tool counts, artifact locations, and task handoff. Do not run its command
+> recipes or infer current task state from it. The repository was subsequently
+> moved to bundled Todo and checkout-first source development. Use the current
+> [source qualification guide](source-qualification.md),
+> [current A01–A40 mapping](current-acceptance-mapping.md), and the live Todo
+> task/frontier for current interfaces, authorization, and status. Current
+> service checks are documented in [deployment](../deployment.md).
+
+The receipts and dispositions below are preserved as evidence of that
+candidate only. They have not been rewritten to imitate current runtime state.
 
 **Decision:** the `5a302b1` delivery candidate is built, selected, rollback-tested, and reselected. The native `PC-PA1-LAB` implementation task has a terminal handoff. Overall `PC-PA1-QUALIFY` and the mandatory 40-case product matrix remain partial and unaccepted; `final_acceptance` remains false and automatic assistance stays off. The exact evidence digest is [`live-validation.json`](live-validation.json), with per-case dispositions in [`acceptance-results.json`](acceptance-results.json).
 

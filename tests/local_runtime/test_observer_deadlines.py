@@ -9,9 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from local_runtime import assert_receiver_module, receiver_runtime_path
-import local_runtime.test_supervisor as _supervisor_fixtures
-from local_runtime.test_supervisor import (
+from tests.local_runtime import assert_receiver_module, receiver_runtime_path
+import tests.local_runtime.test_supervisor as _supervisor_fixtures
+from tests.local_runtime.test_supervisor import (
     _Adapter, _Cache, _PoolBackend, _Runtime, _Service, _profile,
 )
 

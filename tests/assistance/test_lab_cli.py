@@ -433,6 +433,81 @@ def test_experiment_planner_uses_trusted_policy_and_strict_json(monkeypatch):
         planner(request)
 
 
+def test_experiment_planner_contract_requires_complete_cpu_odd_tail_artifact():
+    from project_control.assistance.lab_cli import make_experiment_planner
+
+    fixture_root = "planning/project-assistance-v1/fixtures/repository"
+    source_path = f"{fixture_root}/demo/pairs.py"
+    baseline_path = f"{fixture_root}/tests/test_pairs.py"
+    fixture_directory = Path(__file__).resolve().parents[2] / fixture_root
+    source = (fixture_directory / "demo/pairs.py").read_text(encoding="utf-8")
+    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    baseline = (fixture_directory / "tests/test_pairs.py").read_text(encoding="utf-8")
+    baseline_digest = hashlib.sha256(baseline.encode("utf-8")).hexdigest()
+    artifact = (
+        "import sys\n"
+        "import unittest\n"
+        f"sys.path.insert(0, '/workspace/{fixture_root}')\n"
+        "from demo.pairs import pair_sum\n\n"
+        "class OddTailPairSumTest(unittest.TestCase):\n"
+        "    def test_nonzero_final_unpaired_value_is_included(self):\n"
+        "        self.assertEqual(pair_sum([2, 3, 5]), 10)\n\n"
+        "if __name__ == '__main__':\n"
+        "    unittest.main()\n"
+    )
+
+    class Provider:
+        request = None
+
+        def investigate_turn(self, request):
+            self.request = request
+            return {"status": "available", "text": json.dumps({
+                "hypothesis": "pair_sum omits the nonzero final unpaired item",
+                "source_citations": [
+                    {"path": source_path, "sha256": digest},
+                    {"path": baseline_path, "sha256": baseline_digest},
+                ],
+                "artifacts": [{"path": "test_pair_sum_odd_tail.py", "content": artifact}],
+                "argv": ["python3", "/proposal/test_pair_sum_odd_tail.py"],
+                "measurements": ["test exit status", "assertion output"],
+                "stop_rule": "run the generated test once and stop",
+                "done": False,
+            })}
+
+    provider = Provider()
+    planner = make_experiment_planner(lambda: provider)
+    proposal = planner({
+        "session_id": "fixture-cpu-odd-tail", "goal": "Check the nonzero odd tail in pair_sum",
+        "source_identity": {"repository": "source"},
+        "sources": [
+            {"path": source_path, "sha256": digest, "text": source},
+            {"path": baseline_path, "sha256": baseline_digest, "text": baseline},
+        ],
+        "tools": ["python3"], "gpu_uuids": [], "toolchain_root": None,
+        "prior_proposals": [], "receipts": [], "remaining_seconds": 600,
+        "deadline_epoch": time.time() + 600, "remaining_experiments": 2,
+    })
+
+    assert proposal["artifacts"] == [{"path": "test_pair_sum_odd_tail.py", "content": artifact}]
+    assert proposal["argv"] == ["python3", "/proposal/test_pair_sum_odd_tail.py"]
+    request = provider.request
+    assert request["response_format"]["schema"]["required"] == sorted({
+        "hypothesis", "source_citations", "artifacts", "argv", "measurements", "stop_rule", "done",
+    })
+    prompt = request["messages"][0]["content"].lower()
+    for requirement in ("nonempty", "full contents", "never omit artifacts", "python3-only cpu scope",
+                        "/proposal/<artifact path>", "relative to the selected repository",
+                        "may be nested", "do not assume /workspace or /proposal is the package root",
+                        "never put /proposal in the artifact path",
+                        "sys.path.insert(0, '/workspace/planning/project-assistance-v1/fixtures/repository')"):
+        assert requirement in prompt
+    assert f'"path":"{source_path}"' in prompt
+    assert f'"path":"{baseline_path}"' in prompt
+    assert f"/workspace/{fixture_root}" in proposal["artifacts"][0]["content"]
+    assert proposal["artifacts"][0]["path"] == "test_pair_sum_odd_tail.py"
+    assert proposal["argv"][1] == "/proposal/test_pair_sum_odd_tail.py"
+
+
 @pytest.mark.parametrize("use_gpu", [False, True], ids=["cpu", "gpu"])
 def test_scoped_cli_composition_uses_narrow_planner_and_runs_one_fake_effect(
         tmp_path, monkeypatch, capsys, use_gpu):

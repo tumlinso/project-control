@@ -1,35 +1,95 @@
-# Implementer start
+# PA1 implementation and qualification handoff
 
-## Intent first
+This page adapts the original PA1 package to the current Project Control
+architecture. The package's original `machine/acceptance.json` remains the
+historical statement of A01–A40 intent. Current interpretation is in
+`docs/pa1/current-acceptance-mapping.md`; current source and live-check
+instructions are in `docs/pa1/source-qualification.md`.
+Use current Todo authority and the current task sheet for status and permission.
+The old package validation results and qualification handoffs are not current
+runtime or task-state authority.
 
-Build a lightweight Project Control assistance layer that makes the user and external coding agents more informed, creative, efficient, empirically grounded, and connected to their long-term project goals. Exploit existing context, evidence, runtime, isolation, and workflow machinery. Preserve the clean external MCP experience. Do not build an autonomous-agent platform for its own sake.
+## Product goal and operating boundary
 
-The user values interesting experiments and ambitious low-level ideas, but not speculative architectural ceremony. The proposals in this package are reasoned defaults, not permission to ignore a simpler implementation with the same benefits.
+Finish PA1 so users can get grounded, useful answers about registered projects
+and optional skill content, and can authorize bounded CPU or CUDA LAB work with
+inspectable evidence and cleanup. Scope authorization permits only its
+displayed work; it does not authorize edits to canonical source. Keep automatic
+preparation off. Keep inference warm while eligible and yield resources only
+through the established owner/interlock path.
 
-## Begin without disturbing current work
+This pass repairs implementation and performs the two minimal authorized
+journeys recorded in the active task: one source-grounded answer and one
+bounded CPU LAB odd-tail experiment. Stop before broad quality comparisons,
+held-out campaigns, resource/latency profiling, real CUDA LAB, comprehensive
+crash qualification, or running all A01–A40 cases. Leave final acceptance open
+where its evidence is absent. Do not treat the permitted journeys as blanket
+acceptance.
 
-Read the intent, architecture, fast-development rules, outcome briefs, and decision register. Re-fetch current source, installed release identities, Todo frontier, and ongoing agent work using non-agentic tools and native reads. Rebaseline any already-evolved public contract; do not restore an older tool list merely because this dated package records it. The inspected worktrees were dirty and the frontier contained existing work; neither is permission to recover, overwrite, supersede, or close it [O02]. Do not call Project Control `investigate()` or `skill()` while that surface remains under maintenance. Use native Skills files when guidance is needed.
+## Current architecture and authority
 
-Validate the package, then use the existing Project Control plan validation/diff/application and task protocol. Preserve current authority, checkpoints, dirty files, source history, caches, and release state. Do not reimplement an importer, scheduler for project tasks, approval framework, or recovery tool.
+- Project Control and Todo executable code are in the same checkout and Python
+  distribution. Import `todo_orchestrator` from the bundled package; do not
+  restore the external `skills_dev`/Todo supplier or
+  `coding-workflow-mcp` adapter. Preserve the old supplier only as provenance.
+- Use `scripts/pc-dev` for setup, source execution, tests, and helper Python.
+  Source identity is derived from current source files; process code changes
+  require a restart after focused checks, not a wheel rebuild or hand-refreshed
+  receiver manifest. Frozen releases keep strict package verification.
+- Optional domain documentation is content, not executable identity. The
+  preferred content root is `PROJECT_CONTROL_OBSERVER_SKILLS_ROOT`; the older
+  `PROJECT_CONTROL_SKILLS_ROOT` name is content-only compatibility. Missing
+  CUDA/C++/skill documents do not invalidate PC or bundled Todo startup, core
+  workflow reads, or rescue mutation. A provider can report unavailable when
+  the specific content it needs is absent.
+- Discover the current profile's actual tools and schemas from its live MCP
+  `tools/list`. Historical profile counts and schema hashes are not contracts.
+  `/readyz` covers valid core application configuration and the bundled
+  workflow engine; inference and domain-content availability are separate.
+- The mutator's `maintain_execution` rescue path does not require the Todo
+  Orchestrator skill. Diagnose, inspect, prepare, then execute only the opaque
+  grant returned for the exact task/run. Native owner, principal, retained-work,
+  cleanliness, and continuation guards remain authoritative.
+- Use configured Codex subagents for bounded coding/research/review when the
+  root assigns them. Project Control's local inference runtime is for observer
+  assistance; it is not the coding worker. The root owns architecture,
+  cross-workstream decisions, task recovery, integration, and acceptance.
+- Preserve ledgers, SQLite, claims, queued work, snapshots, worktrees, dirty
+  files, project identities, and historical receipts. Do not hand-edit Todo
+  state or generated projections. Follow current native task/run procedures.
 
-Ask the user about consequential unclear product choices: especially background execution permission, initial projects/goals/windows, scratch/network/GPU grants, meaningful retention, and whether a coder-facing MCP capability should change. Present the recommended default and why the choice matters. The user has already requested scratch coding/tests and dependency-driven suspension; do not ask to reconfirm those goals. Ask for the operational scope and grants, not whether to build them. Batch questions where possible. Do not ask about ordinary file organization, local decomposition, test names, or reversible implementation details that follow from the approved design. On an unanswered authorization question, continue safe independent work and leave the gated feature off.
+## Development and verification
 
-## Build and learn quickly
+Read root `AGENTS.md`, `docs/development.md`, `docs/deployment.md`, the current
+bounded task sheet, and its prerequisite contracts. Do not load the full
+program when a scoped task view is available.
 
-Start with the source-mode evaluation seam and one end-to-end vertical slice. Most development must use real local SQLite, fake clocks, scripted model responses, disposable source fixtures, and the actual sandbox. Reuse `scripts/qualify_observer_model.py` and the adapter's existing injection points rather than writing another unrelated calibration system [S15, S22].
+For each confirmed defect, capture one focused reproduction, add or update its
+regression assertion, run the impacted tests, and expand only across the
+affected shared boundary. Source tests need no live service, model, GPU, or
+Todo assignment. Use the default smoke and collection-only check at integration
+as directed by the root; collection is not assertion evidence. Do not run the
+expanded suite merely because it exists. Record exact selectors, outcomes,
+source identity, and untested layers.
 
-Do not make a prompt change, rebuild the full release, deploy, and ask a new production question as the normal iteration loop. Evaluate a baseline and a small declared set of candidates against fixed cases in isolated service state, keeping weights warm whenever startup settings have not changed. Group real context-capacity/KV/batch tests by server configuration. Inspect failure traces before choosing a repair layer. A source validation failure is not a prompt-quality failure; a public `thinking` state is not evidence of model deliberation.
+After batching executable changes and focused checks, the root restarts the
+paired source processes before live use. Inference stays demand-driven; a
+restart is not permission to load the model or use a GPU. For live checks,
+preserve request, source, process, authorization, effect, and cleanup receipts
+under a fresh private artifact directory outside the checkout. Stop and
+reconcile if an outcome is uncertain; never replay an ambiguous effect.
 
-Retain a short experiment ledger: hypothesis, changed axis, source/config hashes, case IDs, results, and decision. Stop a tuning branch after two non-improving iterations or its declared budget, retaining the best supported configuration. Escalate material uncertainty instead of silently multiplying trials. Use inexpensive configured Codex subagents for bounded inventory, test construction, and independent review. The root owns architecture, authority, integration, and final acceptance. Do not deploy a hierarchy of local agents merely to implement that hierarchy.
+## Acceptance and delivery
 
-## Preserve the key boundaries
+Use the current A01–A40 map to decide which old requirements retain their
+meaning, which old implementation mechanics have been replaced, and which
+cases remain deferred. Preserve `acceptance-results.json`, the original
+machine contract, and all prior receipts as historical evidence. New results
+must carry current source/runtime provenance and may update only the evidence
+authorized by the active task. Never label old fixture results as live model,
+GPU, crash, or product evidence.
 
-Waiting continuations own no inference lease. No more than two local model executions run at once. Scratch execution owns its own isolated resources; it does not hold an idle model slot. Public inquiry retries retain their literal identity and deadline semantics. Evidence and suggestions are not mutation authority. Background notes do not impersonate canonical Todo publications. User-facing defaults are demand-only until automatic work is explicitly enabled.
-
-Move the local-worker execution machinery that Project Control will own, with provenance and compatibility, but leave the Todo kernel, host resource authority, and domain skills independent. Do not reactivate legacy writable delegation merely because its source moved.
-
-## Deliver the product, not just documents
-
-Complete the outcome gates and the applicable cases in `machine/acceptance.json`. Demonstrate useful prepared context on a moving repository, two-slot dependency suspension/resumption, quiet mode, source-freshness invalidation, a scratch test/experiment, and bounded GPU release using the existing interlock. Preserve exact MCP discovery and permissions unless the user explicitly approves a narrow amendment.
-
-Report what shipped, measured usefulness and overhead, preserved limitations, unresolved choices, exact source/release identities, and rollback instructions. A negative experiment is a valid result; an optional feature that does not justify itself should remain off. Do not call fixture results production, model-quality, hardware, or biological validation.
+At this boundary, report repairs, focused checks, the two minimal journey
+outcomes, cleanup, remaining blockers, and deferred cases. Do not mark PA1
+fully accepted or turn a partial/historical result into a pass. Keep automatic
+assistance disabled unless a separate accepted decision explicitly changes it.

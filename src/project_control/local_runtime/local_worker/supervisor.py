@@ -647,7 +647,7 @@ class ProductionBackend:
         if gpu_count == 2 and sizes != [2]:
             raise SupervisorError("narrow model requires one runtime-discovered NVLink pair")
         if gpu_count == 4 and sizes != [2, 2]:
-            raise SupervisorError("wide model requires two runtime-discovered NVLink pairs")
+            raise SupervisorError("four-GPU model requires two runtime-discovered NVLink pairs")
         return ([resource_id for group in ordered_groups for _, resource_id in group], {
             "gpu_count": gpu_count, "nvlink_island_count": len(sizes),
             "nvlink_island_sizes": sizes, "pair_adjacent": all(size == 2 for size in sizes),
@@ -790,7 +790,7 @@ class ProductionBackend:
     @_pool_synchronized
     def admit(self, compute_profile: str = "narrow", parallelism: str = "default") -> dict[str, Any]:
         """Atomically reserve a real GPU island without starting a model."""
-        if compute_profile not in {"narrow", "wide"}:
+        if compute_profile != "narrow":
             raise SupervisorError("compute_profile_invalid")
         resolved_parallelism = self._resolved_parallelism(compute_profile, parallelism)
         self._check_assistance_release_veto()
@@ -827,7 +827,7 @@ class ProductionBackend:
 
         active = self._model_for_profile(compute_profile)
         candidate = self._candidate(str(active["candidate_id"]))
-        gpu_count = 4 if compute_profile == "wide" else (2 if candidate.get("profile") == "one-island" else 4)
+        gpu_count = 2 if candidate.get("profile") == "one-island" else 4
         self.runtime.host.discover_gpus()
         bundles = self._eligible_bundles(gpu_count)
         reservation = None
@@ -905,7 +905,7 @@ class ProductionBackend:
             if admission_id is not None and admission_id in self._admissions:
                 self.cancel_admission(admission_id)
             raise
-        if compute_profile not in {"narrow", "wide"}:
+        if compute_profile != "narrow":
             raise SupervisorError("compute_profile_invalid")
         resolved_parallelism = self._resolved_parallelism(compute_profile, parallelism)
         self._recover_residencies()
@@ -979,7 +979,7 @@ class ProductionBackend:
         active = self._model_for_profile(compute_profile)
         self.cache.verify(str(active["candidate_id"]), str(active["payload_sha256"]), full=False)
         candidate = self._candidate(str(active["candidate_id"]))
-        gpu_count = 4 if compute_profile == "wide" else (2 if candidate.get("profile") == "one-island" else 4)
+        gpu_count = 2 if candidate.get("profile") == "one-island" else 4
         slot_id = f"slot-{uuid.uuid4().hex[:12]}"
         if admission is None:
             self.runtime.host.discover_gpus()
@@ -1618,7 +1618,7 @@ class ProductionBackend:
             max_tokens = request.get("max_tokens")
             timeout_seconds = request.get("timeout_seconds")
             deadline_epoch = request.get("deadline_epoch")
-            compute_profile = request.get("compute_profile", "wide")
+            compute_profile = request.get("compute_profile", "narrow")
             parallelism = request.get("parallelism", "default")
             session_id = request.get("session_id")
             reasoning_mode = request.get("reasoning_mode", "auto")
@@ -1641,7 +1641,7 @@ class ProductionBackend:
                     (selected_policy is None and (isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or
                      not 1 <= max_tokens <= 2048)) or isinstance(timeout_seconds, bool) or
                     not isinstance(timeout_seconds, (int, float)) or
-                    not 0 < float(timeout_seconds) <= 90 or compute_profile not in {"narrow", "wide"} or
+                    not 0 < float(timeout_seconds) <= 90 or compute_profile != "narrow" or
                     parallelism not in {"default", "layer", "tensor"} or
                     not isinstance(reasoning_mode, str) or reasoning_mode not in {"auto", "off"} or
                     (session_id is not None and (not isinstance(session_id, str) or len(session_id) > 128))):

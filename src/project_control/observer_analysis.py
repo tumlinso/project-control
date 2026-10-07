@@ -16,11 +16,61 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .call_audit import call_id_var, summarize_messages, write_event
-from .runtime_binding import RuntimeBindingError, bind_local_runtime
+from .runtime_binding import RuntimeBindingError, _source_receiver_files, bind_local_runtime
 from .security import redact_output_text
 
 
 _PHYSICAL_RELEASE_SEAL = object()
+
+
+def _source_supervisor_client(module, state_root: Path, runtime_root: Path, receiver_identity):
+    """Build a source-mode client whose release proof uses the live inventory.
+
+    The receiver's checked-in manifest is release metadata. Source mode already
+    binds an in-memory inventory, so requiring that historical file map here
+    would make source cleanup depend on a manual manifest refresh. Frozen
+    candidates continue using the receiver's strict base client unchanged.
+    """
+    base_client = module.SupervisorClient
+
+    class SourceSupervisorClient(base_client):
+        def _validate_owned_release_status(self, status: dict[str, Any]) -> None:
+            try:
+                receiver = bind_local_runtime(root=receiver_identity.root)
+                files = _source_receiver_files(receiver.root)
+                if receiver.source_commit != "working-tree":
+                    raise RuntimeBindingError("source_receiver_identity_required")
+                # Inspect the canonical receiver module captured from the base
+                # class; this keeps its public import identity unchanged.
+                receiver_module = module
+                origin = getattr(getattr(receiver_module, "__spec__", None), "origin", None)
+                if not isinstance(origin, str) or not origin:
+                    raise RuntimeBindingError("receiver_import_origin_missing")
+                imported_path = Path(origin).resolve(strict=True)
+                module_file = Path(receiver_module.__file__).resolve(strict=True)
+                expected_path = (receiver.package_root / "supervisor.py").resolve(strict=True)
+                expected = files.get("local_worker/supervisor.py")
+                local_source = hashlib.sha256(expected_path.read_bytes()).hexdigest()
+                todo_fingerprint = hashlib.sha256(json.dumps(
+                    self.runtime_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                    default=str).encode("utf-8")).hexdigest()
+            except Exception as error:
+                raise module.SupervisorError("receiver_source_identity_unavailable") from error
+            if (not isinstance(status, dict) or imported_path != expected_path or
+                    module_file != expected_path or not isinstance(expected, str) or len(expected) != 64 or
+                    expected != local_source or status.get("source_sha256") != expected or
+                    status.get("runtime_identity") != self.runtime_context or
+                    status.get("runtime_fingerprint") != todo_fingerprint):
+                raise module.SupervisorError("receiver_source_identity_mismatch")
+            if (type(status.get("supervisor_pid")) is not int or status["supervisor_pid"] <= 0 or
+                    not isinstance(status.get("supervisor_process_start"), str) or
+                    not status["supervisor_process_start"] or
+                    not isinstance(status.get("daemon_epoch"), str) or len(status["daemon_epoch"]) != 64 or
+                    not isinstance(status.get("runtime_fingerprint"), str) or
+                    len(status["runtime_fingerprint"]) != 64):
+                raise module.SupervisorError("receiver_process_identity_invalid")
+
+    return SourceSupervisorClient(state_root, root=runtime_root)
 
 
 class _VerifiedPhysicalRelease(dict):
@@ -208,7 +258,11 @@ class SkillsObserverAnalysisProvider:
                     raise RuntimeError("central_supervisor_source_mismatch")
                 self._state_root.mkdir(mode=0o700, parents=True, exist_ok=True)
                 self._state_root.chmod(0o700)
-                self._backend = module.SupervisorClient(self._state_root, root=self._state_root / "runtime")
+                if identity.source_commit == "working-tree":
+                    self._backend = _source_supervisor_client(
+                        module, self._state_root, self._state_root / "runtime", identity)
+                else:
+                    self._backend = module.SupervisorClient(self._state_root, root=self._state_root / "runtime")
             return self._backend
 
     def central_status(self, *, deadline_epoch: float | None = None) -> dict[str, Any]:
@@ -307,7 +361,7 @@ class SkillsObserverAnalysisProvider:
                 "format": "PC-LOCAL-INVESTIGATOR-TURN/2",
                 "messages": messages,
                 "timeout_seconds": min(60.0, float(request.get("timeout_seconds", 60))),
-                "compute_profile": request.get("compute_profile", "wide"),
+                "compute_profile": request.get("compute_profile", "narrow"),
                 "parallelism": request.get("parallelism", "default"),
                 **({"response_format": response_format} if "response_format" in request else {}),
                 **({"deadline_epoch": request["deadline_epoch"]} if "deadline_epoch" in request else {}),
@@ -357,15 +411,15 @@ class SkillsObserverAnalysisProvider:
 
     def reclaim_orphaned_sessions(self, resources: Any, release_request_id: str) -> list[str]:
         """Attach daemon-minted receipts for sessions whose borrower died."""
-        rows = resources.snapshot()
-        active = [item for item in rows if item.get("state") == "active"]
-        session_ids = sorted(item["session_id"] for item in active
-            if isinstance(item.get("session_id"), str))
+        select_reclaimable = getattr(resources, "reclaimable_session_ids", None)
+        if not callable(select_reclaimable):
+            raise RuntimeError("observer_reclaim_state_unavailable")
+        session_ids = select_reclaimable(release_request_id)
         if not session_ids:
             return []
-        if (not isinstance(release_request_id, str) or
-                re.fullmatch(r"[0-9a-f]{32}", release_request_id) is None or
-                any(item.get("release_request_id") != release_request_id for item in active)):
+        if (not isinstance(session_ids, list) or
+                any(not isinstance(item, str) for item in session_ids) or
+                session_ids != sorted(set(session_ids))):
             raise RuntimeError("observer_reclaim_release_intent_mismatch")
         if len(session_ids) > 64:
             raise RuntimeError("observer_reclaim_session_batch_too_large")

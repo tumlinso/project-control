@@ -1,12 +1,16 @@
 """Broker demand gates and stop proofs exercise real durable admission."""
+import json
 import time
 import threading
+from unittest.mock import patch
 import pytest
 
 from project_control.as1_jobs import JobService
 from project_control.as1_packets import SQLitePacketStore
 from project_control.assistance.power import trusted_operator_control
 from project_control.assistance.power import PowerPolicy
+from project_control.assistance.resources import ResourceController
+from project_control.observer_analysis import _PHYSICAL_RELEASE_SEAL, _VerifiedPhysicalRelease
 
 
 SCOPE = {'principal': 'tester', 'profile': 'observer', 'project': 'pc'}
@@ -364,3 +368,111 @@ def test_ineligible_automatic_work_never_starts_cold_runtime(tmp_path, veto):
             'pending', 'unavailable', 'failed'}
     finally:
         service.shutdown()
+
+
+def test_stop_recovers_exact_stale_receipt_from_same_idle_model_epoch(tmp_path):
+    receipt_calls = []
+    epoch = {"daemon_epoch": "a" * 64, "supervisor_pid": 321,
+        "supervisor_process_start": "supervisor-start", "runtime_fingerprint": "b" * 64}
+    close_receipt = {"format": "PA1-OWNED-RESOURCE/1", "session_id": "stale-session",
+        "daemon_epoch": epoch["daemon_epoch"], "slot_id": "slot-1", "owner_id": "owner-1",
+        "host_lease_id": "owner-1", "residency_generation": "generation-1",
+        "server_pid": 654, "server_process_start": "server-start-654",
+        "gpu_uuids": ["GPU-fixture"], "capability": "d" * 64}
+    stop_proof = _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, {
+        "format": "PA1-PHYSICAL-RELEASE/1", "captured_at": time.time(),
+        "status": "released_verified", "released_verified": True,
+        "daemon_epoch": epoch["daemon_epoch"], "supervisor_pid": epoch["supervisor_pid"],
+        "supervisor_process_start": epoch["supervisor_process_start"],
+        "runtime_fingerprint": epoch["runtime_fingerprint"], "quiescent": True,
+        "evicted": True, "stopped": True, "gpu_uuids": close_receipt["gpu_uuids"],
+        "cleanup_receipts": [{"owner_id": close_receipt["owner_id"],
+            "owned_pid": close_receipt["server_pid"],
+            "server_process_start": close_receipt["server_process_start"],
+            "generation": close_receipt["residency_generation"],
+            "gpu_uuids": close_receipt["gpu_uuids"], "released": True,
+            "process_released": True, "memory_released": True}]}, "fixture-host")
+
+    class Backend:
+        def central_status(self, *, deadline_epoch=None):
+            return {"status": "available", "running": True, "active_leases": 0,
+                "active_admissions": 0, "supervisor_process_start": epoch["supervisor_process_start"],
+                "supervisor_pid": epoch["supervisor_pid"], "daemon_epoch": epoch["daemon_epoch"],
+                "runtime_fingerprint": epoch["runtime_fingerprint"], "source_sha256": "c" * 64,
+                "slots": [{"slot_id": close_receipt["slot_id"], "state": "idle", "leased": False,
+                    "owner_id": close_receipt["owner_id"], "server_pid": close_receipt["server_pid"],
+                    "gpu_uuids": close_receipt["gpu_uuids"]}]}
+        def release_idle_runtime(self, *, deadline_epoch):
+            receipt_calls.append(deadline_epoch)
+            return stop_proof
+
+    service = JobService(tmp_path / "jobs", packets=SQLitePacketStore(tmp_path / "packets"), backend=Backend())
+    control = trusted_operator_control()
+    with service._db() as db:
+        policy = PowerPolicy(db, clock=service.clock)
+        intent = policy.set_release(control, reason="test-stale-idle-owner")
+        resources = ResourceController(db, power_policy=policy, clock=service.clock)
+        resources.record_active_session("stale-session", epoch)
+        resources.record_session("stale-session", close_receipt)
+        db.execute("UPDATE pa1_owned_resource_sessions SET state='stale',release_request_id=? WHERE session_id=?",
+            (intent.request_id, "stale-session"))
+    with patch("project_control.assistance.resources._process_start_time",
+               return_value=close_receipt["server_process_start"]):
+        result = service.coordinate_demand_stop(control, timeout=.5)
+    assert len(receipt_calls) == 1
+    assert result["active_work_cancelled"] is True
+    assert result["owned_resources_released"] is True, (result, service.last_error)
+    with service._db() as db:
+        row = db.execute("SELECT state,close_receipt FROM pa1_owned_resource_sessions WHERE session_id=?",
+            ("stale-session",)).fetchone()
+        assert row["state"] == "released_verified"
+        assert row["close_receipt"] == json.dumps(close_receipt, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def test_stale_stop_recovery_waits_for_zero_broker_slots(tmp_path):
+    stop_calls = []
+    epoch = {"daemon_epoch": "a" * 64, "supervisor_pid": 321,
+        "supervisor_process_start": "supervisor-start", "runtime_fingerprint": "b" * 64}
+    close_receipt = {"format": "PA1-OWNED-RESOURCE/1", "session_id": "stale-session",
+        "daemon_epoch": epoch["daemon_epoch"], "slot_id": "slot-1", "owner_id": "owner-1",
+        "host_lease_id": "owner-1", "residency_generation": "generation-1",
+        "server_pid": 654, "server_process_start": "server-start-654",
+        "gpu_uuids": ["GPU-fixture"], "capability": "d" * 64}
+
+    class Backend:
+        def central_status(self, *, deadline_epoch=None):
+            return {"status": "available", "running": True, "active_leases": 0,
+                "active_admissions": 0, "supervisor_process_start": epoch["supervisor_process_start"],
+                "supervisor_pid": epoch["supervisor_pid"], "daemon_epoch": epoch["daemon_epoch"],
+                "runtime_fingerprint": epoch["runtime_fingerprint"], "source_sha256": "c" * 64,
+                "slots": [{"slot_id": close_receipt["slot_id"], "state": "idle", "leased": False,
+                    "owner_id": close_receipt["owner_id"], "server_pid": close_receipt["server_pid"],
+                    "gpu_uuids": close_receipt["gpu_uuids"]}]}
+        def release_idle_runtime(self, *, deadline_epoch):
+            stop_calls.append(deadline_epoch)
+            raise AssertionError("must not stop while a broker execution slot remains")
+
+    service = JobService(tmp_path / "jobs", packets=SQLitePacketStore(tmp_path / "packets"), backend=Backend())
+    control = trusted_operator_control()
+    with service._db() as db:
+        policy = PowerPolicy(db, clock=service.clock)
+        intent = policy.set_release(control, reason="test-stale-owner-with-active-slot")
+        resources = ResourceController(db, power_policy=policy, clock=service.clock)
+        resources.record_active_session("stale-session", epoch)
+        resources.record_session("stale-session", close_receipt)
+        db.execute("UPDATE pa1_owned_resource_sessions SET state='stale',release_request_id=? WHERE session_id=?",
+            (intent.request_id, "stale-session"))
+        db.execute("""INSERT INTO execution_slots(job,attempt,lease,owner_pid,owner_start,cleanup_failed)
+            VALUES('unfinished-job',1,?,654,'slot-owner-start',0)""", (time.time() + 60,))
+    with patch("project_control.assistance.resources._process_start_time",
+               return_value=close_receipt["server_process_start"]):
+        result = service.coordinate_demand_stop(control, timeout=.12)
+    assert result["active_work_cancelled"] is False
+    assert result["execution_slots"] == 1
+    assert result["owned_resources_released"] is False
+    assert stop_calls == []
+    with service._db() as db:
+        row = db.execute("SELECT state FROM pa1_owned_resource_sessions WHERE session_id=?",
+            ("stale-session",)).fetchone()
+        assert row["state"] == "stale"
+        assert db.execute("SELECT count(*) FROM pa1_stale_resource_reconciliation_audit").fetchone()[0] == 0

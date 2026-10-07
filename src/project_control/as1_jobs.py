@@ -29,7 +29,51 @@ CHECKPOINT_MAX_BYTES = 96 * 1024
 WORKER_JOB_INPUT_MAX_BYTES = 256 * 1024
 WORKER_OBSERVATION_MAX_BYTES = 32768
 _DB_LOCK = threading.RLock()
+_RECONCILE_LOCKS_GUARD = threading.Lock()
+_RECONCILE_LOCKS: dict[Path, threading.RLock] = {}
+_RECONCILE_LOCK_DEPTH = threading.local()
 BUSY = 'Read-only analysis is pending. Continue reasoning or other useful work and poll with job_id; reuse request_id for retries.'
+
+
+@contextmanager
+def _reconcile_file_lock(directory):
+    """Serialize reconcile across processes while allowing same-thread nesting.
+
+    Independently opened ``flock`` descriptors can conflict within one
+    process. A process-local reentrant lock serializes threads first, and a
+    per-thread depth counter makes a recursively nested call reuse the
+    outermost flock. Cross-process exclusion remains provided by that flock.
+    """
+    path = (Path(directory) / 'reconcile.lock').resolve()
+    with _RECONCILE_LOCKS_GUARD:
+        process_lock = _RECONCILE_LOCKS.setdefault(path, threading.RLock())
+    with process_lock:
+        depths = getattr(_RECONCILE_LOCK_DEPTH, 'paths', None)
+        if depths is None:
+            depths = _RECONCILE_LOCK_DEPTH.paths = {}
+        depth = depths.get(path, 0)
+        if depth:
+            depths[path] = depth + 1
+            try:
+                yield
+            finally:
+                depths[path] -= 1
+            return
+
+        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+        locked = False
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            locked = True
+            depths[path] = 1
+            yield
+        finally:
+            depths.pop(path, None)
+            try:
+                if locked:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
 
 
 def _load_assistance_components():
@@ -726,8 +770,9 @@ class JobService:
         try:
             with self._db() as db:
                 state = PowerPolicy(db, clock=self.clock).snapshot()
-                resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
-                                               clock=self.clock).snapshot()
+                policy = PowerPolicy(db, clock=self.clock)
+                controller = ResourceController(db, power_policy=policy, clock=self.clock)
+                resources = controller.snapshot()
             unresolved = any(item.get('state') in {'active', 'idle_owned', 'release_pending', 'stale'}
                              for item in resources)
             records_proved = (not unresolved and (state.get('physical_state') == 'released_verified'
@@ -736,7 +781,22 @@ class JobService:
             slots = current.get('slots') if current is not None else None
             cleanup_proved = current is not None and slots == []
             release_idle = getattr(self.backend, 'release_idle_runtime', None)
-            if records_proved and current is not None and slots:
+            stale_targets = []
+            stale_intent = None
+            if (unresolved and settled and snapshot['active_jobs'] == 0
+                    and snapshot['execution_slots'] == 0
+                    and current is not None and slots and state.get('release_veto_active') is True
+                    and state.get('release_until') is None and state.get('physical_state') == 'pending'
+                    and isinstance(state.get('release_request_id'), str)):
+                from .assistance.power import ReleaseIntent
+                stale_intent = ReleaseIntent(state['release_request_id'],
+                    float(state['release_created_at']), state['release_until'],
+                    state.get('release_reason') or 'operator-requested')
+                with self._db() as db:
+                    policy = PowerPolicy(db, clock=self.clock)
+                    controller = ResourceController(db, power_policy=policy, clock=self.clock)
+                    stale_targets = controller.stale_sessions_matching_idle_owner(stale_intent, current)
+            if (records_proved or stale_targets) and current is not None and slots:
                 # Idle warm slots are quiescent, not physically released.
                 # Ask the selected supervisor to stop only its own idle slots.
                 # Its response must pin the pre-stop owner and prove a physical
@@ -792,11 +852,34 @@ class JobService:
                             and receipt.get('evicted') is True
                             and receipt.get('stopped') is True
                             and bool(expected) and receipts_valid and observed == expected)
+                        if cleanup_proved and stale_targets and stale_intent is not None:
+                            try:
+                                with self._db() as db:
+                                    policy = PowerPolicy(db, clock=self.clock)
+                                    controller = ResourceController(db, power_policy=policy, clock=self.clock)
+                                    db.commit()
+                                    controller.record_stale_sessions_after_physical_release(
+                                        control, stale_intent, receipt, stale_targets)
+                                acknowledged = self._ack_owned_release(stale_intent)
+                                if acknowledged:
+                                    outcome = 'released_verified'
+                                with self._db() as db:
+                                    policy = PowerPolicy(db, clock=self.clock)
+                                    resources = ResourceController(db, power_policy=policy,
+                                        clock=self.clock).snapshot()
+                                    state = policy.snapshot()
+                                unresolved = any(item.get('state') in
+                                    {'active', 'idle_owned', 'release_pending', 'stale'} for item in resources)
+                                records_proved = (not unresolved and state.get('physical_state') == 'released_verified')
+                            except Exception as error:
+                                self.last_error = f"{type(error).__name__}:{error}"
+                                cleanup_proved = False
             final_work = self._active_work_snapshot()
             owner_proof = (records_proved and cleanup_proved
                 and final_work['active_jobs'] == 0
                 and final_work['execution_slots'] == 0)
-        except Exception:
+        except Exception as error:
+            self.last_error = type(error).__name__
             owner_proof = False
         return {'active_work_cancelled': bool(cancelled and settled),
                 'owned_resources_released': bool(owner_proof),
@@ -1022,17 +1105,18 @@ class JobService:
             from .assistance.power import ReleaseIntent
             intent = ReleaseIntent(row['release_request_id'], float(row['updated']),
                 row['release_until'], row['release_reason'] or 'operator-requested')
-            active_sessions = db.execute("SELECT count(*) FROM pa1_owned_resource_sessions "
-                "WHERE state='active'").fetchone()[0]
+            from .assistance.resources import ResourceController
+            resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                                           clock=self.clock)
+            reclaimable_sessions = resources.reclaimable_session_ids(intent.request_id)
         # A CLI frontend can die between observer-open and writing the minted
         # close receipt. The supervisor first proves that borrower's exact
         # process generation is gone; only then can it return its one-shot
         # receipt to this broker for ordinary ResourceController validation.
         reclaim = getattr(self.backend, 'reclaim_orphaned_sessions', None)
-        if active_sessions and callable(reclaim):
+        if reclaimable_sessions and callable(reclaim):
             with self._db() as db:
                 try:
-                    from .assistance.resources import ResourceController
                     resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
                                                    clock=self.clock)
                     reclaim(resources, release_request_id=intent.request_id)
@@ -2486,14 +2570,8 @@ class JobService:
 
     def reconcile(self):
         # Serialize retention snapshots across broker processes without a DB transaction.
-        path = self.directory / 'reconcile.lock'
-        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+        with _reconcile_file_lock(self.directory):
             self._reconcile()
-        finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-            os.close(fd)
 
     def _reconcile(self):
         # Idempotent put consumes stable outbox identities. Never cross-store transaction claims.
@@ -2510,6 +2588,7 @@ class JobService:
         terminal = [job for job in jobs if job.status in TERMINAL and job.job_id not in inquiry_ids]
         terminal = terminal[-self.packets.recent_terminal_limit:]
         retained = [j for j in jobs if j.status not in TERMINAL or j.job_id in indexed_ids] + terminal
+        retained_packets = {}
         for job in retained:
             refs = job.hints + job.evidence_packets + ([job.result_packet] if job.result_packet else [])
             if job.refresh_context:
@@ -2517,14 +2596,14 @@ class JobService:
                 refs += prior.get('hints', []) + prior.get('evidence_packets', [])
                 if prior.get('result_packet'):
                     refs.append(prior['result_packet'])
-            # Historical expiry is a log omission, not a dispatcher outage.
-            live = [ref for ref in refs if self.packets.lookup(ref, access_scope=job.scope).status == 'ok']
-            self.packets.pin(job.job_id, live)
+            retained_packets[job.job_id] = (job.scope, refs)
         # Broker updated times determine recency, independent of packet clock ties.
         retained_ids = {job.job_id for job in retained}
-        for job in jobs:
-            if job.job_id not in retained_ids:
-                self.packets.unpin(job.job_id)
+        unpin_owners = [job.job_id for job in jobs if job.job_id not in retained_ids]
+        # Historical expiry is a log omission, not a dispatcher outage. The
+        # packet store validates all references and updates pins in one
+        # transaction using one shared liveness/parent-closure snapshot.
+        self.packets.reconcile_retention(retained_packets, unpin_owners)
 
     @staticmethod
     def _worker_request_bytes(request):

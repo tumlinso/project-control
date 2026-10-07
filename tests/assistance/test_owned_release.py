@@ -12,16 +12,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from project_control.assistance.power import PowerPolicy, trusted_operator_control
+from project_control.assistance.power import PowerPolicy, PowerPolicyError, ReleaseIntent, trusted_operator_control
 from project_control.assistance.resources import ResourceController, ResourceControllerError
 from project_control.observer_analysis import (
     SkillsObserverAnalysisProvider, _PHYSICAL_RELEASE_SEAL, _VerifiedPhysicalRelease,
 )
 
-_tests_root = Path(__file__).resolve().parents[1]
-if str(_tests_root) not in sys.path:
-    sys.path.insert(0, str(_tests_root))
-from local_runtime import receiver_runtime_path  # noqa: E402
+from tests.local_runtime import receiver_runtime_path  # noqa: E402
 
 _receiver = receiver_runtime_path()
 if str(_receiver) not in sys.path:
@@ -97,6 +94,9 @@ def _server(backend: _Backend):
 class ResourceControllerTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
+        self.db.execute("CREATE TABLE jobs(id TEXT, record TEXT NOT NULL)")
+        self.db.execute("""CREATE TABLE execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL,
+            owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0)""")
         self.clock = [100.0]
         self.power = PowerPolicy(self.db, clock=lambda: self.clock[0])
         self.resources = ResourceController(self.db, power_policy=self.power, clock=lambda: self.clock[0])
@@ -127,6 +127,27 @@ class ResourceControllerTests(unittest.TestCase):
             lambda *args: callbacks.append(args)), "pending_sessions_open")
         self.assertEqual(callbacks, [])
         self.assertEqual(self.resources.snapshot()[0]["state"], "active")
+
+    def test_reclaimable_sessions_include_receiptless_pending_for_exact_release(self):
+        current = "1" * 32
+        other = "2" * 32
+        # Older broker schemas could retain release_pending rows without a
+        # close receipt after a caller died between state update and receipt
+        # persistence. Exercise that durable shape directly.
+        self.db.execute("DROP TABLE pa1_owned_resource_sessions")
+        self.db.execute("""CREATE TABLE pa1_owned_resource_sessions(
+            session_id TEXT PRIMARY KEY, supervisor_epoch TEXT NOT NULL, state TEXT NOT NULL,
+            close_receipt TEXT, release_request_id TEXT, release_proof TEXT, updated REAL NOT NULL)""")
+        epoch = json.dumps(self.epoch, sort_keys=True, separators=(",", ":"))
+        self.db.executemany("""INSERT INTO pa1_owned_resource_sessions VALUES(?,?,?,?,?,?,?)""", [
+            ("pending-current", epoch, "release_pending", None, current, None, 1.0),
+            ("active-current", epoch, "active", None, current, None, 1.0),
+            ("pending-with-receipt", epoch, "release_pending", "{}", current, None, 1.0),
+            ("pending-other-intent", epoch, "release_pending", None, other, None, 1.0),
+        ])
+
+        self.assertEqual(self.resources.reclaimable_session_ids(current),
+                         ["active-current", "pending-current"])
 
     def _physical_release_record(self):
         uuids = [
@@ -205,6 +226,174 @@ class ResourceControllerTests(unittest.TestCase):
             self.assertEqual(power.snapshot()["physical_state"], "released_verified")
         finally:
             db.close()
+
+    def test_stale_receipt_reconciles_against_exact_idle_stop_and_mixes_with_normal_proofs(self):
+        intent = self._intent()
+        normal_id, stale_id = "normal-session", "stale-session"
+        normal_receipt = {**self.receipt, "session_id": normal_id}
+        stale_receipt = {**self.receipt, "session_id": stale_id}
+        self.resources.record_active_session(normal_id, self.epoch)
+        self.resources.record_session(normal_id, normal_receipt)
+        self.db.commit()
+
+        def ordinary_release(_request_id, _reason, records):
+            receipt = records[0]
+            return {"status": "released", "sessions": [{
+                **{key: receipt[key] for key in ("session_id", "daemon_epoch", "slot_id", "owner_id",
+                    "host_lease_id", "residency_generation", "server_pid", "server_process_start", "gpu_uuids")},
+                "owned_pid": receipt["server_pid"], "released": True, "process_released": True,
+                "memory_released": True, "host_released": True,
+                "observation": {"observed_unix": 101.0, "processes": []}}]}
+        self.assertEqual(self.resources.release_owned(intent, ordinary_release), "released_verified")
+        self.db.commit()
+        self.resources.record_active_session(stale_id, self.epoch)
+        self.resources.record_session(stale_id, stale_receipt)
+        self.db.execute("UPDATE pa1_owned_resource_sessions SET state='stale',release_request_id=? WHERE session_id=?",
+                        (intent.request_id, stale_id))
+        self.db.commit()
+        stale_proof = _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, {
+            "format": "PA1-PHYSICAL-RELEASE/1", "captured_at": 100.0,
+            "status": "released_verified", "released_verified": True,
+            "daemon_epoch": self.epoch["daemon_epoch"], "supervisor_pid": self.epoch["supervisor_pid"],
+            "supervisor_process_start": self.epoch["supervisor_process_start"],
+            "runtime_fingerprint": self.epoch["runtime_fingerprint"],
+            "quiescent": True, "evicted": True, "stopped": True,
+            "gpu_uuids": self.receipt["gpu_uuids"],
+            "cleanup_receipts": [{"owner_id": self.receipt["owner_id"],
+                "owned_pid": self.receipt["server_pid"],
+                "server_process_start": self.receipt["server_process_start"],
+                "generation": self.receipt["residency_generation"],
+                "gpu_uuids": self.receipt["gpu_uuids"], "released": True,
+                "process_released": True, "memory_released": True}]}, "fixture-host")
+        status = {"supervisor_pid": self.epoch["supervisor_pid"],
+            "supervisor_process_start": self.epoch["supervisor_process_start"],
+            "daemon_epoch": self.epoch["daemon_epoch"],
+            "runtime_fingerprint": self.epoch["runtime_fingerprint"],
+            "active_leases": 0, "active_admissions": 0,
+            "slots": [{"slot_id": self.receipt["slot_id"], "state": "idle", "leased": False,
+                "owner_id": self.receipt["owner_id"], "server_pid": self.receipt["server_pid"],
+                "gpu_uuids": self.receipt["gpu_uuids"]}]}
+        with patch("project_control.assistance.resources._process_start_time", return_value="wrong-start"):
+            self.assertEqual(self.resources.stale_sessions_matching_idle_owner(intent, status), [])
+        with patch("project_control.assistance.resources._process_start_time",
+                   return_value=self.receipt["server_process_start"]):
+            self.assertEqual(self.resources.stale_sessions_matching_idle_owner(intent, status), [stale_id])
+        self.resources.record_active_session("active-extra", self.epoch)
+        self.db.commit()
+        self.assertEqual(self.resources.stale_sessions_matching_idle_owner(intent, status), [])
+        self.db.execute("DELETE FROM pa1_owned_resource_sessions WHERE session_id='active-extra'")
+        self.db.commit()
+        original = self.db.execute("SELECT close_receipt FROM pa1_owned_resource_sessions WHERE session_id=?",
+                                   (stale_id,)).fetchone()[0]
+        self.assertEqual(self.resources.record_stale_sessions_after_physical_release(
+            self.control, intent, stale_proof, [stale_id]), [stale_id])
+        self.db.commit()
+        self.assertEqual(self.db.execute("SELECT close_receipt FROM pa1_owned_resource_sessions WHERE session_id=?",
+                                         (stale_id,)).fetchone()[0], original)
+        ack = self.resources.verified_release_ack(intent)
+        self.assertEqual(ack.target_session_ids, (normal_id, stale_id))
+        self.resources.acknowledge_verified_release(intent)
+        self.assertEqual(self.power.snapshot()["physical_state"], "released_verified")
+
+        self.power.resume(self.control)
+        self.db.commit()
+        fresh = self._intent()
+        self.assertNotEqual(fresh.request_id, intent.request_id)
+        self.assertEqual(self.resources.release_owned(fresh, lambda *_args: self.fail(
+            "no current owner targets should be sent")), "released_verified")
+        self.db.commit()
+        historical_ack = self.resources.verified_release_ack(fresh)
+        self.assertEqual(set(historical_ack.target_session_ids), {normal_id, stale_id})
+        self.resources.acknowledge_verified_release(fresh)
+        self.assertEqual(self.power.snapshot()["physical_state"], "released_verified")
+
+        stale_proof = json.loads(self.db.execute(
+            "SELECT release_proof FROM pa1_owned_resource_sessions WHERE session_id=?", (stale_id,)
+        ).fetchone()[0])
+        self.db.execute("UPDATE pa1_stale_resource_reconciliation_audit SET proof='{}' WHERE receipt_id=?",
+                        (stale_proof["receipt_id"],))
+        self.power.resume(self.control)
+        self.db.commit()
+        newest = self._intent()
+        self.assertEqual(self.resources.release_owned(newest, lambda *_args: self.fail(
+            "no current owner targets should be sent")), "released_verified")
+        self.db.commit()
+        with self.assertRaisesRegex(ResourceControllerError, "verified_release_audit_mismatch"):
+            self.resources.acknowledge_verified_release(newest)
+        self.assertEqual(self.power.snapshot()["physical_state"], "pending")
+
+    def test_stale_stop_recovery_rejects_unsealed_and_mismatched_owner_identity(self):
+        intent = self._intent()
+        self.resources.record_active_session(self.session_id, self.epoch)
+        self.resources.record_session(self.session_id, self.receipt)
+        self.db.execute("UPDATE pa1_owned_resource_sessions SET state='stale',release_request_id=? WHERE session_id=?",
+                        (intent.request_id, self.session_id))
+        self.db.commit()
+        proof_value = {"format": "PA1-PHYSICAL-RELEASE/1", "captured_at": 100.0,
+            "status": "released_verified", "released_verified": True, "evicted": True,
+            "daemon_epoch": self.epoch["daemon_epoch"], "supervisor_pid": self.epoch["supervisor_pid"],
+            "supervisor_process_start": self.epoch["supervisor_process_start"],
+            "runtime_fingerprint": self.epoch["runtime_fingerprint"], "quiescent": True, "stopped": True,
+            "gpu_uuids": self.receipt["gpu_uuids"], "cleanup_receipts": [{
+                "owner_id": self.receipt["owner_id"], "owned_pid": self.receipt["server_pid"],
+                "server_process_start": "wrong-process-start", "generation": self.receipt["residency_generation"],
+                "gpu_uuids": self.receipt["gpu_uuids"], "released": True,
+                "process_released": True, "memory_released": True}]}
+        sealed = _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, proof_value, "fixture-host")
+        with self.assertRaisesRegex(ResourceControllerError, "verified_physical_release_required"):
+            self.resources.record_stale_sessions_after_physical_release(
+                self.control, intent, dict(sealed), [self.session_id])
+        with self.assertRaisesRegex(ResourceControllerError, "physical_identity_mismatch"):
+            self.resources.record_stale_sessions_after_physical_release(
+                self.control, intent, sealed, [self.session_id])
+        self.assertEqual(self.resources.snapshot()[0]["state"], "stale")
+
+    def test_stale_stop_recovery_rejects_foreign_caller_and_each_mismatched_identity(self):
+        intent = self._intent()
+        self.resources.record_active_session(self.session_id, self.epoch)
+        self.resources.record_session(self.session_id, self.receipt)
+        self.db.execute("UPDATE pa1_owned_resource_sessions SET state='stale',release_request_id=? WHERE session_id=?",
+                        (intent.request_id, self.session_id))
+        self.db.commit()
+        base_cleanup = {"owner_id": self.receipt["owner_id"], "owned_pid": self.receipt["server_pid"],
+            "server_process_start": self.receipt["server_process_start"],
+            "generation": self.receipt["residency_generation"], "gpu_uuids": self.receipt["gpu_uuids"],
+            "released": True, "process_released": True, "memory_released": True}
+        for field, replacement in (("owner_id", "foreign-owner"), ("owned_pid", 4244),
+                ("server_process_start", "foreign-start"), ("generation", "foreign-generation"),
+                ("gpu_uuids", ["GPU-foreign"])):
+            cleanup = dict(base_cleanup, **{field: replacement})
+            sealed = _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, {
+                "format": "PA1-PHYSICAL-RELEASE/1", "captured_at": 100.0,
+                "status": "released_verified", "released_verified": True, "evicted": True,
+                "daemon_epoch": self.epoch["daemon_epoch"], "supervisor_pid": self.epoch["supervisor_pid"],
+                "supervisor_process_start": self.epoch["supervisor_process_start"],
+                "runtime_fingerprint": self.epoch["runtime_fingerprint"], "quiescent": True, "stopped": True,
+                "gpu_uuids": self.receipt["gpu_uuids"], "cleanup_receipts": [cleanup]}, "fixture-host")
+            with self.subTest(field=field), self.assertRaisesRegex(ResourceControllerError,
+                    "physical_identity_mismatch"):
+                self.resources.record_stale_sessions_after_physical_release(
+                    self.control, intent, sealed, [self.session_id])
+        good = _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, {
+            "format": "PA1-PHYSICAL-RELEASE/1", "captured_at": 100.0,
+            "status": "released_verified", "released_verified": True, "evicted": True,
+            "daemon_epoch": self.epoch["daemon_epoch"], "supervisor_pid": self.epoch["supervisor_pid"],
+            "supervisor_process_start": self.epoch["supervisor_process_start"],
+            "runtime_fingerprint": self.epoch["runtime_fingerprint"], "quiescent": True, "stopped": True,
+            "gpu_uuids": self.receipt["gpu_uuids"], "cleanup_receipts": [base_cleanup]}, "fixture-host")
+        with self.assertRaisesRegex(PowerPolicyError, "trusted_operator_control_required"):
+            self.resources.record_stale_sessions_after_physical_release(
+                object(), intent, good, [self.session_id])
+        wrong_intent = ReleaseIntent("1" * 32, intent.created_at, intent.declared_end, intent.reason)
+        with self.assertRaisesRegex(ResourceControllerError, "permanent_release_veto_required"):
+            self.resources.record_stale_sessions_after_physical_release(
+                self.control, wrong_intent, good, [self.session_id])
+        foreign_epoch = dict(good)
+        foreign_epoch["daemon_epoch"] = "c" * 64
+        with self.assertRaisesRegex(ResourceControllerError, "epoch_mismatch"):
+            self.resources.record_stale_sessions_after_physical_release(
+                self.control, intent, _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL,
+                    foreign_epoch, "fixture-host"), [self.session_id])
 
     def test_orphan_reconciliation_rejects_unsealed_proofs_foreign_epochs_and_active_work(self):
         db, power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
@@ -407,6 +596,52 @@ class ResourceControllerTests(unittest.TestCase):
         self.assertEqual(self.resources.snapshot()[0]["state"], "released_verified")
         self.assertNotIn("capability", str(self.resources.snapshot()))
 
+    def test_mixed_stale_and_idle_release_validates_callback_before_stale_projection(self):
+        self.resources.record_active_session(self.session_id, self.epoch)
+        self.resources.record_session(self.session_id, self.receipt)
+        stale_id = "stale-session"
+        self.resources.record_active_session(stale_id, self.epoch)
+        stale_receipt = {**self.receipt, "session_id": stale_id, "slot_id": "slot-stale",
+            "owner_id": "owner-stale", "host_lease_id": "owner-stale",
+            "residency_generation": "generation-stale", "server_pid": 4243,
+            "server_process_start": "fixture-start-4243", "capability": "e" * 64}
+        self.resources.record_session(stale_id, stale_receipt)
+        self.db.execute("UPDATE pa1_owned_resource_sessions SET state='stale' WHERE session_id=?", (stale_id,))
+        self.db.commit()
+        intent = self._intent()
+        seen = []
+
+        def release(request_id, reason, records):
+            self.assertFalse(self.db.in_transaction)
+            seen.append((request_id, reason, records))
+            receipt = records[0]
+            return {"status": "released", "sessions": [{
+                "session_id": receipt["session_id"], "daemon_epoch": receipt["daemon_epoch"],
+                "slot_id": receipt["slot_id"], "owner_id": receipt["owner_id"],
+                "host_lease_id": receipt["host_lease_id"],
+                "residency_generation": receipt["residency_generation"],
+                "server_pid": receipt["server_pid"],
+                "server_process_start": receipt["server_process_start"],
+                "gpu_uuids": receipt["gpu_uuids"], "released": True,
+                "process_released": True, "memory_released": True, "host_released": True,
+                "observation": {"observed_unix": self.clock[0], "processes": []},
+            }]}
+
+        self.assertEqual(self.resources.release_owned(intent, release), "pending_reconciliation_required")
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0][0], intent.request_id)
+        self.assertEqual([item["session_id"] for item in seen[0][2]], [self.session_id])
+        self.assertEqual(seen[0][2][0]["capability"], self.receipt["capability"])
+        self.db.commit()
+        rows = {row[0]: row[1:] for row in self.db.execute(
+            "SELECT session_id,state,release_request_id,release_proof FROM pa1_owned_resource_sessions")}
+        self.assertEqual(rows[self.session_id][0], "released_verified")
+        self.assertEqual(rows[self.session_id][1], intent.request_id)
+        self.assertIsNotNone(rows[self.session_id][2])
+        self.assertEqual(rows[stale_id][0], "stale")
+        self.assertEqual(rows[stale_id][1], intent.request_id)
+        self.assertIsNone(rows[stale_id][2])
+
     def test_unverified_cleanup_and_stale_epoch_never_report_released(self):
         self.resources.record_active_session(self.session_id, self.epoch)
         self.resources.record_session(self.session_id, self.receipt)
@@ -603,6 +838,67 @@ class ResourceControllerTests(unittest.TestCase):
         self.assertEqual(self.power.snapshot()["physical_state"], "released_verified")
         self.assertEqual(self.power.snapshot()["release_verified_sessions"], 2)
 
+    def test_fresh_intent_carries_forward_complete_historical_release_proof(self):
+        self.resources.record_active_session(self.session_id, self.epoch)
+        self.resources.record_session(self.session_id, self.receipt)
+        self.db.commit()
+        first = self._intent()
+
+        def outcome(receipt):
+            return {**{key: receipt[key] for key in ("session_id", "daemon_epoch", "slot_id",
+                "owner_id", "host_lease_id", "residency_generation", "server_pid",
+                "server_process_start", "gpu_uuids")}, "released": True,
+                "process_released": True, "memory_released": True, "host_released": True,
+                "observation": {"observed_unix": 101.0, "processes": []}}
+
+        self.assertEqual(self.resources.release_owned(first,
+            lambda _rid, _reason, records: {"status": "released",
+                "sessions": [outcome(records[0])]}), "released_verified")
+        self.db.commit()
+        self.resources.acknowledge_verified_release(first)
+        self.db.commit()
+
+        self.power.resume(self.control)
+        self.db.commit()
+        current = self._intent()
+        self.assertNotEqual(current.request_id, first.request_id)
+        self.assertEqual(self.resources.release_owned(current,
+            lambda *_args: self.fail("no current owner targets should be sent")), "released_verified")
+        self.db.commit()
+        self.resources.acknowledge_verified_release(current)
+        self.db.commit()
+        state = self.power.snapshot()
+        self.assertEqual(state["release_request_id"], current.request_id)
+        self.assertEqual(state["physical_state"], "released_verified")
+        self.assertEqual(state["release_verified_sessions"], 1)
+
+    def test_fresh_intent_does_not_carry_forward_malformed_historical_proof(self):
+        self.resources.record_active_session(self.session_id, self.epoch)
+        self.resources.record_session(self.session_id, self.receipt)
+        self.db.commit()
+        first = self._intent()
+        self.assertEqual(self.resources.release_owned(first,
+            lambda _rid, _reason, records: {"status": "released", "sessions": [{
+                **{key: records[0][key] for key in ("session_id", "daemon_epoch", "slot_id",
+                    "owner_id", "host_lease_id", "residency_generation", "server_pid",
+                    "server_process_start", "gpu_uuids")}, "released": True,
+                "process_released": True, "memory_released": True, "host_released": True,
+                "observation": {"observed_unix": 101.0, "processes": []}}]}), "released_verified")
+        self.db.commit()
+        self.resources.acknowledge_verified_release(first)
+        self.db.commit()
+        self.db.execute("UPDATE pa1_owned_resource_sessions SET release_proof='{}' WHERE session_id=?",
+                        (self.session_id,))
+        self.power.resume(self.control)
+        self.db.commit()
+        current = self._intent()
+        self.assertEqual(self.resources.release_owned(current, lambda *_args: self.fail(
+            "no current owner targets should be sent")), "released_verified")
+        self.db.commit()
+        with self.assertRaises(ResourceControllerError):
+            self.resources.acknowledge_verified_release(current)
+        self.assertEqual(self.power.snapshot()["physical_state"], "pending")
+
     def test_no_empty_target_rpc_and_close_cap_is_epoch_bound(self):
         intent = self._intent()
         callbacks = []
@@ -709,9 +1005,12 @@ class OwnedReleaseRpcTests(unittest.TestCase):
 
     def test_reclaim_request_id_is_stable_for_release_intent_and_exact_session_set(self):
         provider = SkillsObserverAnalysisProvider()
-        session_rows = [{"session_id": "orphan-A", "state": "active", "release_request_id": "1" * 32},
-                        {"session_id": "orphan-B", "state": "active", "release_request_id": "1" * 32}]
-        resources = SimpleNamespace(snapshot=lambda: list(session_rows))
+        session_ids = ["orphan-A", "orphan-B"]
+        def select_reclaimable(request_id):
+            if request_id != "1" * 32:
+                raise RuntimeError("observer_reclaim_release_intent_mismatch")
+            return list(session_ids)
+        resources = SimpleNamespace(reclaimable_session_ids=select_reclaimable)
         request_ids = []
 
         class Client:

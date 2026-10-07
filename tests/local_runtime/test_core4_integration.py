@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
-from local_runtime import assert_receiver_module, receiver_runtime_path
+from tests.local_runtime import assert_receiver_module, receiver_runtime_path
 RECEIVER_ROOT = receiver_runtime_path()
 
 from local_worker import controller as _controller_module

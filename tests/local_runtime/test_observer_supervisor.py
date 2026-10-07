@@ -18,8 +18,8 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
-from local_runtime import assert_receiver_module, receiver_runtime_path
-from local_runtime.test_supervisor import _Adapter, _Cache, _Host, _PoolBackend, _Service, _profile
+from tests.local_runtime import assert_receiver_module, receiver_runtime_path
+from tests.local_runtime.test_supervisor import _Adapter, _Cache, _Host, _PoolBackend, _Service, _profile
 RECEIVER = receiver_runtime_path()
 from project_control.runtime_binding import RuntimeBindingError, local_runtime_identity
 from local_worker import supervisor as _supervisor_module

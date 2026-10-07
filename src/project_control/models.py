@@ -302,7 +302,7 @@ class LocalInvestigateInput(BaseModel):
         min_length=1, max_length=2)
     effort: Literal["quick", "standard", "deep"] = "standard"
     detail: Literal["standard", "trace"] = "standard"
-    compute_profile: Literal["narrow", "wide"] = "wide"
+    compute_profile: Literal["narrow"] = "narrow"
     parallelism: Literal["layer", "tensor"] = "layer"
 
     @model_validator(mode="after")

@@ -17,6 +17,7 @@ from project_control.snapshot import SnapshotBuilder
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TODO = PROJECT_ROOT / "tests" / "todo" / "scripts" / "todo.py"
 TOOLS = ('overview', 'delta', 'frontier', 'search', 'evidence', 'history', 'impact', 'read')
+TOOL_CALL_TIMEOUT_SECONDS = 15
 
 
 def run(argv: list[str], root: Path) -> str:
@@ -108,18 +109,44 @@ class ReadOnlyAuditTests(unittest.TestCase):
             'impact': {'project': 'disposable', 'targets': [{'repository': 'source', 'path': 'source.cc'}]},
             'read': {'project': 'disposable', 'paths': ['source.cc']},
         }
-        return {name: await self.mcp.call_tool(name, arguments) for name, arguments in calls.items()}
+        results = {}
+        for name, arguments in calls.items():
+            try:
+                results[name] = await asyncio.wait_for(
+                    self.mcp.call_tool(name, arguments),
+                    timeout=TOOL_CALL_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError as exc:
+                raise AssertionError(
+                    f"MCP tool {name!r} did not finish within "
+                    f"{TOOL_CALL_TIMEOUT_SECONDS} seconds"
+                ) from exc
+        return results
 
     def test_every_tool_preserves_all_authoritative_sentinels(self) -> None:
         before = self.sentinel()
-        results = asyncio.run(self.call_all())
-        after = self.sentinel()
-        self.assertEqual(before, after)
+        try:
+            results = asyncio.run(self.call_all())
+        finally:
+            after = self.sentinel()
+            self.assertEqual(before, after)
         self.assertEqual(set(results), set(TOOLS))
         self.assertFalse((self.root / ".ctxpp").exists())
         serialized = json.dumps(results, default=lambda value: value.model_dump(mode="json") if hasattr(value, "model_dump") else str(value))
         for forbidden in ("toc_", "tos_", "tol_", "gpu_uuid", "raw_log", "stdout", "stderr"):
             self.assertNotIn(forbidden, serialized.lower())
+
+    def test_sentinels_are_rechecked_when_tool_call_fails(self) -> None:
+        sentinel = {"head": "unchanged"}
+        with patch.object(self, "sentinel", side_effect=[sentinel, sentinel]) as observed:
+            with patch.object(self, "call_all", side_effect=AssertionError(
+                "MCP tool 'read' did not finish within 15 seconds"
+            )):
+                with patch.object(self, "assertEqual", wraps=self.assertEqual) as equality:
+                    with self.assertRaisesRegex(AssertionError, r"MCP tool 'read' did not finish"):
+                        self.test_every_tool_preserves_all_authoritative_sentinels()
+        self.assertEqual(observed.call_count, 2)
+        equality.assert_any_call(sentinel, sentinel)
 
     def test_snapshot_populates_semantic_fingerprint_precondition(self) -> None:
         snapshot = SnapshotBuilder(self.config).build("disposable")

@@ -7,9 +7,11 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -162,6 +164,37 @@ class ScopedLabQualificationTests(unittest.TestCase):
                          [str(launcher), "run"])
         self.assertFalse(output["inference_started"])
         self.assertFalse(output["gpu_work_started"])
+
+    def test_cli_failure_labels_are_runtime_neutral_and_receipts_keep_diagnostics(self):
+        cases = (
+            (SimpleNamespace(returncode=7, stdout="partial output", stderr="full failure reason"),
+             "qualification_cli_failed:preview"),
+            (SimpleNamespace(returncode=0, stdout="not json", stderr="warning detail"),
+             "qualification_cli_returned_invalid_json:preview"),
+            (SimpleNamespace(returncode=0, stdout="[]", stderr="non-object detail"),
+             "qualification_cli_returned_non_object:preview"),
+        )
+        for result, expected_error in cases:
+            with self.subTest(expected_error=expected_error), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with mock.patch.object(qualification.subprocess, "run", return_value=result):
+                    with self.assertRaisesRegex(RuntimeError, expected_error):
+                        qualification._invoke(["pc", "preview"], timeout=2, root=root, label="preview")
+                receipt = json.loads((root / "preview-result.json").read_text())
+                self.assertEqual(receipt["returncode"], result.returncode)
+                self.assertEqual(receipt["stdout"], result.stdout)
+                self.assertEqual(receipt["stderr"], result.stderr)
+                self.assertGreaterEqual(receipt["elapsed_seconds"], 0)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            error = subprocess.TimeoutExpired(["pc", "run"], 1, output="partial", stderr="timed out")
+            with mock.patch.object(qualification.subprocess, "run", side_effect=error):
+                with self.assertRaisesRegex(RuntimeError, "qualification_cli_timeout_ambiguous"):
+                    qualification._invoke(["pc", "run"], timeout=1, root=root, label="run")
+            receipt = json.loads((root / "run-result.json").read_text())
+            self.assertEqual(receipt["state"], "timeout_ambiguous")
+            self.assertGreaterEqual(receipt["elapsed_seconds"], 0)
 
     def test_model_claim_is_not_mechanical_evidence(self):
         result = qualification.assess_status({"sessions": [{"session_id": "selected",

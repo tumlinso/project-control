@@ -171,6 +171,92 @@ def test_active_recent_explicit_and_child_retention(tmp_path):
         issue(store, parents=[parent.packet_id])
 
 
+def test_batched_reconcile_retention_uses_one_live_closure_and_preserves_filters(tmp_path, monkeypatch):
+    now = [1000.0]
+    store = SQLitePacketStore(tmp_path, clock=lambda: now[0])
+    parent = issue(store, payload={'parent': True}, ttl_seconds=1)
+    child = issue(store, payload={'child': True}, parents=[parent.packet_id], ttl_seconds=20)
+    explicitly_pinned = issue(store, payload={'pinned': True}, ttl_seconds=1)
+    expired = issue(store, payload={'expired': True}, ttl_seconds=0)
+    foreign = store.create(tool='search', payload={'foreign': True},
+        access_scope={**SCOPE, 'project': 'other'})
+    stale_owner = issue(store, payload={'stale-owner': True})
+    store.pin('existing-owner', [explicitly_pinned.packet_id])
+    store.pin('stale-owner', [stale_owner.packet_id])
+    now[0] += 2
+
+    calls = []
+    original_live_ids = store._live_ids
+    def counted_live_ids(db):
+        calls.append(None)
+        return original_live_ids(db)
+    monkeypatch.setattr(store, '_live_ids', counted_live_ids)
+
+    store.reconcile_retention({
+        'retained-a': (SCOPE, [child.alias, parent.alias, explicitly_pinned.alias,
+                               expired.alias, foreign.alias, 'not-found']),
+        'retained-b': (SCOPE, [child.packet_id]),
+    }, ['stale-owner'])
+
+    assert len(calls) == 1
+    with sqlite3.connect(store.path) as db:
+        pins = set(db.execute('SELECT owner,packet FROM pins'))
+    assert ('retained-a', child.packet_id) in pins
+    assert ('retained-a', parent.packet_id) in pins  # live through child ancestry
+    assert ('retained-a', explicitly_pinned.packet_id) in pins  # preexisting pin
+    assert ('retained-b', child.packet_id) in pins
+    assert ('existing-owner', explicitly_pinned.packet_id) in pins
+    assert not any(owner == 'retained-a' and packet in {expired.packet_id, foreign.packet_id}
+                   for owner, packet in pins)
+    assert not any(owner == 'stale-owner' for owner, _ in pins)
+
+
+def test_batched_reconcile_retention_uses_authority_access_callback(tmp_path):
+    observed = []
+    def authority_access(saved_scope, supplied_scope, sources):
+        observed.append((saved_scope, supplied_scope, sources))
+        return saved_scope.get('project') == supplied_scope.get('project')
+
+    store = SQLitePacketStore(tmp_path, authority_access=authority_access)
+    allowed = issue(store, payload={'allowed': True})
+    denied = store.create(tool='search', payload={'denied': True},
+        access_scope={**SCOPE, 'project': 'other'})
+    store.reconcile_retention({'job': (SCOPE, [allowed.packet_id, denied.packet_id])}, [])
+    assert [item[0]['project'] for item in observed] == ['pc', 'other']
+    with sqlite3.connect(store.path) as db:
+        assert db.execute('SELECT packet FROM pins WHERE owner=?', ('job',)).fetchall() == [(allowed.packet_id,)]
+
+
+def test_batched_reconcile_retention_preserves_missing_body_detection(tmp_path):
+    store = SQLitePacketStore(tmp_path)
+    packet = issue(store)
+    with sqlite3.connect(store.path) as db:
+        db.execute('DELETE FROM bodies WHERE hash=?', (packet.payload_sha256,))
+
+    with pytest.raises(RuntimeError, match='packet body missing: storage corruption'):
+        store.reconcile_retention({'job': (SCOPE, [packet.alias])}, [])
+    with sqlite3.connect(store.path) as db:
+        assert db.execute('SELECT 1 FROM pins WHERE owner=?', ('job',)).fetchone() is None
+
+
+@pytest.mark.parametrize('corruption', ['malformed_body_json', 'invalid_packet_metadata'])
+def test_batched_reconcile_retention_preserves_packet_validation(tmp_path, corruption):
+    store = SQLitePacketStore(tmp_path)
+    packet = issue(store)
+    with sqlite3.connect(store.path) as db:
+        if corruption == 'malformed_body_json':
+            db.execute('UPDATE bodies SET payload=? WHERE hash=?', ('{', packet.payload_sha256))
+        else:
+            db.execute('UPDATE packets SET metadata=? WHERE id=?',
+                (json.dumps({'parents': [], 'expires_at': None, 'access_scope': SCOPE,
+                             'sources': []}), packet.packet_id))
+
+    with pytest.raises(ValueError):
+        store.reconcile_retention({'job': (SCOPE, [packet.alias])}, [])
+    with sqlite3.connect(store.path) as db:
+        assert db.execute('SELECT 1 FROM pins WHERE owner=?', ('job',)).fetchone() is None
+
+
 @pytest.mark.as1_case('PKT-05')
 def test_semantic_registry_discovery_and_volatile_freshness_are_targeted(tmp_path):
     now = [1000.0]; store = SQLitePacketStore(tmp_path, clock=lambda: now[0])

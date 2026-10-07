@@ -39,22 +39,22 @@ python scripts/check_package.py
 PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s fixtures/repository/tests -v
 ```
 
-The first command checks package integrity, JSON, references, task graphs, and coverage links. It is **not** Todo's validator or a product acceptance test. On a trusted development environment already bound to the canonical Todo package, also run:
+The first command checks package integrity, JSON, references, task graphs, and coverage links. It is **not** a product acceptance test. The optional native mode imports the Todo validator bundled in this Project Control checkout and validates the inert plan payloads without opening a registered workspace or applying a plan:
 
 ```sh
 python scripts/check_package.py --native
 ```
 
-That optional mode imports the installed `todo_orchestrator.plan.validate_plan`; it neither initializes nor applies a ledger. It fails clearly when the canonical package is absent. Do not add an ambient package or relax runtime identity checks to make it pass.
+Run the optional mode from the repository root with `scripts/pc-dev python planning/project-assistance-v1/scripts/check_package.py --native`. It imports `todo_orchestrator.plan.validate_plan` from the bundled source package and validates plan structure with no registered project, ledger, or state mutation. The check does not perform registered-workspace validation; use the Project Control CLI for that separate read-only operation.
 
 Native schema-3 plans are supplied directly. Do not lower them through the schema-2 preledger compiler, which would discard run/lane structure [S21, S24]. After adoption preflight, validate through the existing front door:
 
 ```sh
-project-control plan validate --project project-control --file machine/project-control.todo-plan.json
-project-control plan validate --project skills --file machine/skills.todo-plan.json
+scripts/pc-dev run plan validate --project project-control --file planning/project-assistance-v1/machine/project-control.todo-plan.json
+scripts/pc-dev run plan validate --project skills --file planning/project-assistance-v1/machine/skills.todo-plan.json
 ```
 
-Application is an explicit implementing-root action through the corresponding existing `project-control plan apply` operation after reviewing the live diff and active work. No script in this package applies a plan. Select the new run explicitly when other ready runs exist.
+Application is an explicit implementing-root action through the corresponding existing `scripts/pc-dev run plan apply` operation after reviewing the live diff and active work. No script in this package applies a plan. Select the new run explicitly when other ready runs exist.
 
 Place the immutable bundle at `planning/project-assistance-v1/` in Project Control. Where native Skills scope or evidence publication requires local planning material, place the same bundle there as well; this does not install Project Control runtime source in Skills. Record any authorized package amendments with new hashes. Do not overwrite an existing package or dirty file silently.
 

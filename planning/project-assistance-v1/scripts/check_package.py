@@ -2,7 +2,7 @@
 """Validate an inert PA1 bundle; never apply a Todo plan or launch inference.
 
 Default: standard-library integrity and structural checks only.
---native: additionally call the already-installed canonical Todo plan validator.
+--native: additionally call the Todo plan validator bundled with this checkout.
 This is not a production source test, model evaluation, or release qualification.
 """
 from __future__ import annotations
@@ -180,7 +180,7 @@ def validate(root: Path, native: bool) -> dict[str, Any]:
             try:
                 module = importlib.import_module('todo_orchestrator.plan')
             except ImportError as e:
-                raise PackageError('Canonical installed Todo validator unavailable; bind the trusted development environment, not an ambient replacement.') from e
+                raise PackageError('Bundled Todo plan validator unavailable in this Python environment; run from the Project Control checkout environment (scripts/pc-dev).') from e
             try:
                 report = module.validate_plan(plan, repo_root=None)
             except Exception as e:
@@ -219,14 +219,22 @@ def validate(root: Path, native: bool) -> dict[str, Any]:
                 continue
             rel = unquote(url.path)
             target_path = (p.parent / rel).resolve()
-            require(target_path == root or root in target_path.parents, f'Escaping documentation link: {target}')
+            # The inert implementation package may point into this checkout's
+            # durable development/qualification guides. Keep the exception
+            # limited to repository documentation; executable suppliers and
+            # arbitrary paths outside the package remain forbidden. resolve()
+            # also rejects links that traverse a symlink outside either tree.
+            repo_docs = (root.parents[1] / 'docs').resolve()
+            in_package = target_path == root or root in target_path.parents
+            in_repo_docs = target_path == repo_docs or repo_docs in target_path.parents
+            require(in_package or in_repo_docs, f'Escaping documentation link: {target}')
             require(target_path.exists(), f'Missing documentation link: {p.name} -> {target}')
             md_links += 1
     return {'status':'passed','scope':'package_integrity_and_structural_validation_only',
             'files_hashed':file_count,'sources':len(records),'outcomes':len(outcomes),
             'native_task_records':len(native_tasks),'acceptance_cases':len(cases),
             'eval_cases':len(ec),'python_files_parsed':py_count,'local_markdown_links_checked':md_links,
-            'native_validation':native_reports if native else 'not_run_requires_trusted_installed_kernel',
+            'native_validation':native_reports if native else 'not_run_optional_bundled_validator',
             'product_acceptance':'not_executed','live_model_or_gpu':'not_executed','plans_applied':False}
 
 
@@ -234,7 +242,7 @@ def main() -> int:
     sys.dont_write_bytecode = True
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
-    ap.add_argument('--native', action='store_true', help='Also use the already-installed canonical Todo validator; no application.')
+    ap.add_argument('--native', action='store_true', help='Also validate inert plan payloads with bundled Todo; no registered workspace or application.')
     args = ap.parse_args()
     try:
         report = validate(args.root.resolve(strict=True), args.native)

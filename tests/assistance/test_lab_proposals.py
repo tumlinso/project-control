@@ -44,7 +44,8 @@ class LabProposalTests(unittest.TestCase):
             parse_proposal('{"x":NaN}')
 
     def test_rejects_path_escape_bad_tool_and_unselected_or_stale_citation(self):
-        for path in ("../outside.py", "/tmp/out.py", "src\\escape.py", "a//b.py"):
+        for path in ("../outside.py", "/tmp/out.py", "/proposal/test_generated.py",
+                     "src\\escape.py", "a//b.py"):
             with self.subTest(path=path), self.assertRaises(ProposalError):
                 parse_proposal(proposal_object(artifacts=[{"path": path, "content": "x"}]))
         proposal = parse_proposal(proposal_object(argv=["bash", "-c", "true"]))

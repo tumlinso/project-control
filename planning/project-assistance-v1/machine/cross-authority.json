@@ -19,12 +19,6 @@
       "consumer": "SK-PA1-RETIRE",
       "contract": "Receiver canonical runtime and behavior/authority parity evidence.",
       "verification": "Do not remove or repoint live supplier code before parity and coordinated candidate binding."
-    },
-    {
-      "producer": "SK-PA1-RETIRE",
-      "consumer": "PC-PA1-QUALIFY",
-      "contract": "Single-implementation compatible supplier transition and catalog/entry-point evidence.",
-      "verification": "Final candidate verifies both current authorities and runtime bindings before promotion."
     }
   ]
 }

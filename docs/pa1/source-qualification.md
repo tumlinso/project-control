@@ -134,7 +134,9 @@ release identity, evidence reference, and limits. Preserve old A01–A40 results
 and candidate receipts; they are historical evidence to review, not automatic
 current statuses or a mandate to reproduce retired routes. Do not reintroduce
 `wide`, retired adapter/provider paths, or the old external Todo supplier to
-match those recipes.
+match those recipes. Use the [current A01–A40 mapping](current-acceptance-mapping.md)
+to identify which requirement each historical case still represents and which
+implementation mechanics have changed.
 
 Collect independent failures in one bounded pass when useful. Fix flaky or
 hanging fixtures directly, and report an environment prerequisite as a scoped

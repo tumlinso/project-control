@@ -453,17 +453,70 @@ class SQLitePacketStore:
     def _live_ids(self, db):
         rows = db.execute('SELECT id,metadata,expired FROM packets').fetchall()
         live = {row[0] for row in db.execute('SELECT packet FROM pins')}
+        parents = {}
         for ident, metadata, expired in rows:
             value = json.loads(metadata)
+            parents[ident] = value['parents']
             if not expired and (value['expires_at'] is None or _epoch(value['expires_at']) > self.clock()):
                 live.add(ident)
-        parents = {ident: json.loads(meta)['parents'] for ident, meta, _ in rows}
         pending = list(live)
         while pending:
             for parent in parents.get(pending.pop(), []):
                 if parent not in live:
                     live.add(parent); pending.append(parent)
         return live
+
+    def reconcile_retention(self, retained: Mapping[str, tuple[Mapping[str, Any], list[str]]],
+                            unpin_owners: list[str]) -> None:
+        """Apply one broker retention snapshot with one shared packet liveness closure.
+
+        Pins remain additive for retained owners, as with ``pin``. Owners that
+        are no longer retained are fully unpinned after eligible additions are
+        resolved against the preexisting pin graph, matching broker reconcile
+        ordering while avoiding a whole-store scan for every reference.
+        """
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            live_ids = self._live_ids(db)
+            rows = db.execute('SELECT id,alias,metadata,hash,expired FROM packets').fetchall()
+            by_reference = {}
+            metadata_by_id = {}
+            for row in rows:
+                by_reference[row[0]] = row
+                by_reference[row[1]] = row
+                metadata = json.loads(row[2])
+                metadata.pop('_invocation', None)
+                metadata_by_id[row[0]] = metadata
+
+            pins = []
+            validated_packets = set()
+            for owner, (access_scope, references) in retained.items():
+                for reference in references:
+                    if not isinstance(reference, str):
+                        continue
+                    row = by_reference.get(reference)
+                    if row is None:
+                        continue
+                    metadata = metadata_by_id[row[0]]
+                    if self.authority_access is not None:
+                        permitted = self.authority_access(
+                            metadata['access_scope'], dict(access_scope), metadata['sources'])
+                    else:
+                        permitted = self._authorized(metadata['access_scope'], access_scope)
+                    if not permitted or row[4] or row[0] not in live_ids:
+                        continue
+                    if row[0] not in validated_packets:
+                        body = db.execute('SELECT payload FROM bodies WHERE hash=?', (row[3],)).fetchone()
+                        if not body:
+                            raise RuntimeError('packet body missing: storage corruption')
+                        packet_wire = dict(metadata)
+                        packet_wire['payload'] = json.loads(body[0])
+                        InformationPacket.model_validate(packet_wire)
+                        validated_packets.add(row[0])
+                    pins.append((owner, row[0]))
+
+            db.executemany('INSERT OR IGNORE INTO pins(owner,packet) VALUES (?,?)', pins)
+            db.executemany('DELETE FROM pins WHERE owner=?', ((owner,) for owner in unpin_owners))
 
     def lookup(self, reference: str, *, access_scope: Mapping[str, Any]) -> PacketLookup:
         with self._db() as db:

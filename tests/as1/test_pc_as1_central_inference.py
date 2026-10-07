@@ -13,17 +13,18 @@ from unittest.mock import Mock
 
 import pytest
 
+from project_control import observer_analysis
 from project_control.observer_analysis import SkillsObserverAnalysisProvider
-from project_control.runtime_binding import _verify_receiver
+from project_control.runtime_binding import local_runtime_identity
 
 
 RECEIVER_SOURCE = Path(__file__).resolve().parents[2] / 'src/project_control/local_runtime'
 
 
 def receiver_fixture():
-    # Source checkouts bind the package-owned receiver without an installed
-    # release manifest. Keep tests on that exact src/project_control shape.
-    return _verify_receiver(RECEIVER_SOURCE)
+    # Source tests use the current in-memory inventory, independent of the
+    # checked-in release manifest. Frozen-release verification remains strict.
+    return local_runtime_identity(root=RECEIVER_SOURCE)
 
 
 @pytest.fixture
@@ -50,6 +51,7 @@ def central(monkeypatch, tmp_path):
                              ProductionBackend=Mock(side_effect=AssertionError('frontend backend forbidden')))
     monkeypatch.setattr('project_control.observer_analysis.bind_local_runtime', lambda: identity)
     monkeypatch.setattr('project_control.observer_analysis.importlib.import_module', lambda _: module)
+    monkeypatch.setattr(observer_analysis, '_source_supervisor_client', Mock(return_value=client))
     return module, client, status, state
 
 
@@ -59,16 +61,20 @@ def turn(provider, **kwargs):
 
 def test_frontend_never_constructs_backend_and_close_keeps_owner_warm(central):
     module, client, status, state = central
-    narrow, wide = SkillsObserverAnalysisProvider(), SkillsObserverAnalysisProvider()
-    assert turn(narrow, compute_profile='narrow')['model_id'] == 'warm-model'
-    assert turn(wide, compute_profile='wide')['model_id'] == 'warm-model'
-    assert module.SupervisorClient.call_args.args == (state,)
-    assert module.SupervisorClient.call_args.kwargs == {'root': state / 'runtime'}
+    narrow, also_narrow = SkillsObserverAnalysisProvider(), SkillsObserverAnalysisProvider()
+    first = turn(narrow, compute_profile='narrow')
+    assert first.get('model_id') == 'warm-model', first
+    second = turn(also_narrow, compute_profile='narrow')
+    assert second.get('model_id') == 'warm-model', second
+    source_client = observer_analysis._source_supervisor_client
+    assert source_client.call_count == 2
+    assert source_client.call_args.args[1:3] == (state, state / 'runtime')
     narrow.close()
     client.close.assert_called_once_with()
     client.poll.assert_not_called()
     module.ProductionBackend.assert_not_called()
-    assert turn(wide)['model_id'] == 'warm-model'
+    final = turn(also_narrow)
+    assert final.get('model_id') == 'warm-model', final
 
 
 def test_reasoning_mode_is_forwarded_and_validated_at_frontend(central):
@@ -277,9 +283,9 @@ import os, sys
 from pathlib import Path
 from unittest.mock import Mock
 import project_control.observer_analysis as observer_analysis
-from project_control.runtime_binding import _verify_receiver
+from project_control.runtime_binding import local_runtime_identity
 receiver = Path(os.environ['PA1_RECEIVER_ROOT'])
-identity = _verify_receiver(receiver)
+identity = local_runtime_identity(root=receiver)
 for name in tuple(sys.modules):
  if name == 'local_worker' or name.startswith('local_worker.'):
   del sys.modules[name]
@@ -302,13 +308,10 @@ print(json.dumps(result))
     for key in ('PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256', 'PROJECT_CONTROL_OBSERVER_GPU_UUIDS', 'PROJECT_CONTROL_SKILLS_ROOT'):
         environment.pop(key, None)
     try:
-        results = []
-        for profile in ('narrow', 'wide'):
-            code = script.replace('CONTENT', repr('bounded')).replace('PROFILE', repr(profile)).replace('BUDGET', '2')
-            completed = subprocess.run([sys.executable, '-c', code], env=environment, capture_output=True, text=True, timeout=5, check=True)
-            results.append(json.loads(completed.stdout))
-        assert results[0] == results[1] == {'status': 'available', 'owner_id': 'single-owner', 'model_id': 'warm', 'server_pid': 987}
-        code = script.replace('CONTENT', repr('stall')).replace('PROFILE', repr('wide')).replace('BUDGET', '.1')
+        code = script.replace('CONTENT', repr('bounded')).replace('PROFILE', repr('narrow')).replace('BUDGET', '2')
+        completed = subprocess.run([sys.executable, '-c', code], env=environment, capture_output=True, text=True, timeout=5, check=True)
+        assert json.loads(completed.stdout) == {'status': 'available', 'owner_id': 'single-owner', 'model_id': 'warm', 'server_pid': 987}
+        code = script.replace('CONTENT', repr('stall')).replace('PROFILE', repr('narrow')).replace('BUDGET', '.1')
         completed = subprocess.run([sys.executable, '-c', code], env=environment, capture_output=True, text=True, timeout=5, check=True)
         assert json.loads(completed.stdout)['reason'] == 'central_supervisor_transport_timeout'
         assert {c['operation'] for c in calls} <= {'observer-status', 'observer-turn'}

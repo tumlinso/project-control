@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.models import LocalInvestigateInput, ProjectSnapshot, RepositoryIdentity, envelope
 from project_control.services.local_investigate import (CAPABILITIES, FINAL_SYSTEM_PROMPT, LIMITS,
@@ -81,11 +83,11 @@ class LocalInvestigateTests(unittest.TestCase):
         ])
         with patch("project_control.services.local_investigate.source_context", return_value=envelope("source_context", initial, {"targets": []})), \
              patch("project_control.services.local_investigate.coordination_view", return_value=envelope("coordination_view", initial, {"active_run_id": "r"})):
-            result = local_investigate(config(), LocalInvestigateInput(project="demo", questions=["q"], compute_profile="wide", parallelism="tensor"),
+            result = local_investigate(config(), LocalInvestigateInput(project="demo", questions=["q"], compute_profile="narrow", parallelism="tensor"),
                 snapshot=initial, snapshot_getter=lambda: initial, model_turn=lambda value: (inputs.append(value) or next(turns)))
         self.assertEqual(result.data["status"], "ok")
         self.assertEqual(result.data["metrics"]["reads_performed"], 2)
-        self.assertEqual((inputs[0]["compute_profile"], inputs[0]["parallelism"]), ("wide", "tensor"))
+        self.assertEqual((inputs[0]["compute_profile"], inputs[0]["parallelism"]), ("narrow", "tensor"))
         self.assertEqual([item["role"] for item in inputs[1]["messages"][-2:]], ["assistant", "user"])
         self.assertIn('"id":"E1"', inputs[1]["messages"][-1]["content"])
         self.assertIn('"id":"E2"', inputs[1]["messages"][-1]["content"])
@@ -93,6 +95,34 @@ class LocalInvestigateTests(unittest.TestCase):
     def test_narrow_accepts_diagnostic_parallelism(self) -> None:
         self.assertEqual(LocalInvestigateInput(project="demo", questions=["q"], compute_profile="narrow", parallelism="layer").parallelism, "layer")
         self.assertEqual(LocalInvestigateInput(project="demo", questions=["q"], compute_profile="narrow", parallelism="tensor").parallelism, "tensor")
+
+    def test_compute_profile_schema_is_narrow_only_and_defaults_to_narrow(self) -> None:
+        request = LocalInvestigateInput(project="demo", questions=["q"])
+        self.assertEqual(request.compute_profile, "narrow")
+        profile_schema = LocalInvestigateInput.model_json_schema()["properties"]["compute_profile"]
+        self.assertEqual(profile_schema["default"], "narrow")
+        self.assertEqual(profile_schema["const"], "narrow")
+        with self.assertRaises(ValidationError):
+            LocalInvestigateInput(project="demo", questions=["q"], compute_profile="wide")
+
+    def test_observer_analysis_provider_defaults_profile_to_narrow(self) -> None:
+        from project_control.observer_analysis import SkillsObserverAnalysisProvider
+
+        captured = []
+
+        class Client:
+            def run_observer_turn(self, request):
+                captured.append(request)
+                return {"status": "available", "text": "fixture response"}
+
+        provider = SkillsObserverAnalysisProvider()
+        with patch.object(provider, "_checked_client", return_value=Client()):
+            result = provider.investigate_turn({
+                "messages": [{"role": "user", "content": "bounded question"}],
+            })
+
+        self.assertEqual(result["status"], "available")
+        self.assertEqual(captured[0]["compute_profile"], "narrow")
 
     def test_transcript_compaction_preserves_origin_recent_pair_and_state(self) -> None:
         messages = [{"role": "system", "content": "system"}, {"role": "user", "content": "question"}]
