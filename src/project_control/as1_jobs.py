@@ -826,12 +826,16 @@ class JobService:
                 okay = False
         return okay
 
-    def _ensure_demand_runtime(self):
+    def _ensure_demand_runtime(self, startup_timeout=None):
         """Start and verify the unified runtime for a fresh explicit demand."""
         ensure = self.demand_runtime_ready
         if not callable(ensure):
             return None
-        deadline_epoch = self.clock() + float(self.demand_startup_timeout)
+        timeout = self.demand_startup_timeout if startup_timeout is None else startup_timeout
+        timeout = self._coerce_startup_timeout(timeout)
+        if timeout == 0:
+            return {'status': 'unavailable', 'reason': 'demand_deadline_exhausted_before_start'}
+        deadline_epoch = self.clock() + float(timeout)
         try:
             receipt = ensure(deadline_epoch=deadline_epoch)
         except Exception as error:
@@ -840,6 +844,18 @@ class JobService:
         if not isinstance(receipt, dict) or receipt.get('status') != 'ready':
             return {'status': 'unavailable', 'reason': 'demand_runtime_not_ready'}
         return None
+
+    @staticmethod
+    def _coerce_startup_timeout(timeout):
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+            raise ValueError('invalid_startup_timeout')
+        try:
+            timeout = float(timeout)
+        except (OverflowError, TypeError, ValueError):
+            raise ValueError('invalid_startup_timeout') from None
+        if not math.isfinite(timeout) or not 0 <= timeout <= 120:
+            raise ValueError('invalid_startup_timeout')
+        return timeout
 
     def _dispatch_gate(self, job_id, expected_attempt):
         """Revalidate job generation and canonical operator policy at each admission edge."""
@@ -957,6 +973,25 @@ class JobService:
             from .assistance.power import ReleaseIntent
             intent = ReleaseIntent(row['release_request_id'], float(row['updated']),
                 row['release_until'], row['release_reason'] or 'operator-requested')
+            active_sessions = db.execute("SELECT count(*) FROM pa1_owned_resource_sessions "
+                "WHERE state='active'").fetchone()[0]
+        # A CLI frontend can die between observer-open and writing the minted
+        # close receipt. The supervisor first proves that borrower's exact
+        # process generation is gone; only then can it return its one-shot
+        # receipt to this broker for ordinary ResourceController validation.
+        reclaim = getattr(self.backend, 'reclaim_orphaned_sessions', None)
+        if active_sessions and callable(reclaim):
+            with self._db() as db:
+                try:
+                    from .assistance.resources import ResourceController
+                    resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                                                   clock=self.clock)
+                    reclaim(resources, release_request_id=intent.request_id)
+                except Exception as error:
+                    self.last_error = type(error).__name__
+                    if db.in_transaction:
+                        db.rollback()
+        with self._db() as db:
             completed = db.execute("SELECT count(*) FROM pa1_owned_resource_sessions "
                 "WHERE release_request_id=? AND state='released_verified'", (intent.request_id,)).fetchone()[0]
             pending = db.execute("SELECT physical_state FROM pa1_power_state WHERE singleton=1").fetchone()[0]
@@ -1430,10 +1465,13 @@ class JobService:
         return True
 
     def inquire(self, question, access_scope, mode='investigate', skill=None, hints=(),
-                request_id=None, execution_question=None, foreground_timeout=30):
+                request_id=None, execution_question=None, foreground_timeout=30,
+                startup_timeout=None):
+        if startup_timeout is not None:
+            startup_timeout = self._coerce_startup_timeout(startup_timeout)
         try:
             return self._inquire(question, access_scope, mode, skill, hints, request_id,
-                                 execution_question, foreground_timeout)
+                                 execution_question, foreground_timeout, startup_timeout)
         except (sqlite3.Error, OSError):
             return {'status': 'unavailable', 'reason': 'storage_unavailable'}
 
@@ -1487,7 +1525,7 @@ class JobService:
             'mode': mode, 'skill': skill})
 
     def _inquire(self, question, access_scope, mode, skill, hints, request_id,
-                 execution_question, foreground_timeout):
+                 execution_question, foreground_timeout, startup_timeout=None):
         scope = dict(access_scope)
         if not scope.get('principal') or not scope.get('profile'):
             raise ValueError('trusted principal/profile scope required')
@@ -1502,14 +1540,14 @@ class JobService:
             if not self._inquiry_authorized(previous.model_dump(), scope):
                 return {'status': 'unavailable', 'reason': 'access_unavailable'}
             if previous.status not in TERMINAL:
-                unavailable = self._ensure_demand_runtime()
+                unavailable = self._ensure_demand_runtime(startup_timeout)
                 if unavailable:
                     return unavailable
                 return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
             if not self._cache_eligible(previous.model_dump()):
                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
             if not self._settled(previous.job_id):
-                unavailable = self._ensure_demand_runtime()
+                unavailable = self._ensure_demand_runtime(startup_timeout)
                 if unavailable:
                     return unavailable
                 return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
@@ -1551,7 +1589,7 @@ class JobService:
                 return {'status': 'unavailable', 'reason': 'freshness_unverifiable'}
         # This is the sole fresh-start boundary. Cache hits, access checks,
         # freshness failures, and all model-free service reads return above.
-        unavailable = self._ensure_demand_runtime()
+        unavailable = self._ensure_demand_runtime(startup_timeout)
         if unavailable:
             return unavailable
         admitted = self.submit(question=question, access_scope=scope, mode=mode, skill=skill,

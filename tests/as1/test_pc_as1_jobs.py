@@ -197,6 +197,50 @@ def test_cancel_inquiry_uses_exact_inquiry_identity_without_exposing_job_id(tmp_
         release.set(); s.shutdown()
 
 
+@pytest.mark.as1_case('JOB-03')
+def test_inquiry_startup_timeout_bounds_readiness_and_keeps_zero_budget_cache_reads(tmp_path):
+    deadlines = []
+
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                return {'status': 'completed', 'answer': 'cached answer'}
+        return Worker()
+
+    s = make(tmp_path, worker_factory=factory,
+             freshness_provider=lambda job: {'fresh': True}).start()
+    def ready(*, deadline_epoch):
+        deadlines.append((deadline_epoch, time.time()))
+        return {'status': 'ready'}
+    s.demand_runtime_ready = ready
+    try:
+        first = s.inquire('bounded startup', SCOPE, foreground_timeout=3,
+                          startup_timeout=2.5)
+        assert first['status'] == 'completed'
+        assert 2.4 <= deadlines[0][0] - deadlines[0][1] <= 2.5
+
+        # A fresh exact cache hit needs no model/runtime startup, even at zero.
+        cached = s.inquire('bounded startup', SCOPE, foreground_timeout=0,
+                           startup_timeout=0)
+        assert cached['status'] == 'completed'
+        assert len(deadlines) == 1
+
+        # A new inquiry at the expired boundary cannot invoke the readiness hook.
+        exhausted = s.inquire('startup expired', SCOPE, foreground_timeout=0,
+                              startup_timeout=0)
+        assert exhausted == {
+            'status': 'unavailable',
+            'reason': 'demand_deadline_exhausted_before_start',
+        }
+        assert len(deadlines) == 1
+
+        for invalid in (True, -0.01, 120.01, float('inf'), float('nan'), 10**400):
+            with pytest.raises(ValueError, match='invalid_startup_timeout'):
+                s.inquire('invalid timeout', SCOPE, startup_timeout=invalid)
+    finally:
+        s.shutdown()
+
+
 @pytest.mark.as1_case('JOB-04')
 def test_real_sqlite_restart_eviction_cancellation_and_fenced_late_writes(tmp_path):
     now = [1000.0]
