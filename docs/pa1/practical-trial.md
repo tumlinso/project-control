@@ -1,11 +1,11 @@
-# First practical assistance trial
+# Practical assistance trial walkthrough
 
-This walkthrough uses only an already registered workspace and source path.
-Replace angle-bracket placeholders with values from Project Control's current
-workspace and LAB preview; do not invent IDs. It describes the intended user
-flow, not proof that a particular runtime is installed or qualified. Check the
-current candidate-bound receipts in [the qualification handoff](qualification-handoff.md)
-before relying on live behavior.
+Use the stable `project-control` CLI with an already registered workspace and
+repository-relative source path. Replace angle-bracket placeholders with
+values shown by Project Control and the LAB preview; do not invent IDs. The
+operator authorized a bounded live practical trial. This walkthrough describes
+the CLI flow; see [the current qualification handoff](qualification-handoff.md)
+for the candidate identity, completed cases, and unresolved limits.
 
 ## Ask a grounded question
 
@@ -26,9 +26,9 @@ project-control assistance ask --project <registered-workspace-id> \
 An explicit question uses the shared CLI/Codex broker. A fresh cached answer
 can return without starting inference; new or stale work starts or reuses the
 shared service. Startup is bounded and reports a readiness error if the
-selected release or runtime identities do not match. A warm service remains
-resident while resources are available. Status, quiet, release, and other
-model-free controls do not start it.
+selected release or runtime identities do not match. The service stays warm
+while resources are available. Status and operator controls do not start
+inference.
 
 ## Preview and authorize one LAB scope
 
@@ -48,11 +48,11 @@ Review the returned scope and its `session_id`. The defaults are 600 seconds
 and six experiments, including planning, waiting, execution, and interpretation.
 The scope lists its allowed tools and resources. Add `--source` for each
 additional path, `--tool` for each additional permitted executable, and
-`--gpu-uuid` only for a GPU scope you intend to authorize. GPU hook wiring and
-live qualification are still pending in this source snapshot. Do not attempt a
-GPU experiment until the selected release exposes the GPU path and has current
-native admission and containment evidence. If the required toolchain or proof
-is unavailable, do not run it.
+`--gpu-uuid` only for a GPU scope you intend to authorize. A GPU preview does
+not itself establish that a GPU run is qualified. Before authorizing one,
+check the current handoff for selected-release support and current admission,
+containment, and cleanup evidence. If the required toolchain or proof is
+unavailable, stop without running it.
 
 Authorize the exact preview once, using the ID returned by that preview:
 
@@ -105,12 +105,12 @@ The CPU container is limited to one CPU, 1 GiB of memory, 32 processes, no
 swap, a 30-second run, 64 KiB of captured output, and 64 MiB of artifacts.
 For a GPU preview, pass each requested device as `--gpu-uuid` and the approved
 toolchain location as `--toolchain-root`. The GPU adapter accepts a structured
-CUDA proposal and applies its own fixed compiler command. The current source
-has the GPU contract, but the complete device handoff and containment path
-still requires live qualification; do not interpret a preview or source test
-as permission to launch a GPU workload.
+CUDA proposal and applies its own fixed compiler command. Check the current
+qualification handoff for selected-release GPU support and exact device,
+admission, containment, and cleanup evidence; do not infer run eligibility
+from a preview or source test.
 
-## Leave inference stopped for the night
+## Stop or resume inference when you are done
 
 Request release when no more inference should run, then check the result:
 
@@ -126,6 +126,7 @@ continuing. `project-control assistance resume --release` clears the veto; it
 does not start inference. Finish with status and the physical release evidence
 provided by the active runtime, not with an idle timer or a `pending` projection.
 
-Practical trial readiness means these supported paths work with current
-candidate-bound evidence. It is separate from the mandatory 40-case product
-acceptance matrix; see the [full bounded plan](live-qualification-plan.md).
+Use the final status and resource receipts linked from the current handoff to
+confirm cleanup. A `pending` status field or an idle timer alone does not prove
+physical release. Practical trial results remain separate from the mandatory
+40-case product acceptance matrix; see the [full bounded plan](live-qualification-plan.md).

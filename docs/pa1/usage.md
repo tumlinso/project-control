@@ -1,6 +1,7 @@
 # Local assistance controls
 
-Project Control's CLI and Codex use one local assistance runtime. An explicit
+Project Control's stable CLI (`/home/tumlinson/.local/bin/project-control`) and
+Codex use one local assistance runtime. An explicit
 `ask`, `run`, question in `chat`, or supported MCP/HTTP `investigate` or `skill`
 request can start that runtime on demand. A model-free status or control call
 does not start it. Notifications and automatic preparation are off by default.
@@ -31,11 +32,11 @@ reported reason and status; do not treat a failed readiness check as a
 successful start. A goal is saved as a user-authored notebook card. It does
 not enable automatic work, create a project task, or grant source access.
 
-The model stays resident until resource admission, a release request, or an
-explicit stop requires it to yield. Do not use elapsed idle time as evidence
-that it was evicted or restarted. Status reports the service and available
-release, residency, wait, active-work, and release information without asking
-the model to run.
+The model stays warm while resources are available, until resource admission,
+a release request, or an explicit stop requires it to yield. Do not use elapsed
+idle time as evidence that it was evicted or restarted. Status reports the
+service and available release, residency, wait, active-work, and release
+information without asking the model to run.
 
 Set a focus to record what matters now. Source paths are optional for a
 non-automatic focus:
@@ -155,17 +156,29 @@ Todo task. Source text and model output cannot run these controls by themselves.
 ## Qualification status
 
 Automatic preparation remains off unless enabled explicitly with selected
-registered source paths and a finite duration. Keep it off during an initial
-manual trial. LAB provides a separate scope preview, one-time authorization,
+registered source paths and a finite duration. Keep it off during a manual
+practical trial. LAB provides a separate scope preview, one-time authorization,
 and bounded autonomous execution; see [the practical trial walkthrough](practical-trial.md)
 for a short sequence and [the finalization plan](finalization-plan.md) for the
-acceptance boundaries.
+acceptance boundaries. The preview displays the project, paths, tools, resource
+selection, time limit, and experiment limit. Review those values before using
+the returned session ID with `lab authorize`; the authorization permits only
+that displayed finite scope. Use `lab status` to inspect progress, and use
+`lab resume` or `lab cancel` with the scope ID to manage an interrupted or
+unwanted run.
 
 The command surface and source implementation do not by themselves prove that
-the selected installed release is current or live-qualified. Check the
+the selected installed release is current or live-qualified. Check the latest
 candidate-bound receipts in [the qualification handoff](qualification-handoff.md)
-and [the live qualification plan](live-qualification-plan.md). Existing
+and [the live qualification plan](live-qualification-plan.md). The operator
+authorized a bounded live practical trial; its outcomes and limits belong in
+the current handoff, not in these command descriptions. Existing
 case-level and live receipts remain in [acceptance results](acceptance-results.json)
 and [live validation](live-validation.json); preserve their original scope and
 limitations when deciding what is currently usable. A feature with no current
 installation and live evidence remains pending qualification.
+
+For source development, the source `.venv` link now resolves to `.dev-venv`.
+This keeps development dependency operations separate from the selected
+immutable runtime. Use the stable CLI for operator controls and consult the
+current handoff before treating a command path as live-qualified.
