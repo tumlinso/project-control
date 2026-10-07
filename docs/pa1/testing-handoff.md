@@ -35,7 +35,7 @@ curl -sS -i http://127.0.0.1:8768/version
 curl -sS -i http://127.0.0.1:8768/readyz
 ```
 
-Expected: all entrypoints resolve to the same selected R10 manifest; health/version return 200; readyz returns 503 while the release veto holds. Reconnect a fresh Codex MCP transport and verify initialize plus `tools/list` reports the unified 12-tool schema (expected schema SHA-256 `9223c29700eac956491b838388ba3a1da20caa68951bfc0a0d361c8d2b13595e`). Run from `/home/tumlinson/project-control`. Substitute the fixture identifiers from the registered workspace/skill inventory before execution. Explicitly clear the release veto immediately before this live block (`project-control assistance resume --release`); this does not start inference. Then make one registered-source question and one registered-skill question with the installed harness below. Require answer citations to match the exact registered source and review the answer for grounded claims; a harness receipt alone does not accept answer quality.
+Expected: all entrypoints resolve to the same selected R10 manifest; health/version return 200. Record cold HTTP readyz separately from inference readiness: do not assume the HTTP endpoint directly reflects the operator veto. Confirm actual R10 readiness behavior once; after explicit startup the installed harness requires verified inference readiness. Reconnect a fresh Codex MCP transport and verify initialize plus `tools/list` reports the unified 12-tool schema (expected schema SHA-256 `9223c29700eac956491b838388ba3a1da20caa68951bfc0a0d361c8d2b13595e`). Run from `/home/tumlinson/project-control`. Substitute the fixture identifiers from the registered workspace/skill inventory before execution. Explicitly clear the release veto immediately before this live block (`project-control assistance resume --release`); this does not start inference. Then make one registered-source question and one registered-skill question with the installed harness below. Require answer citations to match the exact registered source and review the answer for grounded claims; a harness receipt alone does not accept answer quality.
 
 ```sh
 python /home/tumlinson/.local/state/project-control/qualification/pa1-20261007/practical-final-r1/run-selected-no-bytecode.py \
@@ -92,14 +92,14 @@ Expected smoke output reports four passed devices, each checking 4096 elements a
 
 ### Cancellation and restart recovery
 
-For scope cancellation, use only the ID returned by the preview, then verify terminal status and effect cleanup:
+For scope cancellation, use only the ID returned by the preview, then verify terminal status and effect cleanup. Cancellation of an idle or already-failed scope does not establish in-flight cancellation:
 
 ```sh
 project-control assistance lab cancel <scope-id>
 project-control assistance lab status --scope-id <scope-id>
 ```
 
-For restart recovery, use a separate scope and checkpoint its ID and current phase before a controlled graceful service stop. Do not kill a system process or delete/recreate state. Verify the same scope after the service is explicitly started; resume only when status proves there is no unknown/in-flight effect. An effect with unknown outcome must remain unreplayed and be reported for reconciliation.
+For graceful stop/start, use a separate scope and checkpoint its ID and current phase before a controlled graceful service stop. This recipe does not qualify crash recovery; the additional crash and in-flight cancellation assignments are in [testing-diagnostics.md](testing-diagnostics.md). Do not kill a system process or delete/recreate state. Verify the same scope after the service is explicitly started; resume only when status proves there is no unknown/in-flight effect. An effect with unknown outcome must remain unreplayed and be reported for reconciliation.
 
 ```sh
 project-control assistance status
@@ -136,3 +136,5 @@ The canonical stores are under `/home/tumlinson/.cache/project-control/as1-obser
 Existing run artifacts are under `/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/practical-final-r1/`, including the failed `cpu-r10/` attempt and root final census/source-check receipts. Append each new run under a new private directory, preserve historical failures, and return a single evidence index with candidate identity, commands, outcome per case, receipt paths/digests, remaining uncertainty, and cleanup proof. This handoff describes testing work; it does not authorize activation or acceptance beyond the explicit testing authorization already provided.
 
 The root transferred the native `PC-PA1-LAB` task in run `PC-PA1-RUN-1` through the supported handoff API; it remains pending live qualification. Private receipt: `.../practical-final-r1/testing-handoff-receipt.json`. Later documentation commits do not change the frozen candidate source commit above.
+
+For the additional diagnostic work, phase timing, actual crash/in-flight cancellation cases, and acceptance-case evidence mapping, follow [testing-diagnostics.md](testing-diagnostics.md) alongside this handoff.
