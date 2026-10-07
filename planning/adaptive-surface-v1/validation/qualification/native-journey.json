@@ -116,7 +116,7 @@
     ],
     "capability_id": {
       "redacted": true,
-      "sha256": "914d3481ac630b127e67dc98803b3901963f37b6f63a06046d510186623528e2"
+      "sha256": "7201729cefcf474f23d9fa6929ef6c38e9da31351ba7a74bc0f343492e0a99c1"
     },
     "capability_incarnation": 1,
     "context": {
@@ -207,7 +207,7 @@
       "unread_delta": {}
     },
     "context_version": 1,
-    "dispatch_id": "6532d4a8-26c5-44a6-ba14-ffd463f98170",
+    "dispatch_id": "397568a3-7d7e-4f38-a2fd-eb00be8880fd",
     "lane_id": "compat-v2-main",
     "project_revision": 3,
     "protocol_version": 2,
@@ -218,7 +218,7 @@
     "task_id": "A",
     "workflow_handle": {
       "redacted": true,
-      "sha256": "c6d3e8fe743b4478f87b37d72086547c3467d1acbe2f7bd636d096eabda4fa9b"
+      "sha256": "ede24841dee0b09448663e47f5f61059f67374d9393463616d9a539ae1f89338"
     }
   },
   "diff": {
@@ -226,8 +226,8 @@
       "context_fragments": {},
       "interfaces": {},
       "lane_ids": [],
-      "observed_at": "2026-10-07T07:55:04Z",
-      "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
+      "observed_at": "2026-10-07T08:30:20Z",
+      "project_uuid": "3e667e86-a5de-4e26-862c-5a8b32551859",
       "provider_skew": {
         "todo_export": 0,
         "todo_semantic_state": 0,
@@ -235,24 +235,24 @@
         "todo_workflow": 0
       },
       "repository_commits": {
-        "source": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3"
+        "source": "e409920533af0cd1e1f4b6ace12370b3a888ae29"
       },
       "run_id": null,
       "task_ids": [],
       "todo_revision": 1,
-      "todo_semantic_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
-      "workflow_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
+      "todo_semantic_authority_fingerprint": "d6bd4edb593658e2b9eccf6a9fd25ac479babd014f03445a4bbf6f9f49129dee",
+      "workflow_authority_fingerprint": "d6bd4edb593658e2b9eccf6a9fd25ac479babd014f03445a4bbf6f9f49129dee",
       "workflow_revision": 1,
       "workspace_id": "demo",
       "worktrees": {
-        "wt-6eaa8c34c15203ce": {
-          "head": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
+        "wt-6d2b0d69a27dc1a4": {
+          "head": "e409920533af0cd1e1f4b6ace12370b3a888ae29",
           "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         }
       }
     },
     "plan_digest": "c2d035a3a20bfa045e8a084ebae4eccd00602c05d5fe49364ce1c09138457f12",
-    "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
+    "project_uuid": "3e667e86-a5de-4e26-862c-5a8b32551859",
     "revision": 1,
     "status": "validated",
     "valid": true,
@@ -275,25 +275,25 @@
     "barrier_changes": [],
     "disposition": "implemented",
     "handoff": {
-      "authority_commit": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
+      "authority_commit": "e409920533af0cd1e1f4b6ace12370b3a888ae29",
       "changed_owned_paths": [],
       "checkpoints": [],
-      "completion_commit": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
+      "completion_commit": "e409920533af0cd1e1f4b6ace12370b3a888ae29",
       "completion_gates": [],
       "completion_revision": 5,
       "finalized_checkpoints": [],
       "gates": [],
       "git_diffstat": "",
-      "git_head": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
+      "git_head": "e409920533af0cd1e1f4b6ace12370b3a888ae29",
       "integration_commit": null,
       "interfaces": [],
       "note": "Exact fixture source inspected",
-      "producer_commit": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
-      "producer_root": "/tmp/tmplieglv1n/demo",
+      "producer_commit": "e409920533af0cd1e1f4b6ace12370b3a888ae29",
+      "producer_root": "/tmp/tmpugjjivth/demo",
       "resources": [],
       "task_id": "A"
     },
-    "handoff_id": "148a4c05-dd6b-45d9-b32e-85a1017e8448",
+    "handoff_id": "2c71929d-cd85-4aa0-97e6-cc9423995f0a",
     "lane": {
       "lane_id": "compat-v2-main",
       "lane_state": "closed",
@@ -316,7 +316,7 @@
     "rendezvous_arrivals": [],
     "role": "implementer",
     "run_id": "compat-v2",
-    "session_id": "710fdf9f-e57e-4f8d-8b91-2d7104ed3ee5",
+    "session_id": "0a272971-e096-436c-807a-8c0d01b49eea",
     "skipped_checkpoints": [],
     "status": "idle",
     "task_id": "A",
@@ -325,8 +325,8 @@
   "journey": "native-coder-mutator",
   "private_original": {
     "limit": "Disposable fixture bearer fields hashed in public evidence; original private bytes retained.",
-    "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/native-journey-fb100cf33a5ec8fcd504d334f3a6a97852e3dd898cbe6a896a5a78a1e99b2d3d.json",
-    "sha256": "fb100cf33a5ec8fcd504d334f3a6a97852e3dd898cbe6a896a5a78a1e99b2d3d"
+    "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/native-journey-3a42f811488783a26fd0abd951e090c0c42a483d7341de8681f290ebe83d6895.json",
+    "sha256": "3a42f811488783a26fd0abd951e090c0c42a483d7341de8681f290ebe83d6895"
   },
   "publication": {
     "id": "A:qualification-source",
@@ -423,10 +423,10 @@
     "/home/tumlinson/project-control/src/project_control/as1_context.py": "839be6aab5065b21d4d25ecf51a8b12d17e44ff81bee7f0c708137594fb2367d",
     "/home/tumlinson/project-control/src/project_control/as1_contracts.py": "58302734259d508cab4d6d421e6bcd5fd20065dd56fdda5eef0444aa03731189",
     "/home/tumlinson/project-control/src/project_control/as1_control.py": "0309c62463cd3cecfe8fb8dc4a8ca66a45b4a268486b30461f7b9816e138a755",
-    "/home/tumlinson/project-control/src/project_control/as1_jobs.py": "023f3d53b452f61d07fcc82abb7e6035b29ba989d3de0ddb7469cf663e7d24b5",
+    "/home/tumlinson/project-control/src/project_control/as1_jobs.py": "d3c746cada1438c762d36a394e562d2c0b7c523c45aae7ff5fa2476cfc11013c",
     "/home/tumlinson/project-control/src/project_control/as1_packets.py": "6b8bc850f55088b300cc8d93f38de29e39fd9557fe2fad17fa3bebf9409e6041",
     "/home/tumlinson/project-control/src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
-    "/home/tumlinson/project-control/src/project_control/as1_surface.py": "4ac8bbb30c10ed354bc5f83a2a7afcabf9572130ec9cc917db918130af73f76b",
+    "/home/tumlinson/project-control/src/project_control/as1_surface.py": "33beaea1d17038e17380c7ae9354e2edf227f18b700118b6566fabeb4fc716c2",
     "/home/tumlinson/project-control/src/project_control/as1_trace.py": "0f6f1a485f10f6db5fa45f885b3d053279b58ef162654fa960f517f31b8978bc"
   },
   "validated": {
@@ -434,8 +434,8 @@
       "context_fragments": {},
       "interfaces": {},
       "lane_ids": [],
-      "observed_at": "2026-10-07T07:55:04Z",
-      "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
+      "observed_at": "2026-10-07T08:30:20Z",
+      "project_uuid": "3e667e86-a5de-4e26-862c-5a8b32551859",
       "provider_skew": {
         "todo_export": 0,
         "todo_semantic_state": 0,
@@ -443,24 +443,24 @@
         "todo_workflow": 0
       },
       "repository_commits": {
-        "source": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3"
+        "source": "e409920533af0cd1e1f4b6ace12370b3a888ae29"
       },
       "run_id": null,
       "task_ids": [],
       "todo_revision": 1,
-      "todo_semantic_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
-      "workflow_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
+      "todo_semantic_authority_fingerprint": "d6bd4edb593658e2b9eccf6a9fd25ac479babd014f03445a4bbf6f9f49129dee",
+      "workflow_authority_fingerprint": "d6bd4edb593658e2b9eccf6a9fd25ac479babd014f03445a4bbf6f9f49129dee",
       "workflow_revision": 1,
       "workspace_id": "demo",
       "worktrees": {
-        "wt-6eaa8c34c15203ce": {
-          "head": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
+        "wt-6d2b0d69a27dc1a4": {
+          "head": "e409920533af0cd1e1f4b6ace12370b3a888ae29",
           "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         }
       }
     },
     "plan_digest": "c2d035a3a20bfa045e8a084ebae4eccd00602c05d5fe49364ce1c09138457f12",
-    "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
+    "project_uuid": "3e667e86-a5de-4e26-862c-5a8b32551859",
     "revision": 1,
     "status": "validated",
     "valid": true,

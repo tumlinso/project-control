@@ -4,7 +4,7 @@
       "arguments": {
         "project": "demo"
       },
-      "latency_seconds": 0.02186821600116673,
+      "latency_seconds": 0.023551650001536473,
       "request_bytes": 50,
       "response_bytes": 2171,
       "result": {
@@ -52,7 +52,7 @@
             }
           }
         },
-        "packet": "pkt_8f8d1fd8b0c049d78724527dbe72d5c8",
+        "packet": "pkt_5f2f2c62eb704cad8d8dbb5413deada1",
         "sources": [],
         "status": "partial"
       },
@@ -66,9 +66,9 @@
         ],
         "project": "demo",
         "repository": "source",
-        "revision": "f914a412ce428044b317e22a965ae002edda1fdf"
+        "revision": "46ef883267b46b37834f18e95cbbb76db15446b1"
       },
-      "latency_seconds": 0.035099087999697076,
+      "latency_seconds": 0.03433269699962693,
       "request_bytes": 156,
       "response_bytes": 3314,
       "result": {
@@ -89,7 +89,7 @@
               "line_end": 1,
               "line_start": 1,
               "path": "README.md",
-              "revision": "f914a412ce428044b317e22a965ae002edda1fdf",
+              "revision": "46ef883267b46b37834f18e95cbbb76db15446b1",
               "status": "ok"
             },
             {
@@ -99,14 +99,14 @@
               "line_end": 2,
               "line_start": 1,
               "path": "module.py",
-              "revision": "f914a412ce428044b317e22a965ae002edda1fdf",
+              "revision": "46ef883267b46b37834f18e95cbbb76db15446b1",
               "status": "ok"
             }
           ],
           "repository": "source",
-          "revision": "f914a412ce428044b317e22a965ae002edda1fdf"
+          "revision": "46ef883267b46b37834f18e95cbbb76db15446b1"
         },
-        "packet": "pkt_1f22385e0e4f485d81b690b2fd550ec9",
+        "packet": "pkt_0684bd50b1404ba8b265fbb7a07f291f",
         "sources": [
           {
             "content_sha256": "b9cc3bb450a61eb8eca66261b68e8c941a43ab912b2b49b26ff9a2d60b162098",
@@ -115,7 +115,7 @@
             "path": "README.md",
             "project": "demo",
             "repository": "source",
-            "revision": "f914a412ce428044b317e22a965ae002edda1fdf"
+            "revision": "46ef883267b46b37834f18e95cbbb76db15446b1"
           },
           {
             "content_sha256": "185786c0cf30b2c243293185ea01490213e12452b3eb402f0ffa3e3a39b23331",
@@ -124,7 +124,7 @@
             "path": "module.py",
             "project": "demo",
             "repository": "source",
-            "revision": "f914a412ce428044b317e22a965ae002edda1fdf"
+            "revision": "46ef883267b46b37834f18e95cbbb76db15446b1"
           }
         ],
         "status": "ok"
@@ -139,7 +139,7 @@
           "target": "T1"
         }
       },
-      "latency_seconds": 0.024318865000168444,
+      "latency_seconds": 0.021726818000388448,
       "request_bytes": 86,
       "response_bytes": 4174,
       "result": {
@@ -226,7 +226,7 @@
           "source": "reconciled_project_graph",
           "target": "T1"
         },
-        "packet": "pkt_d9228d680a514f2ba535b714178b867b",
+        "packet": "pkt_445eb70e0da641cb900bd4c985e2a9d0",
         "sources": [],
         "status": "ok"
       },
@@ -237,7 +237,7 @@
         "project": "demo",
         "subject": "T1"
       },
-      "latency_seconds": 0.03578105999986292,
+      "latency_seconds": 0.0393248529999255,
       "request_bytes": 65,
       "response_bytes": 2736,
       "result": {
@@ -299,7 +299,7 @@
             "T1"
           ]
         },
-        "packet": "pkt_8d619514f34b41d38bef03ffc89b8e3d",
+        "packet": "pkt_0e391c9e16424737ad3b79668a904611",
         "sources": [],
         "status": "ok"
       },
@@ -327,7 +327,7 @@
     "authority_revalidation_calls": 0,
     "calls": 4,
     "human_prompts": 0,
-    "latency_seconds": 0.11706722900089517,
+    "latency_seconds": 0.11893601800147735,
     "model_starts": 0,
     "model_tokens": null,
     "model_usage_status": "unmetered_no_inference",
@@ -336,7 +336,7 @@
     "repeated_full_reads": 0,
     "retries": 0,
     "schema_bytes": 11711,
-    "startup_seconds": 0.4170927649993246,
+    "startup_seconds": 0.3479989499992371,
     "tool_request_bytes": 357,
     "tool_response_bytes": 12395,
     "total_client_visible_bytes": 25160
@@ -353,7 +353,7 @@
     "provider_warnings": {},
     "repositories": {
       "source": {
-        "commit": "f914a412ce428044b317e22a965ae002edda1fdf",
+        "commit": "46ef883267b46b37834f18e95cbbb76db15446b1",
         "current_worktree_id": null,
         "dirty": false,
         "git_common_id": null,

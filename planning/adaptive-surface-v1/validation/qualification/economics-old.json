@@ -5,18 +5,18 @@
         "detail": "compact",
         "project": "demo"
       },
-      "latency_seconds": 0.015253040000970941,
+      "latency_seconds": 0.014527543000440346,
       "request_bytes": 77,
       "response_bytes": 3073,
       "result": {
         "cursor": {
           "active_run_id": null,
           "commits": {
-            "source": "f914a412ce428044b317e22a965ae002edda1fdf"
+            "source": "46ef883267b46b37834f18e95cbbb76db15446b1"
           },
           "context_fragments": {},
           "fingerprints": {},
-          "identity_digest": "f913bff4026591a7d480f535df806e14b4faff8dc1c5e6207cfbc346ba9986ea",
+          "identity_digest": "004383d79680539c655aea31509d83b2d4098a9cdfd089baea90e6fb0c59d1b6",
           "observed_at": "2026-10-04T00:00:00Z",
           "todo_revision": 10,
           "todo_semantic_fingerprint": null,
@@ -49,7 +49,7 @@
           "observed_at": "2026-10-04T00:00:00Z",
           "repositories": {
             "source": {
-              "commit": "f914a412ce428044b317e22a965ae002edda1fdf",
+              "commit": "46ef883267b46b37834f18e95cbbb76db15446b1",
               "current_worktree_id": null,
               "dirty": false,
               "git_common_id": null,
@@ -75,7 +75,7 @@
         "detail": "compact",
         "project": "demo",
         "repository": "source",
-        "source_selector": "f914a412ce428044b317e22a965ae002edda1fdf",
+        "source_selector": "46ef883267b46b37834f18e95cbbb76db15446b1",
         "targets": [
           {
             "kind": "path",
@@ -87,18 +87,18 @@
           }
         ]
       },
-      "latency_seconds": 0.03139472800103249,
+      "latency_seconds": 0.02867947000049753,
       "request_bytes": 242,
       "response_bytes": 3698,
       "result": {
         "cursor": {
           "active_run_id": null,
           "commits": {
-            "source": "f914a412ce428044b317e22a965ae002edda1fdf"
+            "source": "46ef883267b46b37834f18e95cbbb76db15446b1"
           },
           "context_fragments": {},
           "fingerprints": {},
-          "identity_digest": "f913bff4026591a7d480f535df806e14b4faff8dc1c5e6207cfbc346ba9986ea",
+          "identity_digest": "004383d79680539c655aea31509d83b2d4098a9cdfd089baea90e6fb0c59d1b6",
           "observed_at": "2026-10-04T00:00:00Z",
           "todo_revision": 10,
           "todo_semantic_fingerprint": null,
@@ -117,9 +117,9 @@
             "considered": 0,
             "returned": 0
           },
-          "source_commit": "f914a412ce428044b317e22a965ae002edda1fdf",
+          "source_commit": "46ef883267b46b37834f18e95cbbb76db15446b1",
           "source_freshness": "immutable_commit",
-          "source_selector": "f914a412ce428044b317e22a965ae002edda1fdf",
+          "source_selector": "46ef883267b46b37834f18e95cbbb76db15446b1",
           "targets": [
             {
               "excerpt": "Fixture purpose: bounded calculations.",
@@ -142,7 +142,7 @@
           "worktree": {
             "branch": "main",
             "dirty": false,
-            "id": "wt-08fdd3e885bca141"
+            "id": "wt-9dd0f9f9c05111c0"
           }
         },
         "project": {
@@ -151,7 +151,7 @@
           "observed_at": "2026-10-04T00:00:00Z",
           "repositories": {
             "source": {
-              "commit": "f914a412ce428044b317e22a965ae002edda1fdf",
+              "commit": "46ef883267b46b37834f18e95cbbb76db15446b1",
               "current_worktree_id": null,
               "dirty": false,
               "git_common_id": null,
@@ -174,18 +174,18 @@
         "project": "demo",
         "target": "T1"
       },
-      "latency_seconds": 0.007452392999766744,
+      "latency_seconds": 0.0077835039992351085,
       "request_bytes": 77,
       "response_bytes": 5387,
       "result": {
         "cursor": {
           "active_run_id": null,
           "commits": {
-            "source": "f914a412ce428044b317e22a965ae002edda1fdf"
+            "source": "46ef883267b46b37834f18e95cbbb76db15446b1"
           },
           "context_fragments": {},
           "fingerprints": {},
-          "identity_digest": "f913bff4026591a7d480f535df806e14b4faff8dc1c5e6207cfbc346ba9986ea",
+          "identity_digest": "004383d79680539c655aea31509d83b2d4098a9cdfd089baea90e6fb0c59d1b6",
           "observed_at": "2026-10-04T00:00:00Z",
           "todo_revision": 10,
           "todo_semantic_fingerprint": null,
@@ -273,7 +273,7 @@
           "observed_at": "2026-10-04T00:00:00Z",
           "repositories": {
             "source": {
-              "commit": "f914a412ce428044b317e22a965ae002edda1fdf",
+              "commit": "46ef883267b46b37834f18e95cbbb76db15446b1",
               "current_worktree_id": null,
               "dirty": false,
               "git_common_id": null,
@@ -295,18 +295,18 @@
         "project": "demo",
         "subject": "T1"
       },
-      "latency_seconds": 0.018379278999418602,
+      "latency_seconds": 0.018626334000146016,
       "request_bytes": 65,
       "response_bytes": 2662,
       "result": {
         "cursor": {
           "active_run_id": null,
           "commits": {
-            "source": "f914a412ce428044b317e22a965ae002edda1fdf"
+            "source": "46ef883267b46b37834f18e95cbbb76db15446b1"
           },
           "context_fragments": {},
           "fingerprints": {},
-          "identity_digest": "f913bff4026591a7d480f535df806e14b4faff8dc1c5e6207cfbc346ba9986ea",
+          "identity_digest": "004383d79680539c655aea31509d83b2d4098a9cdfd089baea90e6fb0c59d1b6",
           "observed_at": "2026-10-04T00:00:00Z",
           "todo_revision": 10,
           "todo_semantic_fingerprint": null,
@@ -341,7 +341,7 @@
           "observed_at": "2026-10-04T00:00:00Z",
           "repositories": {
             "source": {
-              "commit": "f914a412ce428044b317e22a965ae002edda1fdf",
+              "commit": "46ef883267b46b37834f18e95cbbb76db15446b1",
               "current_worktree_id": null,
               "dirty": false,
               "git_common_id": null,
@@ -380,7 +380,7 @@
     "authority_revalidation_calls": 0,
     "calls": 4,
     "human_prompts": 0,
-    "latency_seconds": 0.07247944000118878,
+    "latency_seconds": 0.069616851000319,
     "model_starts": 0,
     "model_tokens": null,
     "model_usage_status": "unmetered_no_inference",
@@ -389,7 +389,7 @@
     "repeated_full_reads": 0,
     "retries": 0,
     "schema_bytes": 27482,
-    "startup_seconds": 0.22351646899915067,
+    "startup_seconds": 0.14776541799983534,
     "tool_request_bytes": 461,
     "tool_response_bytes": 14820,
     "total_client_visible_bytes": 44280
@@ -406,7 +406,7 @@
     "provider_warnings": {},
     "repositories": {
       "source": {
-        "commit": "f914a412ce428044b317e22a965ae002edda1fdf",
+        "commit": "46ef883267b46b37834f18e95cbbb76db15446b1",
         "current_worktree_id": null,
         "dirty": false,
         "git_common_id": null,

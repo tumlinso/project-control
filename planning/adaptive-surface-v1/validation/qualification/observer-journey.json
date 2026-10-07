@@ -4,7 +4,7 @@
       "complete": true,
       "context_project_uuid": null,
       "context_revision": null,
-      "observed_at": "2026-10-07T07:54:55Z",
+      "observed_at": "2026-10-07T08:30:12Z",
       "omissions": [],
       "semantic_revision": null
     },
@@ -30,7 +30,7 @@
         }
       ]
     },
-    "packet": "pkt_7a36507051a64ec692fcb92d8459e159",
+    "packet": "pkt_0f1fe19abda344c1ba3f644c53209f55",
     "sources": [],
     "status": "ok"
   },
@@ -39,7 +39,7 @@
       "complete": false,
       "context_project_uuid": null,
       "context_revision": null,
-      "observed_at": "2026-10-07T07:55:00Z",
+      "observed_at": "2026-10-07T08:30:16Z",
       "omissions": [
         {
           "reason": "dependency_coverage_partial"
@@ -83,14 +83,14 @@
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": true,
@@ -107,7 +107,7 @@
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "todo/1",
             "relations": [
               "contains",
@@ -116,7 +116,7 @@
               "root_task",
               "scope:exclusive"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": false,
@@ -150,14 +150,14 @@
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": true,
@@ -174,10 +174,10 @@
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "todo/1",
             "relations": [],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": false,
@@ -207,14 +207,14 @@
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           {
             "complete": true,
@@ -231,16 +231,16 @@
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "todo/1",
             "relations": [],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+            "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
             "input_manifest": [
               {
                 "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -248,24 +248,24 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                 "key": "api",
                 "kind": "registry"
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "semantic-registration/1",
             "relations": [
               "generated_from"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+            "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
             "input_manifest": [
               {
                 "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -273,24 +273,24 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                 "key": "consumer",
                 "kind": "registry"
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "semantic-registration/1",
             "relations": [
               "depends_on"
             ],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "1737232dd7dbb3d33eab96ced4cac95c16c06ec939444c2bc6036b3df03378da",
+            "generation": "ea1aca62a51c339f4cffd8a5e11539b3b422b1f576f1941ade3884068e821140",
             "input_manifest": [
               {
                 "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -298,43 +298,43 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "386f0985d6c60ec12a83223e24ce60d1cd77b10853173a878cb3ee424262f3a1",
+                "digest": "72462be32f16872c38ab40560ecb357a64bf8eca1b3840dbf4e18eed31a18033",
                 "key": "declaration",
                 "kind": "registry"
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "semantic-registration/1",
             "relations": [
               "depends_on"
             ],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           }
         ],
         "repositories": [
           {
-            "commit": "cf4860979a1e316aa88ed2a724d42093c6b04537",
-            "observed_at": "2026-10-07T07:55:00Z",
+            "commit": "99a361961bb1674717b1e5c28ae6d98f8e7b7485",
+            "observed_at": "2026-10-07T08:30:16Z",
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-            "repository": "source@9afc97eca1c1e92875e3a85d",
-            "working_tree_fingerprint": "d87cd6d57b8966f8e0e4527f0655f7ad815e854a9fc9059c9d3336816846a2ff"
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+            "repository": "source@ac8d9cccbb63f38264846f4d",
+            "working_tree_fingerprint": "2474d97886d09a4d125b6241ee4d2d5b6abd188c752bc55a38f249d1130d22e5"
           },
           {
-            "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
-            "observed_at": "2026-10-07T07:55:00Z",
+            "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
+            "observed_at": "2026-10-07T08:30:16Z",
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc",
-            "working_tree_fingerprint": "e71864b77444a98a6a32037737f8811f21b04520238c40dd25d3d8cff0fd3025"
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292",
+            "working_tree_fingerprint": "09c2e587fecd0ae51bbd654eb139c9279391f56e099145f84100151353be7f51"
           },
           {
-            "commit": "1bd6fd56ecb5e12dcdf87e6bc752c964c8461fee",
-            "observed_at": "2026-10-07T07:55:00Z",
+            "commit": "4992f585209017b3b4b1c4dbbc3e85c460661163",
+            "observed_at": "2026-10-07T08:30:16Z",
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a",
             "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           }
         ]
@@ -348,8 +348,8 @@
             "id": "new.py",
             "kind": "file",
             "path": "new.py",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292"
           },
           "witness_chain": [
             {
@@ -395,22 +395,74 @@
                 "id": "new.py",
                 "kind": "file",
                 "path": "new.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "witness": {
-                "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+                "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
                 "content_sha256": "124960bdef54939520b63bd43195f2788e704c796623f031ec068ad5d70f911a",
                 "end_line": 1,
                 "path": "new.py",
                 "start_line": 1
+              }
+            }
+          ]
+        },
+        {
+          "attention_basis": "observed_or_declared_dependency",
+          "fanout": 0,
+          "node": {
+            "id": "contract.md",
+            "kind": "file",
+            "path": "contract.md",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
+          },
+          "witness_chain": [
+            {
+              "format": "pc-impact-edge/1",
+              "generation": "ea1aca62a51c339f4cffd8a5e11539b3b422b1f576f1941ade3884068e821140",
+              "input_manifest": [
+                {
+                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+                  "key": "declaration",
+                  "kind": "semantic_revision"
+                },
+                {
+                  "digest": "72462be32f16872c38ab40560ecb357a64bf8eca1b3840dbf4e18eed31a18033",
+                  "key": "declaration",
+                  "kind": "registry"
+                }
+              ],
+              "origin": "project_declared",
+              "provider": "semantic-registration/1",
+              "relation": "depends_on",
+              "resolution": "resolved",
+              "source": {
+                "id": "contract.md",
+                "kind": "file",
+                "path": "contract.md",
+                "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+                "repository": "source@6d77777e94bdaca1d875e92a"
+              },
+              "target": {
+                "id": "consumer.py",
+                "kind": "file",
+                "path": "consumer.py",
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
+              },
+              "witness": {
+                "declaration": "markdown-python",
+                "registration_version": 1,
+                "target_version": null
               }
             }
           ]
@@ -422,8 +474,8 @@
             "id": "later.py",
             "kind": "file",
             "path": "later.py",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292"
           },
           "witness_chain": [
             {
@@ -469,18 +521,18 @@
                 "id": "later.py",
                 "kind": "file",
                 "path": "later.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "witness": {
-                "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+                "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
                 "content_sha256": "124960bdef54939520b63bd43195f2788e704c796623f031ec068ad5d70f911a",
                 "end_line": 1,
                 "path": "later.py",
@@ -488,61 +540,9 @@
               }
             }
           ]
-        },
-        {
-          "attention_basis": "observed_or_declared_dependency",
-          "fanout": 0,
-          "node": {
-            "id": "contract.md",
-            "kind": "file",
-            "path": "contract.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
-          },
-          "witness_chain": [
-            {
-              "format": "pc-impact-edge/1",
-              "generation": "1737232dd7dbb3d33eab96ced4cac95c16c06ec939444c2bc6036b3df03378da",
-              "input_manifest": [
-                {
-                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
-                  "key": "declaration",
-                  "kind": "semantic_revision"
-                },
-                {
-                  "digest": "386f0985d6c60ec12a83223e24ce60d1cd77b10853173a878cb3ee424262f3a1",
-                  "key": "declaration",
-                  "kind": "registry"
-                }
-              ],
-              "origin": "project_declared",
-              "provider": "semantic-registration/1",
-              "relation": "depends_on",
-              "resolution": "resolved",
-              "source": {
-                "id": "contract.md",
-                "kind": "file",
-                "path": "contract.md",
-                "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-                "repository": "source@b09952bb159edd673c2bfeba"
-              },
-              "target": {
-                "id": "consumer.py",
-                "kind": "file",
-                "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
-              },
-              "witness": {
-                "declaration": "markdown-python",
-                "registration_version": 1,
-                "target_version": null
-              }
-            }
-          ]
         }
       ],
-      "generation": "a27dbb7c062fe727447ba143994213883d42d3300ff238a806789eb38cc96be3",
+      "generation": "37befc3a647001731804ae52262ea7ecff0a9ef7b67cee7d9f7462816dabed2c",
       "nonpropagating_relations": [
         {
           "format": "pc-impact-edge/1",
@@ -582,15 +582,15 @@
             "id": "README.md",
             "kind": "file",
             "path": "README.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "target": {
             "id": "contract.md",
             "kind": "file",
             "path": "contract.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "witness": {
             "content_sha256": "643d694a19a7ff781713602863bc2555e6a3bc96cb165d1d32cac8f14db47a5b",
@@ -607,8 +607,8 @@
           "id": "consumer.py",
           "kind": "file",
           "path": "consumer.py",
-          "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-          "repository": "source@32147f3755be41ca2a128cdc"
+          "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+          "repository": "source@a200fc03e00b56837e713292"
         }
       ],
       "status": "partial",
@@ -623,7 +623,7 @@
         "dependency_coverage_partial"
       ]
     },
-    "packet": "pkt_63fe5bddf59343e99bee2687b995222d",
+    "packet": "pkt_ed9c6dad3de34ee798857d1974a6b5af",
     "sources": [],
     "status": "partial"
   },
@@ -632,7 +632,7 @@
       "complete": false,
       "context_project_uuid": null,
       "context_revision": null,
-      "observed_at": "2026-10-07T07:54:56Z",
+      "observed_at": "2026-10-07T08:30:12Z",
       "omissions": [
         {
           "reason": "local_worker_state_unavailable"
@@ -674,7 +674,7 @@
         "T1"
       ]
     },
-    "packet": "pkt_4adcbb7a89474615a02e5fca8c1405a5",
+    "packet": "pkt_061d253ebc0544b0831400c139af3a4e",
     "sources": [],
     "status": "partial"
   },
@@ -683,7 +683,7 @@
       "complete": true,
       "context_project_uuid": null,
       "context_revision": null,
-      "observed_at": "2026-10-07T07:54:56Z",
+      "observed_at": "2026-10-07T08:30:12Z",
       "omissions": [],
       "semantic_revision": 4
     },
@@ -700,7 +700,7 @@
           "attention_eligible": false,
           "attention_reason": null,
           "authoritative_ready": true,
-          "created_at": "2026-10-07T07:54:55Z",
+          "created_at": "2026-10-07T08:30:11Z",
           "current_program_eligible": true,
           "current_relevance": "current",
           "dependencies": [],
@@ -734,7 +734,7 @@
           "tags": [],
           "terminal": false,
           "title": "T1",
-          "updated_at": "2026-10-07T07:54:55Z"
+          "updated_at": "2026-10-07T08:30:11Z"
         }
       ],
       "related": [
@@ -850,7 +850,7 @@
             "attention_eligible": false,
             "attention_reason": null,
             "authoritative_ready": true,
-            "created_at": "2026-10-07T07:54:55Z",
+            "created_at": "2026-10-07T08:30:11Z",
             "current_program_eligible": true,
             "current_relevance": "current",
             "dependencies": [],
@@ -884,7 +884,7 @@
             "tags": [],
             "terminal": false,
             "title": "T1",
-            "updated_at": "2026-10-07T07:54:55Z"
+            "updated_at": "2026-10-07T08:30:11Z"
           },
           "relevance": "current",
           "title": "T1",
@@ -896,7 +896,7 @@
       "source": "reconciled_project_graph",
       "target": "T1"
     },
-    "packet": "pkt_602616f072e34251bbc125a42240efa5",
+    "packet": "pkt_d8757fce6fa34d24a55118f95f59cd1a",
     "sources": [],
     "status": "ok"
   },
@@ -906,7 +906,7 @@
       "complete": false,
       "context_project_uuid": null,
       "context_revision": null,
-      "observed_at": "2026-10-07T07:54:58Z",
+      "observed_at": "2026-10-07T08:30:14Z",
       "omissions": [
         {
           "reason": "dependency_coverage_partial"
@@ -950,14 +950,14 @@
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": true,
@@ -974,7 +974,7 @@
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "todo/1",
             "relations": [
               "contains",
@@ -983,7 +983,7 @@
               "root_task",
               "scope:exclusive"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": false,
@@ -1017,14 +1017,14 @@
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": true,
@@ -1041,10 +1041,10 @@
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "todo/1",
             "relations": [],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": false,
@@ -1074,14 +1074,14 @@
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           {
             "complete": true,
@@ -1098,16 +1098,16 @@
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "todo/1",
             "relations": [],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+            "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
             "input_manifest": [
               {
                 "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -1115,24 +1115,24 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                 "key": "api",
                 "kind": "registry"
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "semantic-registration/1",
             "relations": [
               "generated_from"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+            "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
             "input_manifest": [
               {
                 "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -1140,24 +1140,24 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                 "key": "consumer",
                 "kind": "registry"
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "semantic-registration/1",
             "relations": [
               "depends_on"
             ],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "1737232dd7dbb3d33eab96ced4cac95c16c06ec939444c2bc6036b3df03378da",
+            "generation": "ea1aca62a51c339f4cffd8a5e11539b3b422b1f576f1941ade3884068e821140",
             "input_manifest": [
               {
                 "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -1165,43 +1165,43 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "386f0985d6c60ec12a83223e24ce60d1cd77b10853173a878cb3ee424262f3a1",
+                "digest": "72462be32f16872c38ab40560ecb357a64bf8eca1b3840dbf4e18eed31a18033",
                 "key": "declaration",
                 "kind": "registry"
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "semantic-registration/1",
             "relations": [
               "depends_on"
             ],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           }
         ],
         "repositories": [
           {
-            "commit": "cf4860979a1e316aa88ed2a724d42093c6b04537",
-            "observed_at": "2026-10-07T07:54:58Z",
+            "commit": "99a361961bb1674717b1e5c28ae6d98f8e7b7485",
+            "observed_at": "2026-10-07T08:30:14Z",
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-            "repository": "source@9afc97eca1c1e92875e3a85d",
-            "working_tree_fingerprint": "d87cd6d57b8966f8e0e4527f0655f7ad815e854a9fc9059c9d3336816846a2ff"
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+            "repository": "source@ac8d9cccbb63f38264846f4d",
+            "working_tree_fingerprint": "2474d97886d09a4d125b6241ee4d2d5b6abd188c752bc55a38f249d1130d22e5"
           },
           {
-            "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
-            "observed_at": "2026-10-07T07:54:58Z",
+            "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
+            "observed_at": "2026-10-07T08:30:14Z",
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc",
-            "working_tree_fingerprint": "6829d2321a02d8827f1c2e51a924b75759a2376dbbaff4b294ebb8ee89c4fa63"
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292",
+            "working_tree_fingerprint": "263ebbc72d2c2107a05ef620939e5a234eb233421fe2e0c11f385aca713d69c4"
           },
           {
-            "commit": "1bd6fd56ecb5e12dcdf87e6bc752c964c8461fee",
-            "observed_at": "2026-10-07T07:54:58Z",
+            "commit": "4992f585209017b3b4b1c4dbbc3e85c460661163",
+            "observed_at": "2026-10-07T08:30:15Z",
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a",
             "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           }
         ]
@@ -1215,13 +1215,13 @@
             "id": "generated.hpp",
             "kind": "file",
             "path": "generated.hpp",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           "witness_chain": [
             {
               "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
               "input_manifest": [
                 {
                   "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -1229,7 +1229,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                   "key": "api",
                   "kind": "registry"
                 },
@@ -1247,15 +1247,15 @@
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "target": {
                 "id": "base.py",
                 "kind": "file",
                 "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "generator",
@@ -1274,13 +1274,13 @@
             "id": "consumer.py",
             "kind": "file",
             "path": "consumer.py",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292"
           },
           "witness_chain": [
             {
               "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
               "input_manifest": [
                 {
                   "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -1288,7 +1288,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                   "key": "api",
                   "kind": "registry"
                 },
@@ -1306,15 +1306,15 @@
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "target": {
                 "id": "base.py",
                 "kind": "file",
                 "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "generator",
@@ -1326,7 +1326,7 @@
             },
             {
               "format": "pc-impact-edge/1",
-              "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+              "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
               "input_manifest": [
                 {
                   "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -1334,7 +1334,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                  "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                   "key": "consumer",
                   "kind": "registry"
                 }
@@ -1347,15 +1347,15 @@
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "python-generated",
@@ -1372,13 +1372,13 @@
             "id": "new.py",
             "kind": "file",
             "path": "new.py",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292"
           },
           "witness_chain": [
             {
               "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
               "input_manifest": [
                 {
                   "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -1386,7 +1386,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                   "key": "api",
                   "kind": "registry"
                 },
@@ -1404,15 +1404,15 @@
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "target": {
                 "id": "base.py",
                 "kind": "file",
                 "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "generator",
@@ -1424,7 +1424,7 @@
             },
             {
               "format": "pc-impact-edge/1",
-              "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+              "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
               "input_manifest": [
                 {
                   "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -1432,7 +1432,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                  "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                   "key": "consumer",
                   "kind": "registry"
                 }
@@ -1445,15 +1445,15 @@
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "python-generated",
@@ -1504,18 +1504,18 @@
                 "id": "new.py",
                 "kind": "file",
                 "path": "new.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "witness": {
-                "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+                "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
                 "content_sha256": "124960bdef54939520b63bd43195f2788e704c796623f031ec068ad5d70f911a",
                 "end_line": 1,
                 "path": "new.py",
@@ -1528,16 +1528,16 @@
           "attention_basis": "observed_or_declared_dependency",
           "fanout": 0,
           "node": {
-            "id": "later.py",
+            "id": "contract.md",
             "kind": "file",
-            "path": "later.py",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "path": "contract.md",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "witness_chain": [
             {
               "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
               "input_manifest": [
                 {
                   "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -1545,7 +1545,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                   "key": "api",
                   "kind": "registry"
                 },
@@ -1563,15 +1563,15 @@
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "target": {
                 "id": "base.py",
                 "kind": "file",
                 "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "generator",
@@ -1583,7 +1583,7 @@
             },
             {
               "format": "pc-impact-edge/1",
-              "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+              "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
               "input_manifest": [
                 {
                   "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -1591,7 +1591,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                  "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                   "key": "consumer",
                   "kind": "registry"
                 }
@@ -1604,15 +1604,152 @@
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
+              },
+              "witness": {
+                "declaration": "python-generated",
+                "registration_version": 1,
+                "target_version": null
+              }
+            },
+            {
+              "format": "pc-impact-edge/1",
+              "generation": "ea1aca62a51c339f4cffd8a5e11539b3b422b1f576f1941ade3884068e821140",
+              "input_manifest": [
+                {
+                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+                  "key": "declaration",
+                  "kind": "semantic_revision"
+                },
+                {
+                  "digest": "72462be32f16872c38ab40560ecb357a64bf8eca1b3840dbf4e18eed31a18033",
+                  "key": "declaration",
+                  "kind": "registry"
+                }
+              ],
+              "origin": "project_declared",
+              "provider": "semantic-registration/1",
+              "relation": "depends_on",
+              "resolution": "resolved",
+              "source": {
+                "id": "contract.md",
+                "kind": "file",
+                "path": "contract.md",
+                "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+                "repository": "source@6d77777e94bdaca1d875e92a"
+              },
+              "target": {
+                "id": "consumer.py",
+                "kind": "file",
+                "path": "consumer.py",
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
+              },
+              "witness": {
+                "declaration": "markdown-python",
+                "registration_version": 1,
+                "target_version": null
+              }
+            }
+          ]
+        },
+        {
+          "attention_basis": "observed_or_declared_dependency",
+          "fanout": 0,
+          "node": {
+            "id": "later.py",
+            "kind": "file",
+            "path": "later.py",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292"
+          },
+          "witness_chain": [
+            {
+              "format": "pc-impact-edge/1",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
+              "input_manifest": [
+                {
+                  "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+                  "key": "api",
+                  "kind": "semantic_revision"
+                },
+                {
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
+                  "key": "api",
+                  "kind": "registry"
+                },
+                {
+                  "digest": "ddced955472eca8cf0eea19edf798c43514e97feae458369b17732a4a6453e4b",
+                  "key": "base.py",
+                  "kind": "file"
+                }
+              ],
+              "origin": "project_declared",
+              "provider": "semantic-registration/1",
+              "relation": "generated_from",
+              "resolution": "resolved",
+              "source": {
+                "id": "generated.hpp",
+                "kind": "file",
+                "path": "generated.hpp",
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
+              },
+              "target": {
+                "id": "base.py",
+                "kind": "file",
+                "path": "base.py",
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
+              },
+              "witness": {
+                "declaration": "generator",
+                "generator": {
+                  "tool": "qualification-generator",
+                  "version": "1"
+                }
+              }
+            },
+            {
+              "format": "pc-impact-edge/1",
+              "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
+              "input_manifest": [
+                {
+                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+                  "key": "consumer",
+                  "kind": "semantic_revision"
+                },
+                {
+                  "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
+                  "key": "consumer",
+                  "kind": "registry"
+                }
+              ],
+              "origin": "project_declared",
+              "provider": "semantic-registration/1",
+              "relation": "depends_on",
+              "resolution": "resolved",
+              "source": {
+                "id": "consumer.py",
+                "kind": "file",
+                "path": "consumer.py",
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
+              },
+              "target": {
+                "id": "generated.hpp",
+                "kind": "file",
+                "path": "generated.hpp",
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "python-generated",
@@ -1663,18 +1800,18 @@
                 "id": "later.py",
                 "kind": "file",
                 "path": "later.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "witness": {
-                "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+                "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
                 "content_sha256": "124960bdef54939520b63bd43195f2788e704c796623f031ec068ad5d70f911a",
                 "end_line": 1,
                 "path": "later.py",
@@ -1682,146 +1819,9 @@
               }
             }
           ]
-        },
-        {
-          "attention_basis": "observed_or_declared_dependency",
-          "fanout": 0,
-          "node": {
-            "id": "contract.md",
-            "kind": "file",
-            "path": "contract.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
-          },
-          "witness_chain": [
-            {
-              "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
-              "input_manifest": [
-                {
-                  "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
-                  "key": "api",
-                  "kind": "semantic_revision"
-                },
-                {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
-                  "key": "api",
-                  "kind": "registry"
-                },
-                {
-                  "digest": "ddced955472eca8cf0eea19edf798c43514e97feae458369b17732a4a6453e4b",
-                  "key": "base.py",
-                  "kind": "file"
-                }
-              ],
-              "origin": "project_declared",
-              "provider": "semantic-registration/1",
-              "relation": "generated_from",
-              "resolution": "resolved",
-              "source": {
-                "id": "generated.hpp",
-                "kind": "file",
-                "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
-              },
-              "target": {
-                "id": "base.py",
-                "kind": "file",
-                "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
-              },
-              "witness": {
-                "declaration": "generator",
-                "generator": {
-                  "tool": "qualification-generator",
-                  "version": "1"
-                }
-              }
-            },
-            {
-              "format": "pc-impact-edge/1",
-              "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
-              "input_manifest": [
-                {
-                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
-                  "key": "consumer",
-                  "kind": "semantic_revision"
-                },
-                {
-                  "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
-                  "key": "consumer",
-                  "kind": "registry"
-                }
-              ],
-              "origin": "project_declared",
-              "provider": "semantic-registration/1",
-              "relation": "depends_on",
-              "resolution": "resolved",
-              "source": {
-                "id": "consumer.py",
-                "kind": "file",
-                "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
-              },
-              "target": {
-                "id": "generated.hpp",
-                "kind": "file",
-                "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
-              },
-              "witness": {
-                "declaration": "python-generated",
-                "registration_version": 1,
-                "target_version": null
-              }
-            },
-            {
-              "format": "pc-impact-edge/1",
-              "generation": "1737232dd7dbb3d33eab96ced4cac95c16c06ec939444c2bc6036b3df03378da",
-              "input_manifest": [
-                {
-                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
-                  "key": "declaration",
-                  "kind": "semantic_revision"
-                },
-                {
-                  "digest": "386f0985d6c60ec12a83223e24ce60d1cd77b10853173a878cb3ee424262f3a1",
-                  "key": "declaration",
-                  "kind": "registry"
-                }
-              ],
-              "origin": "project_declared",
-              "provider": "semantic-registration/1",
-              "relation": "depends_on",
-              "resolution": "resolved",
-              "source": {
-                "id": "contract.md",
-                "kind": "file",
-                "path": "contract.md",
-                "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-                "repository": "source@b09952bb159edd673c2bfeba"
-              },
-              "target": {
-                "id": "consumer.py",
-                "kind": "file",
-                "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
-              },
-              "witness": {
-                "declaration": "markdown-python",
-                "registration_version": 1,
-                "target_version": null
-              }
-            }
-          ]
         }
       ],
-      "generation": "9d31272a34294302d508c64b066a56164f13955b2821969c0a283a854fab0466",
+      "generation": "2e34acc7b580002aad11fb3200f14e829f41a4e4963082634ae1b816fa64f619",
       "nonpropagating_relations": [
         {
           "format": "pc-impact-edge/1",
@@ -1861,15 +1861,15 @@
             "id": "README.md",
             "kind": "file",
             "path": "README.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "target": {
             "id": "contract.md",
             "kind": "file",
             "path": "contract.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "witness": {
             "content_sha256": "643d694a19a7ff781713602863bc2555e6a3bc96cb165d1d32cac8f14db47a5b",
@@ -1886,8 +1886,8 @@
           "id": "base.py",
           "kind": "file",
           "path": "base.py",
-          "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-          "repository": "source@9afc97eca1c1e92875e3a85d"
+          "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+          "repository": "source@ac8d9cccbb63f38264846f4d"
         }
       ],
       "status": "partial",
@@ -1937,17 +1937,17 @@
               "id": "consumer.py",
               "kind": "file",
               "path": "consumer.py",
-              "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-              "repository": "source@32147f3755be41ca2a128cdc"
+              "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+              "repository": "source@a200fc03e00b56837e713292"
             },
             "target": {
               "id": "base",
               "kind": "module",
-              "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-              "repository": "source@32147f3755be41ca2a128cdc"
+              "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+              "repository": "source@a200fc03e00b56837e713292"
             },
             "witness": {
-              "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+              "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
               "content_sha256": "3e237e5c07f9119804153eb3b0244a089ce218a02698c14bed00fabd89840888",
               "end_line": 1,
               "path": "consumer.py",
@@ -1961,7 +1961,7 @@
         "dependency_coverage_partial"
       ]
     },
-    "packet": "pkt_01f841bc45114e73ae4de7d319188c8b",
+    "packet": "pkt_1f15119bdcd740d8a65404bd272fdadb",
     "sources": [],
     "status": "partial"
   },
@@ -1970,7 +1970,7 @@
       "complete": true,
       "context_project_uuid": null,
       "context_revision": null,
-      "observed_at": "2026-10-07T07:54:56Z",
+      "observed_at": "2026-10-07T08:30:12Z",
       "omissions": [],
       "semantic_revision": 4
     },
@@ -2015,7 +2015,7 @@
       "repository": "source",
       "revision": null
     },
-    "packet": "pkt_2bb4554856b94372aaf19476b5e89934",
+    "packet": "pkt_16378823b83443efa33bc23ebe21d09d",
     "sources": [
       {
         "content_sha256": "ec6fa7389f474f2fa76e715cd3a4e5877c81f068028704c74258dc75fdaf4c48",
@@ -2053,10 +2053,10 @@
     "/home/tumlinson/project-control/src/project_control/as1_context.py": "839be6aab5065b21d4d25ecf51a8b12d17e44ff81bee7f0c708137594fb2367d",
     "/home/tumlinson/project-control/src/project_control/as1_contracts.py": "58302734259d508cab4d6d421e6bcd5fd20065dd56fdda5eef0444aa03731189",
     "/home/tumlinson/project-control/src/project_control/as1_control.py": "0309c62463cd3cecfe8fb8dc4a8ca66a45b4a268486b30461f7b9816e138a755",
-    "/home/tumlinson/project-control/src/project_control/as1_jobs.py": "023f3d53b452f61d07fcc82abb7e6035b29ba989d3de0ddb7469cf663e7d24b5",
+    "/home/tumlinson/project-control/src/project_control/as1_jobs.py": "d3c746cada1438c762d36a394e562d2c0b7c523c45aae7ff5fa2476cfc11013c",
     "/home/tumlinson/project-control/src/project_control/as1_packets.py": "6b8bc850f55088b300cc8d93f38de29e39fd9557fe2fad17fa3bebf9409e6041",
     "/home/tumlinson/project-control/src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
-    "/home/tumlinson/project-control/src/project_control/as1_surface.py": "4ac8bbb30c10ed354bc5f83a2a7afcabf9572130ec9cc917db918130af73f76b",
+    "/home/tumlinson/project-control/src/project_control/as1_surface.py": "33beaea1d17038e17380c7ae9354e2edf227f18b700118b6566fabeb4fc716c2",
     "/home/tumlinson/project-control/src/project_control/as1_trace.py": "0f6f1a485f10f6db5fa45f885b3d053279b58ef162654fa960f517f31b8978bc"
   },
   "trace": {
@@ -2064,7 +2064,7 @@
       "complete": false,
       "context_project_uuid": null,
       "context_revision": null,
-      "observed_at": "2026-10-07T07:54:56Z",
+      "observed_at": "2026-10-07T08:30:12Z",
       "omissions": [
         {
           "reason": "dependency_coverage_partial"
@@ -2111,14 +2111,14 @@
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": true,
@@ -2135,7 +2135,7 @@
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "todo/1",
             "relations": [
               "contains",
@@ -2144,7 +2144,7 @@
               "root_task",
               "scope:exclusive"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": false,
@@ -2177,14 +2177,14 @@
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": true,
@@ -2201,10 +2201,10 @@
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "todo/1",
             "relations": [],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": false,
@@ -2234,14 +2234,14 @@
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "syntax/1",
             "relations": [
               "imports",
               "mentions",
               "package_dependency"
             ],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           {
             "complete": true,
@@ -2258,16 +2258,16 @@
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "todo/1",
             "relations": [],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+            "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
             "input_manifest": [
               {
                 "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -2275,24 +2275,24 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                 "key": "api",
                 "kind": "registry"
               }
             ],
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
             "provider": "semantic-registration/1",
             "relations": [
               "generated_from"
             ],
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+            "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
             "input_manifest": [
               {
                 "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -2300,24 +2300,24 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                 "key": "consumer",
                 "kind": "registry"
               }
             ],
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
             "provider": "semantic-registration/1",
             "relations": [
               "depends_on"
             ],
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "repository": "source@a200fc03e00b56837e713292"
           },
           {
             "complete": true,
             "freshness": "current",
             "gaps": [],
-            "generation": "1737232dd7dbb3d33eab96ced4cac95c16c06ec939444c2bc6036b3df03378da",
+            "generation": "ea1aca62a51c339f4cffd8a5e11539b3b422b1f576f1941ade3884068e821140",
             "input_manifest": [
               {
                 "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -2325,43 +2325,43 @@
                 "kind": "semantic_revision"
               },
               {
-                "digest": "386f0985d6c60ec12a83223e24ce60d1cd77b10853173a878cb3ee424262f3a1",
+                "digest": "72462be32f16872c38ab40560ecb357a64bf8eca1b3840dbf4e18eed31a18033",
                 "key": "declaration",
                 "kind": "registry"
               }
             ],
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
             "provider": "semantic-registration/1",
             "relations": [
               "depends_on"
             ],
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "repository": "source@6d77777e94bdaca1d875e92a"
           }
         ],
         "repositories": [
           {
-            "commit": "cf4860979a1e316aa88ed2a724d42093c6b04537",
-            "observed_at": "2026-10-07T07:54:56Z",
+            "commit": "99a361961bb1674717b1e5c28ae6d98f8e7b7485",
+            "observed_at": "2026-10-07T08:30:13Z",
             "project": "api",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-            "repository": "source@9afc97eca1c1e92875e3a85d",
-            "working_tree_fingerprint": "d87cd6d57b8966f8e0e4527f0655f7ad815e854a9fc9059c9d3336816846a2ff"
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+            "repository": "source@ac8d9cccbb63f38264846f4d",
+            "working_tree_fingerprint": "2474d97886d09a4d125b6241ee4d2d5b6abd188c752bc55a38f249d1130d22e5"
           },
           {
-            "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
-            "observed_at": "2026-10-07T07:54:56Z",
+            "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
+            "observed_at": "2026-10-07T08:30:13Z",
             "project": "consumer",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292",
             "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           {
-            "commit": "1bd6fd56ecb5e12dcdf87e6bc752c964c8461fee",
-            "observed_at": "2026-10-07T07:54:56Z",
+            "commit": "4992f585209017b3b4b1c4dbbc3e85c460661163",
+            "observed_at": "2026-10-07T08:30:13Z",
             "project": "declaration",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a",
             "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           }
         ]
@@ -2375,8 +2375,8 @@
             "id": "generated.hpp",
             "kind": "file",
             "path": "generated.hpp",
-            "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-            "repository": "source@9afc97eca1c1e92875e3a85d"
+            "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+            "repository": "source@ac8d9cccbb63f38264846f4d"
           },
           "snippet": {
             "reason": "source_identity_unavailable",
@@ -2385,7 +2385,7 @@
           "witness_chain": [
             {
               "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
               "input_manifest": [
                 {
                   "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -2393,7 +2393,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                   "key": "api",
                   "kind": "registry"
                 },
@@ -2411,15 +2411,15 @@
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "target": {
                 "id": "base.py",
                 "kind": "file",
                 "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "generator",
@@ -2438,11 +2438,11 @@
             "id": "consumer.py",
             "kind": "file",
             "path": "consumer.py",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292"
           },
           "snippet": {
-            "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+            "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
             "content_sha256": "3e237e5c07f9119804153eb3b0244a089ce218a02698c14bed00fabd89840888",
             "end_line": 1,
             "omitted_lines": 0,
@@ -2454,7 +2454,7 @@
           "witness_chain": [
             {
               "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
               "input_manifest": [
                 {
                   "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -2462,7 +2462,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                   "key": "api",
                   "kind": "registry"
                 },
@@ -2480,15 +2480,15 @@
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "target": {
                 "id": "base.py",
                 "kind": "file",
                 "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "generator",
@@ -2500,7 +2500,7 @@
             },
             {
               "format": "pc-impact-edge/1",
-              "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+              "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
               "input_manifest": [
                 {
                   "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -2508,7 +2508,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                  "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                   "key": "consumer",
                   "kind": "registry"
                 }
@@ -2521,15 +2521,15 @@
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "python-generated",
@@ -2543,26 +2543,26 @@
           "attention_basis": "observed_or_declared_dependency",
           "fanout": 0,
           "node": {
-            "id": "later.py",
+            "id": "contract.md",
             "kind": "file",
-            "path": "later.py",
-            "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-            "repository": "source@32147f3755be41ca2a128cdc"
+            "path": "contract.md",
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "snippet": {
-            "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
-            "content_sha256": "124960bdef54939520b63bd43195f2788e704c796623f031ec068ad5d70f911a",
+            "commit": "4992f585209017b3b4b1c4dbbc3e85c460661163",
+            "content_sha256": "8030c1dba7f7292723daa6528c1c8f3eeb9b9c6e5e5a33f849ef811d3e5e2c71",
             "end_line": 1,
             "omitted_lines": 0,
-            "path": "later.py",
+            "path": "contract.md",
             "start_line": 1,
             "status": "ok",
-            "text": "import consumer"
+            "text": "Generated numerical interface declaration."
           },
           "witness_chain": [
             {
               "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
               "input_manifest": [
                 {
                   "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
@@ -2570,7 +2570,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
                   "key": "api",
                   "kind": "registry"
                 },
@@ -2588,15 +2588,15 @@
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "target": {
                 "id": "base.py",
                 "kind": "file",
                 "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "generator",
@@ -2608,7 +2608,7 @@
             },
             {
               "format": "pc-impact-edge/1",
-              "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
+              "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
               "input_manifest": [
                 {
                   "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
@@ -2616,7 +2616,7 @@
                   "kind": "semantic_revision"
                 },
                 {
-                  "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
+                  "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
                   "key": "consumer",
                   "kind": "registry"
                 }
@@ -2629,15 +2629,162 @@
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "generated.hpp",
                 "kind": "file",
                 "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
+              },
+              "witness": {
+                "declaration": "python-generated",
+                "registration_version": 1,
+                "target_version": null
+              }
+            },
+            {
+              "format": "pc-impact-edge/1",
+              "generation": "ea1aca62a51c339f4cffd8a5e11539b3b422b1f576f1941ade3884068e821140",
+              "input_manifest": [
+                {
+                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+                  "key": "declaration",
+                  "kind": "semantic_revision"
+                },
+                {
+                  "digest": "72462be32f16872c38ab40560ecb357a64bf8eca1b3840dbf4e18eed31a18033",
+                  "key": "declaration",
+                  "kind": "registry"
+                }
+              ],
+              "origin": "project_declared",
+              "provider": "semantic-registration/1",
+              "relation": "depends_on",
+              "resolution": "resolved",
+              "source": {
+                "id": "contract.md",
+                "kind": "file",
+                "path": "contract.md",
+                "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+                "repository": "source@6d77777e94bdaca1d875e92a"
+              },
+              "target": {
+                "id": "consumer.py",
+                "kind": "file",
+                "path": "consumer.py",
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
+              },
+              "witness": {
+                "declaration": "markdown-python",
+                "registration_version": 1,
+                "target_version": null
+              }
+            }
+          ]
+        },
+        {
+          "attention_basis": "observed_or_declared_dependency",
+          "fanout": 0,
+          "node": {
+            "id": "later.py",
+            "kind": "file",
+            "path": "later.py",
+            "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+            "repository": "source@a200fc03e00b56837e713292"
+          },
+          "snippet": {
+            "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
+            "content_sha256": "124960bdef54939520b63bd43195f2788e704c796623f031ec068ad5d70f911a",
+            "end_line": 1,
+            "omitted_lines": 0,
+            "path": "later.py",
+            "start_line": 1,
+            "status": "ok",
+            "text": "import consumer"
+          },
+          "witness_chain": [
+            {
+              "format": "pc-impact-edge/1",
+              "generation": "14a8913dbac8e24752b9ac5d2a9c5c3571a535b312110a54f4f6007825034cb0",
+              "input_manifest": [
+                {
+                  "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+                  "key": "api",
+                  "kind": "semantic_revision"
+                },
+                {
+                  "digest": "7de73b5283f938c40053af3b785cbe70da1d865a0693308670be8a752cc4c606",
+                  "key": "api",
+                  "kind": "registry"
+                },
+                {
+                  "digest": "ddced955472eca8cf0eea19edf798c43514e97feae458369b17732a4a6453e4b",
+                  "key": "base.py",
+                  "kind": "file"
+                }
+              ],
+              "origin": "project_declared",
+              "provider": "semantic-registration/1",
+              "relation": "generated_from",
+              "resolution": "resolved",
+              "source": {
+                "id": "generated.hpp",
+                "kind": "file",
+                "path": "generated.hpp",
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
+              },
+              "target": {
+                "id": "base.py",
+                "kind": "file",
+                "path": "base.py",
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
+              },
+              "witness": {
+                "declaration": "generator",
+                "generator": {
+                  "tool": "qualification-generator",
+                  "version": "1"
+                }
+              }
+            },
+            {
+              "format": "pc-impact-edge/1",
+              "generation": "f649f8a34fac3d93f976056558228b97f9607c98045349ddd453ddedc207b55e",
+              "input_manifest": [
+                {
+                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+                  "key": "consumer",
+                  "kind": "semantic_revision"
+                },
+                {
+                  "digest": "2a2596cd4b89fc56d12ee67e61a78d94685d039f542d9171d686ed03f7cb799b",
+                  "key": "consumer",
+                  "kind": "registry"
+                }
+              ],
+              "origin": "project_declared",
+              "provider": "semantic-registration/1",
+              "relation": "depends_on",
+              "resolution": "resolved",
+              "source": {
+                "id": "consumer.py",
+                "kind": "file",
+                "path": "consumer.py",
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
+              },
+              "target": {
+                "id": "generated.hpp",
+                "kind": "file",
+                "path": "generated.hpp",
+                "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+                "repository": "source@ac8d9cccbb63f38264846f4d"
               },
               "witness": {
                 "declaration": "python-generated",
@@ -2688,18 +2835,18 @@
                 "id": "later.py",
                 "kind": "file",
                 "path": "later.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "target": {
                 "id": "consumer.py",
                 "kind": "file",
                 "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
+                "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+                "repository": "source@a200fc03e00b56837e713292"
               },
               "witness": {
-                "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+                "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
                 "content_sha256": "124960bdef54939520b63bd43195f2788e704c796623f031ec068ad5d70f911a",
                 "end_line": 1,
                 "path": "later.py",
@@ -2707,156 +2854,9 @@
               }
             }
           ]
-        },
-        {
-          "attention_basis": "observed_or_declared_dependency",
-          "fanout": 0,
-          "node": {
-            "id": "contract.md",
-            "kind": "file",
-            "path": "contract.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
-          },
-          "snippet": {
-            "commit": "1bd6fd56ecb5e12dcdf87e6bc752c964c8461fee",
-            "content_sha256": "8030c1dba7f7292723daa6528c1c8f3eeb9b9c6e5e5a33f849ef811d3e5e2c71",
-            "end_line": 1,
-            "omitted_lines": 0,
-            "path": "contract.md",
-            "start_line": 1,
-            "status": "ok",
-            "text": "Generated numerical interface declaration."
-          },
-          "witness_chain": [
-            {
-              "format": "pc-impact-edge/1",
-              "generation": "58710ff1a403f9585b31c0deea778824ae0a331385db4291f88af2113486e80e",
-              "input_manifest": [
-                {
-                  "digest": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
-                  "key": "api",
-                  "kind": "semantic_revision"
-                },
-                {
-                  "digest": "fbff0b5a07353376d9a50e8e689a8f2eb9d61afa968a6ad4e75e059e151f1e4a",
-                  "key": "api",
-                  "kind": "registry"
-                },
-                {
-                  "digest": "ddced955472eca8cf0eea19edf798c43514e97feae458369b17732a4a6453e4b",
-                  "key": "base.py",
-                  "kind": "file"
-                }
-              ],
-              "origin": "project_declared",
-              "provider": "semantic-registration/1",
-              "relation": "generated_from",
-              "resolution": "resolved",
-              "source": {
-                "id": "generated.hpp",
-                "kind": "file",
-                "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
-              },
-              "target": {
-                "id": "base.py",
-                "kind": "file",
-                "path": "base.py",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
-              },
-              "witness": {
-                "declaration": "generator",
-                "generator": {
-                  "tool": "qualification-generator",
-                  "version": "1"
-                }
-              }
-            },
-            {
-              "format": "pc-impact-edge/1",
-              "generation": "9e1a0278f5a074ecfaf1ca4358bf12f6f36f7b8e9e149392802300a122180337",
-              "input_manifest": [
-                {
-                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
-                  "key": "consumer",
-                  "kind": "semantic_revision"
-                },
-                {
-                  "digest": "5d9589c339b33af4a230c3fa6070bbe668362abf20e272f939779c848113746e",
-                  "key": "consumer",
-                  "kind": "registry"
-                }
-              ],
-              "origin": "project_declared",
-              "provider": "semantic-registration/1",
-              "relation": "depends_on",
-              "resolution": "resolved",
-              "source": {
-                "id": "consumer.py",
-                "kind": "file",
-                "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
-              },
-              "target": {
-                "id": "generated.hpp",
-                "kind": "file",
-                "path": "generated.hpp",
-                "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-                "repository": "source@9afc97eca1c1e92875e3a85d"
-              },
-              "witness": {
-                "declaration": "python-generated",
-                "registration_version": 1,
-                "target_version": null
-              }
-            },
-            {
-              "format": "pc-impact-edge/1",
-              "generation": "1737232dd7dbb3d33eab96ced4cac95c16c06ec939444c2bc6036b3df03378da",
-              "input_manifest": [
-                {
-                  "digest": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
-                  "key": "declaration",
-                  "kind": "semantic_revision"
-                },
-                {
-                  "digest": "386f0985d6c60ec12a83223e24ce60d1cd77b10853173a878cb3ee424262f3a1",
-                  "key": "declaration",
-                  "kind": "registry"
-                }
-              ],
-              "origin": "project_declared",
-              "provider": "semantic-registration/1",
-              "relation": "depends_on",
-              "resolution": "resolved",
-              "source": {
-                "id": "contract.md",
-                "kind": "file",
-                "path": "contract.md",
-                "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-                "repository": "source@b09952bb159edd673c2bfeba"
-              },
-              "target": {
-                "id": "consumer.py",
-                "kind": "file",
-                "path": "consumer.py",
-                "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-                "repository": "source@32147f3755be41ca2a128cdc"
-              },
-              "witness": {
-                "declaration": "markdown-python",
-                "registration_version": 1,
-                "target_version": null
-              }
-            }
-          ]
         }
       ],
-      "generation": "a52e852201fdb9bcc0cad3baeed8bb4e5ed54db4f252f70efd3bca668adfbe82",
+      "generation": "d37fb2ee75259841af174991e91526bb8d14fbe32dc51f2754bb121af586f2da",
       "nonpropagating_relations": [
         {
           "format": "pc-impact-edge/1",
@@ -2896,15 +2896,15 @@
             "id": "README.md",
             "kind": "file",
             "path": "README.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "target": {
             "id": "contract.md",
             "kind": "file",
             "path": "contract.md",
-            "project_uuid": "37a3908c-40cd-45d5-a6a2-bab5af0109ef",
-            "repository": "source@b09952bb159edd673c2bfeba"
+            "project_uuid": "cd4016c6-60ed-4bb5-b220-2dfe9f8ca048",
+            "repository": "source@6d77777e94bdaca1d875e92a"
           },
           "witness": {
             "content_sha256": "643d694a19a7ff781713602863bc2555e6a3bc96cb165d1d32cac8f14db47a5b",
@@ -2921,8 +2921,8 @@
           "id": "base.py",
           "kind": "file",
           "path": "base.py",
-          "project_uuid": "2b6c618a-a3f0-4272-927a-aac943fd4575",
-          "repository": "source@9afc97eca1c1e92875e3a85d"
+          "project_uuid": "3302bcf4-3f32-471c-87e1-96bde37e7580",
+          "repository": "source@ac8d9cccbb63f38264846f4d"
         }
       ],
       "status": "partial",
@@ -2972,17 +2972,17 @@
               "id": "consumer.py",
               "kind": "file",
               "path": "consumer.py",
-              "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-              "repository": "source@32147f3755be41ca2a128cdc"
+              "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+              "repository": "source@a200fc03e00b56837e713292"
             },
             "target": {
               "id": "base",
               "kind": "module",
-              "project_uuid": "4de042d0-ca10-43f9-896c-4949eae24ae2",
-              "repository": "source@32147f3755be41ca2a128cdc"
+              "project_uuid": "2eaaf211-48c0-4d01-b38e-c35923d703e1",
+              "repository": "source@a200fc03e00b56837e713292"
             },
             "witness": {
-              "commit": "fbabd6e2533ce22d90371b09da560cf40a92f6fe",
+              "commit": "8c634cbb95d3c927c9e3225bb4ba19feb5b155e6",
               "content_sha256": "3e237e5c07f9119804153eb3b0244a089ce218a02698c14bed00fabd89840888",
               "end_line": 1,
               "path": "consumer.py",
@@ -2997,7 +2997,7 @@
         "source_snippets_partial"
       ]
     },
-    "packet": "pkt_9b120c87a9dd430f8951fc1b469503b2",
+    "packet": "pkt_c4d51c73d69c4d519fab8353f30b5a36",
     "sources": [],
     "status": "partial"
   }
