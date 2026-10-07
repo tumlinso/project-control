@@ -5,8 +5,12 @@ from __future__ import annotations
 import json
 import hashlib
 import importlib
+import csv
 import os
 import re
+import secrets
+import socket
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -15,6 +19,44 @@ from typing import Any, Protocol
 from .call_audit import call_id_var, summarize_messages, write_event
 from .runtime_binding import RuntimeBindingError, bind_local_runtime
 from .security import redact_output_text
+
+
+_PHYSICAL_RELEASE_SEAL = object()
+
+
+class _VerifiedPhysicalRelease(dict):
+    """Opaque, locally verified proof that one supervisor epoch was stopped."""
+
+    __slots__ = ("_seal", "host")
+
+    def __init__(self, seal: object, value: dict[str, Any], host: str):
+        if seal is not _PHYSICAL_RELEASE_SEAL:
+            raise RuntimeError("verified_physical_release_is_private")
+        super().__init__(value)
+        self._seal = seal
+        self.host = host
+
+
+def _is_verified_physical_release(value: object) -> bool:
+    return isinstance(value, _VerifiedPhysicalRelease) and value._seal is _PHYSICAL_RELEASE_SEAL
+
+
+def _proc_start_time(pid: int) -> str | None:
+    """Read Linux start ticks without treating an unreadable process as dead."""
+    try:
+        raw = (Path("/proc") / str(pid) / "stat").read_text(encoding="ascii")
+    except FileNotFoundError:
+        return None
+    except OSError:
+        raise RuntimeError("physical_release_process_identity_unavailable") from None
+    close = raw.rfind(")")
+    if close < 0:
+        raise RuntimeError("physical_release_process_identity_invalid")
+    fields = raw[close + 1:].split()
+    # fields[0] is stat field 3; starttime is field 22.
+    if len(fields) <= 19 or not fields[19].isdigit():
+        raise RuntimeError("physical_release_process_identity_invalid")
+    return fields[19]
 
 
 def observer_analysis_state_root(*, create: bool = True) -> Path:
@@ -275,6 +317,33 @@ class SkillsObserverAnalysisProvider:
             raise RuntimeError("observer_session_not_quiescent")
         return result
 
+    def reclaim_orphaned_sessions(self, resources: Any) -> list[str]:
+        """Attach daemon-minted receipts for sessions whose borrower died."""
+        rows = resources.snapshot()
+        session_ids = sorted(item["session_id"] for item in rows
+            if item.get("state") == "active" and isinstance(item.get("session_id"), str))
+        if not session_ids:
+            return []
+        if len(session_ids) > 64:
+            raise RuntimeError("observer_reclaim_session_batch_too_large")
+        deadline = time.time() + 5
+        client = self._checked_client(deadline)
+        result = client.reclaim_closed_observer_sessions(session_ids,
+            request_id=secrets.token_hex(16), deadline_epoch=deadline)
+        receipts = result.get("receipts") if isinstance(result, dict) else None
+        if (not isinstance(receipts, list) or len(receipts) != len(session_ids) or
+                result.get("status") != "available"):
+            return []
+        observed = set()
+        for receipt in receipts:
+            if not isinstance(receipt, dict) or not isinstance(receipt.get("session_id"), str):
+                return []
+            resources.record_session(receipt["session_id"], receipt)
+            observed.add(receipt["session_id"])
+        if observed != set(session_ids):
+            raise RuntimeError("observer_reclaim_receipt_set_mismatch")
+        return session_ids
+
     def release_idle_runtime(self, *, deadline_epoch: float) -> dict[str, Any]:
         """Physically release verified idle model slots before broker stop proof.
 
@@ -348,12 +417,172 @@ class SkillsObserverAnalysisProvider:
             observed.add(key)
         if observed != expected:
             raise RuntimeError("observer_runtime_release_receipts_incomplete")
-        return {"status": "released_verified", "released_verified": True,
+        value = {"format": "PA1-PHYSICAL-RELEASE/1", "captured_at": time.time(),
+                "status": "released_verified", "released_verified": True,
                 "supervisor_pid": status["supervisor_pid"],
                 "supervisor_process_start": status["supervisor_process_start"],
                 "daemon_epoch": daemon_epoch, "runtime_fingerprint": runtime_fingerprint,
                 "quiescent": True, "evicted": True, "stopped": True,
+                "gpu_uuids": sorted({uuid for item in cleanup for uuid in item.get("gpu_uuids", [])}),
                 "cleanup_receipts": cleanup}
+        return _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, value, socket.gethostname())
+
+    def verify_saved_physical_release(self, record: dict[str, Any]) -> _VerifiedPhysicalRelease:
+        """Revalidate a private saved stop receipt before reconciling orphan rows.
+
+        This is intentionally stricter than accepting a JSON receipt: it checks
+        exact daemon and server process generations, the receipt's fresh native
+        GPU observations, and the operator-configured UUID scope on this host.
+        """
+        if not isinstance(record, dict) or set(record) != {
+                "captured_at", "selected_manifest_sha256", "before", "release", "broker_before"}:
+            raise RuntimeError("physical_release_record_invalid")
+        now = time.time()
+        captured = record.get("captured_at")
+        if (isinstance(captured, bool) or not isinstance(captured, (int, float)) or
+                now < float(captured)):
+            raise RuntimeError("physical_release_record_invalid")
+        if (not isinstance(record.get("selected_manifest_sha256"), str) or
+                re.fullmatch(r"[0-9a-f]{64}", record["selected_manifest_sha256"]) is None):
+            raise RuntimeError("physical_release_record_identity_invalid")
+        before = record.get("broker_before")
+        if (not isinstance(before, dict) or before.get("active_work_truncated") is not False or
+                before.get("active_execution_slots_truncated") is not False or
+                before.get("active_work") != [] or before.get("active_execution_slots") != []):
+            raise RuntimeError("physical_release_controller_not_quiescent")
+        release = record.get("release")
+        if (not isinstance(release, dict) or release.get("status") != "released_verified" or
+                release.get("released_verified") is not True or release.get("quiescent") is not True or
+                release.get("evicted") is not True or release.get("stopped") is not True or
+                type(release.get("supervisor_pid")) is not int or release["supervisor_pid"] <= 0 or
+                not isinstance(release.get("supervisor_process_start"), str) or
+                not isinstance(release.get("daemon_epoch"), str) or
+                re.fullmatch(r"[0-9a-f]{64}", release["daemon_epoch"]) is None or
+                not isinstance(release.get("runtime_fingerprint"), str) or
+                re.fullmatch(r"[0-9a-f]{64}", release["runtime_fingerprint"]) is None):
+            raise RuntimeError("physical_release_receipt_invalid")
+        before = record.get("before")
+        if (not isinstance(before, dict) or before.get("format") != "CORE4-OBSERVER-STATUS/1" or
+                before.get("running") is not True or before.get("healthy") is not True or
+                before.get("active_leases") != 0 or before.get("active_admissions") != 0 or
+                before.get("supervisor_pid") != release["supervisor_pid"] or
+                before.get("supervisor_process_start") != release["supervisor_process_start"] or
+                before.get("daemon_epoch") != release["daemon_epoch"] or
+                before.get("runtime_fingerprint") != release["runtime_fingerprint"]):
+            raise RuntimeError("physical_release_pre_stop_identity_invalid")
+        if self._allowed_gpu_uuids is None:
+            raise RuntimeError("physical_release_gpu_scope_unbound")
+        if _proc_start_time(release["supervisor_pid"]) == release["supervisor_process_start"]:
+            raise RuntimeError("physical_release_supervisor_still_running")
+        cleanup = release.get("cleanup_receipts")
+        prior_slots = before.get("slots")
+        if (not isinstance(prior_slots, list) or not 1 <= len(prior_slots) <= 4 or
+                any(not isinstance(slot, dict) or slot.get("state") != "idle" or
+                    slot.get("leased") is not False or slot.get("service_lease_id") is not None
+                    for slot in prior_slots)):
+            raise RuntimeError("physical_release_pre_stop_slots_invalid")
+        if not isinstance(cleanup, list) or not 1 <= len(cleanup) <= 4:
+            raise RuntimeError("physical_release_receipts_invalid")
+        seen_slots: set[tuple[str, int, str]] = set()
+        seen_gpus: set[str] = set()
+        normalized: list[dict[str, Any]] = []
+        for item in cleanup:
+            if not isinstance(item, dict):
+                raise RuntimeError("physical_release_receipt_invalid")
+            owner_id, pid, start = item.get("owner_id"), item.get("owned_pid"), item.get("server_process_start")
+            uuids = item.get("gpu_uuids")
+            if (not isinstance(owner_id, str) or not owner_id or type(pid) is not int or pid <= 0 or
+                    not isinstance(start, str) or not start or not isinstance(item.get("generation"), str) or
+                    not item["generation"] or not isinstance(uuids, list) or not 1 <= len(uuids) <= 4 or
+                    any(not isinstance(uuid, str) or uuid not in self._allowed_gpu_uuids for uuid in uuids) or
+                    len(set(uuids)) != len(uuids) or seen_gpus.intersection(uuids) or
+                    item.get("released") is not True or item.get("process_released") is not True or
+                    item.get("memory_released") is not True):
+                raise RuntimeError("physical_release_receipt_invalid")
+            seen_slots.add((owner_id, pid, start))
+            seen_gpus.update(uuids)
+            if _proc_start_time(pid) == start:
+                raise RuntimeError("physical_release_server_still_running")
+            observation = item.get("observation")
+            observed_at = observation.get("observed_unix") if isinstance(observation, dict) else None
+            devices = observation.get("devices") if isinstance(observation, dict) else None
+            if (not isinstance(observation, dict) or observation.get("available") is not True or
+                    not isinstance(observed_at, (int, float)) or isinstance(observed_at, bool) or
+                    float(observed_at) > float(captured) or float(captured) - float(observed_at) > 60 or
+                    observation.get("processes") != [] or not isinstance(devices, list)):
+                raise RuntimeError("physical_release_observation_invalid")
+            observed_devices = {}
+            for device in devices:
+                if (not isinstance(device, dict) or not isinstance(device.get("uuid"), str) or
+                        isinstance(device.get("memory_used_mib"), bool) or
+                        not isinstance(device.get("memory_used_mib"), (int, float))):
+                    raise RuntimeError("physical_release_observation_invalid")
+                observed_devices[device["uuid"]] = float(device["memory_used_mib"])
+            if set(observed_devices) != set(uuids) or any(value != 0 for value in observed_devices.values()):
+                raise RuntimeError("physical_release_gpu_memory_not_zero")
+            normalized.append({"owner_id": owner_id, "owned_pid": pid,
+                "server_process_start": start, "generation": item["generation"],
+                "gpu_uuids": list(uuids), "observation": observation})
+        if len(seen_slots) != len(cleanup) or not seen_gpus:
+            raise RuntimeError("physical_release_receipts_duplicate_or_empty")
+        prior_identity = {(slot.get("owner_id"), slot.get("server_pid"), tuple(slot.get("gpu_uuids", [])))
+                          for slot in prior_slots}
+        cleanup_identity = {(item.get("owner_id"), item.get("owned_pid"), tuple(item.get("gpu_uuids", [])))
+                            for item in cleanup}
+        if cleanup_identity != prior_identity:
+            raise RuntimeError("physical_release_slot_set_mismatch")
+        # Validate that the historical physical receipt still describes the
+        # current host: exact GPUs are empty, and none of the released process
+        # generations or host reservations have reappeared.
+        try:
+            gpu_result = subprocess.run(["nvidia-smi", "--query-gpu=uuid,memory.used",
+                "--format=csv,noheader,nounits"], check=True, capture_output=True, text=True, timeout=8)
+            app_result = subprocess.run(["nvidia-smi", "--query-compute-apps=pid,gpu_uuid,used_memory",
+                "--format=csv,noheader,nounits"], check=True, capture_output=True, text=True, timeout=8)
+        except (OSError, subprocess.SubprocessError):
+            raise RuntimeError("physical_release_fresh_gpu_observation_unavailable") from None
+        current_gpu_memory: dict[str, float] = {}
+        for row in csv.reader(gpu_result.stdout.splitlines()):
+            if len(row) != 2:
+                raise RuntimeError("physical_release_fresh_gpu_observation_invalid")
+            try:
+                current_gpu_memory[row[0].strip()] = float(row[1].strip())
+            except ValueError:
+                raise RuntimeError("physical_release_fresh_gpu_observation_invalid") from None
+        if any(uuid not in current_gpu_memory or current_gpu_memory[uuid] != 0 for uuid in seen_gpus):
+            raise RuntimeError("physical_release_gpu_memory_not_zero")
+        for row in csv.reader(app_result.stdout.splitlines()):
+            if len(row) >= 2 and row[1].strip() in seen_gpus:
+                raise RuntimeError("physical_release_gpu_process_reappeared")
+        try:
+            from todo_orchestrator.background.host import HostCoordinator
+            host = HostCoordinator(create=False)
+            connection = host.connect(readonly=True)
+            try:
+                owner_ids = sorted(item["owner_id"] for item in cleanup)
+                placeholders = ",".join("?" for _ in owner_ids)
+                active_owners = connection.execute(
+                    f"SELECT count(*) FROM host_owners WHERE id IN ({placeholders}) AND state='active'",
+                    owner_ids).fetchone()[0]
+                active_reservations = connection.execute(
+                    f"SELECT count(*) FROM host_reservations WHERE owner_id IN ({placeholders}) AND state='active'",
+                    owner_ids).fetchone()[0]
+            finally:
+                connection.close()
+        except Exception:
+            raise RuntimeError("physical_release_fresh_host_observation_unavailable") from None
+        if active_owners or active_reservations:
+            raise RuntimeError("physical_release_host_owner_reappeared")
+        token_value = {"format": "PA1-PHYSICAL-RELEASE/1", "captured_at": float(captured),
+            "status": "released_verified", "released_verified": True,
+            "selected_manifest_sha256": record["selected_manifest_sha256"],
+            "daemon_epoch": release["daemon_epoch"], "supervisor_pid": release["supervisor_pid"],
+            "supervisor_process_start": release["supervisor_process_start"],
+            "runtime_fingerprint": release["runtime_fingerprint"], "quiescent": True,
+            "evicted": True, "stopped": True, "gpu_uuids": sorted(seen_gpus), "cleanup_receipts": normalized}
+        token_value["captured_at"] = now
+        token_value["source_proof_captured_at"] = float(captured)
+        return _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, token_value, socket.gethostname())
 
     def close(self) -> None:
         """Disconnect this frontend; global residency belongs to the operator."""

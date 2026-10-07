@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 import sqlite3
 import sys
@@ -13,6 +14,9 @@ from unittest.mock import patch
 
 from project_control.assistance.power import PowerPolicy, trusted_operator_control
 from project_control.assistance.resources import ResourceController, ResourceControllerError
+from project_control.observer_analysis import (
+    SkillsObserverAnalysisProvider, _PHYSICAL_RELEASE_SEAL, _VerifiedPhysicalRelease,
+)
 
 _tests_root = Path(__file__).resolve().parents[1]
 if str(_tests_root) not in sys.path:
@@ -82,6 +86,8 @@ def _server(backend: _Backend):
     server._borrowers = {}
     server._borrowers_lock = threading.Lock()
     server._closed_owned = {}
+    server._reclaimed_closed = {}
+    server._reclaimed_deliveries = {}
     server._owned_release_receipts = {}
     server._stop_event = threading.Event()
     server.stopping = False
@@ -121,6 +127,168 @@ class ResourceControllerTests(unittest.TestCase):
             lambda *args: callbacks.append(args)), "pending_sessions_open")
         self.assertEqual(callbacks, [])
         self.assertEqual(self.resources.snapshot()[0]["state"], "active")
+
+    def _physical_release_record(self):
+        uuids = [
+            "GPU-21131915-1488-23af-38dd-1743ae1f5cc8",
+            "GPU-d745da9c-7649-8334-41f1-483afa6f3206",
+            "GPU-cf22c41f-5b58-77b1-3535-8fadd1ca6505",
+            "GPU-6c1cac7f-a360-0aef-ba98-2828bfd1db1a",
+        ]
+        cleanup = []
+        for index in range(2):
+            pair = uuids[index * 2:index * 2 + 2]
+            cleanup.append({"owner_id": f"owner-{index}", "gpu_uuids": pair,
+                "owned_pid": 98000000 + index, "server_process_start": f"server-start-{index}",
+                "generation": f"generation-{index}", "released": True,
+                "process_released": True, "memory_released": True,
+                "observation": {"available": True,
+                    "devices": [{"uuid": uuid, "memory_used_mib": 0.0} for uuid in pair],
+                    "processes": [], "observed_unix": time.time()}})
+        before = {"format": "CORE4-OBSERVER-STATUS/1", "running": True, "healthy": True,
+            "active_leases": 0, "active_admissions": 0, "supervisor_pid": 98000001,
+            "supervisor_process_start": "supervisor-start", "daemon_epoch": "a" * 64,
+            "runtime_fingerprint": "b" * 64,
+            "slots": [{"state": "idle", "leased": False, "service_lease_id": None,
+                "server_pid": item["owned_pid"], "owner_id": item["owner_id"],
+                "gpu_uuids": item["gpu_uuids"]} for item in cleanup]}
+        return {"captured_at": time.time(), "selected_manifest_sha256": "f" * 64,
+            "before": before, "broker_before": {"active_work": [], "active_work_truncated": False,
+                "active_execution_slots": [], "active_execution_slots_truncated": False},
+            "release": {"status": "released_verified", "released_verified": True,
+                "supervisor_pid": 98000001, "supervisor_process_start": "supervisor-start",
+                "daemon_epoch": "a" * 64, "runtime_fingerprint": "b" * 64,
+                "quiescent": True, "evicted": True, "stopped": True,
+                "cleanup_receipts": cleanup}}
+
+    def _release_reconciliation_fixture(self):
+        db = sqlite3.connect(":memory:")
+        db.execute("CREATE TABLE jobs(record TEXT NOT NULL)")
+        db.execute("CREATE TABLE execution_slots(job TEXT PRIMARY KEY)")
+        power = PowerPolicy(db, clock=time.time)
+        resources = ResourceController(db, power_policy=power, clock=time.time)
+        control = trusted_operator_control()
+        intent = power.set_release(control, reason="operator-requested-recovery")
+        record = self._physical_release_record()
+        proof = _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, {
+            "format": "PA1-PHYSICAL-RELEASE/1", "captured_at": time.time(),
+            "daemon_epoch": "a" * 64, "supervisor_pid": 98000001,
+            "supervisor_process_start": "supervisor-start", "runtime_fingerprint": "b" * 64,
+            "quiescent": True, "stopped": True,
+            "gpu_uuids": [uuid for item in record["release"]["cleanup_receipts"] for uuid in item["gpu_uuids"]],
+            "cleanup_receipts": record["release"]["cleanup_receipts"]}, "test-host")
+        epoch = {"daemon_epoch": "a" * 64, "supervisor_pid": 98000001,
+            "supervisor_process_start": "supervisor-start", "runtime_fingerprint": "b" * 64}
+        return db, power, resources, control, intent, proof, epoch
+
+    def test_orphaned_active_session_reconciles_only_after_verified_whole_epoch_release(self):
+        db, power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
+        try:
+            resources.record_active_session("orphan-session", epoch)
+            db.commit()
+            self.assertEqual(resources.record_orphaned_sessions_after_physical_release(control, intent, proof),
+                             ["orphan-session"])
+            row = resources.snapshot()[0]
+            self.assertEqual(row["state"], "released_verified")
+            audit = db.execute("SELECT session_ids,proof_sha256,controller_host FROM pa1_orphan_resource_reconciliation_audit").fetchone()
+            self.assertIsNotNone(audit)
+            self.assertIn("orphan-session", audit[0])
+            self.assertEqual(len(audit[1]), 64)
+            self.assertTrue(audit[2])
+            close = json.loads(db.execute("SELECT close_receipt FROM pa1_owned_resource_sessions").fetchone()[0])
+            self.assertEqual(close["format"], "PA1-ORPHANED-SESSION-RELEASE/1")
+            db.commit()
+            ack = resources.verified_release_ack(intent)
+            self.assertEqual(ack.target_session_ids, ("orphan-session",))
+            resources.acknowledge_verified_release(intent)
+            self.assertEqual(power.snapshot()["physical_state"], "released_verified")
+        finally:
+            db.close()
+
+    def test_orphan_reconciliation_rejects_unsealed_proofs_foreign_epochs_and_active_work(self):
+        db, power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
+        try:
+            resources.record_active_session("orphan-session", epoch)
+            db.commit()
+            with self.assertRaisesRegex(ResourceControllerError, "verified_physical_release_required"):
+                resources.record_orphaned_sessions_after_physical_release(control, intent, dict(proof))
+            foreign = dict(epoch, daemon_epoch="c" * 64)
+            resources.record_active_session("foreign-session", foreign)
+            db.commit()
+            with self.assertRaisesRegex(ResourceControllerError, "active_session_epoch_mismatch"):
+                resources.record_orphaned_sessions_after_physical_release(control, intent, proof)
+            db.execute("INSERT INTO jobs(record) VALUES('{\"status\":\"running\"}')")
+            db.commit()
+            with self.assertRaisesRegex(ResourceControllerError, "controller_work_not_quiescent"):
+                resources.record_orphaned_sessions_after_physical_release(control, intent, proof)
+        finally:
+            db.close()
+
+    def test_orphan_reconciliation_rejects_nonzero_gpu_observation(self):
+        db, power, resources, control, intent, proof, epoch = self._release_reconciliation_fixture()
+        try:
+            resources.record_active_session("orphan-session", epoch)
+            db.commit()
+            record = self._physical_release_record()
+            record["release"]["cleanup_receipts"][0]["observation"]["devices"][0]["memory_used_mib"] = 16
+            provider = SkillsObserverAnalysisProvider()
+            provider._allowed_gpu_uuids = tuple(uuid for item in record["release"]["cleanup_receipts"]
+                                                 for uuid in item["gpu_uuids"])
+            with self.assertRaisesRegex(RuntimeError, "physical_release_gpu_memory_not_zero"):
+                provider.verify_saved_physical_release(record)
+        finally:
+            db.close()
+
+    def test_saved_release_proof_can_be_revalidated_after_capture_with_fresh_host_state(self):
+        import types
+        from unittest.mock import patch
+
+        record = self._physical_release_record()
+        record["captured_at"] -= 3600
+        for item in record["release"]["cleanup_receipts"]:
+            item["observation"]["observed_unix"] = record["captured_at"] - 1
+        provider = SkillsObserverAnalysisProvider()
+        provider._allowed_gpu_uuids = tuple(uuid for item in record["release"]["cleanup_receipts"]
+                                             for uuid in item["gpu_uuids"])
+        gpu_output = "".join(f"{uuid}, 0\n" for uuid in provider._allowed_gpu_uuids)
+
+        class Cursor:
+            @staticmethod
+            def fetchone():
+                return (0,)
+
+        class Connection:
+            @staticmethod
+            def execute(*_args):
+                return Cursor()
+
+            @staticmethod
+            def close():
+                return None
+
+        class HostCoordinator:
+            def __init__(self, **_kwargs):
+                pass
+
+            @staticmethod
+            def connect(*_args, **_kwargs):
+                return Connection()
+
+        host_module = types.ModuleType("todo_orchestrator.background.host")
+        host_module.HostCoordinator = HostCoordinator
+        parent_module = types.ModuleType("todo_orchestrator")
+        parent_module.__path__ = []
+        background_module = types.ModuleType("todo_orchestrator.background")
+        background_module.__path__ = []
+        with patch.dict(sys.modules, {"todo_orchestrator": parent_module,
+                "todo_orchestrator.background": background_module,
+                "todo_orchestrator.background.host": host_module}), \
+             patch("project_control.observer_analysis._proc_start_time", return_value=None), \
+             patch("project_control.observer_analysis.subprocess.run", side_effect=[
+                 types.SimpleNamespace(stdout=gpu_output), types.SimpleNamespace(stdout="")]):
+            proof = provider.verify_saved_physical_release(record)
+        self.assertLessEqual(time.time() - proof["captured_at"], 2)
+        self.assertEqual(proof["source_proof_captured_at"], record["captured_at"])
 
     def test_close_receipt_is_required_and_verified_release_is_exact(self):
         self.resources.record_active_session(self.session_id, self.epoch)
@@ -398,6 +566,38 @@ class OwnedReleaseRpcTests(unittest.TestCase):
         self.assertEqual(replay, released)
         with self.assertRaises(supervisor.SupervisorError):
             self._release(receipt, request_id="e" * 32)
+
+    def test_dead_borrower_reap_mints_one_shot_receipt_but_live_borrower_stays_bound(self):
+        session_id = self.backend.session_id
+        self.server._borrowers[session_id]["pid"] = os.getpid() + 100000
+        self.server._borrowers[session_id]["process_start"] = "old-process-generation"
+        with patch.object(supervisor, "process_start_time", return_value="reused-process-generation"), \
+             patch.object(supervisor, "process_identity", side_effect=_identity), \
+             patch.object(supervisor, "validate_canonical_runtime"):
+            self.server._reap_borrowers()
+            self.assertNotIn(session_id, self.server._borrowers)
+            self.assertIn(session_id, self.server._reclaimed_closed)
+            first = self.server._dispatch({"operation": "observer-reclaim-closed",
+                "session_ids": [session_id], "request_id": "a" * 32},
+                peer_pid=os.getpid(), peer_process_start=self.peer_start)
+            self.assertEqual(first["status"], "available")
+            self.assertEqual(first["receipts"][0]["session_id"], session_id)
+            retry = self.server._dispatch({"operation": "observer-reclaim-closed",
+                "session_ids": [session_id], "request_id": "a" * 32},
+                peer_pid=os.getpid(), peer_process_start=self.peer_start)
+            self.assertEqual(retry, first)
+            unavailable = self.server._dispatch({"operation": "observer-reclaim-closed",
+                "session_ids": [session_id], "request_id": "b" * 32},
+                peer_pid=os.getpid(), peer_process_start=self.peer_start)
+            self.assertEqual(unavailable["status"], "pending")
+            self.assertEqual(unavailable["receipts"], [])
+
+    def test_unreadable_live_borrower_is_never_reclaimed(self):
+        session_id = self.backend.session_id
+        with patch.object(supervisor, "process_start_time", side_effect=PermissionError("unknown")):
+            self.server._reap_borrowers()
+        self.assertIn(session_id, self.server._borrowers)
+        self.assertNotIn(session_id, self.server._reclaimed_closed)
 
     def test_foreign_close_and_reused_or_active_slots_cannot_be_evicted(self):
         with patch.object(supervisor, "process_identity", side_effect=_identity), \

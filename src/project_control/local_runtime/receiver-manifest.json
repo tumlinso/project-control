@@ -18,9 +18,9 @@
     "local_worker/result_validation.py": "d3be0925b78ec1b0f4e7dd2010061bccea440f8a00b30c79ad62bcb45b710c1c",
     "local_worker/reviewer.py": "5cfe1aa05fa843176a991ef5acb6c3684300f13e377281e98b79d760c8061695",
     "local_worker/servers/__init__.py": "6aec6eb256204704bf4c7b92d4ef73c1f78867a06c21832221c39349e9ea3189",
-    "local_worker/servers/llama_cpp.py": "7d1363d08b80c0d3e4aba581fabb987bb34868f99366c2c86712e5ede833fc37",
+    "local_worker/servers/llama_cpp.py": "d85e1b389e948bdbcb2b005d843e20a07913d2d9fe7766b2e352b5508272d375",
     "local_worker/service.py": "5950a45aeaa8091133f623ecdb5f74c71b7683e54eba67d4f2d54c488b3577eb",
-    "local_worker/supervisor.py": "66e7d6ecdb9157eedbc60106811a786d492c30c1f6009480ada4ef16e6e7da71",
+    "local_worker/supervisor.py": "1dbce3705692c9a5333cb112826d168f19982c29719fcad75faaa61610f93224",
     "local_worker/telemetry.py": "9f7ef60a4e6bce81f6f05c355470bb901dd88d43ae62344aac830d5634e074db",
     "local_worker/verification.py": "0acd92c78432ea3d999d2f138c852921dcd0fe5f56e37a2be9ecfb1934ecbcc8",
     "local_worker/workspace.py": "8889483626e8ce4312538b1149ccb7844b003252b60772d08aa0f73948e3ea64",
@@ -44,7 +44,7 @@
     "scripts/worker_core.py": "49742e76c813bb813b124084c39a0f976f1d2e8f1a9262fe5d9eba8a11b70227"
   },
   "schema_version": 1,
-  "source_commit": "7ece9128120a5cd5bcde7f4d168ddf0dc54621b6+PA1-lock-order-repair",
+  "source_commit": "eac87d68b3fa345fa2731fcaaf39695af3c7f8c0+orphan-session-recovery-working-tree",
   "source_inventory_path": "/home/tumlinson/.agents/skills/docs/pa1/runtime-handoff.json",
   "source_inventory_sha256": "d522eb5f138c31b5caa773fd9d3daa256a647f85dff068f54a9efe9e6b2ad904",
   "source_root": "/home/tumlinson/project-control"

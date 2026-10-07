@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import secrets
 import signal
 import socket
@@ -1891,6 +1892,8 @@ class SupervisorServer:
         # daemon epoch. Raw capabilities are retained by the controller DB;
         # the daemon keeps their hashes and the slot fingerprint only.
         self._closed_owned: dict[str, dict[str, Any]] = {}
+        self._reclaimed_closed: dict[str, dict[str, Any]] = {}
+        self._reclaimed_deliveries: dict[str, dict[str, Any]] = {}
         self._owned_release_receipts: dict[str, dict[str, Any]] = {}
         if not hasattr(backend, "repo_root"):
             self.runtime_context = self.runtime_identity.public()
@@ -1934,6 +1937,7 @@ class SupervisorServer:
             "observer-turn": {"request"},
             "observer-open": {"count", "compute_profile", "parallelism", "deadline_epoch"},
             "observer-close": {"session_id", "deadline_epoch"},
+            "observer-reclaim-closed": {"session_ids", "request_id", "deadline_epoch"},
             "observer-quiesce": {"request_id", "resource_ids", "deadline_epoch"},
             "observer-resume": {"request_id", "continuation_id", "resource_ids", "deadline_epoch", "veto"},
             "observer-release-owned": {"records", "request_id", "deadline_epoch"}}
@@ -1978,6 +1982,39 @@ class SupervisorServer:
                     if result.get("released") is True:
                         self._borrowers.pop(session_id, None)
                     return result
+            if operation == "observer-reclaim-closed":
+                request_id, session_ids = request.get("request_id"), request.get("session_ids")
+                if (not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None or
+                        not isinstance(session_ids, list) or not 1 <= len(session_ids) <= 64 or
+                        any(not isinstance(item, str) or not 1 <= len(item) <= 128 for item in session_ids) or
+                        len(set(session_ids)) != len(session_ids) or peer_pid is None or
+                        not isinstance(peer_process_start, str)):
+                    raise SupervisorError("supervisor_observer_parameters_invalid")
+                self._reap_borrowers()
+                with self._borrowers_lock, self.backend._pool_lock:
+                    prior = self._reclaimed_deliveries.get(request_id)
+                    if prior is not None:
+                        if (prior.get("pid") != peer_pid or prior.get("process_start") != peer_process_start or
+                                prior.get("session_ids") != sorted(session_ids)):
+                            raise SupervisorError("observer_reclaim_request_owner_mismatch")
+                        return dict(prior["response"])
+                    reclaimed_items = [self._reclaimed_closed.get(session_id) for session_id in sorted(session_ids)]
+                    available = all(item is not None and item.get("delivered_request_id") is None
+                                    for item in reclaimed_items)
+                    receipts = ([dict(item["receipt"]) for item in reclaimed_items]
+                                if available else [])
+                    response = {"status": "available" if available else "pending",
+                                "request_id": request_id, "receipts": receipts}
+                    if available:
+                        for item in reclaimed_items:
+                            item["delivered_request_id"] = request_id
+                            item["delivered_to"] = {"pid": peer_pid, "process_start": peer_process_start}
+                    self._reclaimed_deliveries[request_id] = {"pid": peer_pid,
+                        "process_start": peer_process_start, "session_ids": sorted(session_ids),
+                        "response": response}
+                    while len(self._reclaimed_deliveries) > 64:
+                        self._reclaimed_deliveries.pop(next(iter(self._reclaimed_deliveries)))
+                    return response
             if operation == "observer-quiesce":
                 if (not isinstance(request.get("request_id"), str) or
                         not isinstance(request.get("resource_ids"), list)):
@@ -2111,6 +2148,7 @@ class SupervisorServer:
         for session_id, item in list(self._closed_owned.items()):
             if item.get("slot_id") in slot_ids:
                 self._closed_owned.pop(session_id, None)
+                self._reclaimed_closed.pop(session_id, None)
 
     def _all_closed_capabilities_on_slot_use(self, slot_id: str) -> None:
         # Anonymous turns and packet analysis can select an internal slot, so
@@ -2340,7 +2378,8 @@ class SupervisorServer:
             with self._threads_lock:
                 self._threads.discard(threading.current_thread())
 
-    def _release_borrower(self, session_id: str, *, undelivered: bool = False) -> None:
+    def _release_borrower(self, session_id: str, *, undelivered: bool = False,
+                          owner_dead: bool = False) -> None:
         with self._borrowers_lock:
             borrower = self._borrowers.get(session_id)
             if borrower is None:
@@ -2356,6 +2395,15 @@ class SupervisorServer:
                     self._borrowers.pop(session_id, None)
                 return
             if result.get("released") is True:
+                if owner_dead:
+                    receipt = self._record_closed_resource(session_id, borrower)
+                    if receipt is not None:
+                        self._reclaimed_closed[session_id] = {"receipt": receipt,
+                            "borrower_pid": borrower.get("pid"),
+                            "borrower_process_start": borrower.get("process_start"),
+                            "reaped_at": time.time(), "delivered_request_id": None}
+                        while len(self._reclaimed_closed) > 64:
+                            self._reclaimed_closed.pop(next(iter(self._reclaimed_closed)))
                 self._borrowers.pop(session_id, None)
 
     def _reap_borrowers(self) -> None:
@@ -2366,21 +2414,25 @@ class SupervisorServer:
                 with self._borrowers_lock:
                     self._borrowers.pop(session_id, None)
                 continue
-            expired = time.time() >= borrower["deadline_epoch"] or borrower.get("undelivered", False)
-            if not expired:
+            deadline_expired = time.time() >= borrower["deadline_epoch"] or borrower.get("undelivered", False)
+            expired = deadline_expired
+            owner_dead = False
+            if not borrower.get("undelivered", False):
                 try:
-                    expired = process_start_time(borrower["pid"]) != borrower["process_start"]
+                    owner_dead = process_start_time(borrower["pid"]) != borrower["process_start"]
+                    expired = expired or owner_dead
                 except FileNotFoundError:
                     try:
                         (Path("/proc") / str(borrower["pid"])).stat()
                     except FileNotFoundError:
                         expired = True
+                        owner_dead = True
                     except OSError:
                         pass
                 except (OSError, ValueError):
                     pass  # Unknown presence is not proof of a dead borrower.
             if expired:
-                self._release_borrower(session_id)
+                self._release_borrower(session_id, owner_dead=owner_dead)
 
     def _housekeeping(self) -> None:
         while not self._stop_event.is_set():
@@ -2597,6 +2649,11 @@ class SupervisorClient:
 
     def close_observer_session(self, session_id: str, *, deadline_epoch=None) -> dict[str, Any]:
         return self._observer_request("observer-close", session_id=session_id, deadline_epoch=deadline_epoch)
+
+    def reclaim_closed_observer_sessions(self, session_ids: list[str], *, request_id: str,
+                                         deadline_epoch=None) -> dict[str, Any]:
+        return self._observer_request("observer-reclaim-closed", session_ids=session_ids,
+            request_id=request_id, deadline_epoch=deadline_epoch)
 
     def quiesce_for_foreground(self, *, request_id: str, resource_ids: list[str],
                                deadline_epoch: float) -> dict[str, Any]:
