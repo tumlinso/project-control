@@ -30,8 +30,12 @@ MAX_WALL_SECONDS = 600
 MAX_INQUIRY_SUBMISSIONS = 2
 MAX_TURNS_PER_SUBMISSION = 6
 MAX_DIRECT_ROLE_TURNS = 2
+MAX_INQUIRY_POLL_SECONDS = 300
+MAX_INQUIRY_POLLS = 300
+INQUIRY_POLL_INTERVAL_SECONDS = 1
+CLEANUP_RESERVE_SECONDS = 120
 MAX_OUTPUT_BYTES = 1024 * 1024
-SKILL_HELPER = r'''import json, sys
+SKILL_HELPER = r'''import json, sys, time
 import project_control
 from pathlib import Path
 from project_control.cli import _assistance_composition
@@ -48,10 +52,28 @@ if not manifest.is_relative_to(root) or __import__("os").environ.get(RELEASE_DIG
 config, composition = _assistance_composition(project)
 try:
     composition.start()
-    value = composition.skills.inquire(access_scope=composition.scope(project), query=query, skill=skill)
+    scope = composition.scope(project)
+    # `skills.inquire` has a 30-second foreground cap; leave that final call
+    # inside the 300-second inquiry bound before joining workers for cleanup.
+    deadline = time.monotonic() + 270
+    polls = 0
+    value = None
+    while polls < 300 and time.monotonic() < deadline:
+        polls += 1
+        value = composition.skills.inquire(access_scope=scope, query=query, skill=skill)
+        if not isinstance(value, dict) or value.get("status") != "thinking":
+            break
+        time.sleep(min(1, max(0, deadline - time.monotonic())))
+    if value is None:
+        value = {"status": "unavailable", "reason": "skill_poll_limit_exhausted"}
+    elif isinstance(value, dict) and value.get("status") == "thinking":
+        value = {**value, "reason": "skill_poll_limit_exhausted", "poll_count": polls}
+    elif isinstance(value, dict):
+        value = {**value, "qualification_poll_count": polls}
     print(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
 finally:
-    composition.jobs.shutdown(timeout=2)
+    if not composition.jobs.shutdown(timeout=120):
+        raise RuntimeError("skill_job_workers_did_not_stop_within_cleanup_bound")
 '''
 
 ROLE_HELPER = r'''import concurrent.futures, hashlib, json, os, sys, time
@@ -75,6 +97,16 @@ identity_keys = ("supervisor_pid", "supervisor_process_start", "daemon_epoch",
 def status_snapshot():
     value = provider.central_status()
     return value
+def procfs_process_start(pid):
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return None
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+        fields = raw[raw.rfind(")") + 2:].split()
+        # The remainder begins at field 3 (state); starttime is field 22.
+        return fields[19] if len(fields) > 19 and fields[19].isdigit() else None
+    except (OSError, UnicodeError, ValueError):
+        return None
 before = status_snapshot()
 identity = {key: before.get(key) for key in identity_keys}
 if any(value in (None, "") for value in identity.values()):
@@ -105,8 +137,11 @@ try:
         if len(matches) != 1:
             raise RuntimeError("leased_session_slot_mapping_unavailable")
         slot = matches[0]
+        server_pid = slot.get("server_pid")
         assignments.append({"session_id": session_id, "slot_id": slot.get("slot_id"),
-            "server_pid": slot.get("server_pid"), "server_process_start": slot.get("server_process_start"),
+            "server_pid": server_pid, "server_process_start": procfs_process_start(server_pid),
+                  "server_process_start_method": "procfs:/proc/<pid>/stat:starttime",
+            "owner_descriptor": slot.get("owner_id"),
             "gpu_uuids": slot.get("gpu_uuids"), "parallelism": slot.get("parallelism"),
             "compute_profile": slot.get("compute_profile"), "state": slot.get("state"),
             "leased": slot.get("leased"), "model_id": slot.get("model_id"),
@@ -172,6 +207,7 @@ try:
                 turn, response, elapsed, schema_valid, citation_valid = future.result()
                 responses.append({"policy_id": turn["turn_policy_id"],
                     "session_id": turn["session_id"], "status": response.get("status"),
+                    "reason": response.get("reason"),
                     "response_text": response.get("text"), "usage": response.get("usage"),
                     "turn_policy": response.get("turn_policy"),
                     "response_metadata": response.get("response_metadata"),
@@ -200,7 +236,8 @@ after_by_id = {item.get("slot_id"): item for item in after_slots
 slot_processes_stable = (len(assignments) == 2 and all(
     item.get("slot_id") in after_by_id
     and after_by_id[item["slot_id"]].get("server_pid") == item.get("server_pid")
-    and after_by_id[item["slot_id"]].get("server_process_start") == item.get("server_process_start")
+    and after_by_id[item["slot_id"]].get("owner_id") == item.get("owner_descriptor")
+    and procfs_process_start(item.get("server_pid")) == item.get("server_process_start")
     and after_by_id[item["slot_id"]].get("gpu_uuids") == item.get("gpu_uuids")
     for item in assignments))
 assignments_proven = (len(assignments) == 2
@@ -208,6 +245,7 @@ assignments_proven = (len(assignments) == 2
     and len({item["slot_id"] for item in assignments}) == 2
     and all(isinstance(item.get("server_pid"), int) and item.get("server_pid") > 0
             and isinstance(item.get("server_process_start"), str) and item.get("server_process_start")
+            and isinstance(item.get("owner_descriptor"), str) and item.get("owner_descriptor")
             for item in assignments)
     and len({(item["server_pid"], item["server_process_start"]) for item in assignments}) == 2
     and all(isinstance(item.get("gpu_uuids"), list) and item.get("gpu_uuids") for item in assignments)
@@ -365,11 +403,25 @@ def _work_is_idle(status: Mapping[str, Any]) -> bool:
     return True
 
 
+def _procfs_start_time(pid: Any, proc_root: Path = Path("/proc")) -> str | None:
+    """Read Linux process starttime, returning None when the PID cannot be proven."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return None
+    try:
+        raw = (proc_root / str(pid) / "stat").read_text(encoding="ascii")
+        fields = raw[raw.rfind(")") + 2:].split()
+        # The remainder begins at field 3 (state); starttime is field 22.
+        return fields[19] if len(fields) > 19 and fields[19].isdigit() else None
+    except (OSError, UnicodeError, ValueError):
+        return None
+
+
 class InstalledQualification:
     def __init__(self, *, cli: Path, project: str, question: str, skill: str,
                  skill_question: str, output_dir: Path, wall_seconds: int,
                  runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic,
+                 sleep: Callable[[float], None] = time.sleep):
         self.cli = cli
         self.project = project
         self.question = question
@@ -379,6 +431,7 @@ class InstalledQualification:
         self.wall_seconds = wall_seconds
         self.runner = runner
         self.clock = clock
+        self.sleep = sleep
         self.events: list[dict[str, Any]] = []
         self.started_by_run = False
         self.release_root, self.manifest, self.release_digest = _selected_release()
@@ -387,17 +440,20 @@ class InstalledQualification:
             raise QualificationError("CLI executable is outside selected release")
         self.deadline = self.clock() + wall_seconds
 
-    def _remaining(self, limit: float = 30) -> float:
-        remaining = self.deadline - self.clock()
+    def _remaining(self, limit: float = 30, *, cleanup: bool = False) -> float:
+        cutoff = self.deadline if cleanup else self.deadline - CLEANUP_RESERVE_SECONDS
+        remaining = cutoff - self.clock()
         if remaining <= 0:
-            raise QualificationError("qualification wall budget exhausted")
+            label = "cleanup reserve exhausted" if cleanup else "qualification work budget exhausted"
+            raise QualificationError(label)
         return min(limit, remaining)
 
-    def _run(self, args: list[str], label: str, *, timeout: float = 30) -> dict[str, Any]:
+    def _run(self, args: list[str], label: str, *, timeout: float = 30,
+             cleanup: bool = False) -> dict[str, Any]:
         self.events.append({"event": "effect_intent", "operation": label,
                             "argv": args, "at_monotonic": self.clock()})
         result = self.runner(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE, text=True, timeout=self._remaining(timeout),
+                             stderr=subprocess.PIPE, text=True, timeout=self._remaining(timeout, cleanup=cleanup),
                              check=False, cwd=str(self.release_root))
         value = _parse_json_result(result, label)
         self.events.append({"event": "effect_result", "operation": label,
@@ -405,8 +461,9 @@ class InstalledQualification:
                             "at_monotonic": self.clock()})
         return value
 
-    def _status(self) -> dict[str, Any]:
-        return self._run([str(self.cli), "assistance", "status"], "status", timeout=10)
+    def _status(self, *, cleanup: bool = False) -> dict[str, Any]:
+        return self._run([str(self.cli), "assistance", "status"], "status", timeout=10,
+                         cleanup=cleanup)
 
     def _start_concurrently(self) -> dict[str, Any]:
         argv = [str(self.cli), "assistance", "start"]
@@ -456,8 +513,28 @@ class InstalledQualification:
         helper = [sys.executable, "-I", "-c", SKILL_HELPER,
                   self.project, self.skill, self.skill_question,
                   str(self.release_root), self.release_digest]
-        value = self._run(helper, "registered_skill_question", timeout=300)
+        value = self._run(helper, "registered_skill_question", timeout=420)
         return value
+
+    def _poll_identical_question(self, args: list[str], label: str) -> dict[str, Any]:
+        # The CLI owns its own 300-second foreground poll and up to 120 seconds
+        # to cancel the exact inquiry and join its workers before returning.
+        deadline = min(self.clock() + MAX_INQUIRY_POLL_SECONDS + CLEANUP_RESERVE_SECONDS,
+                       self.deadline - CLEANUP_RESERVE_SECONDS)
+        value: dict[str, Any] = {"status": "thinking"}
+        for poll_count in range(1, MAX_INQUIRY_POLLS + 1):
+            remaining = deadline - self.clock()
+            if remaining <= 0:
+                break
+            value = self._run(args, label,
+                              timeout=min(MAX_INQUIRY_POLL_SECONDS + CLEANUP_RESERVE_SECONDS,
+                                          remaining))
+            if value.get("status") != "thinking":
+                return {**value, "qualification_poll_count": poll_count}
+            remaining = deadline - self.clock()
+            if remaining > 0:
+                self.sleep(min(INQUIRY_POLL_INTERVAL_SECONDS, remaining))
+        raise QualificationError(f"{label} remained thinking until its bounded polling limit")
 
     def _direct_roles(self) -> dict[str, Any]:
         helper = [sys.executable, "-I", "-c", ROLE_HELPER,
@@ -467,6 +544,8 @@ class InstalledQualification:
     def _inquiry_record(self, operation: str, value: Mapping[str, Any]) -> dict[str, Any]:
         budget = value.get("usage") if isinstance(value.get("usage"), dict) else None
         return {"operation": operation, "status": value.get("status"),
+                "reason": value.get("reason"),
+                "poll_count": value.get("qualification_poll_count", value.get("poll_count")),
                 "visible_output_present": bool(value.get("answer") or value.get("text")
                                                 or value.get("excerpts") or value.get("resources")),
                 "sources_present": bool(value.get("sources") or value.get("citations")),
@@ -510,8 +589,9 @@ class InstalledQualification:
             receipt["cold_start"] = {"before": before, "identity": identity,
                                      "after": ready, "concurrent_start_count": 2}
 
-            question = self._run([str(self.cli), "assistance", "ask", self.question,
-                                  "--project", self.project], "source_grounded_question", timeout=300)
+            question = self._poll_identical_question(
+                [str(self.cli), "assistance", "ask", self.question,
+                 "--project", self.project], "source_grounded_question")
             receipt["inquiries"].append(self._inquiry_record("ask", question))
             after_ask = self._status()
             if _status_identity(after_ask, self.release_digest) != identity:
@@ -553,8 +633,9 @@ class InstalledQualification:
         finally:
             if self.started_by_run:
                 try:
-                    stop = self._run([str(self.cli), "assistance", "stop"], "verified_stop", timeout=120)
-                    after_stop = self._status()
+                    stop = self._run([str(self.cli), "assistance", "stop"], "verified_stop",
+                                     timeout=120, cleanup=True)
+                    after_stop = self._status(cleanup=True)
                     runtime = after_stop.get("runtime") if isinstance(after_stop, dict) else None
                     receipt["stop"] = {"response": stop, "after": after_stop,
                                        "stopped": stop.get("status") == "stopped"
