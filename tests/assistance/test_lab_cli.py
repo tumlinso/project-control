@@ -145,8 +145,13 @@ def test_lab_run_uses_one_delegated_transient_unit_and_preserves_argv(tmp_path, 
     command = call.args[0]
     assert result == 0
     assert command[0] == "/usr/bin/systemd-run"
-    assert "--property=Delegate=yes" in command
+    assert "--property=Delegate=cpu memory pids" in command
+    assert "--property=CPUAccounting=yes" in command
+    assert "--property=MemoryAccounting=yes" in command
+    assert "--property=TasksAccounting=yes" in command
+    assert "--property=CPUWeight=100" in command
     assert "--property=DelegateSubgroup=controller" in command
+    assert "--property=RuntimeMaxSec=45s" in command
     assert f"--working-directory={source_root}" in command
     child = command[command.index("--") + 1:]
     assert child == [
