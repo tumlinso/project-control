@@ -1,0 +1,31 @@
+{
+  "format": "pa1-reboot-recovery-validation/1",
+  "observed_at_utc": "2026-10-07T05:10:28.094466+00:00",
+  "fix": "Refresh physical GPU registration before strict owned-residency marker recovery when durable markers remain after reboot.",
+  "checks_preserved": [
+    "exact approved GPU UUIDs",
+    "current NVLink domains",
+    "exact owner identity",
+    "owned PID absence",
+    "memory baseline",
+    "native model lease proof",
+    "durable recovered-orphan archive"
+  ],
+  "tests": {
+    "passed": 22,
+    "failed": 0,
+    "elapsed_seconds": 6.322,
+    "source_wrapper": "scripts/pa1_source_tests.sh",
+    "scenarios": [
+      "cold registry recovery ordering",
+      "wrong domain rejected",
+      "unapproved GPU rejected"
+    ]
+  },
+  "source_sha256": {
+    "src/project_control/local_runtime/local_worker/supervisor.py": "d9c3f7ceef255ee96fd301a568ef38dd4f7544a0c78c49bd3f3f7b40372d5aa7",
+    "src/project_control/local_runtime/receiver-manifest.json": "9422f6f3470baabe12c2284dbf56a0ae760bf057669e785f033baf350cba8883",
+    "tests/local_runtime/test_observer_supervisor.py": "553067920262f2614fa46d70c47661cda7d4173907979e73ae624a8bd0ca5b08"
+  },
+  "physical_recovery": "pending verified candidate retry; no marker or lease manually removed"
+}

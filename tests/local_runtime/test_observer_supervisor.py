@@ -87,6 +87,84 @@ class CentralSupervisorTests(unittest.TestCase):
             request["deadline_epoch"] = deadline_epoch
         return request
 
+    def _cold_registry_host(self):
+        class Host:
+            def __init__(inner):
+                inner.devices = {}
+                inner.discovery_count = 0
+                inner.releases = []
+
+            def owner(inner, owner_id):
+                return None
+
+            def discover_gpus(inner):
+                inner.discovery_count += 1
+                inner.devices = {
+                    "accelerator:GPU-a": {"id": "accelerator:GPU-a", "tags": {"nvlink_domain": "pair-a"}},
+                    "accelerator:GPU-b": {"id": "accelerator:GPU-b", "tags": {"nvlink_domain": "pair-a"}},
+                }
+                return list(inner.devices.values())
+
+            def list(inner, kind=None):
+                return list(inner.devices.values())
+
+            def release(inner, owner_id, **kwargs):
+                inner.releases.append(owner_id)
+
+        host = Host()
+        self.backend.runtime.host = host
+        self.backend._recovery_checked = False
+        return host
+
+    def _write_stale_residency_marker(self, *, uuids=("GPU-a", "GPU-b"), domain="pair-a"):
+        marker_path = self.backend._marker_path("old-slot")
+        marker_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        marker = {
+            "format": "CORE4-OWNED-RESIDENCY/1", "owner_id": "old-owner", "slot_id": "old-slot",
+            "project_root": str(self.backend.repo_root),
+            "service_state_root": str(self.backend.service_state_root), "source_sha256": "a" * 64,
+            "process": {"pid": 99999999, "process_group": 99999999,
+                        "executable": str(Path(self.backend.profile["server"]["binary"]).resolve()),
+                        "process_start": "prior-boot", "boot_id": "prior-boot"},
+            "gpu_uuids": list(uuids), "resource_ids": [*(f"accelerator:{gpu}" for gpu in uuids),
+                                                          f"interference:nvlink:{domain}"],
+            "memory_baseline": {gpu: 0 for gpu in uuids}, "residency_capability": "f" * 64,
+            "generation": "old-owner", "origin": {"pid": 99999999, "process_start": "prior-boot"},
+        }
+        marker_path.write_text(json.dumps(marker), encoding="utf-8")
+        marker_path.chmod(0o600)
+        return marker_path, marker
+
+    def test_recovery_discovers_cold_host_before_validating_stale_marker(self):
+        host = self._cold_registry_host()
+        marker_path, marker = self._write_stale_residency_marker()
+
+        def validate_after_discovery(path, loaded_marker):
+            self.assertEqual(host.discovery_count, 1)
+            self.assertEqual(set(host.devices), {"accelerator:GPU-a", "accelerator:GPU-b"})
+            self.assertEqual(path, marker_path)
+            self.assertEqual(loaded_marker, marker)
+
+        with patch.object(self.backend, "_recover_orphan_residency", side_effect=validate_after_discovery):
+            self.backend._recover_residencies()
+        self.assertTrue(self.backend._recovery_checked)
+        self.assertTrue(marker_path.exists())
+
+    def test_recovery_keeps_wrong_domain_and_unapproved_gpu_markers_blocked(self):
+        cases = (("wrong domain", ("GPU-a", "GPU-b"), "wrong-pair"),
+                 ("unapproved GPU", ("GPU-a", "GPU-x"), "pair-a"))
+        for label, uuids, domain in cases:
+            with self.subTest(case=label):
+                host = self._cold_registry_host()
+                self.backend.profile["deployment_policy"]["allowed_gpu_uuids"] = ["GPU-a", "GPU-b"]
+                marker_path, _ = self._write_stale_residency_marker(uuids=uuids, domain=domain)
+                with self.assertRaisesRegex(SupervisorError, "owned_residency_recovery_blocked"):
+                    self.backend._recover_residencies()
+                self.assertEqual(host.discovery_count, 1)
+                self.assertTrue(marker_path.exists())
+                self.assertEqual(host.releases, [])
+                self.backend._recovery_checked = False
+
     def test_status_identity_policy_and_client_close_preserve_warm_pool(self):
         sessions = self.client.open_observer_sessions(2, compute_profile="narrow", parallelism="layer")
         first = self.client.observer_status(deadline_epoch=time.time() + 2)

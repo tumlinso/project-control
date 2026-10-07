@@ -349,7 +349,14 @@ class ProductionBackend:
     def _recover_residencies(self) -> None:
         if self._recovery_checked:
             return
-        for path in sorted((self._state_root() / "residencies").glob("*.json")):
+        marker_paths = sorted((self._state_root() / "residencies").glob("*.json"))
+        # A reboot clears the native host registry, while the durable marker
+        # still carries the exact accelerator and interference identities.
+        # Restore current physical topology before validating those identities;
+        # discovery never changes or remaps the marker itself.
+        if marker_paths:
+            self.runtime.host.discover_gpus()
+        for path in marker_paths:
             if path.is_symlink() or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o777 != 0o600:
                 raise SupervisorError("owned_residency_recovery_blocked: marker permissions invalid")
             marker = json.loads(path.read_text())

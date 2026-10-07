@@ -20,7 +20,7 @@
     "local_worker/servers/__init__.py": "6aec6eb256204704bf4c7b92d4ef73c1f78867a06c21832221c39349e9ea3189",
     "local_worker/servers/llama_cpp.py": "d223df81b80fa73a4f6fdc3bf00a0216e78b53cc8425db94b6f7a6352421afed",
     "local_worker/service.py": "5950a45aeaa8091133f623ecdb5f74c71b7683e54eba67d4f2d54c488b3577eb",
-    "local_worker/supervisor.py": "b7e77cba5ac6a7c8687819ae58d0ead9d68fbbf97b6227706534e98aec654ff9",
+    "local_worker/supervisor.py": "d9c3f7ceef255ee96fd301a568ef38dd4f7544a0c78c49bd3f3f7b40372d5aa7",
     "local_worker/telemetry.py": "9f7ef60a4e6bce81f6f05c355470bb901dd88d43ae62344aac830d5634e074db",
     "local_worker/verification.py": "0acd92c78432ea3d999d2f138c852921dcd0fe5f56e37a2be9ecfb1934ecbcc8",
     "local_worker/workspace.py": "8889483626e8ce4312538b1149ccb7844b003252b60772d08aa0f73948e3ea64",
@@ -44,7 +44,7 @@
     "scripts/worker_core.py": "49742e76c813bb813b124084c39a0f976f1d2e8f1a9262fe5d9eba8a11b70227"
   },
   "schema_version": 1,
-  "source_commit": "ceabc21507a89163b0c55253180bf5fcc175e857+PC-PA1-LAB-reviewed-peer-rpc",
+  "source_commit": "3b9c66f29fb047fc94fa14c7c84d5e23ab3f7fec+PC-PA1-reboot-discovery",
   "source_inventory_path": "/home/tumlinson/.agents/skills/docs/pa1/runtime-handoff.json",
   "source_inventory_sha256": "d522eb5f138c31b5caa773fd9d3daa256a647f85dff068f54a9efe9e6b2ad904",
   "source_root": "/home/tumlinson/project-control/src/project_control/local_runtime"

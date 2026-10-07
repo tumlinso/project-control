@@ -1,0 +1,33 @@
+{
+  "format": "pa1-live-recovery-plan/1",
+  "recorded_at_utc": "2026-10-07T05:07:24.559609+00:00",
+  "authorization": "User requested LAB and live qualification; profiler restriction explicitly cleared. Root owns finite qualification and recovery.",
+  "observed_failure": {
+    "attempt": "baseline-r4",
+    "public_inquiries_attempted": 4,
+    "model_processes_started": 0,
+    "private_job_failure": "owned_residency_recovery_blocked: orphan_marker_identity_mismatch",
+    "canonical_host_runtime_root": "/tmp/codex-todo-orchestrator-1000",
+    "exact_cause": "After reboot, canonical host accelerator registry was empty. Recovery validates registered GPU and NVLink identities before the ordinary admission discovery path runs.",
+    "evidence": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/host-discovery-recovery.json"
+  },
+  "new_hypothesis": "Refreshing physical GPU registration before strict recovery resolves cold-host residency recovery without changing ownership, UUID, topology, PID absence, memory baseline, or native model-lease proof requirements.",
+  "recovery_action": "Tiny discovery ordering fix, focused regression, rebuilt immutable candidate. Strict supported recovery must archive exact proof and exit native model lease; no manual marker or lease deletion.",
+  "controller_direct_recovery_reason": "The researcher could not bind the canonical host context. Root performed supported RuntimeFacade host discovery with the exact staged candidate release and explicit host root, as cross-runtime integration and recovery. No model started.",
+  "budget_amendment": {
+    "historical_failed_inquiries_retained": 4,
+    "additional_recovery_allowance_inquiries": 4,
+    "initial_total_inquiry_cap_including_failures": 16,
+    "successful_comparison_and_extension_and_economics_cap": 12,
+    "held_out_additional_cap": 4,
+    "initial_wall_seconds": 900,
+    "held_out_wall_seconds": 300,
+    "maximum_parallel_model_executions": 2,
+    "economics_max_inquiries": 6,
+    "economics_max_seconds": 120,
+    "automatic_roots_max": 2,
+    "automatic_reserved_turns_max": 12,
+    "stop_rule": "Stop new admissions after two failures of the same class; stop on safety/authority/provenance regression. No further recovery allowance without a new concrete hypothesis."
+  },
+  "end_state": "Automatic work off unless measured economics passes. Verified release of all qualification-owned models, experiment lease and processes; no background inference. Preserve all historical attempts and durable workspace state."
+}

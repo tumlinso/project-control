@@ -1,0 +1,1432 @@
+{
+  "case_count": 31,
+  "case_coverage_counts": {
+    "covered_cpu_source_scenario": 12,
+    "overlap_only": 1,
+    "partial": 18
+  },
+  "cases": [
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A01",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/lab_snapshot.py": "296230d657fa237af416c493bd384b4aaacc6d0830f19ca31cc28ec33316f7a7",
+        "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+      },
+      "remaining_gaps": "No single case receipt combines an installed sibling, candidate path/hash proof, broker/cache/artifact isolation, and no-production-change sentinel. Does not establish installed runtime identity.",
+      "scenario_and_assertion_evidence": "Receiver identity and source-mode isolation are tested: source manifests are validated; ambient supplier modules, root overrides, stale manifests and preloaded modules fail closed. The FastLoop harness also binds imports to repository source and isolates job/packet databases under a temporary directory. The combined tests do not execute the exact acceptance setup with an installed sibling plus all broker/cache/artifact isolation checks in one trial.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Manifest source identity is read without importing the runtime.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_source_identity_validates_receiver_manifest_without_importing_runtime"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Only the checked receiver root is exposed.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_binding_exposes_only_the_checked_root_without_importing_runtime"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Ambient supplier root is rejected.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_ambient_supplier_module_is_rejected_without_mixing_roots"
+        },
+        {
+          "path": "tests/assistance/test_fast_loop.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Actual JobService uses private temporary SQLite and each imported module path/hash is checked against repository source.",
+          "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+          "test": "test_runs_actual_job_service_with_private_sqlite_and_source_identity"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Candidate source, not ambient deployment"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A02",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+      },
+      "remaining_gaps": "Scripted providers do not test model answer quality; no single replay covers all required context, legal citations, and refusal branches together.",
+      "scenario_and_assertion_evidence": "The source-mode FastLoop drives the actual JobService/SQLite controller using scripted observations; visible replay contains only worker request, accepted observation and worker result, with no hidden reasoning. Citation validator tests reject forged/stale/out-of-root excerpts. The exact combined context/legal-citation/refusal scenario is not one end-to-end case.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_fast_loop.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Scripted source observation and completion traverse actual JobService; inference/backend/production state are false.",
+          "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+          "test": "test_runs_actual_job_service_with_private_sqlite_and_source_identity"
+        },
+        {
+          "path": "tests/assistance/test_fast_loop.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Checks exact public event sequence, excludes hidden-reasoning fields, and retains source path.",
+          "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+          "test": "test_visible_replay_contains_only_public_events_and_no_hidden_reasoning"
+        },
+        {
+          "path": "tests/assistance/test_quality.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Valid source excerpt completes; forged citation fails validation.",
+          "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+          "test": "test_citation_requires_real_excerpt_current_hash_and_in_root_source"
+        },
+        {
+          "path": "tests/assistance/test_quality.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Instruction-like fixture content yields unqualified/no policy-execution proof.",
+          "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+          "test": "test_suspicious_source_instruction_does_not_grant_authority"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Replay is real orchestration, not fake product logic"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A04",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/evaluation.py": "c229b8ee9db614bd284b5d2e61d58eb6afd7440d5e702bdfffd7f75b487a9ba2",
+        "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+      },
+      "remaining_gaps": "Source-proof, timeout/deadline, unknown failure-layer, finite-cap, and two-nonimprovement stop behaviors are asserted; the protocol-failure injection/classification branch named in the acceptance setup is not explicit in this receipt.",
+      "scenario_and_assertion_evidence": "Failure classification, finite case/entry/wall budgets, and the two-consecutive-non-improvement stop rule are directly asserted by source-mode evaluation tests.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_fast_loop.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Deadline exhaustion classifies empty and evidence-bearing outcomes separately.",
+          "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+          "test": "test_deadline_exhaustion_classifies_empty_and_evidence_bearing_results"
+        },
+        {
+          "path": "tests/assistance/test_fast_loop.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Case and entry caps reject excess records.",
+          "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+          "test": "test_experiment_ledger_enforces_declared_entry_and_case_caps"
+        },
+        {
+          "path": "tests/assistance/test_fast_loop.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Branch stops on second successive non-improving score.",
+          "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+          "test": "test_experiment_ledger_stops_branch_after_two_non_improving_scores"
+        },
+        {
+          "path": "tests/assistance/test_fast_loop.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Unknown failure layer is rejected.",
+          "source_sha256": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+          "test": "test_unknown_failure_layer_is_rejected"
+        },
+        {
+          "path": "tests/assistance/test_quality.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Evaluator shares ledger and rejects third attempt after two misses.",
+          "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+          "test": "test_evaluator_shared_ledger_stops_before_third_nonimproving_trial"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Layer-specific failure diagnosis and stop rule"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [
+        {
+          "path": "docs/pa1/handoffs/skills-retire-to-pc-qualify.json",
+          "scenario_assertions": "Historical supplier/consumer transition; scope explicitly says current QUALIFY must reverify receiver.",
+          "sha256": "f4da4bf1938fa9dae967c45c147ed9d8a2c8b079915612b1a41df04d6c8fdf1a"
+        }
+      ],
+      "id": "A05",
+      "relevant_source_sha256": {},
+      "remaining_gaps": "The handoff is historical and bound to an earlier receiver manifest; current active-edit inventory, independent kernel/interlock/domain ownership, and the proposed compatibility seam need fresh hashed handoff evidence.",
+      "scenario_and_assertion_evidence": "A bounded supplier-to-receiver handoff exists and consumer tests bind the trusted observer and worker factories to the verified canonical receiver namespace.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_runtime_consumers.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Factory digest equals receiver manifest entry and root/path/runtime identity.",
+          "source_sha256": "94e61c61381d2dca0be684bab182f421179f154cac3e9dfd53f182c9242dca6f",
+          "test": "test_trusted_observer_factory_uses_receiver_manifest_and_observer_digest"
+        },
+        {
+          "path": "tests/assistance/test_runtime_consumers.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Supervisor/worker imports resolve below the checked receiver; foreign namespace absent.",
+          "source_sha256": "94e61c61381d2dca0be684bab182f421179f154cac3e9dfd53f182c9242dca6f",
+          "test": "test_worker_factory_imports_only_the_canonical_receiver_namespace"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Supplier dependency and consumer inventory"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A06",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d"
+      },
+      "remaining_gaps": "Shared policy fixture and import-order/canonical namespace checks cover parity and import cycles, but no old-compatibility/new-receiver protocol exchange is replayed through the same protocol fixture, and no direct duplicate-pool assertion is cited.",
+      "scenario_and_assertion_evidence": "Parity tests exercise supplier and receiver policy imports against the same fixture; import-order tests ensure package/job-service imports converge without an import cycle.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Supplier/receiver policy behavior is compared on a shared fixture.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_supplier_and_receiver_policy_imports_match_on_the_same_fixture"
+        },
+        {
+          "path": "tests/assistance/test_package_imports.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Fresh process supports JobService-first import order.",
+          "source_sha256": "928fc46d33e477629a1f52acdc7d9a1d19b1fba9b5818a84bca639a0b4b49668",
+          "test": "test_job_service_import_first_then_package_exports_in_fresh_process"
+        },
+        {
+          "path": "tests/assistance/test_package_imports.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Fresh process supports package-export-first import order.",
+          "source_sha256": "928fc46d33e477629a1f52acdc7d9a1d19b1fba9b5818a84bca639a0b4b49668",
+          "test": "test_package_exports_first_then_job_service_import_in_fresh_process"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Transferred receiver inventory/layout stays exact.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_receiver_manifest_preserves_transferred_supplier_files_and_layout"
+        }
+      ],
+      "tier": "cpu",
+      "title": "One implementation, baseline protocol parity"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A07",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59"
+      },
+      "remaining_gaps": "Identity/refusal behavior is source-test evidence, not an installed-release acceptance or live dispatch exercise.",
+      "scenario_and_assertion_evidence": "Source/release binding rejects absent or stale release identity, changed source, ambient supplier modules, root overrides, and cached modules after manifest refresh.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Missing/stale install binding fails closed.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_stale_or_missing_installed_release_binding_fails_closed"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Non-checkout install requires digest pin.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_non_checkout_install_requires_a_digest_pinned_release_manifest"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Modified source is rejected before binding.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_modified_receiver_file_is_rejected_before_binding"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Mixed ambient root rejected.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_ambient_supplier_module_is_rejected_without_mixing_roots"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Stale imported modules rejected after manifest change.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_cached_modules_are_rejected_after_same_root_manifest_refresh"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Release identity and incompatible source binding"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A08",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8"
+      },
+      "remaining_gaps": "No exact current run exercises both CUDA qualification and native-maintenance adapters plus observer/coder/mutator public tool counts together; no device work is covered.",
+      "scenario_and_assertion_evidence": "Public delegated/coding mutation paths are denied in the CLI; runtime consumers bind only the canonical receiver. Existing transition record provides inactive delegation context.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_inactive_coding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "CLI blocks coding/mutation before handler execution.",
+          "source_sha256": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+          "test": "test_actual_cli_main_denies_coding_and_mutation_before_handlers"
+        },
+        {
+          "path": "tests/assistance/test_runtime_consumers.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Worker factory uses canonical receiver namespace.",
+          "source_sha256": "94e61c61381d2dca0be684bab182f421179f154cac3e9dfd53f182c9242dca6f",
+          "test": "test_worker_factory_imports_only_the_canonical_receiver_namespace"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Preserved consumers and explicit inactive delegation"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A09",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+      },
+      "remaining_gaps": "Uses scripted CPU workers and temporary source files; this is source scheduling/provenance coverage only.",
+      "scenario_and_assertion_evidence": "Actual JobService starts two parents, suspends/releases both parent slots, runs two children concurrently in the two slots while six public roots exist, then resumes each parent with only its own child result and source provenance.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_frames.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Checks two child starts, both parent slots absent, child frames running, two active slots, six public roots, per-parent scoped result, no hidden reasoning, and parent resumes after its own child.",
+          "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+          "test": "test_two_parents_release_before_children_and_children_run_in_two_slots"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Two parents, two children, two slots"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A10",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+      },
+      "remaining_gaps": "Simulated lost notification/restart; no process crash or real service restart.",
+      "scenario_and_assertion_evidence": "A child terminal result is persisted while parent wake is suppressed, service is reopened, reconciliation recovers the exact parent, duplicate wake calls are delivered, and one durable wake is consumed once.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_frames.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Fresh JobService reopens same databases, parent resumes once, wake version/consumed tuple is (1,1), and answer is stable.",
+          "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+          "test": "test_restart_reconciles_lost_wake_and_duplicate_delivery_once"
+        },
+        {
+          "path": "tests/assistance/test_frame_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Store reconciliation and duplicate terminal delivery are idempotent.",
+          "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+          "test": "test_lost_wake_reconciliation_and_duplicate_terminal_delivery"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Lost wake-up and duplicate delivery"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A11",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+      },
+      "remaining_gaps": "Fixture-level admission only; no contention measurement on an installed service.",
+      "scenario_and_assertion_evidence": "Frame store refuses cycle/scope/deadline violations, exhausted child credits, a third descendant depth, and global private-frame overflow; actual JobService test also exercises bounded descendant dispatch.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_frame_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Asserts invalid waits refuse, credits remain spent, descendants stop at depth limit, and capacity bounds hold.",
+          "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+          "test": "test_scope_deadline_cycle_credit_depth_and_global_capacity_fail_closed"
+        },
+        {
+          "path": "tests/assistance/test_frame_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Eight roots fill private capacity; ninth root cannot add another child.",
+          "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+          "test": "test_global_private_frame_limit_spans_roots"
+        },
+        {
+          "path": "tests/assistance/test_frames.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Actual JobService path bounds descendant depth.",
+          "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+          "test": "test_private_descendant_depth_is_bounded_by_actual_job_service"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Cycle and descendant bounds"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A12",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+      },
+      "remaining_gaps": "Deadline advancement is fake-clock and the workers are scripted CPU fixtures.",
+      "scenario_and_assertion_evidence": "With fake time, two real JobService worker threads block past inquiry deadlines; watchdog terminalizes public work while physical slots stay occupied, retries keep original deadline, and late results cannot replace terminal state.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_frames.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Checks terminal status, retained slot/active backend, same retry identity/deadline, verified cleanup before slot release, and late-result fence.",
+          "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+          "test": "test_independent_watchdog_expires_two_blocked_workers_without_releasing_slots"
+        },
+        {
+          "path": "tests/assistance/test_worker_slices.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Expired deadline rejects dispatch.",
+          "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+          "test": "test_expired_deadline_is_terminal_and_does_not_call_backend"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Public expiry independent of blocked execution"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A13",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301"
+      },
+      "remaining_gaps": "Does not exercise all crash windows before/after checkpoint and outbox materialization, or every supersede/cancel interleaving in the acceptance setup.",
+      "scenario_and_assertion_evidence": "Restart reconciliation, cancellation cleanup, and late-generation fences have direct tests.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_frames.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Simulates committed child plus lost wake and service reopen.",
+          "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+          "test": "test_restart_reconciles_lost_wake_and_duplicate_delivery_once"
+        },
+        {
+          "path": "tests/assistance/test_frame_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Stale frame generation is rejected.",
+          "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+          "test": "test_cumulative_turns_and_stale_generation_are_fenced"
+        },
+        {
+          "path": "tests/assistance/test_frame_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Cancelled parent does not resurrect and late work is charged.",
+          "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+          "test": "test_cancelled_parent_ack_cleans_without_resurrection_and_late_turn_is_charged"
+        },
+        {
+          "path": "tests/assistance/test_worker_slices.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Late generation output is rejected.",
+          "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+          "test": "test_generation_fence_rejects_late_model_result"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Restart and late generation fence"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A14",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301",
+        "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8"
+      },
+      "remaining_gaps": "No single case fills all six public roots including multiple suspended ones, then proves eligible private children and reserved foreground demand both progress under one interleaving.",
+      "scenario_and_assertion_evidence": "The integrated parent/child test fills public admission to six while children use the two execution slots; store tests exercise child credits/global capacity and demand-origin preservation.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_frames.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Runs two suspended roots and children; six public roots coexist with two active execution slots.",
+          "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+          "test": "test_two_parents_release_before_children_and_children_run_in_two_slots"
+        },
+        {
+          "path": "tests/assistance/test_frame_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Private child capacity is bounded across roots.",
+          "source_sha256": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+          "test": "test_global_private_frame_limit_spans_roots"
+        },
+        {
+          "path": "tests/assistance/test_power.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Explicit demand stays admissible during quiet.",
+          "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+          "test": "test_quiet_suppresses_automatic_work_but_explicit_public_demand_runs"
+        },
+        {
+          "path": "tests/assistance/test_automatic_broker.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Automatic work shares one slot and public demand uses the second.",
+          "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+          "test": "test_automatic_descendant_shares_one_auto_slot_and_demand_uses_second"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Busy admission, internal children and starvation"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A15",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301",
+        "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d"
+      },
+      "remaining_gaps": "No explicit concurrent test alternates two frames with different policies and disjoint source sets to expose a shared-global setter race or hidden-state dependence.",
+      "scenario_and_assertion_evidence": "Worker and broker tests bind trusted policy IDs/scopes to individual frame and automatic work, and prevent dependency scope widening.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_frames.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Two projects retain distinct child scope/policy and parent-specific results.",
+          "source_sha256": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+          "test": "test_two_parents_release_before_children_and_children_run_in_two_slots"
+        },
+        {
+          "path": "tests/assistance/test_worker_slices.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Trusted policy ID is validated; raw budget override is rejected.",
+          "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+          "test": "test_trusted_policy_id_is_validated_and_sent_without_raw_budget_overrides"
+        },
+        {
+          "path": "tests/assistance/test_automatic_broker.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Automatic frame dependency scope remains sealed.",
+          "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+          "test": "test_automatic_scope_is_sealed_from_dependencies_and_fails_closed"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Frame-local budgets and isolation"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A17",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+      },
+      "remaining_gaps": "Source/config mutation uses controlled test fixtures, not live repositories.",
+      "scenario_and_assertion_evidence": "Per-record freshness tests invalidate changed determinants while an unrelated HEAD change alone stays current; source deletion and partial coverage are explicit.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_knowledge_provider.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Relevant record determinants control freshness; unrelated HEAD is ignored.",
+          "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+          "test": "test_material_determinants_are_per_record_and_head_is_irrelevant"
+        },
+        {
+          "path": "tests/assistance/test_knowledge.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Relevant file changes stale the note; denial/symlink is not bypassed.",
+          "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+          "test": "test_material_file_change_marks_note_stale_and_deny_or_symlink_is_not_bypassed"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_provider.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Deleted/unmapped source does not become evidence.",
+          "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+          "test": "test_source_deletion_and_absent_material_map_do_not_turn_into_proof"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_provider.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Partial coverage is visible under bounds.",
+          "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+          "test": "test_budget_and_limit_are_honored_with_visible_partial_coverage"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Material freshness versus unrelated changes"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A18",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+      },
+      "remaining_gaps": "The exact sequence of more than 50 unrelated inquiries followed by retention is not evidenced in the current suite; mark overlap rather than full case coverage.",
+      "scenario_and_assertion_evidence": "The store pins note-owned supporting artifacts beyond ordinary terminal-answer retention and deletes only pins owned by that note.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_knowledge_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Note pins persist across the terminal window and independent pins are retained.",
+          "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+          "test": "test_atomic_note_pins_survive_terminal_window_and_delete_only_own_pins"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Failed note updates preserve prior note/pin state.",
+          "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+          "test": "test_failed_update_rolls_back_note_and_pin_replacement"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Retention outlives recent-answer window"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "overlap_only",
+      "document_evidence": [],
+      "id": "A19",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+      },
+      "remaining_gaps": "The current 320-pass suite does not include tests/as1 inquiry-cache exact/whitespace variants or negative-cache refresh. Historical baseline receipt records that inquiry-cache suite timed out. No direct exact public-cache acceptance result.",
+      "scenario_and_assertion_evidence": "Knowledge tests preserve source freshness, stale/unavailable warnings, exact request identity routing, and advisory note behavior.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_knowledge.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Typed exact routing and request identity remain unchanged.",
+          "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+          "test": "test_typed_exact_routing_and_existing_request_identity_are_unchanged"
+        },
+        {
+          "path": "tests/assistance/test_knowledge.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Retrieved notes stay advisory.",
+          "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+          "test": "test_search_and_evidence_return_shared_packet_store_notes_as_advisory"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_provider.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Unavailable material does not become proof.",
+          "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+          "test": "test_source_deletion_and_absent_material_map_do_not_turn_into_proof"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Exact public cache and historical warning"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A20",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+      },
+      "remaining_gaps": "Four scripted slices are not an induced context-compaction scenario after the skill entry and decisive resource reads; no exact compaction/re-fetch acceptance is recorded.",
+      "scenario_and_assertion_evidence": "A source proof survives multiple worker slices and the final round can reuse agentically read maps; omitted/unavailable evidence remains explicit.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_worker_slices.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Entry and selected source proof are retained over four slices.",
+          "source_sha256": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+          "test": "test_skill_entry_and_selected_source_proof_survive_four_slices"
+        },
+        {
+          "path": "tests/assistance/test_knowledge.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Truncation/limits result in visible partial coverage.",
+          "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+          "test": "test_budget_and_limit_are_honored_with_visible_partial_coverage"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Foundational evidence survives compaction"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A21",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+      },
+      "remaining_gaps": "Tests reject model-note authority, derived/self-corroborating prepared-context packets, and missing original provenance. A direct request for automatic canonical publication with absent current canonical capability is not exercised.",
+      "scenario_and_assertion_evidence": "Knowledge store requires original matching packet evidence, rejects prepared-context packets as independent evidence, prevents model note authority claims, and preserves source provenance.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_knowledge_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Evidence must refer to original matching packet; prepared context is not proof.",
+          "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+          "test": "test_source_test_require_original_matching_packet_and_prepared_context_is_not_evidence"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Integrated preparation shape is rejected as authority.",
+          "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+          "test": "test_integrated_prepared_context_packet_shape_is_rejected_but_original_notes_are_allowed"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_store.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Model note cannot claim authority; limits are explicit.",
+          "source_sha256": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+          "test": "test_model_notes_cannot_claim_authority_and_record_limits_are_explicit"
+        }
+      ],
+      "tier": "cpu",
+      "title": "No self-corroboration or canonical impersonation"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A22",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+      },
+      "remaining_gaps": "Uses registered and fixture projects; no claim of global atomic snapshot.",
+      "scenario_and_assertion_evidence": "Per-project source identity and freshness are retained across registered projects; unauthorized/inaccessible segments remain explicit and partial coverage is not promoted to global atomicity.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_knowledge.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Cross-project results preserve identity and partial status.",
+          "source_sha256": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+          "test": "test_cross_project_source_freshness_keeps_project_identity_and_partial_coverage"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_provider.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Unauthorized/inaccessible source is explicit.",
+          "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+          "test": "test_scope_denial_and_inaccessible_material_are_explicit"
+        },
+        {
+          "path": "tests/assistance/test_knowledge_provider.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Actual SQLite store preserves cross-project identity/freshness.",
+          "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+          "test": "test_actual_store_cross_project_source_freshness_keeps_project_identity"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Trusted cross-project access"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A24",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798"
+      },
+      "remaining_gaps": "The no-change poll + generated notes/logs + edit burst acceptance journey is not a single end-to-end test; no live model calls are measured.",
+      "scenario_and_assertion_evidence": "No focus/default or unchanged-state trigger dispatches by default; edit bursts coalesce, broker roots are private, and completed output is rechecked before retaining original evidence.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_attention.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Defaults/restart do not dispatch automatic work.",
+          "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+          "test": "test_focus_defaults_and_restart_reconciliation_do_not_dispatch"
+        },
+        {
+          "path": "tests/assistance/test_attention.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Burst is coalesced and waits for debounce.",
+          "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+          "test": "test_edit_burst_coalesces_and_dispatches_only_after_debounce"
+        },
+        {
+          "path": "tests/assistance/test_attention.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Completion rechecks source and stores only original packet evidence.",
+          "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+          "test": "test_broker_completion_is_rechecked_and_only_original_packets_are_written"
+        },
+        {
+          "path": "tests/assistance/test_automatic_broker.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Operational feedback does not create public evidence or recursive inquiry rows.",
+          "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+          "test": "test_protocol_feedback_is_scoped_operational_state_not_public_evidence"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Stable code and self-trigger suppression"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A25",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+        "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8"
+      },
+      "remaining_gaps": "Fake clock/store tests; no persistent production watcher or service behavior claimed.",
+      "scenario_and_assertion_evidence": "Fake-time tests persist quiet and focus expiry across restart, enforce expiry and quiet in separate orders, and confirm expired focus cannot resurrect work.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_attention.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Expired focus/quiet/release veto block automatic dispatch.",
+          "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+          "test": "test_focus_expiry_quiet_and_release_veto_block_dispatch"
+        },
+        {
+          "path": "tests/assistance/test_power.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Quiet expiry survives restart and focus cannot undo veto.",
+          "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+          "test": "test_quiet_expiry_is_persisted_and_focus_cannot_resurrect_it"
+        },
+        {
+          "path": "tests/assistance/test_attention.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Restart reconciliation stays cold.",
+          "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+          "test": "test_focus_defaults_and_restart_reconciliation_do_not_dispatch"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Persistent quiet and focus expiry"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A26",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+        "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8"
+      },
+      "remaining_gaps": "Source/CPU state tests do not start, release, or observe a physical inference process and therefore do not establish live no-rewarming.",
+      "scenario_and_assertion_evidence": "Release veto blocks automatic enqueue across status/restart/change-trigger paths while explicit demand remains separately available and requires resume or expiry before automatic resumption.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_power.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Veto persists through restart/status/demand.",
+          "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+          "test": "test_release_veto_survives_restart_status_and_new_demand"
+        },
+        {
+          "path": "tests/assistance/test_automatic_broker.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Automatic enqueue refuses under release veto and expired/invalid focus.",
+          "source_sha256": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+          "test": "test_focus_quiet_release_expiry_and_scope_bound_each_enqueue"
+        },
+        {
+          "path": "tests/assistance/test_power.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Only declared end or explicit resume clears logical veto.",
+          "source_sha256": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+          "test": "test_declared_release_end_or_explicit_resume_clears_logical_veto_only"
+        }
+      ],
+      "tier": "cpu",
+      "title": "GPU-release veto prevents rewarming"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A27",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+        "src/project_control/assistance/operator.py": "dfaf6821fc4105ffb6400030f8f57f4923e5771aa907b6c983424f9864d20b7c"
+      },
+      "remaining_gaps": "Cold/nonresident behavior, source-text authority boundaries, and denied coding/mutation are covered separately. The exact paused chat request for a scratch action with typed trusted grant validation is not one exercised end-to-end scenario.",
+      "scenario_and_assertion_evidence": "Composed assistance starts cold and queues private work only after explicit opt-in without taking an inference lease; source prose and UI/model proposals cannot grant authority; coding/mutation remains denied.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_attention_surface.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "No idle lease; opt-in queues private work.",
+          "source_sha256": "f9d7b2d3880113cd26b895fd494ee1baf8611757db54b912eb81a022fd60ff3a",
+          "test": "test_composed_attention_is_cold_until_opted_in_then_queues_private_work_without_lease"
+        },
+        {
+          "path": "tests/assistance/test_assistance.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Source prose/user goal alone do not grant automatic work.",
+          "source_sha256": "50411f745586bf331af0e5b75b3ff8531f1b311534951cea9fe4b87598900f0d",
+          "test": "test_user_goal_and_source_prose_do_not_grant_automatic_inference"
+        },
+        {
+          "path": "tests/assistance/test_inactive_coding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Untrusted action is denied before handler.",
+          "source_sha256": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+          "test": "test_actual_cli_main_denies_coding_and_mutation_before_handlers"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Nonresident conversational UI and grants"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A28",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950"
+      },
+      "remaining_gaps": "Repetitive findings are deterministic fixture inputs; no user study or live notification quality claim.",
+      "scenario_and_assertion_evidence": "Trusted user goals retain priority/provenance; conflicting notes preserve original witness; dismissals suppress same finding and changed focus can nominate again.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_knowledge_provider.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "User goal ranks first and contradiction keeps original witness.",
+          "source_sha256": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+          "test": "test_user_goals_rank_before_notes_and_contradictions_keep_original_witness"
+        },
+        {
+          "path": "tests/assistance/test_attention.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "User goal precedes inferred suggestion.",
+          "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+          "test": "test_user_goal_precedes_inference_and_ui_proposals_do_not_create_goals"
+        },
+        {
+          "path": "tests/assistance/test_attention.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Dismissal suppresses repeat; changed focus can nominate.",
+          "source_sha256": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+          "test": "test_fingerprint_dismissal_suppresses_repeat_and_changed_focus_can_nominate"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Goal relevance and dismissal"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [
+        {
+          "path": "docs/pa1/lab-integration-tests.json",
+          "scenario_assertions": "Disposable fixture source unchanged; canonical fixture template unchanged; authority_mutated=false and project_control_todo_mutated=false.",
+          "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+        }
+      ],
+      "id": "A29",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/lab_snapshot.py": "296230d657fa237af416c493bd384b4aaacc6d0830f19ca31cc28ec33316f7a7"
+      },
+      "remaining_gaps": "The evidence is on synthetic/disposable Git copies; no complete canonical working-tree/admin-state/Todo sentinel hash set is present. LAB integration receipt says canonical template unchanged and authority/Todo mutation false but is not a canonical tree comparison.",
+      "scenario_and_assertion_evidence": "Snapshot tests materialize a tracked dirty file plus selected untracked file with deterministic hash/mode manifest, preserve source HEAD/sentinel, and defer/remove partial copy on racing edit. Integration receipt also confirms disposable source and canonical fixture template unchanged and reports no Todo/authority mutation.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_lab_snapshot.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Checks captured bytes/modes/paths/hash manifest and unchanged Git HEAD sentinel.",
+          "source_sha256": "3ff1435a5a631544786e94ca5325884ad5d24e3078c04f064909c8a5c90519ab",
+          "test": "test_captures_dirty_tracked_and_selected_untracked_with_deterministic_manifest"
+        },
+        {
+          "path": "tests/assistance/test_lab_snapshot.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Racing edit defers and removes partial destination.",
+          "source_sha256": "3ff1435a5a631544786e94ca5325884ad5d24e3078c04f064909c8a5c90519ab",
+          "test": "test_racing_edit_defers_capture_and_removes_partial_detached_copy"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Mutated/extra snapshot contents block execution.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_snapshot_mutation_and_extra_files_block_execution"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Hardlink escape rejected without sentinel mutation.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_post_selection_hardlink_in_snapshot_blocks_runner_without_sentinel_change"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Dirty snapshot and canonical sentinel integrity"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [
+        {
+          "path": "docs/pa1/lab-integration-tests.json",
+          "scenario_assertions": "Experiment recorded negative, expected 10, observed 5, 86.207 ms; uncertainty explicitly says one deterministic input only; artifact state partial/qualified=false.",
+          "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+        }
+      ],
+      "id": "A32",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+      },
+      "remaining_gaps": "The contained odd-tail probe is a defect counterexample, not a mechanism performance comparison with noisy/failed measurement. No speedup or promotion is claimed.",
+      "scenario_and_assertion_evidence": "A disposable CPU LAB probe produces a negative outcome with actual expected=10/observed=5, status=command_failed, bounded elapsed time, nonqualified partial artifact, and explicit one-input uncertainty. The quality evaluator preserves negative/inconclusive classifications and does not claim hidden evidence.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Negative/timeouts/containment failures remain distinct and unpromoted.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_negative_timeout_and_containment_failure_are_not_promoted"
+        },
+        {
+          "path": "tests/assistance/test_quality.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Qualitative answer remains requires_review/unqualified.",
+          "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+          "test": "test_qualitative_case_is_advisory_even_when_checklist_terms_match"
+        },
+        {
+          "path": "tests/assistance/test_quality.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Self-report fields do not become evidence.",
+          "source_sha256": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+          "test": "test_model_self_report_cannot_claim_reasoning_or_hidden_trace_evidence"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Negative or inconclusive results are useful"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [
+        {
+          "path": "docs/pa1/lab-integration-tests.json",
+          "scenario_assertions": "Exact effect/process identity and artifact SHA recorded; cleanup verified; artifact remains partial/unqualified.",
+          "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca"
+        }
+      ],
+      "id": "A34",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/lab_runner.py": "01bdab8f7c8975454400b3f82b94bc399b73cc05c26970ad596f4089adbb334d"
+      },
+      "remaining_gaps": "Source-level interruptions are simulated; the one integrated CPU probe was completed and cleaned up, not itself interrupted between effect and commit.",
+      "scenario_and_assertion_evidence": "LAB intent persists before execution; interrupted or ambiguous effects become unknown and are reconciled against exact PID/start identity without blind replay. Unverified cleanup remains pending; the integration receipt includes exact effect, process, artifact hash and cleanup_verified=true.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Intent is durable before effect and receipt survives reopen.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_run_persists_intent_before_execution_and_reopens_receipt"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Interrupted effect stays unknown and is not rerun.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_interrupted_intent_is_marked_unknown_and_never_replayed"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Restart reconciles exact process identity, no replay.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_restart_checks_persisted_exact_process_identity_without_replay"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Cleanup is pending until exact proof.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_unverified_cleanup_remains_pending_until_exact_reconcile"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Ambiguous restart reconciles state rather than duplicate execution.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_ambiguous_restart_reconciles_without_replay"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Interrupted effect reconciliation"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "covered_cpu_source_scenario",
+      "document_evidence": [],
+      "id": "A35",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59"
+      },
+      "remaining_gaps": "The tests enforce candidate/source freshness within fixtures; no actual canonical patch acceptance, git commit, or push occurred.",
+      "scenario_and_assertion_evidence": "A candidate remains unpromoted when the current source changes after capture; verification detects stale current source and snapshot file/mode tampering.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Candidate stays unpromoted and changed canonical source is detected.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_candidate_stays_unpromoted_and_detects_current_source_change"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Snapshot tampering invalidates candidate.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_candidate_verification_detects_snapshot_file_tampering"
+        },
+        {
+          "path": "tests/assistance/test_lab.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Mode change invalidates candidate.",
+          "source_sha256": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+          "test": "test_candidate_verification_detects_file_mode_change"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Patch and canonical acceptance remain separate"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A36",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/operator.py": "dfaf6821fc4105ffb6400030f8f57f4923e5771aa907b6c983424f9864d20b7c"
+      },
+      "remaining_gaps": "The 320-test suite does not launch each live public profile and enumerate every schema/annotation/forbidden operation across them in one current discovery receipt; exact current runtime schema observation remains partial.",
+      "scenario_and_assertion_evidence": "The source suite asserts recorded schema counts and CLI denies coding/mutation before handlers; it also validates receiver-side permission boundaries.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Recorded current observer/coder/mutator counts are checked.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_recorded_public_mcp_schemas_keep_the_current_profile_counts"
+        },
+        {
+          "path": "tests/assistance/test_inactive_coding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Forbidden operations are denied before dispatch.",
+          "source_sha256": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+          "test": "test_actual_cli_main_denies_coding_and_mutation_before_handlers"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Exact public interface and denied authority"
+    },
+    {
+      "acceptance_boundary": "Source/CPU scenario coverage only; root decides final acceptance. This row does not qualify live inference, a GPU, an installed release, or production.",
+      "coverage_status": "partial",
+      "document_evidence": [],
+      "id": "A39",
+      "relevant_source_sha256": {
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec"
+      },
+      "remaining_gaps": "No quiescent installed source/runtime cutover, old-client isolation, actual rollback, or persisted activation-choice transition was executed by this CPU suite.",
+      "scenario_and_assertion_evidence": "Release tests cover inert candidate records, budget rejection, evidence boundaries and source-only composition; runtime-binding tests preserve strict old/new identity fences.",
+      "tests": [
+        {
+          "path": "tests/assistance/test_release.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Candidate plan remains inert and no inference is claimed.",
+          "source_sha256": "49485d7be338510526142e9563c983d32172a241e5cf36d3ea8556156b6799e6",
+          "test": "test_inert_plan_is_explicitly_planned_and_does_not_claim_inference"
+        },
+        {
+          "path": "tests/assistance/test_release.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Release plan respects budgets.",
+          "source_sha256": "49485d7be338510526142e9563c983d32172a241e5cf36d3ea8556156b6799e6",
+          "test": "test_initial_budget_rejects_over_cap_and_case_underfunding"
+        },
+        {
+          "path": "tests/assistance/test_release.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Runtime composition with stub backend is source-only.",
+          "source_sha256": "49485d7be338510526142e9563c983d32172a241e5cf36d3ea8556156b6799e6",
+          "test": "test_real_runtime_composes_public_as1_surface_with_private_state_and_stub_backend"
+        },
+        {
+          "path": "tests/assistance/test_runtime_binding.py",
+          "receipt": "current-source-tests",
+          "scenario_assertions": "Old/stale binding fails closed.",
+          "source_sha256": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+          "test": "test_stale_or_missing_installed_release_binding_fails_closed"
+        }
+      ],
+      "tier": "cpu",
+      "title": "Versioned state and reversible candidate"
+    }
+  ],
+  "classification_guide": {
+    "covered_cpu_source_scenario": "The test assertions directly exercise the package CPU scenario in production source/controller code using CPU fixtures; root may treat as case evidence subject to source identity and scope.",
+    "none_of_these_statuses_is_live_qualification": "These rows cannot satisfy live_model/live_gpu/sandbox or installed-runtime claims.",
+    "overlap_only": "Adjacent source behavior or historical evidence exists, but the exact scenario is not exercised.",
+    "partial": "Relevant behavior is exercised but a stated acceptance setup or expected condition is missing."
+  },
+  "format": "pa1-cpu-case-evidence/1",
+  "implementation_trust_boundary": "The combined suite used actual repository controller/storage source, real temporary SQLite and private fixture/source copies with mocked/scripted model providers. It did not perform inference, GPU/device work, use a persistent production service, or qualify production. The later real cgroup tests are limited to LAB runner containment mechanics.",
+  "non_cpu_cases_not_assessed": [
+    "A03",
+    "A16",
+    "A23",
+    "A30",
+    "A31",
+    "A33",
+    "A37",
+    "A38",
+    "A40"
+  ],
+  "package_contract": {
+    "format": "pa1-acceptance/1",
+    "path": "planning/project-assistance-v1/machine/acceptance.json",
+    "sha256": "8db435add7f875ec96c5a6758b0a7122029515ea2c61689de43fe6a22e8826d6"
+  },
+  "plan_contract": {
+    "path": "docs/pa1/live-qualification-plan.json",
+    "sha256": "3e5bc66dac388ebddcc22e0760543c21c752d675881fa6a3d941b5c446b917ea"
+  },
+  "root_review_required": true,
+  "scope": "Exact-case mapping of the 31 package CPU-tier acceptance cases to recorded source-test and contained disposable CPU evidence. This is an evidence digest for root review, not the final acceptance matrix.",
+  "suite_receipts": [
+    {
+      "command": "scripts/pa1_source_tests.sh -m pytest -q tests/assistance tests/local_runtime/test_observer_supervisor.py tests/local_runtime/test_observer_deadlines.py --tb=short",
+      "elapsed_seconds": 33.448,
+      "evidence_limit": "Source-mode CPU unit tests with mocked inference providers; no live model, GPU, persistent service, or production acceptance was performed by this suite. The combined source group included source-mode tests only; the runner follow-up was a focused real cgroup test in a delegated transient systemd unit. No live model, GPU, persistent service, or production acceptance was performed.",
+      "invocation_id": "c7650129244d479bafddb661572131da",
+      "path": "docs/pa1/current-source-tests.json",
+      "receiver_manifest_sha256": "9e60122d80dd57c045226df9180ba676099b879137d3359975c8a1302c4b78fb",
+      "result": {
+        "failed": 0,
+        "passed": 320,
+        "passed_subtests": 54,
+        "skipped": 0,
+        "total": 320
+      },
+      "run_log_sha256": "25eafeb5627cc9c6bf56a91ebe4e829077657d42357bdd2b6325cdef698a17b0",
+      "runtime_fingerprint": "4933d445543f04f672192edfb3f06825b2c1dab5b80017b85538757d5b04132f",
+      "sha256": "2736ce9dba438f3465f344da0370f7dde4769fd1ace86a623e3ead8b5f32b697",
+      "source_hashes": {
+        "src/project_control/assistance/__init__.py": "a27cf6414fb0554cfbe811d472b9d04469f333bcc5b91966eab14abbf3fabdab",
+        "src/project_control/assistance/attention.py": "d6dc06369ac9ed72fb3e45c91d9e76d188a5f247528b96474d867833dbb36798",
+        "src/project_control/assistance/evaluation.py": "c229b8ee9db614bd284b5d2e61d58eb6afd7440d5e702bdfffd7f75b487a9ba2",
+        "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301",
+        "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950",
+        "src/project_control/assistance/lab.py": "ff6b3a2a6de92442afb3995b6731574e9ebb2d0bab1b3fdbfb288966e96a1a59",
+        "src/project_control/assistance/lab_runner.py": "01bdab8f7c8975454400b3f82b94bc399b73cc05c26970ad596f4089adbb334d",
+        "src/project_control/assistance/lab_snapshot.py": "296230d657fa237af416c493bd384b4aaacc6d0830f19ca31cc28ec33316f7a7",
+        "src/project_control/assistance/operator.py": "dfaf6821fc4105ffb6400030f8f57f4923e5771aa907b6c983424f9864d20b7c",
+        "src/project_control/assistance/policies.py": "7b42f2ccaf6404763e73a3bf0476c7651c187e2dd5e0f7270b135d89ea1d9a4d",
+        "src/project_control/assistance/power.py": "cc93b1e402ae2d214c63fe7380790210c5db3920a51b28a6c72443cc40c25de8",
+        "src/project_control/assistance/quality.py": "a1c814f5943fc3a6f61ff6639bdb7fd4b92b7c13292ad6e2f501e1bb8d9bb8ec",
+        "src/project_control/assistance/resources.py": "44876036cbb497e36fcd9cf888670c12cdf56d91b84b3c3938f2d0bb2a05ddb8",
+        "src/project_control/local_runtime/local_worker/supervisor.py": "b7e77cba5ac6a7c8687819ae58d0ead9d68fbbf97b6227706534e98aec654ff9"
+      },
+      "source_head": "ceabc21507a89163b0c55253180bf5fcc175e857",
+      "source_test_hashes": {
+        "tests/assistance/test_assistance.py": "50411f745586bf331af0e5b75b3ff8531f1b311534951cea9fe4b87598900f0d",
+        "tests/assistance/test_attention.py": "2fb5d9c58bd7f22801387aa3fd2ae473a745be875ef3349a29d4c3f124f92d62",
+        "tests/assistance/test_attention_surface.py": "f9d7b2d3880113cd26b895fd494ee1baf8611757db54b912eb81a022fd60ff3a",
+        "tests/assistance/test_automatic_broker.py": "aabadafd9be092c8dca29331d5c3e9110d1ee70514e20d8fe03c3f95bf107419",
+        "tests/assistance/test_fast_loop.py": "222a199039956775fff6405205da67e11519b4ba7bf47f6b256fb0bf75c12bdf",
+        "tests/assistance/test_frame_store.py": "cf1c0af4db33bc76e4f936e5ef08bd330524d506a90a890327813d7fc300a6aa",
+        "tests/assistance/test_frames.py": "b9cb080e3368ca99fc1eb1196cc3053c16bb9b619fb1207f274e91f3d93157b1",
+        "tests/assistance/test_gpu_experiment.py": "c2ff5e6c7b9051f1d670c6346b545cb0c721aa32c45b6c1446837d38c0e2200f",
+        "tests/assistance/test_inactive_coding.py": "7ecbae043735d237dc92e88acd7f87ed5a421ead8d7c83e1b8ae1602f3c9998b",
+        "tests/assistance/test_knowledge.py": "78727b1b70a71148d5cb4c9dc441f860ad5b87487a20773b24b7743bd6579574",
+        "tests/assistance/test_knowledge_provider.py": "218701fa1e74553d60e7883de6c8e1b6013ee0647dce9ced0f75a19866f5db74",
+        "tests/assistance/test_knowledge_store.py": "8815d0b3c593d80975610597d9328af977d02bcc7a81719163baf6bcff766ccc",
+        "tests/assistance/test_lab.py": "83d0967a0bb089b900b5daa36d109c0d4dc7f32656b0da1ccee02210ff93fc4a",
+        "tests/assistance/test_lab_cli.py": "fab986aad9de6def2f147e1b04f158b0e50f2287d8e7e15d9c4b2cec3f897966",
+        "tests/assistance/test_lab_runner.py": "3ad11598cd8c9fbc42691eb0f96651269d05a3a03fa0976958fa2b0291fa001f",
+        "tests/assistance/test_lab_snapshot.py": "3ff1435a5a631544786e94ca5325884ad5d24e3078c04f064909c8a5c90519ab",
+        "tests/assistance/test_owned_release.py": "5bd2f7eda7ed95dba24f5a5562286197479bd466b5d18df84c88c3fdaccc3bd0",
+        "tests/assistance/test_package_imports.py": "928fc46d33e477629a1f52acdc7d9a1d19b1fba9b5818a84bca639a0b4b49668",
+        "tests/assistance/test_power.py": "3ac423adc7e7a025f37c4a1795ccba23a6ec30adc641e311702dfb85fa53acd3",
+        "tests/assistance/test_quality.py": "cd677ef52252bad938d8c42ffaeecbe24f7c02427061cd179653bbaadc0f500c",
+        "tests/assistance/test_release.py": "49485d7be338510526142e9563c983d32172a241e5cf36d3ea8556156b6799e6",
+        "tests/assistance/test_runtime_binding.py": "718b9bd3920ae5dbb561a568f6e8809fe7673df98d2cfee0808068fa3ea9a9bc",
+        "tests/assistance/test_runtime_consumers.py": "94e61c61381d2dca0be684bab182f421179f154cac3e9dfd53f182c9242dca6f",
+        "tests/assistance/test_turn_policies.py": "4d50a5df5336103af255680e61df7e29b3900abf586e227af24ee1cc1079db95",
+        "tests/assistance/test_worker_slices.py": "9c8c83e357e0ea8618ba9bcddf9895eb3842b50e4fa4b6bca61df63e41a5f626",
+        "tests/local_runtime/test_observer_deadlines.py": "d8c8c7dd08713a87478c9b5fd946e6b446429fac7b9305ad5e0f59ebf510ad2f",
+        "tests/local_runtime/test_observer_supervisor.py": "79c876c5d6326bf2a7fdcd390da4b3ebc3ae1f8262613babca85d4524e2c68b6"
+      },
+      "worktree": "dirty_uncommitted"
+    },
+    {
+      "command": "scripts/pa1_source_tests.sh -m pytest -q tests/assistance/test_lab_runner.py::LabRunnerContractTests::test_detached_descendant_is_killed_when_leader_exits --tb=short",
+      "invocation_id": "13467d696c6048e6a8bb6825170eb3ac",
+      "note": "Focused runner-owned descendant follow-up only; combined suite was not repeated.",
+      "path": "docs/pa1/current-source-tests.json",
+      "private_log_sha256": "e8ce50c0b80fce22026674f2d13adaff0e914409cca02120420e733dd52863ee",
+      "result": {
+        "elapsed_seconds": 0.21,
+        "exit_code": 0,
+        "passed": 1
+      },
+      "sha256": "2736ce9dba438f3465f344da0370f7dde4769fd1ace86a623e3ead8b5f32b697",
+      "test_sha256": "3ad11598cd8c9fbc42691eb0f96651269d05a3a03fa0976958fa2b0291fa001f"
+    },
+    {
+      "command": "scripts/pa1_source_tests.sh -m pytest -q tests/assistance/test_lab_runner.py --tb=short",
+      "invocation_id": "343b77e5b7a34c6fbe861da284e586e7",
+      "memory_swap_max_readback": 0,
+      "note": "Focused final runner suite after mandatory swap limit; combined suite was not repeated.",
+      "path": "docs/pa1/current-source-tests.json",
+      "private_log_sha256": "3a67b88103be509e15b57643280e2ad0ecf5ec9a9f99325e2b0c7a3fef1a36b7",
+      "result": {
+        "elapsed_seconds": 1.016,
+        "exit_code": 0,
+        "passed": 9
+      },
+      "sha256": "2736ce9dba438f3465f344da0370f7dde4769fd1ace86a623e3ead8b5f32b697",
+      "source_sha256": "310542628282d476841669b15c48c54c4d63f72ac590e7b4c7a9661cabb982b9",
+      "test_sha256": "02d6309abf12acc35f89bad5f757ad1674310c332a6caecdb626d7e81681fa10"
+    },
+    {
+      "artifact": {
+        "bytes": 76,
+        "path": "/tmp/pa1-lab-counterexample-x1yna65s/private-state/experiments/lab_cd985d884a4247549836ad9d0a81bdd9/attempt_338da01b75354a5e9e02e23597ae5f71/result.bin",
+        "qualified": false,
+        "sha256": "302f19c380c20fcd156c7916d1aeecc7dd69e6d891410af9cd5989bcf9f89d3b",
+        "state": "partial"
+      },
+      "authority_mutated": false,
+      "containment": {
+        "backend": "bubblewrap+cgroup-v2",
+        "cleanup_verified": true,
+        "invocation": "systemd-run --user --wait --pipe --collect --property=Delegate=yes --property=DelegateSubgroup=controller",
+        "outer_argv": [
+          ".dev-venv/bin/python",
+          "/tmp/pa1_lab_counterexample.py"
+        ],
+        "persistent_service_created": false,
+        "process_identity": {
+          "cgroup_inode": 15680,
+          "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/run-u27.service/pc-lab-fdc9222b8334ac92ba9f-cf5b5eb2",
+          "pid": 76563,
+          "start_time_ticks": 145857
+        },
+        "resource_grant": {
+          "artifact_bytes": 67108864,
+          "cpu_cores": 1.0,
+          "memory_bytes": 1073741824,
+          "output_bytes": 65536,
+          "pids": 32,
+          "timeout_seconds": 30.0
+        },
+        "transient_unit_invocation_id": "6889343c543b44c78c48d6e765c10935"
+      },
+      "experiment": {
+        "attempt_id": "attempt_338da01b75354a5e9e02e23597ae5f71",
+        "effect_id": "effect_3a7816bd080e4b88a3c45fc6dfbd490d",
+        "elapsed_ms": 86.207,
+        "expected": 10,
+        "experiment_id": "lab_cd985d884a4247549836ad9d0a81bdd9",
+        "generation": 1,
+        "hypothesis": "pair_sum must include the final unpaired item",
+        "input": [
+          2,
+          3,
+          5
+        ],
+        "observed": 5,
+        "outcome": "negative",
+        "reference": "direct Python sum over [2, 3, 5]",
+        "returncode": 1,
+        "status": "command_failed",
+        "stderr": "",
+        "stdout": "{\"defect_exposed\": true, \"expected\": 10, \"input\": [2, 3, 5], \"observed\": 5}\n",
+        "uncertainty": "One deterministic input only; this demonstrates the fixture's odd-tail defect, not a general or production correctness claim."
+      },
+      "fixture_source": {
+        "canonical_fixture_template_unchanged": true,
+        "head_after": "db161941a5d0c50ca110153cade22d0f67c2964a",
+        "head_before": "db161941a5d0c50ca110153cade22d0f67c2964a",
+        "kind": "disposable_git_copy_of_synthetic_fixture",
+        "repository": "pa1-odd-tail-fixture",
+        "root": "/tmp/pa1-lab-counterexample-x1yna65s/source",
+        "selected_paths": [
+          "demo",
+          "tests"
+        ],
+        "source_files": {
+          "demo/__init__.py": "a36ae8f97b701d45dd4e73ef160e4c9059caeaad3a02e491027f87de98f3696f",
+          "demo/pairs.py": "a7da51faead3be54309308f32177766efec3d6c908751c6f9f3a96c02b28d81c",
+          "tests/test_pairs.py": "7f8da18524cec3ebad77393b950a26eb1f154f4930d54dbb27387bc45b691412"
+        },
+        "source_unchanged": true,
+        "status_fingerprint_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "status_fingerprint_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "note": "not an A31 live-model acceptance result",
+      "path": "docs/pa1/lab-integration-tests.json",
+      "project_control_todo_mutated": false,
+      "scope": "LAB service integration mechanics and one disposable CPU fixture probe",
+      "sha256": "1064236d8a1d8f07db3964748c19ebce33de27f62a0a768637e17a35213c3aca",
+      "validation": {
+        "command": "scripts/pa1_source_tests.sh -m unittest tests.assistance.test_lab -v",
+        "coverage": [
+          "intent is durable before launch and receipt survives service reopen",
+          "negative, timeout and containment-unavailable outcomes remain distinct",
+          "intent and exact process ownership reconcile without replay",
+          "unverified cleanup remains pending until exact reconciliation",
+          "snapshot contents, inventory, directories, symlinks, manifest and modes are verified",
+          "candidate source freshness includes captured modes and private snapshot integrity",
+          "runner argv bounds are rejected before capture",
+          "concurrent source selections receive unique generations"
+        ],
+        "interpreter": ".dev-venv/bin/python (Python 3.12.3)",
+        "result": "passed",
+        "tests_passed": 13
+      }
+    }
+  ],
+  "task": "PC-PA1-LAB",
+  "unavailable_or_unrun": "No fresh installed-runtime lifecycle, model inference, GPU computation, or all-current-public-MCP discovery run was included in these receipts."
+}

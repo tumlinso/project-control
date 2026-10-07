@@ -42,6 +42,41 @@ def test_execute_live_requires_the_exact_existing_supervisor_state_path(monkeypa
     assert not (tmp_path / "artifacts").exists()
 
 
+def test_real_runtime_config_composes_observer_with_stub_backend(monkeypatch, tmp_path):
+    from project_control.app import Runtime
+    from project_control.as1_surface import compose_surface
+    from project_control.config import load_config
+    from project_control.profiles import MCPProfile
+
+    repo = economics._disposable_repository(tmp_path)
+    original = load_config()
+    config_home = economics._private_config(repo, tmp_path, original)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+    class StubBackend:
+        available = True
+
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    backend = StubBackend()
+    runtime = Runtime(load_config())
+    assert runtime.config.workspaces["economics"].repositories["fixture"].root == repo
+    composition = compose_surface(runtime, MCPProfile.OBSERVER,
+                                  state_directory=tmp_path / "isolated-state",
+                                  backend=backend)
+    try:
+        assert composition.scope("economics")["project"] == "economics"
+        assert composition.jobs.worker_factory is not None
+        assert not backend.closed
+    finally:
+        assert composition.close() is True
+    assert backend.closed
+
+
 def test_economic_gate_keeps_automatic_off_when_latency_or_quality_is_unmeasured():
     report = {"comparison": {"comparisons": []}, "elapsed_seconds": 9.0}
     result = economics._economics_result(

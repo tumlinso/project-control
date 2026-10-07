@@ -172,14 +172,13 @@ def _execute(root: Path) -> dict[str, Any]:
     from project_control.app import Runtime
     from project_control.as1_surface import compose_surface
     from project_control.assistance.operator import AssistanceOperator
-    from project_control.assistance.power import PowerPolicy, trusted_operator_control
+    from project_control.assistance.power import PowerPolicy
     from project_control.config import load_config
     from project_control.observer_analysis import SkillsObserverAnalysisProvider
     from project_control.profiles import MCPProfile
     from project_control.runtime_binding import bind_local_runtime
     from project_control.assistance import attention as attention_module
 
-    from project_control.config import load_config
     original_config = load_config()
     repo = _disposable_repository(root)
     config_home = _private_config(repo, root, original_config)

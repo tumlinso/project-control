@@ -1,0 +1,314 @@
+{
+  "additional_partial_case_ids": [
+    "A13",
+    "A14",
+    "A21",
+    "A27",
+    "A29"
+  ],
+  "case_results": [
+    {
+      "coverage_limit": "One interrupted outbox window and logical restart, not actual OS crash or every before/after checkpoint window; supersession and late-child generation interleavings remain uncovered.",
+      "id": "A13",
+      "observed": {
+        "interrupted_outbox_put": "OSError after accepted observation committed",
+        "late_finish": "False after production cancel; cancelled frame/public answer unchanged",
+        "restart": "fresh JobService instance reconciles same packet ID and checkpoint"
+      },
+      "status": "partial_additional_controller_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_frames.py",
+          "sha256": "6e1847366d232018ed9107ef55db88de0a7a5fd5b7e300344913097b58509712",
+          "tests": [
+            "test_restart_replays_unmaterialized_outbox_around_checkpoint",
+            "test_cancel_fences_a_late_attempt_from_current_frame_and_public_result"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "Private DB fixtures establish suspended/running state. Child claim is proven; child completion, multiple suspended parents, starvation and combined automatic/reserved foreground sequence remain uncovered.",
+      "id": "A14",
+      "observed": {
+        "eligible_private_child": "production claim reserves slot while parent remains suspended",
+        "public_roots": 6,
+        "seventh_root": "admission_limit",
+        "suspended_parents": 1
+      },
+      "status": "partial_additional_controller_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_frames.py",
+          "sha256": "6e1847366d232018ed9107ef55db88de0a7a5fd5b7e300344913097b58509712",
+          "tests": [
+            "test_saturated_public_roots_keep_suspended_parent_and_allow_child_dispatch"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "Scripted worker/session adapter, actual JobService and packet/note SQLite stores; no model inference or production-store retention trial.",
+      "id": "A18",
+      "observed": {
+        "completed_distinct_public_inquiries": 52,
+        "expired_unpinned_control": "collected and lookup expired",
+        "packet_clock_advance_days": 8,
+        "recent_inquiry_index_size": 50,
+        "retained_note_source": "expired-by-TTL packet remains pinned, referenced and lookup ok after gc"
+      },
+      "status": "covered_cpu_controller_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_retention.py",
+          "sha256": "fe722dd92ab11c073cfe2b06761b105d20b97c5dd9c9745de10e186cad03a962",
+          "tests": [
+            "test_note_owned_evidence_survives_more_than_fifty_public_inquiries_and_gc"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "Scripted backend and injected freshness classifications exercise actual public inquiry cache/controller; actual file freshness resolver and model quality are not evaluated.",
+      "id": "A19",
+      "observed": {
+        "empty_failure": "unavailable exact repeat with one call; freshness provider never invoked",
+        "exact_duplicate": "same job, one worker call",
+        "historical_observation": "partial freshness warning in unresolved_questions, original stdout retained, no new worker call",
+        "stale_supported_answer": "one explicit refresh with new answer",
+        "whitespace_variant": "distinct job"
+      },
+      "status": "covered_cpu_controller_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_retention.py",
+          "sha256": "fe722dd92ab11c073cfe2b06761b105d20b97c5dd9c9745de10e186cad03a962",
+          "tests": [
+            "test_exact_identity_whitespace_refresh_historical_warning_and_negative_cache"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "No bounded forced skill-context compaction/re-fetch driver was exercised. Existing worker-slice/provenance tests do not substitute for the requested pressure scenario.",
+      "id": "A20",
+      "observed": {},
+      "status": "uncovered_requested_scenario",
+      "tests": []
+    },
+    {
+      "coverage_limit": "No direct attempted automatic canonical-publication endpoint was exercised; tested surface exposes unpromoted review candidates and advisory notes only. This does not complete the direct-denial acceptance branch.",
+      "id": "A21",
+      "observed": {
+        "LAB_candidate": "unpromoted, canonical_applied false, todo_mutated false",
+        "model_note": "original provenance retained, independent_proof false, authoritative false"
+      },
+      "status": "partial_additional_controller_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_boundaries.py",
+          "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+          "tests": [
+            "test_a21_model_repetition_stays_advisory_and_candidate_unpromoted"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "No paused conversational UI or actual model idle-lease sequence was exercised.",
+      "id": "A27",
+      "observed": {
+        "instruction_like_source": "captured as source data with experiment selected only",
+        "raw_dict_grant": "typed source-bound LAB grant required; denied",
+        "untrusted_operator": "PermissionError before state creation"
+      },
+      "status": "partial_additional_controller_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_boundaries.py",
+          "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+          "tests": [
+            "test_a27_instruction_like_source_cannot_mint_or_run_a_scratch_grant"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "Disposable Git canonical fixture with exact sentinel comparison; no external edit race was injected and live project canonical tree was not captured while other authorized workers edited it.",
+      "id": "A29",
+      "observed": {
+        "capture_refusals": [
+          ".git",
+          "todos.md"
+        ],
+        "dirty_tracked_and_untracked": "both exact captured bytes retained",
+        "sentinels_unchanged": [
+          "source bytes",
+          "Todo Markdown",
+          "Todo state snapshot",
+          "Git HEAD",
+          "Git index SHA256",
+          "Git full porcelain status"
+        ]
+      },
+      "status": "partial_additional_controller_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_boundaries.py",
+          "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+          "tests": [
+            "test_a29_dirty_and_untracked_capture_preserves_git_and_todo_sentinels"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "Synthetic mechanism does deliberately more CPU work; this is one contained negative measurement and durable receipt behavior, not a performance benchmark, general mechanism ranking or production promotion.",
+      "id": "A32",
+      "observed": {
+        "candidate_ms": 22.58193299985578,
+        "cleanup_verified": true,
+        "exit_code": 2,
+        "measurement_backend": "actual bubblewrap+cgroup-v2",
+        "outcome": "negative",
+        "reference_ms": 1.981768999939959,
+        "samples": 1,
+        "speedup_claim": false,
+        "uncertainty": "variance cannot be estimated from n=1; selected command/captured source only"
+      },
+      "status": "covered_contained_cpu_negative_scenario",
+      "tests": [
+        {
+          "path": "tests/assistance/test_acceptance_boundaries.py",
+          "sha256": "a5d0a698e06a56de29b95b6d484c4c14cd29ae83fe6fab813cea9a15fe740402",
+          "tests": [
+            "test_a32_failed_comparison_retains_measurement_and_uncertainty"
+          ]
+        }
+      ]
+    },
+    {
+      "coverage_limit": "Fresh actual create_mcp composition in isolated private stores; no network/stdio transport exchange, persistent server state, or Todo kernel invocation. Read port factory is absent; no inquiry submitted. Current contract includes observer, coder, mutator, investigator and skill_assembler profiles.",
+      "evidence": [
+        {
+          "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/protocol-source.json",
+          "sha256": "0ec63cb36b98e5abc00118f25ea4bbca480bc0d1560ad8510f651b5e9ca42e26"
+        },
+        {
+          "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/protocol-candidate.json",
+          "sha256": "7982e7f673ee15d0270a13f1d4cc791ae45b446b99c02623617bca6831d535fd"
+        },
+        {
+          "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/enumerate_protocol.py",
+          "sha256": "b6c995396ab2935a0815bafd5c5adf4a6302e43b674f627ac50480bece0b1847"
+        }
+      ],
+      "id": "A36",
+      "observed": {
+        "all_profiles_equal": true,
+        "candidate_app": "/home/tumlinson/.local/share/project-control/releases/unified-20261007-pa1-lab/lib/python3.12/site-packages/project_control/app.py",
+        "forbidden_invocations_denied_each_runtime": 132,
+        "schema_hashes": {
+          "coder": "7b03703e850a135d6d53e000d73fda05b3773b579ecc937b7261cb448301b6a1",
+          "investigator": "fb45e721cfb1ee8dea26cac8a851dbee268562cbffa5c493c8344fe7fdb65292",
+          "mutator": "9f2a547a04f6dfb98169c9dca127a71ae76be3c6d38f1f61f9c5f1c1fafc1454",
+          "observer": "fca58e1b921fce9117dcf22a02dc190624ae3d9a9ae69881fae239002d1f1b27",
+          "skill_assembler": "fb45e721cfb1ee8dea26cac8a851dbee268562cbffa5c493c8344fe7fdb65292"
+        },
+        "source_app": "/home/tumlinson/project-control/src/project_control/app.py",
+        "tool_counts": {
+          "coder": 12,
+          "investigator": 10,
+          "mutator": 16,
+          "observer": 11,
+          "skill_assembler": 10
+        }
+      },
+      "status": "covered_source_and_candidate_composed_protocol_scenario"
+    }
+  ],
+  "final_acceptance": false,
+  "format": "pa1-cpu-acceptance-supplement/1",
+  "generated_at": "2026-10-07T05:10:32.190811+00:00",
+  "integration_state": "Frozen new test files and evidence supplement, uncommitted for root integration. No production source/runtime files edited by this workstream.",
+  "newly_covered_cpu_case_ids": [
+    "A18",
+    "A19",
+    "A32",
+    "A36"
+  ],
+  "pending_worker_groups": [],
+  "production_source_modified_by_workstream": false,
+  "proposed_combined_cpu_coverage_counts": {
+    "covered_cpu_scenario": 16,
+    "note": "Prior digest 12 covered,18 partial,1 overlap plus four scoped CPU scenario closures; root must review this proposed classification. It is not final product acceptance.",
+    "overlap_only": 0,
+    "partial": 15,
+    "total": 31
+  },
+  "relevant_source_sha256": {
+    "src/project_control/app.py": "301bb8f8084b6751247248eabbb26865afc6885d273d127abbf27c8eba199011",
+    "src/project_control/as1_jobs.py": "7a7dc18aece053fcbe9f11a453e4446ab36b6b8605cecfc8d69aa0d5e472eb90",
+    "src/project_control/as1_packets.py": "6b8bc850f55088b300cc8d93f38de29e39fd9557fe2fad17fa3bebf9409e6041",
+    "src/project_control/assistance/frames.py": "cdb010cc40cfb2cf57e8a1664701e59c399aa63455070cec9a103b8312d92301",
+    "src/project_control/assistance/knowledge.py": "eaca0c0fc1d3c0372d4402e7952ca8414856402810f90154b91fcfdc347c0950",
+    "src/project_control/assistance/lab.py": "977de43033b3abe294586b7c92a0ae531f009d39b2a8fc2e139f846d5335a5d6",
+    "src/project_control/assistance/lab_runner.py": "310542628282d476841669b15c48c54c4d63f72ac590e7b4c7a9661cabb982b9",
+    "src/project_control/assistance/lab_snapshot.py": "cd70fd16cc7aef8d8f425659459fc3edd9fb3ec8bc0abeaea57a6988d18dc5cf",
+    "src/project_control/profiles.py": "41dfde9faf3d78bd570a92917ced8d9fd604329dfc109292d356ac3860b4c3d0"
+  },
+  "requested_uncovered_case_ids": [
+    "A20"
+  ],
+  "root_review_required": true,
+  "scope": "Bounded CPU scenario additions under root PC-PA1-LAB claim; live inference, GPU, service cutover, workflow mutation and final acceptance excluded.",
+  "source_head": "3b9c66f29fb047fc94fa14c7c84d5e23ab3f7fec",
+  "suite_receipts": [
+    {
+      "command": "scripts/pa1_source_tests.sh -m pytest tests/assistance/test_acceptance_frames.py -q",
+      "elapsed_seconds": 1.03,
+      "failed": 0,
+      "log": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/source-tests/frames.log",
+        "sha256": "783a2ffe74d6521276d5db9faaefb7bd9b24297ff0d303ec18a89934b448afb8"
+      },
+      "passed": 3
+    },
+    {
+      "command": "scripts/pa1_source_tests.sh -m pytest -q tests/assistance/test_acceptance_retention.py",
+      "elapsed_seconds": 23.39,
+      "exploratory_correction": "Earlier GC assertion incorrectly expected a non-expiring result packet to be collected; it was removed. Final initial run verifies inquiry-index rotation and note-owned support retention. The subsequent focused pin test additionally advances packet time past TTL and compares an unowned expired control.",
+      "failed": 0,
+      "log": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/retention.log",
+        "sha256": "60cbfefe6e8046c41f8ad41f8d1732bec094700d0feac658ae515cfcce93bb33"
+      },
+      "passed": 2
+    },
+    {
+      "command": "systemd-run --user --wait --pipe --collect -pDelegate=yes -pDelegateSubgroup=controller scripts/pa1_source_tests.sh -m unittest tests.assistance.test_acceptance_boundaries -v",
+      "elapsed_seconds": 0.624,
+      "failed": 0,
+      "invocation_id": "88b7036ab1264d11823aeafebfab9321",
+      "log": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/boundaries.log",
+        "sha256": "874495733c660320a7cfad4f0f8daa0731bc1b1597bf0b5e4ca9c8416e068781"
+      },
+      "passed": 4,
+      "unit": "run-u39"
+    },
+    {
+      "command": "scripts/pa1_source_tests.sh -m pytest -q tests/assistance/test_acceptance_retention.py::RetentionAcceptanceTests::test_note_owned_evidence_survives_more_than_fifty_public_inquiries_and_gc",
+      "elapsed_seconds": 20.32,
+      "failed": 0,
+      "log": {
+        "path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/cpu-supplement/retention-pin.log",
+        "sha256": "e28255e204ec01e2b941c644680699b60d7fe2acc8f18c8c2f7ec828db59f785"
+      },
+      "note": "Focused final A18 strengthening only; A19 implementation unchanged from passed two-test group.",
+      "passed": 1
+    }
+  ],
+  "total_distinct_new_tests_passed": 9,
+  "worker_release_state": "All three workers returned their bounded assignments; no child inference or persistent service was started."
+}

@@ -98,6 +98,123 @@ class LiveQualificationPlanTests(unittest.TestCase):
         self.assertFalse(report["cleanup"]["isolated_job_service_started"])
         self.assertEqual(report["failure"]["reason"], "canonical service unavailable")
 
+    def test_attempted_inquiry_is_not_reported_as_confirmed_inference(self):
+        self.assertFalse(live._visible_inference_confirmed(
+            "unavailable", "not a public answer", []))
+        self.assertFalse(live._visible_inference_confirmed("completed", None, []))
+        self.assertTrue(live._visible_inference_confirmed("completed", "visible answer", []))
+        self.assertTrue(live._visible_inference_confirmed("partial", None, [{"text": "visible finding"}]))
+
+    def test_failure_stop_requires_two_failures_of_the_same_class(self):
+        self.assertFalse(live._same_failure_stop({"runtime_mismatch": 1, "worker_failure": 1}))
+        self.assertTrue(live._same_failure_stop({"runtime_mismatch": 2}))
+
+    def test_negative_public_result_links_to_exact_isolated_job_id_without_content(self):
+        scope = {"principal": "observer", "profile": "observer", "project": "catalog"}
+        case = {"question": "bounded test question"}
+        runtime_identity = {"fingerprint": "source-runtime"}
+        expected_identity = live.canonical_digest({
+            "question": case["question"],
+            "context": {"project": "catalog", "analysis_runtime_identity": runtime_identity},
+            "mode": "investigate", "skill": None,
+        })
+
+        class Cursor:
+            def fetchone(self):
+                return {"id": "job_actual_17"}
+
+        class DB:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def execute(self, _query, parameters):
+                self.parameters = parameters
+                return Cursor()
+
+        class Jobs:
+            analysis_runtime_identity = runtime_identity
+            inquiry_calls = 0
+
+            @staticmethod
+            def inquiry_context(access_scope, identity):
+                return {"project": access_scope["project"], "analysis_runtime_identity": identity}
+
+            def _db(self):
+                db = DB()
+                self.db = db
+                return db
+
+            def lookup(self, job_id, *, access_scope):
+                self.lookup_args = (job_id, access_scope)
+                return {"status": "ok", "job": {"job_id": job_id, "status": "failed", "attempt": 1}}
+
+            def inquire(self, *_args, **_kwargs):
+                self.inquiry_calls += 1
+                return {"status": "unavailable", "reason": "analysis_unavailable"}
+
+            @staticmethod
+            def inquiry_failure_diagnostics(*, limit):
+                assert limit == 50
+                return [{"job_id": "job_actual_17", "failure_class": "runtime_mismatch"}]
+
+        class Composition:
+            jobs = Jobs()
+
+        composition = Composition()
+        linkage = live._lookup_inquiry_job_linkage(composition, case=case, scope=scope)
+        self.assertEqual(linkage["job_id"], "job_actual_17")
+        self.assertEqual(linkage["job_status"], "failed")
+        self.assertEqual(linkage["failure_class"], "runtime_mismatch")
+        self.assertEqual(composition.jobs.db.parameters, (expected_identity,))
+        self.assertEqual(composition.jobs.lookup_args[0], "job_actual_17")
+
+        attempts = []
+        outcome = live._inquire_to_terminal(
+            composition, case=case, scope=scope, hint_alias="fixture-source",
+            deadline=live.time.monotonic() + 2, on_attempt=lambda: attempts.append("attempted"))
+        self.assertEqual(attempts, ["attempted"])
+        self.assertEqual(composition.jobs.inquiry_calls, 1)
+        self.assertEqual(outcome["public_result"], {
+            "status": "unavailable", "reason": "analysis_unavailable"})
+        self.assertEqual(outcome["job_linkage"]["job_id"], "job_actual_17")
+
+    def test_real_runtime_composes_public_as1_surface_with_private_state_and_stub_backend(self):
+        from project_control.app import Runtime
+        from project_control.config import load_config
+        from project_control.runtime_binding import bind_local_runtime
+
+        class StubBackend:
+            available = True
+
+            def __init__(self, state_root):
+                self._state_root = state_root
+
+        with tempfile.TemporaryDirectory(prefix="pa1-compose-smoke-") as temporary:
+            private_root = Path(temporary) / "as1-state"
+            identity = bind_local_runtime()
+            runtime = Runtime(load_config())
+            backend = StubBackend(Path(temporary) / "canonical-supervisor-state")
+            composition = live._compose_isolated_surface(private_root, runtime, backend)
+            try:
+                self.assertIs(composition.backend, backend)
+                self.assertIsNotNone(composition.jobs.worker_factory)
+                self.assertEqual(composition.jobs.directory, private_root / "jobs-v2")
+                self.assertEqual(composition.store.path.parent, private_root)
+                report = live._runtime_report(identity, backend, {
+                    "runtime_fingerprint": identity.fingerprint,
+                    "source_sha256": identity.manifest_sha256,
+                    "supervisor_pid": 123,
+                    "service_state_root": str(backend._state_root),
+                })
+                self.assertEqual(report["root"], str(identity.root))
+                self.assertEqual(report["fingerprint"], identity.fingerprint)
+                self.assertEqual(report["supervisor_runtime_fingerprint"], identity.fingerprint)
+            finally:
+                self.assertTrue(composition.close())
+
 
 if __name__ == "__main__":
     unittest.main()

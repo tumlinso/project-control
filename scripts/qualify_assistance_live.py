@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import stat
 import sys
+import threading
 import time
 from typing import Any, Mapping
 
@@ -30,6 +31,7 @@ from project_control.assistance.quality import (  # noqa: E402
     score_case,
     sha256_file,
 )
+from project_control.as1_contracts import canonical_digest  # noqa: E402
 
 
 INITIAL_IDS = ("E01", "E02", "E03", "E04")
@@ -220,10 +222,8 @@ def _request(case: Mapping[str, Any], evidence: list[dict[str, Any]], session_id
 
 def _isolated_composition(state_root: Path, supervisor_state_root: Path | None = None):
     from project_control.app import Runtime
-    from project_control.as1_surface import compose_surface
     from project_control.config import load_config
     from project_control.observer_analysis import SkillsObserverAnalysisProvider
-    from project_control.profiles import MCPProfile
     from project_control.runtime_binding import bind_local_runtime
 
     identity = bind_local_runtime()
@@ -243,7 +243,7 @@ def _isolated_composition(state_root: Path, supervisor_state_root: Path | None =
                 os.environ.pop("PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR", None)
             else:
                 os.environ["PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR"] = previous_state_root
-    return Runtime(load_config()), backend
+    return identity, Runtime(load_config()), backend
 
 
 def _compose_isolated_surface(state_root: Path, runtime: Any, backend: Any):
@@ -252,6 +252,25 @@ def _compose_isolated_surface(state_root: Path, runtime: Any, backend: Any):
 
     return compose_surface(runtime, MCPProfile.OBSERVER,
                            state_directory=state_root, backend=backend)
+
+
+def _runtime_report(identity: Any, backend: Any, status: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    report = {
+        "root": str(identity.root), "source_root": identity.source_root,
+        "source_commit": identity.source_commit,
+        "manifest_sha256": identity.manifest_sha256,
+        "fingerprint": identity.fingerprint,
+        "file_count": identity.file_count,
+        "configured_supervisor_state_root": str(backend._state_root),
+    }
+    if status is not None:
+        report.update({
+            "supervisor_runtime_fingerprint": status.get("runtime_fingerprint"),
+            "supervisor_source_sha256": status.get("source_sha256"),
+            "supervisor_pid": status.get("supervisor_pid"),
+            "service_state_root": status.get("service_state_root"),
+        })
+    return report
 
 
 def _slot_identity(status: Mapping[str, Any], receipts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -326,18 +345,88 @@ def _insert_fixture_packet(composition: Any, scope: Mapping[str, Any], case: Map
     return packet.alias, packet.packet_id, evidence
 
 
+def _lookup_inquiry_job_linkage(composition: Any, *, case: Mapping[str, Any],
+                                scope: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Resolve a public inquiry to its isolated durable job without reading content.
+
+    ``inquire`` intentionally returns only ``analysis_unavailable`` for a
+    negative terminal result. The public lookup requires a job ID, so compute
+    the exact canonical inquiry key and read its isolated index before using
+    the service's scoped public lookup. This is read-only and reveals only a
+    bounded identifier/status/classification tuple.
+    """
+    jobs = composition.jobs
+    identity = canonical_digest({
+        "question": case["question"],
+        "context": jobs.inquiry_context(scope, jobs.analysis_runtime_identity),
+        "mode": "investigate", "skill": None,
+    })
+    with jobs._db() as db:
+        row = db.execute("SELECT jobs.id FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job "
+                         "WHERE inquiry_index.identity=?", (identity,)).fetchone()
+    if row is None:
+        return None
+    job_id = row["id"]
+    snapshot = jobs.lookup(job_id, access_scope=scope)
+    if snapshot.get("status") != "ok" or not isinstance(snapshot.get("job"), dict):
+        return {"lookup_method": "isolated_inquiry_index_then_scoped_lookup",
+                "lookup_status": snapshot.get("status"), "job_id": job_id}
+    job = snapshot["job"]
+    diagnostic = None
+    if job.get("status") in {"completed", "partial", "failed", "cancelled"}:
+        diagnostic = next((item for item in jobs.inquiry_failure_diagnostics(limit=50)
+                           if item.get("job_id") == job_id), None)
+    return {
+        "lookup_method": "isolated_inquiry_index_then_scoped_lookup",
+        "lookup_status": "ok", "job_id": job_id,
+        "job_status": job.get("status"), "attempt": job.get("attempt"),
+        "failure_class": diagnostic.get("failure_class") if diagnostic else None,
+    }
+
+
 def _inquire_to_terminal(composition: Any, *, case: Mapping[str, Any], scope: Mapping[str, Any],
-                         hint_alias: str, request_id: str, deadline: float) -> dict[str, Any]:
+                         hint_alias: str, deadline: float,
+                         on_attempt: Any | None = None) -> dict[str, Any]:
+    attempted = False
+    linkage = None
+    last_result: dict[str, Any] = {"status": "unavailable", "reason": "phase_deadline_exhausted"}
     while time.monotonic() < deadline:
-        result = composition.jobs.inquire(
-            case["question"], access_scope=scope, hints=[hint_alias], request_id=request_id,
-            foreground_timeout=min(30, max(0, deadline - time.monotonic())))
-        if result.get("job") and result.get("status") in {"completed", "partial", "failed", "cancelled"}:
-            return result
-        if result.get("status") not in {"thinking", "busy"}:
-            return result
+        if not attempted:
+            attempted = True
+            if on_attempt is not None:
+                on_attempt()
+        try:
+            last_result = composition.jobs.inquire(
+                case["question"], access_scope=scope, hints=[hint_alias],
+                foreground_timeout=min(30, max(0, deadline - time.monotonic())))
+        except Exception as error:
+            last_result = {"status": "unavailable",
+                           "reason": f"{type(error).__name__}:{error}"[:300]}
+        try:
+            linkage = _lookup_inquiry_job_linkage(composition, case=case, scope=scope) or linkage
+        except Exception as error:
+            # Keep the failed correlation explicit; never turn a missing lookup
+            # into an invented job identifier.
+            linkage = {"lookup_method": "isolated_inquiry_index_then_scoped_lookup",
+                       "lookup_status": f"{type(error).__name__}"[:80]}
+        if last_result.get("job") and last_result.get("status") in {"completed", "partial", "failed", "cancelled"}:
+            return {"public_result": last_result, "job_linkage": linkage}
+        if last_result.get("status") not in {"thinking", "busy"}:
+            return {"public_result": last_result, "job_linkage": linkage}
         time.sleep(min(0.1, max(0, deadline - time.monotonic())))
-    return {"status": "unavailable", "reason": "phase_deadline_exhausted"}
+    return {"public_result": {"status": "unavailable", "reason": "phase_deadline_exhausted"},
+            "job_linkage": linkage}
+
+
+def _visible_inference_confirmed(status: str, answer: Any, findings: Any) -> bool:
+    """Count only a visible successful answer/findings, never an attempted call."""
+    return (status in {"completed", "partial"}
+            and (isinstance(answer, str) and bool(answer.strip())
+                 or isinstance(findings, list) and bool(findings)))
+
+
+def _same_failure_stop(failures: Mapping[str, int]) -> bool:
+    return any(count >= 2 for count in failures.values())
 
 
 def _owned_receipts(jobs: Any) -> list[dict[str, Any]]:
@@ -359,6 +448,7 @@ def _preflight_failure_report(report: dict[str, Any], error: Exception) -> dict[
     report["status"] = "preflight_failed"
     report["inference_performed"] = False
     report["inquiry_count"] = 0
+    report["inquiries_attempted"] = 0
     report["failure"] = {"class": type(error).__name__, "reason": str(error)[:300]}
     report["cleanup"] = {"isolated_job_service_started": False,
                          "isolated_cache_retained_for_review": True,
@@ -397,7 +487,11 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
         "policy_sha256": sha256_file(package_root / "machine/evaluation-policy.json"),
         "budget": budget, "fixture_root": str(fixture_root.resolve(strict=True)),
         "held_out": heldout, "cases": [], "isolated_state_root": str(state_root),
-        "inquiry_count": 0,
+        "inquiry_count": 0, "inquiries_attempted": 0, "jobs_identified": 0,
+        "inquiry_count_semantics": "distinct public inquiry calls attempted",
+        "inference_performed_semantics": "visible successful answer or findings observed",
+        "confirmed_inference_count": 0,
+        "model_turn_count": "not_exposed_by_public_job_result",
         "gaps": ["model_turn_usage_not_exposed_by_public_job_result",
                  "prefill_and_reasoning_token_counts_not_exposed",
                  "two_preparation_inquiries_not_run", "request_scratch_not_applied"],
@@ -407,22 +501,10 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
     try:
         # Query canonical owner metadata before constructing or starting any
         # isolated AS1 service. central_status is read-only and never starts a daemon.
-        runtime, backend = _isolated_composition(state_root, supervisor_state_root)
-        report["runtime"] = {
-            "root": str(runtime.root), "source_root": runtime.source_root,
-            "source_commit": runtime.source_commit,
-            "manifest_sha256": runtime.manifest_sha256,
-            "fingerprint": runtime.fingerprint,
-            "file_count": runtime.file_count,
-            "configured_supervisor_state_root": str(backend._state_root),
-        }
+        identity, runtime, backend = _isolated_composition(state_root, supervisor_state_root)
+        report["runtime"] = _runtime_report(identity, backend)
         status = backend.central_status(deadline_epoch=time.time() + 5)
-        report["runtime"].update({
-            "supervisor_runtime_fingerprint": status.get("runtime_fingerprint"),
-            "supervisor_source_sha256": status.get("source_sha256"),
-            "supervisor_pid": status.get("supervisor_pid"),
-            "service_state_root": status.get("service_state_root"),
-        })
+        report["runtime"] = _runtime_report(identity, backend, status)
         if expected_runtime_fingerprint and status.get("runtime_fingerprint") != expected_runtime_fingerprint:
             raise QualificationError("supervisor runtime fingerprint differs from the required live identity")
         composition = _compose_isolated_surface(state_root, runtime, backend)
@@ -447,71 +529,138 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
                                 "hint_alias": item["alias"], "mode": "investigate"}
             request_rows[item["case"]["id"]] = {
                 "request_sha256": _json_hash(request_material),
-                "request_id": "pa1-live-" + uuid.uuid4().hex,
+                "attempt_id": "pa1-live-" + uuid.uuid4().hex,
                 "started": time.monotonic(),
             }
 
-        report["inference_performed"] = True
-        results = {}
-        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="pa1-live-case") as pool:
-            futures = {
-                pool.submit(_inquire_to_terminal, composition, case=item["case"], scope=scope,
-                            hint_alias=item["alias"], request_id=request_rows[item["case"]["id"]]["request_id"],
-                            deadline=deadline): item
-                for item in packets
-            }
-            for future in as_completed(futures, timeout=max(1, budget["wall_seconds"])):
-                item = futures[future]
-                case = item["case"]
-                try:
-                    result = future.result()
-                    results[case["id"]] = result
-                except Exception as error:
-                    results[case["id"]] = {"status": "unavailable",
-                                            "reason": f"{type(error).__name__}:{error}"[:300]}
+        progress_lock = threading.Lock()
+        attempted_cases: set[str] = set()
 
+        def mark_attempt(case_id: str) -> None:
+            with progress_lock:
+                attempted_cases.add(case_id)
+                report["inquiries_attempted"] = len(attempted_cases)
+                report["inquiry_count"] = len(attempted_cases)
+                report["attempted_case_ids"] = sorted(attempted_cases)
+                _atomic_json(private_root / "report.json", report)
+
+        results = {}
         failures: dict[str, int] = {}
-        for item in packets:
-            case = item["case"]
-            result = results.get(case["id"], {"status": "not_run_budget_exhausted"})
-            job = result.get("job") if isinstance(result.get("job"), dict) else {}
-            row: dict[str, Any] = {
-                "case_id": case["id"], "status": result.get("status", "failed"),
-                "request_sha256": request_rows[case["id"]]["request_sha256"],
-                "request_id": request_rows[case["id"]]["request_id"],
-                "elapsed_seconds": round(time.monotonic() - request_rows[case["id"]]["started"], 4),
-                "job_id": job.get("job_id"), "attempt": job.get("attempt"),
-                "result_packet": job.get("result_packet"),
-                "evidence_packets": job.get("evidence_packets", []),
-                "observations": result.get("observations", []),
-                "usage": "not_exposed_by_public_job_result",
-                "reasoning_tokens": "not_exposed_by_public_job_result",
-                "prefill_time": "not_exposed_by_public_job_result",
-            }
-            result_ref = job.get("result_packet")
-            result_packet = composition.store.lookup(result_ref, access_scope=scope) if result_ref else None
-            payload = result_packet.packet.payload if result_packet and result_packet.status == "ok" else {}
-            row["answer"] = payload.get("answer", job.get("answer"))
-            row["findings"] = payload.get("findings", job.get("findings", []))
-            row["unresolved_questions"] = payload.get("unresolved_questions", job.get("unresolved_questions", []))
-            refs = {ref for finding in row["findings"] if isinstance(finding, dict)
-                    for ref in finding.get("evidence_packets", []) if isinstance(ref, str)}
-            if item["packet_id"] in refs:
-                row["broker_cited_fixture_sources"] = [
-                    {"path": source["path"], "sha256": source["sha256"],
-                     "excerpt": source["text"], "source_packet_id": item["packet_id"]}
-                    for source in item["evidence"]]
-            if result.get("status") in {"completed", "partial"} and isinstance(row["answer"], str):
-                citations = [{"path": cite["path"], "sha256": cite["sha256"], "excerpt": cite["excerpt"]}
-                             for cite in row.get("broker_cited_fixture_sources", [])]
-                row["score"] = score_case(case, {"answer": row["answer"], "citations": citations}, fixture_root)
-            else:
-                failure = str(result.get("reason") or result.get("status") or "incomplete")
-                row["failure_class"] = failure[:180]
-                failures[failure] = failures.get(failure, 0) + 1
-            report["cases"].append(row)
-        if any(count >= 2 for count in failures.values()):
-            report["stop_reason"] = "two_same_class_failures"
+        stop_dispatch = False
+        for offset in range(0, len(packets), INITIAL_BUDGET["max_parallel_executions"]):
+            wave = packets[offset:offset + INITIAL_BUDGET["max_parallel_executions"]]
+            with ThreadPoolExecutor(max_workers=INITIAL_BUDGET["max_parallel_executions"],
+                                    thread_name_prefix="pa1-live-case") as pool:
+                futures = {
+                    pool.submit(_inquire_to_terminal, composition, case=item["case"], scope=scope,
+                                hint_alias=item["alias"], deadline=deadline,
+                                on_attempt=lambda ident=item["case"]["id"]: mark_attempt(ident)): item
+                    for item in wave
+                }
+                try:
+                    for future in as_completed(futures, timeout=max(1, deadline - time.monotonic())):
+                        item = futures[future]
+                        case = item["case"]
+                        try:
+                            results[case["id"]] = future.result()
+                        except Exception as error:
+                            results[case["id"]] = {
+                                "public_result": {"status": "unavailable",
+                                                  "reason": f"{type(error).__name__}:{error}"[:300]},
+                                "job_linkage": None,
+                            }
+                except TimeoutError:
+                    for future, item in futures.items():
+                        if not future.done():
+                            future.cancel()
+                            results[item["case"]["id"]] = {
+                                "public_result": {"status": "unavailable",
+                                                  "reason": "phase_deadline_exhausted"},
+                                "job_linkage": None,
+                            }
+
+            for item in wave:
+                case = item["case"]
+                envelope = results.get(case["id"], {
+                    "public_result": {"status": "unavailable", "reason": "not_run_budget_exhausted"},
+                    "job_linkage": None,
+                })
+                result = envelope.get("public_result", {})
+                linkage = envelope.get("job_linkage") if isinstance(envelope.get("job_linkage"), dict) else {}
+                if not linkage.get("job_id"):
+                    try:
+                        linkage = _lookup_inquiry_job_linkage(
+                            composition, case=case, scope=scope) or linkage
+                    except Exception as error:
+                        linkage = {**linkage,
+                                   "lookup_method": "isolated_inquiry_index_then_scoped_lookup",
+                                   "lookup_status": f"{type(error).__name__}"[:80]}
+                job = result.get("job") if isinstance(result.get("job"), dict) else {}
+                row: dict[str, Any] = {
+                    "case_id": case["id"], "status": result.get("status", "failed"),
+                    "attempt_id": request_rows[case["id"]]["attempt_id"],
+                    "request_sha256": request_rows[case["id"]]["request_sha256"],
+                    "elapsed_seconds": round(time.monotonic() - request_rows[case["id"]]["started"], 4),
+                    "job_id": job.get("job_id") or linkage.get("job_id"),
+                    "job_status": job.get("status") or linkage.get("job_status"),
+                    "attempt": job.get("attempt") or linkage.get("attempt"),
+                    "job_linkage_method": linkage.get("lookup_method"),
+                    "job_linkage_status": linkage.get("lookup_status"),
+                    "result_packet": job.get("result_packet"),
+                    "evidence_packets": job.get("evidence_packets", []),
+                    "observations": result.get("observations", []),
+                    "usage": "not_exposed_by_public_job_result",
+                    "model_turn_count": "not_exposed_by_public_job_result",
+                    "reasoning_tokens": "not_exposed_by_public_job_result",
+                    "prefill_time": "not_exposed_by_public_job_result",
+                }
+                if linkage.get("failure_class"):
+                    row["failure_class"] = linkage["failure_class"]
+                result_ref = job.get("result_packet")
+                result_packet = composition.store.lookup(result_ref, access_scope=scope) if result_ref else None
+                payload = result_packet.packet.payload if result_packet and result_packet.status == "ok" else {}
+                row["answer"] = payload.get("answer", job.get("answer"))
+                row["findings"] = payload.get("findings", job.get("findings", []))
+                row["unresolved_questions"] = payload.get("unresolved_questions", job.get("unresolved_questions", []))
+                refs = {ref for finding in row["findings"] if isinstance(finding, dict)
+                        for ref in finding.get("evidence_packets", []) if isinstance(ref, str)}
+                if item["packet_id"] in refs:
+                    row["broker_cited_fixture_sources"] = [
+                        {"path": source["path"], "sha256": source["sha256"],
+                         "excerpt": source["text"], "source_packet_id": item["packet_id"]}
+                        for source in item["evidence"]]
+                row["inference_confirmed"] = _visible_inference_confirmed(
+                    row["status"], row["answer"], row["findings"])
+                if row["inference_confirmed"] and isinstance(row["answer"], str) and row["answer"].strip():
+                    citations = [{"path": cite["path"], "sha256": cite["sha256"], "excerpt": cite["excerpt"]}
+                                 for cite in row.get("broker_cited_fixture_sources", [])]
+                    row["score"] = score_case(case, {"answer": row["answer"], "citations": citations}, fixture_root)
+                elif not row["inference_confirmed"]:
+                    failure = str(row.get("failure_class") or result.get("reason") or result.get("status") or "incomplete")
+                    row["failure_class"] = failure[:180]
+                    failures[failure] = failures.get(failure, 0) + 1
+                else:
+                    row["answer"] = None
+                report["cases"].append(row)
+            report["jobs_identified"] = len([row for row in report["cases"] if row.get("job_id")])
+            confirmed_ids = [row["case_id"] for row in report["cases"] if row.get("inference_confirmed")]
+            report["confirmed_inference_case_ids"] = confirmed_ids
+            report["confirmed_inference_count"] = len(confirmed_ids)
+            report["inference_performed"] = bool(confirmed_ids)
+            with progress_lock:
+                _atomic_json(private_root / "report.json", report)
+            if _same_failure_stop(failures):
+                report["stop_reason"] = "two_same_class_failures"
+                stop_dispatch = True
+                break
+
+        if stop_dispatch:
+            attempted = set(attempted_cases)
+            for item in packets:
+                case_id = item["case"]["id"]
+                if case_id not in attempted and not any(row.get("case_id") == case_id for row in report["cases"]):
+                    report["cases"].append({"case_id": case_id, "status": "not_run_stop_rule",
+                                            "inference_confirmed": False})
 
         receipts = _owned_receipts(composition.jobs)
         report["owned_sessions"] = [{key: row.get(key) for key in
@@ -536,7 +685,7 @@ def run_live(*, package_root: Path, source_root: Path, fixture_root: Path,
         if not report["two_interchangeable_slots_observed"]:
             report["gaps"].append("two_interchangeable_slots_not_proven")
         report["elapsed_seconds"] = round(time.monotonic() - started, 4)
-        report["inquiry_count"] = len([row for row in report["cases"] if row.get("job_id")])
+        report["jobs_identified"] = len([row for row in report["cases"] if row.get("job_id")])
         report["status"] = ("completed_with_gaps" if report["inquiry_count"] and
                             all(row.get("status") in {"completed", "partial"} for row in report["cases"])
                             else "partial")
