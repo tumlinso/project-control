@@ -8,7 +8,8 @@ import pytest
 from project_control.as1_contracts import DurableJob
 from project_control.as1_jobs import JobService
 from project_control.as1_packets import SQLitePacketStore
-from project_control.assistance.power import PowerPolicy, trusted_operator_control
+from project_control.assistance.power import PowerPolicy, ReleaseIntent, trusted_operator_control
+from project_control.assistance.resources import ResourceController
 from project_control.runtime_binding import RELEASE_DIGEST_VARIABLE
 
 
@@ -61,6 +62,44 @@ def valid_proof(*, job_id=JOB_ID, attempt=1, owner_pid=OWNER_PID,
     }
 
 
+def add_released_row(service, session_id, release_request_id):
+    receipt = {
+        "format": "PA1-OWNED-RESOURCE/1", "session_id": session_id,
+        "daemon_epoch": "e" * 64, "slot_id": f"slot-{session_id}",
+        "owner_id": f"owner-{session_id}", "host_lease_id": f"owner-{session_id}",
+        "residency_generation": f"generation-{session_id}", "server_pid": 9001,
+        "server_process_start": "server-start", "gpu_uuids": [GPU_UUIDS[0]],
+        "capability": "c" * 64,
+    }
+    proof = {
+        "format": "PC-PA1-OWNED-RELEASE-PROOF/1", "request_id": release_request_id,
+        **{key: receipt[key] for key in ("daemon_epoch", "session_id", "slot_id", "owner_id",
+            "host_lease_id", "residency_generation", "server_pid", "server_process_start", "gpu_uuids")},
+        "process_released": True, "memory_released": True, "host_released": True,
+    }
+    with service._db() as db:
+        db.execute("""INSERT INTO pa1_owned_resource_sessions
+            (session_id,supervisor_epoch,state,close_receipt,release_request_id,release_proof,updated)
+            VALUES(?,?,?,?,?,?,?)""",
+            (session_id, json.dumps({"daemon_epoch": receipt["daemon_epoch"], "supervisor_pid": 10,
+                "supervisor_process_start": "old-supervisor", "runtime_fingerprint": "f" * 64}),
+             "released_verified", json.dumps(receipt), release_request_id, json.dumps(proof), time.time()))
+
+
+def acknowledge_current_release(service, session_id="current-session"):
+    with service._db() as db:
+        power = PowerPolicy(db, clock=service.clock).snapshot()
+    intent = ReleaseIntent(power["release_request_id"], power["release_created_at"],
+                           power["release_until"], power["release_reason"])
+    add_released_row(service, session_id, intent.request_id)
+    with service._db() as db:
+        policy = PowerPolicy(db, clock=service.clock)
+        resources = ResourceController(db, power_policy=policy, clock=service.clock)
+        db.commit()
+        resources.acknowledge_verified_release(intent)
+    return intent
+
+
 def invoke(service, proof=None, **overrides):
     args = {"job_id": JOB_ID, "attempt": 1, "owner_pid": OWNER_PID,
             "owner_start": OWNER_START, "proof": proof or valid_proof()}
@@ -71,6 +110,9 @@ def invoke(service, proof=None, **overrides):
 def test_reconciles_exact_stale_slot_and_preserves_job_and_proof(tmp_path, monkeypatch):
     monkeypatch.setenv(RELEASE_DIGEST_VARIABLE, RELEASE_DIGEST)
     service, original_record = make_service(tmp_path)
+    add_released_row(service, "historical-session-a", "old-release-a")
+    add_released_row(service, "historical-session-b", "old-release-b")
+    current_intent = acknowledge_current_release(service)
     proof = valid_proof()
 
     result = invoke(service, proof)
@@ -83,8 +125,15 @@ def test_reconciles_exact_stale_slot_and_preserves_job_and_proof(tmp_path, monke
                              (result["receipt_id"],)).fetchone()
         assert receipt["job"] == JOB_ID and receipt["slot_attempt"] == 1
         assert receipt["owner_pid"] == OWNER_PID and receipt["owner_start"] == OWNER_START
+        assert receipt["release_request_id"] == current_intent.request_id
         assert json.loads(receipt["proof"]) == proof
         assert receipt["proof_sha256"] == result["proof_sha256"]
+        resource_rows = db.execute("SELECT session_id,release_request_id FROM pa1_owned_resource_sessions ORDER BY session_id").fetchall()
+        assert [(row["session_id"], row["release_request_id"]) for row in resource_rows] == [
+            ("current-session", current_intent.request_id),
+            ("historical-session-a", "old-release-a"),
+            ("historical-session-b", "old-release-b"),
+        ]
 
 
 @pytest.mark.parametrize("change, error", [
@@ -151,5 +200,37 @@ def test_rejects_owned_resource_rows_that_are_not_physically_released(tmp_path, 
              "active", None, time.time()))
     with pytest.raises(ValueError, match="owned_resources_not_released"):
         invoke(service)
+    with service._db() as db:
+        assert db.execute("SELECT count(*) FROM execution_slots WHERE job=?", (JOB_ID,)).fetchone()[0] == 1
+
+
+def test_prior_release_rows_do_not_substitute_for_current_physical_ack(tmp_path, monkeypatch):
+    monkeypatch.setenv(RELEASE_DIGEST_VARIABLE, RELEASE_DIGEST)
+    service, _ = make_service(tmp_path)
+    add_released_row(service, "historical-session-a", "old-release-a")
+    add_released_row(service, "historical-session-b", "old-release-b")
+
+    with pytest.raises(ValueError, match="owned_resource_release_mismatch"):
+        invoke(service)
+
+    with service._db() as db:
+        assert db.execute("SELECT count(*) FROM execution_slots WHERE job=?", (JOB_ID,)).fetchone()[0] == 1
+        assert db.execute("SELECT count(*) FROM stale_execution_cleanup_audit").fetchone()[0] == 0
+
+
+def test_current_ack_cannot_override_an_active_resource_row(tmp_path, monkeypatch):
+    monkeypatch.setenv(RELEASE_DIGEST_VARIABLE, RELEASE_DIGEST)
+    service, _ = make_service(tmp_path)
+    acknowledge_current_release(service)
+    with service._db() as db:
+        db.execute("""INSERT INTO pa1_owned_resource_sessions
+            (session_id,supervisor_epoch,state,close_receipt,updated) VALUES(?,?,?,?,?)""",
+            ("still-active", json.dumps({"daemon_epoch": "d" * 64, "supervisor_pid": 11,
+                "supervisor_process_start": "active-supervisor", "runtime_fingerprint": "e" * 64}),
+             "active", None, time.time()))
+
+    with pytest.raises(ValueError, match="owned_resources_not_released"):
+        invoke(service)
+
     with service._db() as db:
         assert db.execute("SELECT count(*) FROM execution_slots WHERE job=?", (JOB_ID,)).fetchone()[0] == 1

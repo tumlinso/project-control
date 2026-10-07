@@ -596,6 +596,33 @@ class JobService:
 
         proof_text = wire(proof)
         proof_digest = hashlib.sha256(proof_text.encode('utf-8')).hexdigest()
+
+        # Current physical release must carry a ResourceController-issued
+        # acknowledgement for this exact intent. Verify it on committed rows
+        # before taking the write transaction; the transaction below rechecks
+        # the persisted acknowledgment and target rows to fence a concurrent
+        # intent change. Older released rows remain valid history and are
+        # intentionally outside the current intent's acknowledged target set.
+        from .assistance.power import ReleaseIntent
+        verified_release_ack = None
+        with self._db() as check_db:
+            check_policy = PowerPolicy(check_db, clock=self.clock)
+            check_resources = ResourceController(check_db, power_policy=check_policy,
+                clock=self.clock)
+            check_db.commit()
+            check_power = check_policy.snapshot()
+            if check_power.get('physical_state') == 'released_verified':
+                try:
+                    check_intent = ReleaseIntent(check_power['release_request_id'],
+                        float(check_power['release_created_at']), check_power['release_until'],
+                        check_power['release_reason'])
+                    verified_release_ack = check_resources.verified_release_ack(check_intent)
+                except Exception:
+                    # The locked transaction below classifies outstanding
+                    # resource rows first, then rejects a missing or invalid
+                    # current-intent acknowledgment without changing state.
+                    verified_release_ack = None
+
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             job_row = db.execute('SELECT record FROM jobs WHERE id=?', (job_id,)).fetchone()
@@ -618,8 +645,21 @@ class JobService:
             resources = ResourceController(db, power_policy=policy, clock=self.clock).snapshot()
             if any(item['state'] not in {'released_verified', 'superseded'} for item in resources):
                 raise ValueError('stale_execution_slot_owned_resources_not_released')
-            if any(item['state'] == 'released_verified'
-                   and item['release_request_id'] != power['release_request_id'] for item in resources):
+            current_targets = sorted(item['session_id'] for item in resources
+                if item['state'] == 'released_verified'
+                and item['release_request_id'] == power['release_request_id'])
+            current_targets_digest = hashlib.sha256(wire(current_targets).encode('utf-8')).hexdigest()
+            verified_at = power.get('release_verified_at')
+            if (verified_release_ack is None
+                    or power['physical_state'] != 'released_verified'
+                    or verified_release_ack.request_id != power['release_request_id']
+                    or sorted(verified_release_ack.target_session_ids) != current_targets
+                    or not current_targets
+                    or power.get('release_verified_sessions') != len(current_targets)
+                    or power.get('release_verified_proof_digest') != verified_release_ack.proof_digest
+                    or power.get('release_verified_targets_digest') != current_targets_digest
+                    or isinstance(verified_at, bool) or not isinstance(verified_at, (int, float))
+                    or not math.isfinite(float(verified_at)) or verified_at > now + 5):
                 raise ValueError('stale_execution_slot_owned_resource_release_mismatch')
 
             # Recheck at the final mutation edge so a PID reused after proof
