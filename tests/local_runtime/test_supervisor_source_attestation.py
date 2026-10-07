@@ -1,6 +1,7 @@
 """Source package identity is attested once when the supervisor starts."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -47,7 +48,11 @@ def test_supervisor_holds_startup_pc_fingerprint_until_a_new_bootstrap(tmp_path)
 
     original = _server(supervisor_file, state_root)
     original_fingerprint = original._project_control_fingerprint
-    assert original._observer_status()["project_control_fingerprint"] == original_fingerprint
+    original_status = original._observer_status()
+    assert original_status["project_control_fingerprint"] == original_fingerprint
+    assert original_status["runtime_mode"] == "source"
+    assert original_status["source_root"] == str(supervisor_file.resolve().parents[4])
+    assert original_status["python_executable"] == str(Path(sys.executable).resolve())
 
     changed_module.write_text("VALUE = 2\n", encoding="utf-8")
     assert original._observer_status()["project_control_fingerprint"] == original_fingerprint

@@ -6,6 +6,7 @@ Importing this module and reading status never start inference. Call
 from __future__ import annotations
 
 from dataclasses import dataclass
+import errno
 import hashlib
 import importlib
 import json
@@ -273,36 +274,98 @@ def _process_release_matches(pid: int, pin: RuntimePin) -> bool:
 
 def _process_source_matches(pid: int, pin: RuntimePin, *, proc_root: Path = Path("/proc")) -> bool:
     """Bind source readiness to the checkout, interpreter, and source launcher."""
+    return _process_source_match_reason(pid, pin, proc_root=proc_root) is None
+
+
+def _process_source_match_reason(pid: int, pin: RuntimePin, *,
+                                 proc_root: Path = Path("/proc")) -> str | None:
+    """Return a path-free reason code for a failed source process identity check."""
     if pin.source_root is None:
-        return False
+        return "source_root_missing"
     proc = Path(proc_root) / str(pid)
     try:
         raw = (proc / "environ").read_bytes()
+    except OSError as error:
+        return "proc_environment_access_denied" if error.errno in {errno.EACCES, errno.EPERM} else \
+            "proc_environment_unreadable"
+    try:
         executable = (proc / "exe").resolve(strict=True)
+    except OSError as error:
+        return "proc_executable_access_denied" if error.errno in {errno.EACCES, errno.EPERM} else \
+            "proc_executable_unreadable"
+    try:
         command_line = (proc / "cmdline").read_bytes().split(b"\0")
     except OSError:
-        return False
+        return "proc_command_line_unreadable"
     environment: dict[str, str] = {}
-    for item in raw.split(b"\0"):
-        key, separator, value = item.partition(b"=")
-        if separator and key in {b"PYTHONPATH", b"PROJECT_CONTROL_RELEASE_MANIFEST",
-                                 b"PROJECT_CONTROL_RELEASE_DIGEST"}:
-            environment[key.decode()] = value.decode(errors="strict")
+    try:
+        for item in raw.split(b"\0"):
+            key, separator, value = item.partition(b"=")
+            if separator and key in {b"PYTHONPATH", b"PROJECT_CONTROL_RELEASE_MANIFEST",
+                                     b"PROJECT_CONTROL_RELEASE_DIGEST"}:
+                environment[key.decode()] = value.decode(errors="strict")
+    except UnicodeDecodeError:
+        return "process_environment_encoding_invalid"
     if environment.get(RELEASE_MANIFEST_VARIABLE) or environment.get(RELEASE_DIGEST_VARIABLE):
-        return False
-    expected_source = (pin.source_root / "src").resolve()
-    python_paths = [Path(value or ".").expanduser().resolve()
-                    for value in environment.get("PYTHONPATH", "").split(os.pathsep)]
+        return "release_pin_present"
+    try:
+        expected_source = (pin.source_root / "src").resolve()
+        python_paths = [Path(value or ".").expanduser().resolve()
+                        for value in environment.get("PYTHONPATH", "").split(os.pathsep)]
+    except OSError:
+        return "source_path_unresolvable"
     if expected_source not in python_paths:
-        return False
+        return "source_path_not_in_pythonpath"
     try:
         if executable != Path(sys.executable).resolve(strict=True):
-            return False
+            return "interpreter_mismatch"
     except OSError:
-        return False
+        return "expected_interpreter_unreadable"
     arguments = [item.decode(errors="replace") for item in command_line if item]
-    return "-m" in arguments and "project_control.runtime_binding" in arguments \
-        and "local_worker.supervisor" in arguments
+    if "-m" not in arguments or "project_control.runtime_binding" not in arguments:
+        return "runtime_binding_module_missing"
+    if "local_worker.supervisor" not in arguments:
+        return "supervisor_module_missing"
+    return None
+
+
+def _source_process_attestation_matches(pid: int, pin: RuntimePin,
+                                        status: Mapping[str, Any], *,
+                                        proc_root: Path = Path("/proc")) -> bool:
+    """Use authenticated supervisor attestation only when proc proof is denied.
+
+    The caller has already matched MainPID and verified the supervisor's PC,
+    Todo, receiver, epoch, and runtime fingerprints. This fallback binds that
+    attestation to the selected source root, interpreter, launch form, and the
+    current kernel PID start token.
+    """
+    if pin.source_root is None or status.get("runtime_mode") != "source":
+        return False
+    try:
+        expected_root = str(pin.source_root.resolve(strict=True))
+        expected_interpreter = str(Path(sys.executable).resolve(strict=True))
+        attested_root = status.get("source_root")
+        attested_interpreter = status.get("python_executable")
+        if (attested_root != expected_root or not isinstance(attested_interpreter, str)
+                or str(Path(attested_interpreter).resolve(strict=True)) != expected_interpreter):
+            return False
+        proc = Path(proc_root) / str(pid)
+        raw_args = (proc / "cmdline").read_bytes().split(b"\0")
+        args = [item.decode(errors="strict") for item in raw_args if item]
+        if (len(args) < 5 or str(Path(args[0]).resolve(strict=True)) != expected_interpreter
+                or args[1:5] != ["-m", "project_control.runtime_binding",
+                                 "local_worker.supervisor", "--serve"]):
+            return False
+        stat_text = (proc / "stat").read_text(encoding="ascii")
+        close = stat_text.rfind(")")
+        if close < 0 or stat_text[close + 1:close + 2] != " ":
+            return False
+        fields = stat_text[close + 2:].split()
+        start = status.get("supervisor_process_start")
+        return (isinstance(start, str) and start.isdecimal() and len(fields) > 19
+                and fields[19].isdecimal() and fields[19] == start)
+    except (OSError, UnicodeError, ValueError, RuntimeError):
+        return False
 
 
 def _remote_todo_runtime_fingerprint(identity: Mapping[str, Any]) -> str:
@@ -340,7 +403,16 @@ def _central_ready(provider: Any, pin: RuntimePin,
     if status.get("runtime_fingerprint") != _remote_todo_runtime_fingerprint(remote_identity):
         raise DemandRuntimeError("inference_todo_fingerprint_mismatch")
     if not process_matches(pid, pin):
-        raise DemandRuntimeError("inference_release_identity_mismatch")
+        detail = ""
+        if pin.runtime_mode == "source" and process_matches is _process_release_matches:
+            reason = _process_source_match_reason(pid, pin)
+            if reason in {"proc_environment_access_denied", "proc_executable_access_denied"}:
+                if _source_process_attestation_matches(pid, pin, status):
+                    return status
+                detail = ":source_attestation_mismatch"
+            else:
+                detail = ":source_" + (reason or "identity_callback_rejected")
+        raise DemandRuntimeError("inference_release_identity_mismatch" + detail)
     return status
 
 

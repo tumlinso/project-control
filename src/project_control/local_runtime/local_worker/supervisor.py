@@ -1885,6 +1885,11 @@ class SupervisorServer:
             getattr(backend, "repo_root", Path.cwd())
         )
         self.receiver_identity = bind_local_runtime()
+        self._runtime_mode = ("release" if getattr(self.receiver_identity, "release_digest", None)
+                              is not None else "source")
+        self._source_root = (str(Path(__file__).resolve().parents[4])
+                             if self._runtime_mode == "source" else None)
+        self._python_executable = str(Path(sys.executable).resolve(strict=True))
         # Snapshot the full Project Control Python package once after runtime
         # binding. Status reports this attestation instead of rehashing mutable
         # source files, allowing callers to reject a stale source supervisor.
@@ -1920,6 +1925,8 @@ class SupervisorServer:
                 "observer_contract": "PC-OBSERVER-SUPERVISOR/1",
                 "supervisor_pid": os.getpid(), "supervisor_process_start": self._process_start,
                 "daemon_epoch": self._daemon_epoch, "runtime_fingerprint": self._runtime_fingerprint,
+                "runtime_mode": self._runtime_mode, "source_root": self._source_root,
+                "python_executable": self._python_executable,
                 "project_control_fingerprint": self._project_control_fingerprint,
                 "source_sha256": self._source_sha256, "runtime_root": str(self.root),
                 "receiver_manifest_sha256": self.receiver_identity.manifest_sha256,

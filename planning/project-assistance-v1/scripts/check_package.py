@@ -162,9 +162,10 @@ def validate(root: Path, native: bool) -> dict[str, Any]:
             if o.get('deferred') is True:
                 require(t.get('gates', []) == [], 'Deferred outcome must not carry a required gate')
             else:
-                require(len(t['gates']) == 1 and t['gates'][0]['required'] is True, 'Missing focused gate')
+                required_gates = [gate for gate in t['gates'] if gate.get('required', True)]
+                require(len(required_gates) == 1 and required_gates[0]['required'] is True, 'Missing focused gate')
                 expected_argv = o.get('gate_argv') or ['python', '-m', 'unittest', o['gate_module'], '-v']
-                require(t['gates'][0]['argv'] == expected_argv, 'Unexpected gate command')
+                require(required_gates[0]['argv'] == expected_argv, 'Unexpected gate command')
         require(len(plan['runs']) == 1, 'Expected one default run')
         run = plan['runs'][0]
         require(run['root_task_id'] == epic and len(run['lanes']) == 1, 'Wrong run/lane shape')

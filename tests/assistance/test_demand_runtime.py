@@ -4,6 +4,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from dataclasses import replace
+import errno
 import hashlib
 import json
 import os
@@ -54,6 +55,10 @@ def status(expected: RuntimePin) -> dict:
         "supervisor_pid": 123,
         "supervisor_process_start": "12345",
         "daemon_epoch": "f" * 64,
+        "runtime_mode": expected.runtime_mode,
+        "source_root": (str(expected.source_root.resolve())
+                        if expected.source_root is not None else None),
+        "python_executable": str(Path(sys.executable).resolve()),
     }
 
 
@@ -240,9 +245,153 @@ class DemandRuntimeTests(unittest.TestCase):
                                release_manifest=None, source_root=source_root)
 
             self.assertTrue(demand_runtime._process_source_matches(123, selected, proc_root=proc_root))
+            self.assertIsNone(demand_runtime._process_source_match_reason(
+                123, selected, proc_root=proc_root))
             (process / "environ").write_bytes(
                 f"PYTHONPATH={source_path}\0PROJECT_CONTROL_RELEASE_DIGEST={'a' * 64}\0".encode())
             self.assertFalse(demand_runtime._process_source_matches(123, selected, proc_root=proc_root))
+            self.assertEqual(demand_runtime._process_source_match_reason(
+                123, selected, proc_root=proc_root), "release_pin_present")
+
+    def test_source_process_mismatch_diagnostics_identify_path_interpreter_and_argv(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            proc_root = Path(temporary) / "proc"
+            process = proc_root / "123"
+            process.mkdir(parents=True)
+            source_root = Path(temporary) / "checkout"
+            source_path = source_root / "src"
+            source_path.mkdir(parents=True)
+            executable = process / "exe"
+            executable.symlink_to(sys.executable)
+            environ = process / "environ"
+            command_line = process / "cmdline"
+            selected = replace(pin(), runtime_mode="source", release_digest=None,
+                               release_manifest=None, source_root=source_root)
+            command_line.write_bytes(
+                b"python\0-m\0project_control.runtime_binding\0local_worker.supervisor\0")
+
+            environ.write_bytes(b"PYTHONPATH=/not/the/checkout/src\0")
+            self.assertEqual(demand_runtime._process_source_match_reason(
+                123, selected, proc_root=proc_root), "source_path_not_in_pythonpath")
+
+            environ.write_bytes(f"PYTHONPATH={source_path}\0".encode())
+            command_line.write_bytes(b"python\0-m\0other.module\0")
+            self.assertEqual(demand_runtime._process_source_match_reason(
+                123, selected, proc_root=proc_root), "runtime_binding_module_missing")
+
+            command_line.write_bytes(
+                b"python\0-m\0project_control.runtime_binding\0local_worker.supervisor\0")
+            executable.unlink()
+            executable.symlink_to("/bin/sh")
+            self.assertEqual(demand_runtime._process_source_match_reason(
+                123, selected, proc_root=proc_root), "interpreter_mismatch")
+
+    def test_source_process_diagnostic_reports_proc_read_failure_without_paths(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            selected = replace(pin(), runtime_mode="source", release_digest=None,
+                               release_manifest=None, source_root=Path(temporary) / "checkout")
+            reason = demand_runtime._process_source_match_reason(
+                123, selected, proc_root=Path(temporary) / "empty-proc")
+        self.assertEqual(reason, "proc_environment_unreadable")
+
+    def test_source_process_diagnostic_distinguishes_proc_permission_denials(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            proc_root = Path(temporary) / "proc"
+            process = proc_root / "123"
+            process.mkdir(parents=True)
+            source_root = Path(temporary) / "checkout"
+            (source_root / "src").mkdir(parents=True)
+            selected = replace(pin(), runtime_mode="source", release_digest=None,
+                               release_manifest=None, source_root=source_root)
+            original_read_bytes = Path.read_bytes
+
+            def deny_environment(path):
+                if path.name == "environ":
+                    raise PermissionError(errno.EACCES, "denied")
+                return original_read_bytes(path)
+
+            with patch.object(Path, "read_bytes", deny_environment):
+                self.assertEqual(demand_runtime._process_source_match_reason(
+                    123, selected, proc_root=proc_root), "proc_environment_access_denied")
+
+            (process / "environ").write_bytes(f"PYTHONPATH={source_root / 'src'}\0".encode())
+            original_resolve = Path.resolve
+
+            def deny_executable(path, *args, **kwargs):
+                if path.name == "exe":
+                    raise PermissionError(errno.EPERM, "denied")
+                return original_resolve(path, *args, **kwargs)
+
+            with patch.object(Path, "resolve", deny_executable):
+                self.assertEqual(demand_runtime._process_source_match_reason(
+                    123, selected, proc_root=proc_root), "proc_executable_access_denied")
+
+    def test_attested_source_process_fallback_binds_argv_interpreter_and_pid_start(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temporary:
+            proc_root = Path(temporary) / "proc"
+            process = proc_root / "123"
+            process.mkdir(parents=True)
+            source_root = Path(temporary) / "checkout"
+            (source_root / "src").mkdir(parents=True)
+            interpreter = str(Path(sys.executable).resolve(strict=True))
+            (process / "cmdline").write_bytes(
+                f"{interpreter}\0-m\0project_control.runtime_binding\0"
+                "local_worker.supervisor\0--serve\0--repo-root\0/state\0".encode())
+            stat_fields = ["S"] + ["0"] * 18 + ["12345"]
+            (process / "stat").write_text(
+                f"123 (python process) {' '.join(stat_fields)}", encoding="ascii")
+            selected = replace(pin(), runtime_mode="source", release_digest=None,
+                               release_manifest=None, source_root=source_root)
+            attestation = {"runtime_mode": "source", "source_root": str(source_root),
+                "python_executable": interpreter, "supervisor_process_start": "12345"}
+
+            self.assertTrue(demand_runtime._source_process_attestation_matches(
+                123, selected, attestation, proc_root=proc_root))
+            self.assertFalse(demand_runtime._source_process_attestation_matches(
+                123, selected, {**attestation, "supervisor_process_start": "99999"},
+                proc_root=proc_root))
+            self.assertFalse(demand_runtime._source_process_attestation_matches(
+                123, selected, {**attestation, "source_root": "/different"},
+                proc_root=proc_root))
+            self.assertFalse(demand_runtime._source_process_attestation_matches(
+                123, selected, {**attestation, "runtime_mode": "release"},
+                proc_root=proc_root))
+            self.assertFalse(demand_runtime._source_process_attestation_matches(
+                123, selected, {**attestation, "python_executable": "/bin/sh"},
+                proc_root=proc_root))
+            (process / "cmdline").write_bytes(f"{interpreter}\0-m\0other.module\0".encode())
+            self.assertFalse(demand_runtime._source_process_attestation_matches(
+                123, selected, attestation, proc_root=proc_root))
+            (process / "cmdline").unlink()
+            self.assertFalse(demand_runtime._source_process_attestation_matches(
+                123, selected, attestation, proc_root=proc_root))
+
+    def test_central_ready_uses_denied_proc_fallback_only_for_default_matcher(self):
+        expected = replace(pin(), runtime_mode="source", release_digest=None,
+                           release_manifest=None, source_root=Path("/checkout"))
+        provider = Mock()
+        provider.central_status.return_value = status(expected)
+        with patch.object(demand_runtime, "_process_source_matches", return_value=False), \
+             patch.object(demand_runtime, "_process_source_match_reason",
+                          return_value="proc_environment_access_denied"), \
+             patch.object(demand_runtime, "_source_process_attestation_matches", return_value=True) as proof:
+            accepted = demand_runtime._central_ready(provider, expected,
+                demand_runtime._process_release_matches, deadline_epoch=time.time() + 5,
+                clock=time.time, expected_main_pid=123)
+        self.assertEqual(accepted["runtime_mode"], "source")
+        proof.assert_called_once()
+
+        with patch.object(demand_runtime, "_process_source_match_reason",
+                          return_value="proc_environment_access_denied"), \
+             patch.object(demand_runtime, "_source_process_attestation_matches") as proof:
+            with self.assertRaisesRegex(DemandRuntimeError, "inference_release_identity_mismatch"):
+                demand_runtime._central_ready(provider, expected, lambda _pid, _pin: False,
+                    deadline_epoch=time.time() + 5, clock=time.time, expected_main_pid=123)
+        proof.assert_not_called()
 
     def test_source_readiness_rejects_old_pc_snapshot_and_accepts_new_bootstrap(self):
         import tempfile

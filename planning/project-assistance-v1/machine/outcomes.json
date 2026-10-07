@@ -249,10 +249,12 @@
         "docs",
         "packaging",
         "deployment",
-        "planning/project-assistance-v1"
+        "planning/project-assistance-v1",
+        "src/todo_orchestrator",
+        "AGENTS.md",
+        "README.md"
       ],
       "read_scope": [
-        "README.md",
         "pyproject.toml"
       ],
       "sources": [
@@ -267,10 +269,11 @@
         "O04"
       ],
       "deliverables": [
-        "Executed acceptance matrix with source/measurement identity",
-        "Finite model-quality comparison and end-to-end usefulness report",
-        "MCP compatibility and old/new runtime isolation results",
-        "Candidate promotion/rollback and explicit feature activation record"
+        "HTTP and fresh stdio MCP initialize/tools-list plus registered-project information reads",
+        "Temporary-state ordinary workflow lifecycle, authorized plan mutation, rescue, and optional-content absence checks",
+        "Grounded project answer and focused registered-skill answer with verified source identities",
+        "Demand-driven inference startup/status and owner-proven stop/release evidence",
+        "Default source smoke and focused regressions for changed boundaries"
       ],
       "acceptance_summary": "All revised PC-PA1-RUN-1 server and on-demand assistance criteria pass with source/process identity recorded. Autonomous CPU LAB, CUDA lifecycle qualification, broad cancellation/crash campaigns, performance/model-quality studies, and frozen-release qualification remain explicitly deferred. The original full PA1/A01-A40 contract is not represented as passed.",
       "gate_argv": [
