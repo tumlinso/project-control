@@ -25,6 +25,7 @@ from .runtime_identity import runtime_diagnostics
 
 _ASSISTANCE_ASK_TIMEOUT_SECONDS = 300.0
 _ASSISTANCE_ASK_POLL_SECONDS = 1.0
+_ASSISTANCE_STARTUP_MAX_SECONDS = 120.0
 _ASSISTANCE_ASK_CLEANUP_SECONDS = 120.0
 
 
@@ -467,17 +468,25 @@ def _assistance_ask(composition, question: str, project: str) -> dict[str, objec
     composition.start()
     scope = composition.scope(project)
     deadline = time.monotonic() + _ASSISTANCE_ASK_TIMEOUT_SECONDS
-    value = composition.jobs.inquire(question=question, access_scope=scope, foreground_timeout=0)
+    remaining = max(0.0, deadline - time.monotonic())
+    value = composition.jobs.inquire(question=question, access_scope=scope,
+                                     foreground_timeout=0,
+                                     startup_timeout=min(_ASSISTANCE_STARTUP_MAX_SECONDS, remaining))
     saw_thinking = value.get("status") == "thinking"
     while value.get("status") == "thinking":
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
         time.sleep(min(_ASSISTANCE_ASK_POLL_SECONDS, remaining))
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
         # Repeating the identical request reattaches to the durable inquiry.
         # It cannot create a variant job or hold the CLI owner open in one
         # long broker call.
-        value = composition.jobs.inquire(question=question, access_scope=scope, foreground_timeout=0)
+        value = composition.jobs.inquire(question=question, access_scope=scope,
+                                         foreground_timeout=0,
+                                         startup_timeout=min(_ASSISTANCE_STARTUP_MAX_SECONDS, remaining))
         saw_thinking = saw_thinking or value.get("status") == "thinking"
     if saw_thinking and value.get("status") not in {"completed", "partial"}:
         cancel = getattr(composition.jobs, "cancel_inquiry", None)
@@ -492,14 +501,13 @@ def _assistance_ask(composition, question: str, project: str) -> dict[str, objec
                 "foreground_timeout_cancellation_failed" if joined
                 else "foreground_timeout_cleanup_incomplete")}
         if not cancelled:
-            # A completion can race the timeout and cancellation. Re-read by
-            # the same identity once before reporting the unresolved outcome.
-            value = composition.jobs.inquire(question=question, access_scope=scope, foreground_timeout=0)
-            if value.get("status") == "thinking":
-                joined = composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)
-                if not joined:
-                    return {"status": "unavailable", "reason": "foreground_timeout_cleanup_incomplete"}
-                return {"status": "unavailable", "reason": "foreground_timeout_cancellation_unconfirmed"}
+            # False means cancellation did not confirm an active exact match.
+            # Do not reread through inquire here: even an identical retry may
+            # cross a startup gate after the foreground deadline has expired.
+            joined = composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)
+            if not joined:
+                return {"status": "unavailable", "reason": "foreground_timeout_cleanup_incomplete"}
+            return {"status": "unavailable", "reason": "foreground_timeout_cancellation_unconfirmed"}
         joined = composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)
         if not joined:
             return {"status": "unavailable", "reason": "foreground_timeout_cleanup_incomplete"}

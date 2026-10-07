@@ -97,9 +97,36 @@ class FinalAssistanceCliTests(unittest.TestCase):
         self.assertEqual(3, len(calls))
         self.assertEqual({"same question"}, {call["question"] for call in calls})
         self.assertEqual({0}, {call["foreground_timeout"] for call in calls})
+        self.assertTrue(all(0 < call["startup_timeout"] <= 120 for call in calls))
         self.assertEqual({"project": "demo"}, calls[0]["access_scope"])
         self.assertEqual(2, sleep.call_count)
         self.assertFalse(composition.jobs.stopped)
+
+    def test_blocking_inquiry_crossing_deadline_is_not_polled_again(self):
+        composition = _Composition()
+        clock = [0.0]
+        calls = []
+
+        def monotonic():
+            return clock[0]
+
+        def inquire(**kwargs):
+            calls.append(kwargs)
+            clock[0] = 3.0
+            return {"status": "thinking"}
+
+        composition.jobs.inquire = inquire
+        composition.jobs.cancel_inquiry = lambda **_kwargs: False
+        with patch("project_control.cli.time.monotonic", side_effect=monotonic), \
+             patch("project_control.cli._ASSISTANCE_ASK_TIMEOUT_SECONDS", 2.0), \
+             patch("project_control.as1_surface.public_inquiry", side_effect=lambda value: value):
+            result = _assistance_ask(composition, "slow readiness", "demo")
+
+        self.assertEqual(1, len(calls))
+        self.assertEqual(2.0, calls[0]["startup_timeout"])
+        self.assertEqual({"status": "unavailable",
+                          "reason": "foreground_timeout_cancellation_unconfirmed"}, result)
+        self.assertEqual([120.0], composition.jobs.shutdown_timeouts)
 
     def test_foreground_timeout_cancels_exact_inquiry_and_joins_dispatcher(self):
         composition = _Composition()
