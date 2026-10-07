@@ -116,7 +116,7 @@
     ],
     "capability_id": {
       "redacted": true,
-      "sha256": "23fe399159a0cf7792fc05f50f484c4dc57aef8c4bc19d82046101014fad339c"
+      "sha256": "914d3481ac630b127e67dc98803b3901963f37b6f63a06046d510186623528e2"
     },
     "capability_incarnation": 1,
     "context": {
@@ -207,7 +207,7 @@
       "unread_delta": {}
     },
     "context_version": 1,
-    "dispatch_id": "3d99b5b7-f127-422e-b5d0-4bbafd32366c",
+    "dispatch_id": "6532d4a8-26c5-44a6-ba14-ffd463f98170",
     "lane_id": "compat-v2-main",
     "project_revision": 3,
     "protocol_version": 2,
@@ -218,7 +218,7 @@
     "task_id": "A",
     "workflow_handle": {
       "redacted": true,
-      "sha256": "ba930c384772e0690cb6bd16df97f238e205cf70db69f135bf8e4fd406676563"
+      "sha256": "c6d3e8fe743b4478f87b37d72086547c3467d1acbe2f7bd636d096eabda4fa9b"
     }
   },
   "diff": {
@@ -226,8 +226,8 @@
       "context_fragments": {},
       "interfaces": {},
       "lane_ids": [],
-      "observed_at": "2026-10-05T08:07:10Z",
-      "project_uuid": "a2765efd-6afb-4a71-901d-ac8155364597",
+      "observed_at": "2026-10-07T07:55:04Z",
+      "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
       "provider_skew": {
         "todo_export": 0,
         "todo_semantic_state": 0,
@@ -235,24 +235,24 @@
         "todo_workflow": 0
       },
       "repository_commits": {
-        "source": "d7bbbd465fcd4fc703342ea7c8f13720195076d5"
+        "source": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3"
       },
       "run_id": null,
       "task_ids": [],
       "todo_revision": 1,
-      "todo_semantic_authority_fingerprint": "86e903f9ea2b0a4214090eed42685c2d55a0f532b80f56de82085790dcb5a7dc",
-      "workflow_authority_fingerprint": "86e903f9ea2b0a4214090eed42685c2d55a0f532b80f56de82085790dcb5a7dc",
+      "todo_semantic_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
+      "workflow_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
       "workflow_revision": 1,
       "workspace_id": "demo",
       "worktrees": {
-        "wt-23b05237128931c8": {
-          "head": "d7bbbd465fcd4fc703342ea7c8f13720195076d5",
+        "wt-6eaa8c34c15203ce": {
+          "head": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
           "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         }
       }
     },
     "plan_digest": "c2d035a3a20bfa045e8a084ebae4eccd00602c05d5fe49364ce1c09138457f12",
-    "project_uuid": "a2765efd-6afb-4a71-901d-ac8155364597",
+    "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
     "revision": 1,
     "status": "validated",
     "valid": true,
@@ -275,25 +275,25 @@
     "barrier_changes": [],
     "disposition": "implemented",
     "handoff": {
-      "authority_commit": "d7bbbd465fcd4fc703342ea7c8f13720195076d5",
+      "authority_commit": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
       "changed_owned_paths": [],
       "checkpoints": [],
-      "completion_commit": "d7bbbd465fcd4fc703342ea7c8f13720195076d5",
+      "completion_commit": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
       "completion_gates": [],
       "completion_revision": 5,
       "finalized_checkpoints": [],
       "gates": [],
       "git_diffstat": "",
-      "git_head": "d7bbbd465fcd4fc703342ea7c8f13720195076d5",
+      "git_head": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
       "integration_commit": null,
       "interfaces": [],
       "note": "Exact fixture source inspected",
-      "producer_commit": "d7bbbd465fcd4fc703342ea7c8f13720195076d5",
-      "producer_root": "/tmp/tmpdn_6gpow/demo",
+      "producer_commit": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
+      "producer_root": "/tmp/tmplieglv1n/demo",
       "resources": [],
       "task_id": "A"
     },
-    "handoff_id": "8661b4b1-4570-4cd9-a234-684789480e73",
+    "handoff_id": "148a4c05-dd6b-45d9-b32e-85a1017e8448",
     "lane": {
       "lane_id": "compat-v2-main",
       "lane_state": "closed",
@@ -316,7 +316,7 @@
     "rendezvous_arrivals": [],
     "role": "implementer",
     "run_id": "compat-v2",
-    "session_id": "9ef7b37f-6489-4e56-9bfa-2dd0bdac68ce",
+    "session_id": "710fdf9f-e57e-4f8d-8b91-2d7104ed3ee5",
     "skipped_checkpoints": [],
     "status": "idle",
     "task_id": "A",
@@ -325,8 +325,8 @@
   "journey": "native-coder-mutator",
   "private_original": {
     "limit": "Disposable fixture bearer fields hashed in public evidence; original private bytes retained.",
-    "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/native-journey-e8a4e14f23b3dada206a1f8665da304bec6e4c6f12b8526c86ace9880af60072.json",
-    "sha256": "e8a4e14f23b3dada206a1f8665da304bec6e4c6f12b8526c86ace9880af60072"
+    "path": "/home/tumlinson/.local/state/project-control/as1-bootstrap/qualification-private/native-journey-fb100cf33a5ec8fcd504d334f3a6a97852e3dd898cbe6a896a5a78a1e99b2d3d.json",
+    "sha256": "fb100cf33a5ec8fcd504d334f3a6a97852e3dd898cbe6a896a5a78a1e99b2d3d"
   },
   "publication": {
     "id": "A:qualification-source",
@@ -420,22 +420,22 @@
     "/home/tumlinson/.agents/skills/todo-orchestrator/todo_orchestrator/workflow/protocol.py": "44eac148c8f4d1881f38d094640a47efe130147051765f39d55c4ad7e41e1256",
     "/home/tumlinson/.agents/skills/todo-orchestrator/todo_orchestrator/workflow/roles.py": "1567eb0df6a533ed76359d2096eb548f65c42a86ecf67834a1cd9102229ccfd6",
     "/home/tumlinson/.agents/skills/todo-orchestrator/todo_orchestrator/workflow/service.py": "99a328298ecf3591052ba90726720a4422aa97e16c51bceed8904aa71724557f",
-    "/home/tumlinson/project-control/src/project_control/as1_context.py": "78ff717b44419eb1993c7e7068b3a68c798f881a7f36485d5c2413a5138fcb05",
-    "/home/tumlinson/project-control/src/project_control/as1_contracts.py": "94d0dfdd1a61a03959c116e5cd5c048261c90208c719ea25ad1dbd2983d71366",
+    "/home/tumlinson/project-control/src/project_control/as1_context.py": "839be6aab5065b21d4d25ecf51a8b12d17e44ff81bee7f0c708137594fb2367d",
+    "/home/tumlinson/project-control/src/project_control/as1_contracts.py": "58302734259d508cab4d6d421e6bcd5fd20065dd56fdda5eef0444aa03731189",
     "/home/tumlinson/project-control/src/project_control/as1_control.py": "0309c62463cd3cecfe8fb8dc4a8ca66a45b4a268486b30461f7b9816e138a755",
-    "/home/tumlinson/project-control/src/project_control/as1_jobs.py": "269bc7db986af30e340bc8e688422392a9b57ed459ba0b6cbe1b09c87e0053c5",
-    "/home/tumlinson/project-control/src/project_control/as1_packets.py": "ef0d3bcd16b15cc0d3cc311e121cc44e4725709602791d53f85f26c5e9caae62",
-    "/home/tumlinson/project-control/src/project_control/as1_skill.py": "652da58d3e33519a140b9d8f6f8151f2c768977dd993e82055f71521dac9c310",
-    "/home/tumlinson/project-control/src/project_control/as1_surface.py": "ad87ffd52cdb14282fa5c7029ac56808aea7a2f395ed1e3775956361f6e92b3b",
-    "/home/tumlinson/project-control/src/project_control/as1_trace.py": "cb15e08e71995989142b3e76b7bffd14e78981a73a32258aea1ccb97778b24f1"
+    "/home/tumlinson/project-control/src/project_control/as1_jobs.py": "023f3d53b452f61d07fcc82abb7e6035b29ba989d3de0ddb7469cf663e7d24b5",
+    "/home/tumlinson/project-control/src/project_control/as1_packets.py": "6b8bc850f55088b300cc8d93f38de29e39fd9557fe2fad17fa3bebf9409e6041",
+    "/home/tumlinson/project-control/src/project_control/as1_skill.py": "2e55aecefc53fad13ef758ad1b0e33e9391d6034099ffbbfd6a5ec5d1cae63dc",
+    "/home/tumlinson/project-control/src/project_control/as1_surface.py": "4ac8bbb30c10ed354bc5f83a2a7afcabf9572130ec9cc917db918130af73f76b",
+    "/home/tumlinson/project-control/src/project_control/as1_trace.py": "0f6f1a485f10f6db5fa45f885b3d053279b58ef162654fa960f517f31b8978bc"
   },
   "validated": {
     "current_observation_preconditions": {
       "context_fragments": {},
       "interfaces": {},
       "lane_ids": [],
-      "observed_at": "2026-10-05T08:07:10Z",
-      "project_uuid": "a2765efd-6afb-4a71-901d-ac8155364597",
+      "observed_at": "2026-10-07T07:55:04Z",
+      "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
       "provider_skew": {
         "todo_export": 0,
         "todo_semantic_state": 0,
@@ -443,24 +443,24 @@
         "todo_workflow": 0
       },
       "repository_commits": {
-        "source": "d7bbbd465fcd4fc703342ea7c8f13720195076d5"
+        "source": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3"
       },
       "run_id": null,
       "task_ids": [],
       "todo_revision": 1,
-      "todo_semantic_authority_fingerprint": "86e903f9ea2b0a4214090eed42685c2d55a0f532b80f56de82085790dcb5a7dc",
-      "workflow_authority_fingerprint": "86e903f9ea2b0a4214090eed42685c2d55a0f532b80f56de82085790dcb5a7dc",
+      "todo_semantic_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
+      "workflow_authority_fingerprint": "0ab7b87cef380554f9352d0484d06cc519c8076496fce9d0c21894b4ad39decc",
       "workflow_revision": 1,
       "workspace_id": "demo",
       "worktrees": {
-        "wt-23b05237128931c8": {
-          "head": "d7bbbd465fcd4fc703342ea7c8f13720195076d5",
+        "wt-6eaa8c34c15203ce": {
+          "head": "11c75ad9d001118bca0f10a6d4c4111fb0cc08b3",
           "working_tree_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         }
       }
     },
     "plan_digest": "c2d035a3a20bfa045e8a084ebae4eccd00602c05d5fe49364ce1c09138457f12",
-    "project_uuid": "a2765efd-6afb-4a71-901d-ac8155364597",
+    "project_uuid": "7301ea15-fc95-45fb-aa0f-25fbceeeee09",
     "revision": 1,
     "status": "validated",
     "valid": true,
