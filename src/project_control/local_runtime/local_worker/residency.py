@@ -37,6 +37,35 @@ def process_identity(pid: int) -> dict:
             "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
 
 
+def process_start_time(pid: int) -> str:
+    """Read the PID reuse token needed for an authenticated RPC peer.
+
+    Peer authentication already comes from SO_PEERCRED and the same-UID
+    check. Reading stat avoids requiring permission to resolve another
+    process's executable; callers that prove ownership of a model must keep
+    using the stricter full ``process_identity`` result.
+    """
+    if type(pid) is not int or pid <= 0:
+        raise ValueError("process_start_unavailable")
+    raw = (Path("/proc") / str(pid) / "stat").read_text()
+    name_start = raw.find("(")
+    name_end = raw.rfind(")")
+    if (name_start <= 0 or name_end <= name_start or
+            raw[name_end + 1:name_end + 2] != " "):
+        raise ValueError("process_start_unavailable")
+    try:
+        observed_pid = int(raw[:name_start].strip())
+    except ValueError as error:
+        raise ValueError("process_start_unavailable") from error
+    fields = raw[name_end + 2:].split()
+    if observed_pid != pid or len(fields) <= 19:
+        raise ValueError("process_start_unavailable")
+    process_start = fields[19]
+    if not process_start.isdecimal():
+        raise ValueError("process_start_unavailable")
+    return process_start
+
+
 def terminate_owned(identity: dict, *, timeout: float = 10) -> None:
     if identity["boot_id"] != Path("/proc/sys/kernel/random/boot_id").read_text().strip():
         raise ValueError("owned_process_boot_mismatch")

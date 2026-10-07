@@ -182,14 +182,26 @@ class FastLoopTests(unittest.TestCase):
         self.assertEqual(first_clock(), 10_040)
         self.assertEqual(second_clock(), 20_000)
 
-    def test_deadline_exhaustion_is_classified_without_a_backend(self):
-        result = self.run_trial("deadline", [
+    def test_deadline_exhaustion_classifies_empty_and_evidence_bearing_results(self):
+        empty = self.run_trial("deadline-empty", [
             ScriptedStep(delay_seconds=301, result={"status": "completed", "answer": "too late"})
         ])
-        self.assertEqual(result.status, "partial")
-        self.assertFalse(result.backend_used)
-        self.assertFalse(result.inference_used)
-        self.assertEqual(classify_failure("cpu", "attempt_or_deadline_exhausted"), {
+        self.assertEqual(empty.status, "failed")
+        self.assertEqual(empty.answer, "too late")
+        self.assertEqual(empty.observations, [])
+        self.assertFalse(empty.backend_used)
+        self.assertFalse(empty.inference_used)
+
+        partial = self.run_trial("deadline-with-evidence", [
+            ScriptedStep(observation=source_observation(FIXTURE, "demo/budgets.py")),
+            ScriptedStep(delay_seconds=301, result={"status": "completed", "answer": "too late"}),
+        ])
+        self.assertEqual(partial.status, "partial")
+        self.assertEqual(len(partial.observations), 1)
+        self.assertFalse(partial.backend_used)
+        self.assertFalse(partial.inference_used)
+        failure = classify_failure("cpu", "attempt_or_deadline_exhausted")
+        self.assertEqual(failure, {
             "layer": "cpu", "reason": "attempt_or_deadline_exhausted"
         })
 

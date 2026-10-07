@@ -29,7 +29,7 @@ from project_control.assistance.policies import generation_settings, policy_for
 
 from .observer_runtime import remaining_seconds
 from .model_cache import ModelCache
-from .residency import memory_snapshot, observe_residency, process_identity, terminate_owned
+from .residency import memory_snapshot, observe_residency, process_identity, process_start_time, terminate_owned
 from .servers import LlamaCppServerAdapter
 from .service import AdapterService, AdapterError
 from .canonical_runtime import bind as bind_canonical_runtime
@@ -1806,7 +1806,7 @@ class SupervisorServer:
             with connection:
                 try:
                     peer_pid = _check_peer_uid(connection)
-                    peer_start = process_identity(peer_pid)["process_start"]
+                    peer_start = process_start_time(peer_pid)
                     request = _read_rpc_frame(connection, timeout=10)
                     borrower = None
                     if request.get("operation") == "observer-open":
@@ -1883,7 +1883,7 @@ class SupervisorServer:
             expired = time.time() >= borrower["deadline_epoch"] or borrower.get("undelivered", False)
             if not expired:
                 try:
-                    expired = process_identity(borrower["pid"])["process_start"] != borrower["process_start"]
+                    expired = process_start_time(borrower["pid"]) != borrower["process_start"]
                 except FileNotFoundError:
                     try:
                         (Path("/proc") / str(borrower["pid"])).stat()
@@ -2044,7 +2044,7 @@ class SupervisorClient:
             connection.connect(str(self.socket_path))
             peer_pid = _check_peer_uid(connection)
             if operation.startswith("observer-") and operation != "observer-status" and self._observer_owner is not None:
-                if (peer_pid, process_identity(peer_pid)["process_start"]) != self._observer_owner:
+                if (peer_pid, process_start_time(peer_pid)) != self._observer_owner:
                     raise SupervisorError("central_supervisor_process_identity_mismatch")
             remaining = timeout - (time.monotonic() - started)
             if remaining <= 0:
@@ -2061,7 +2061,7 @@ class SupervisorClient:
         if operation == "observer-status":
             status = response["data"]
             if (status.get("supervisor_pid") != peer_pid or
-                    status.get("supervisor_process_start") != process_identity(peer_pid)["process_start"]):
+                    status.get("supervisor_process_start") != process_start_time(peer_pid)):
                 raise SupervisorError("central_supervisor_process_identity_mismatch")
         return response["data"]
 

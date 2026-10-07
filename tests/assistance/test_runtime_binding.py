@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import struct
+import tarfile
 import tempfile
 import types
 import unittest
@@ -48,6 +49,27 @@ def _write_manifest(root: Path, *, contents: bytes = b"VERSION = 'old'\n") -> No
 
 class RuntimeBindingTests(unittest.TestCase):
     def setUp(self) -> None:
+        # Collection of neighboring PA1 tests imports the receiver runtime in
+        # this interpreter. Model the fresh-process precondition for each
+        # source binding case without changing the receiver's strict policy.
+        original_runtime_modules = {
+            name: module for name, module in tuple(sys.modules.items())
+            if name == "local_worker" or name.startswith("local_worker.")
+        }
+        for name in original_runtime_modules:
+            sys.modules.pop(name, None)
+        original_meta_path = list(sys.meta_path)
+        sys.meta_path[:] = [finder for finder in sys.meta_path
+                            if not isinstance(finder, runtime_binding._ManifestFinder)]
+        self.addCleanup(lambda path=original_meta_path: sys.meta_path.__setitem__(slice(None), path))
+
+        def restore_runtime_modules() -> None:
+            for name in tuple(sys.modules):
+                if name == "local_worker" or name.startswith("local_worker."):
+                    sys.modules.pop(name, None)
+            sys.modules.update(original_runtime_modules)
+
+        self.addCleanup(restore_runtime_modules)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         # Native task runners may inject release pins for the installed
@@ -519,41 +541,112 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
         transfer_path = REPOSITORY / "docs/pa1/runtime-transfer.json"
         transfer = json.loads(transfer_path.read_text(encoding="utf-8"))
         receiver_manifest = json.loads((RECEIVER / "receiver-manifest.json").read_text(encoding="utf-8"))
+        rollback_bundle = SUPPLIER / "docs/pa1/rollback/operator-bundle"
+        rollback_manifest = json.loads((rollback_bundle / "operator-bundle-manifest.json").read_text(encoding="utf-8"))
+        rollback_provenance_path = rollback_bundle / "rollback/provenance.json"
+        rollback_provenance_raw = rollback_provenance_path.read_bytes()
+        rollback_provenance = json.loads(rollback_provenance_raw)
+        rollback_archive = rollback_bundle / "rollback" / rollback_provenance["archive_path"]
+        rollback_archive_raw = rollback_archive.read_bytes()
+        transition_receipt_path = rollback_bundle / "tests/transition-test-receipt.json"
+        transition_receipt_raw = transition_receipt_path.read_bytes()
+        transition_receipt = json.loads(transition_receipt_raw)
+        runtime_transition_path = rollback_bundle / "runtime-transition.json"
+        runtime_transition_raw = runtime_transition_path.read_bytes()
+        runtime_transition = json.loads(runtime_transition_raw)
         # The receiver manifest identifies the Project Control checkout that
-        # hosts the executable runtime. The transfer record identifies the
-        # Skills checkout that supplied the original files; the shared
-        # inventory digest carries their common handoff provenance.
-        self.assertTrue(receiver_manifest["source_commit"].startswith(
-            "1b1026845d3fff5a27ad539a386b24649ba48f68+PC-PA1-FRAMES-working-tree-"
-        ))
+        # hosts the executable runtime. The transfer record and checksummed
+        # rollback archive identify the original Skills source; the current
+        # catalog path contains retirement navigation markers for some files.
+        self.assertRegex(receiver_manifest["source_commit"],
+                         r"^[0-9a-f]{40}\+PC-PA1-[A-Z0-9-]+-reviewed-peer-rpc$")
         self.assertEqual(transfer["source_commit"], "95818340006dd50ef233d7c67ddca2da8eb08bc4")
         self.assertEqual(receiver_manifest["source_inventory_path"], transfer["source_inventory_path"])
         self.assertEqual(receiver_manifest["source_inventory_sha256"], transfer["source_inventory_sha256"])
+        self.assertEqual(rollback_provenance["source_commit"], transfer["source_commit"])
+        self.assertEqual(rollback_provenance["inventory_sha256"], transfer["source_inventory_sha256"])
+        self.assertEqual(runtime_transition["authority_exclusion_source_inventory_sha256"],
+                         transfer["source_inventory_sha256"])
+        self.assertEqual(hashlib.sha256(rollback_archive_raw).hexdigest(), rollback_provenance["archive_sha256"])
+        self.assertEqual(hashlib.sha256(rollback_archive_raw).hexdigest(),
+                         rollback_manifest["files"]["rollback/local-coding-worker-portable.tar.gz"]["sha256"])
+        self.assertEqual(hashlib.sha256(rollback_provenance_raw).hexdigest(),
+                         rollback_manifest["files"]["rollback/provenance.json"]["sha256"])
+        self.assertEqual(hashlib.sha256(transition_receipt_raw).hexdigest(),
+                         rollback_manifest["files"]["tests/transition-test-receipt.json"]["sha256"])
+        self.assertEqual(hashlib.sha256(runtime_transition_raw).hexdigest(),
+                         rollback_manifest["files"]["runtime-transition.json"]["sha256"])
+        self.assertEqual(transition_receipt["evidence"]["rollback_archive"]["sha256"],
+                         rollback_provenance["archive_sha256"])
+        self.assertEqual(transition_receipt["evidence"]["rollback_provenance"]["sha256"],
+                         hashlib.sha256(rollback_provenance_raw).hexdigest())
+        self.assertEqual(transition_receipt["status"], "passed_staged_candidate")
+        self.assertEqual(transition_receipt["result"]["failures"], 0)
+        self.assertEqual(transition_receipt["result"]["errors"], 0)
         self.assertEqual(len(receiver_manifest["files"]), 42)
         self.assertEqual(len(transfer["transferred_files"]), 41)
         self.assertEqual(transfer["source_inventory_sha256"], hashlib.sha256(
             (SUPPLIER / "docs/pa1/runtime-handoff.json").read_bytes()
         ).hexdigest())
 
+        archived_file_hashes = {item["path"]: item for item in rollback_provenance["archived_files"]}
+        active_retirement_hashes = runtime_transition["candidate_hashes"]
+        source_contents: dict[str, bytes] = {}
+        current_receiver_differences: set[str] = set()
+
         transformed_paths: set[str] = set()
-        for entry in transfer["transferred_files"]:
-            supplier_file = SUPPLIER / entry["supplier_path"]
-            receiver_file = RECEIVER / entry["receiver_path"]
-            self.assertEqual(hashlib.sha256(supplier_file.read_bytes()).hexdigest(), entry["source_sha256"], entry["supplier_path"])
-            self.assertEqual(
-                hashlib.sha256(receiver_file.read_bytes()).hexdigest(),
-                receiver_manifest["files"][entry["receiver_path"]],
-                entry["receiver_path"],
-            )
-            if entry["source_sha256"] != entry["receiver_sha256"]:
-                self.assertTrue(entry.get("transformation"), entry["receiver_path"])
-                transformed_paths.add(entry["receiver_path"])
-            else:
-                self.assertIsNone(entry.get("transformation"), entry["receiver_path"])
+        with tarfile.open(rollback_archive, "r:gz") as archive:
+            archive_members = {member.name: member for member in archive.getmembers() if member.isfile()}
+            for entry in transfer["transferred_files"]:
+                supplier_path = entry["supplier_path"]
+                active_file = SUPPLIER / supplier_path
+                expected_source_sha = entry["source_sha256"]
+                if active_file.is_file():
+                    active_sha = hashlib.sha256(active_file.read_bytes()).hexdigest()
+                    if active_sha != expected_source_sha:
+                        # The catalog path now holds only retirement markers;
+                        # verify their bytes against the transition candidate
+                        # record before falling back to the preserved source.
+                        self.assertEqual(active_retirement_hashes.get(supplier_path), active_sha, supplier_path)
+
+                archived_record = archived_file_hashes.get(supplier_path)
+                self.assertIsNotNone(archived_record, supplier_path)
+                self.assertEqual(archived_record["sha256"], expected_source_sha, supplier_path)
+                archive_path = "local-coding-worker/" + supplier_path
+                member = archive_members.get(archive_path)
+                self.assertIsNotNone(member, archive_path)
+                archived_source = archive.extractfile(member).read()
+                self.assertEqual(len(archived_source), archived_record["bytes"], supplier_path)
+                self.assertEqual(hashlib.sha256(archived_source).hexdigest(), expected_source_sha, supplier_path)
+                source_contents[supplier_path] = archived_source
+
+                receiver_file = RECEIVER / entry["receiver_path"]
+                receiver_sha = hashlib.sha256(receiver_file.read_bytes()).hexdigest()
+                self.assertEqual(receiver_sha, receiver_manifest["files"][entry["receiver_path"]],
+                                 entry["receiver_path"])
+                if receiver_sha != expected_source_sha:
+                    current_receiver_differences.add(entry["receiver_path"])
+                if entry["source_sha256"] != entry["receiver_sha256"]:
+                    self.assertTrue(entry.get("transformation"), entry["receiver_path"])
+                    transformed_paths.add(entry["receiver_path"])
+                else:
+                    self.assertIsNone(entry.get("transformation"), entry["receiver_path"])
 
         self.assertEqual(transformed_paths, {
             "local_worker/controller.py", "local_worker/supervisor.py", "scripts/worker_core.py",
         })
+        # These three current receiver files changed after the original
+        # transfer record. Their current bytes are checked by the receiver
+        # manifest above; keep their names explicit so they cannot be mistaken
+        # for original-source transfer transformations.
+        post_transfer_receiver_changes = {
+            "local_worker/observer_runtime.py",
+            "local_worker/residency.py",
+            "local_worker/servers/llama_cpp.py",
+            "scripts/local_worker.py",
+        }
+        self.assertEqual(current_receiver_differences, transformed_paths | post_transfer_receiver_changes)
+
         controller = (RECEIVER / "local_worker/controller.py").read_text(encoding="utf-8")
         supervisor = (RECEIVER / "local_worker/supervisor.py").read_text(encoding="utf-8")
         worker_core = (RECEIVER / "scripts/worker_core.py").read_text(encoding="utf-8")
@@ -573,7 +666,7 @@ print(json.dumps({'cwd': str(kwargs['cwd']), 'args': captured['args'][0],
             self.assertTrue((RECEIVER / relative).is_file(), relative)
             supplier_relative = "local-coding-worker/" + relative
             self.assertEqual(
-                hashlib.sha256((SUPPLIER / supplier_relative).read_bytes()).hexdigest(),
+                hashlib.sha256(source_contents[supplier_relative]).hexdigest(),
                 hashlib.sha256((RECEIVER / relative).read_bytes()).hexdigest(),
                 relative,
             )

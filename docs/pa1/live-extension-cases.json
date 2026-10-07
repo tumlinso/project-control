@@ -1,0 +1,21 @@
+{
+  "cases": [
+    {
+      "id": "A31",
+      "question": "Inspect demo/pairs.py and tests/test_pairs.py. Propose one focused scratch-only unittest for an odd-length input that exposes whether the final unpaired item is included. State the proposed test input and expected total, and explain which existing test behavior leaves the gap. Do not edit or execute against the canonical fixture.",
+      "evidence_paths": [
+        "demo/pairs.py",
+        "tests/test_pairs.py"
+      ]
+    },
+    {
+      "id": "A37",
+      "question": "Continue the deadline analysis from the previously retained visible source evidence. Resolve the old note's 120-second claim against the current inquiry deadline, and distinguish the turn and lease limits. State the conclusion supported by the cited expressions and what remains uncertain; do not assume hidden reasoning or treat the old note as current policy.",
+      "evidence_paths": [
+        "docs-old.md",
+        "demo/budgets.py",
+        "demo/controller.py"
+      ]
+    }
+  ]
+}

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import os
+import re
+import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Sequence
 
@@ -157,6 +162,23 @@ def _parser() -> argparse.ArgumentParser:
     run = assistance_commands.add_parser("run", help="explicitly run one local question")
     run.add_argument("question")
     run.add_argument("--project", required=True)
+    lab = assistance_commands.add_parser("lab", help="run isolated, explicitly granted lab experiments")
+    lab_commands = lab.add_subparsers(dest="lab_command", required=True)
+    lab_run = lab_commands.add_parser("run", help="select and run one bounded lab experiment")
+    lab_run.add_argument("--project", required=True)
+    lab_run.add_argument("--source", action="append", required=True, metavar="PATH")
+    lab_run.add_argument("--hypothesis", required=True)
+    lab_run.add_argument("--reference", required=True)
+    lab_run.add_argument("--measure", action="append", required=True, metavar="MEASURE")
+    lab_run.add_argument("--stop-rule", required=True)
+    lab_run.add_argument("argv", nargs=argparse.REMAINDER, metavar="COMMAND")
+    lab_status = lab_commands.add_parser("status", help="read cold lab state")
+    lab_status.add_argument("--experiment")
+    lab_candidate = lab_commands.add_parser("candidate", help="create a reviewable candidate patch")
+    lab_candidate.add_argument("--experiment", required=True)
+    lab_candidate.add_argument("--patch-file", type=Path, required=True)
+    lab_verify = lab_commands.add_parser("verify", help="verify one candidate against its experiment")
+    lab_verify.add_argument("--candidate", required=True)
     chat = assistance_commands.add_parser("chat")
     chat.add_argument("--project")
 
@@ -416,6 +438,160 @@ def _assistance_ask(composition, question: str, project: str) -> dict[str, objec
         "sources": [source.model_dump(exclude_none=True) for source in result.packet.sources]})
 
 
+def _lab_service(project: str | None = None):
+    """Build a cold lab adapter from the configured registry and private state."""
+    from .assistance.lab import LabProject, LabService
+
+    projects = {}
+    if project is not None:
+        config = load_config()
+        repository, trusted_root = _assistance_repository(config, project)
+        projects[project] = LabProject(project=project, root=trusted_root, repository=repository)
+    return LabService(projects=projects)
+
+
+def _lab_transient_unit_active() -> bool:
+    """Avoid recursively submitting a transient unit when its delegation failed."""
+    try:
+        entries = [line[3:].lstrip("/") for line in Path("/proc/self/cgroup").read_text().splitlines()
+                   if line.startswith("0::")]
+    except OSError:
+        return False
+    if len(entries) != 1:
+        return False
+    return any(re.fullmatch(r"project-control-lab-[0-9a-f]{32}\.service", part)
+               for part in Path(entries[0]).parts)
+
+
+def _lab_runtime_identity() -> tuple[Path, Path]:
+    """Return the exact interpreter and source root already running this CLI."""
+    cli_path = Path(__file__).resolve(strict=True)
+    try:
+        spec = importlib.util.find_spec("project_control.cli")
+        spec_path = Path(spec.origin).resolve(strict=True) if spec is not None and spec.origin else None
+    except (ImportError, OSError, ValueError) as exc:
+        raise ValueError("lab_cli_source_identity_unavailable") from exc
+    if spec_path != cli_path:
+        raise ValueError("lab_cli_source_identity_unavailable")
+    source_root = cli_path.parent.parent
+    package_init = source_root / "project_control" / "__init__.py"
+    if not package_init.is_file():
+        raise ValueError("lab_cli_source_identity_unavailable")
+    interpreter = Path(sys.executable)
+    if not interpreter.is_absolute() or not interpreter.is_file() or not os.access(interpreter, os.X_OK):
+        raise ValueError("lab_cli_interpreter_unavailable")
+    # Keep the venv launcher path: resolving it to the base Python drops the
+    # verified environment and its installed dependencies.
+    try:
+        interpreter.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("lab_cli_interpreter_unavailable") from exc
+    return interpreter, source_root
+
+
+def _lab_command_argv(args, command_argv: Sequence[str]) -> list[str]:
+    result = ["assistance", "lab", "run", "--project", args.project]
+    for source in args.source:
+        result.extend(("--source", source))
+    result.extend(("--hypothesis", args.hypothesis, "--reference", args.reference))
+    for measurement in args.measure:
+        result.extend(("--measure", measurement))
+    result.extend(("--stop-rule", args.stop_rule, "--", *command_argv))
+    return result
+
+
+def _lab_run_in_transient_unit(args, command_argv: Sequence[str]) -> int:
+    """Re-enter this exact CLI in a short-lived delegated systemd user unit."""
+    if _lab_transient_unit_active():
+        raise ValueError("lab_delegated_cgroup_unavailable")
+    systemd_run = shutil.which("systemd-run", path="/usr/bin:/bin")
+    if systemd_run is None:
+        raise ValueError("lab_transient_runner_unavailable")
+    interpreter, source_root = _lab_runtime_identity()
+    unit = f"project-control-lab-{uuid.uuid4().hex}.service"
+    argv = [
+        systemd_run, "--user", "--wait", "--pipe", "--collect", "--quiet",
+        f"--unit={unit}", "--property=Delegate=yes",
+        "--property=DelegateSubgroup=controller", "--property=RuntimeMaxSec=45s",
+        f"--working-directory={source_root}",
+    ]
+    env = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin",
+        "HOME": str(Path.home()),
+        "PYTHONPATH": str(source_root),
+    }
+    for name in ("XDG_CONFIG_HOME", "XDG_STATE_HOME", "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR"):
+        value = os.environ.get(name)
+        if value:
+            env[name] = value
+    for name in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "SYSTEMD_BUS_ADDRESS"):
+        value = os.environ.get(name)
+        if value:
+            env[name] = value
+    for name, value in env.items():
+        argv.append(f"--setenv={name}={value}")
+    argv.extend(("--", str(interpreter), "-m", "project_control.cli",
+                 *_lab_command_argv(args, command_argv)))
+    try:
+        completed = subprocess.run(
+            argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, timeout=50, check=False, env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError("lab_transient_runner_unavailable") from exc
+    if completed.returncode != 0:
+        raise ValueError("lab_transient_execution_failed")
+    try:
+        payload = json.loads(completed.stdout)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("lab_transient_result_unavailable") from exc
+    print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
+def _assistance_lab_command(args) -> int:
+    from .assistance.lab import LabSelection
+
+    if args.lab_command == "run":
+        argv = list(args.argv)
+        if argv and argv[0] == "--":
+            argv.pop(0)
+        if not argv or not argv[0].strip():
+            raise ValueError("lab_run_requires_command_after_--")
+        from .assistance.lab_runner import current_cgroup_ready
+        if not current_cgroup_ready():
+            return _lab_run_in_transient_unit(args, argv)
+    project = args.project if args.lab_command == "run" else None
+    service = _lab_service(project)
+    operator = service.operator()
+    if args.lab_command == "run":
+        selection = LabSelection(
+            project=args.project,
+            source_paths=tuple(args.source),
+            hypothesis=args.hypothesis,
+            argv=tuple(argv),
+            reference=args.reference,
+            expected_measurements="; ".join(args.measure),
+            stop_rule=args.stop_rule,
+        )
+        grant = service.select(operator, selection)
+        result = service.run(operator, grant)
+    elif args.lab_command == "status":
+        result = service.status(operator, experiment_id=args.experiment)
+    elif args.lab_command == "candidate":
+        try:
+            patch_text = args.patch_file.read_text(encoding="utf-8")
+        except UnicodeError as exc:
+            raise ValueError("candidate_patch_must_be_utf8") from exc
+        result = service.create_candidate(operator, args.experiment, patch_text)
+    elif args.lab_command == "verify":
+        result = service.verify_candidate(operator, args.candidate)
+    else:
+        raise ValueError("unsupported_assistance_lab_command")
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
 def _assistance_chat(args) -> int:
     """Line chat has no resident lease; ordinary lines are explicit questions."""
     from .assistance.operator import AssistanceOperator
@@ -501,6 +677,8 @@ def _assistance_command(args) -> int:
         result = operator.status()
     elif command == "chat":
         return _assistance_chat(args)
+    elif command == "lab":
+        return _assistance_lab_command(args)
     elif command in {"goal", "focus", "dismiss", "accept", "handoff"}:
         config = load_config()
         projects = set(config.workspaces)

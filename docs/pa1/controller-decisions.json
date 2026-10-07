@@ -1,7 +1,7 @@
 {
   "format": "pa1-controller-decisions/1",
   "authorization": "2026-10-06 user: Hold is released. Start implementing this.",
-  "device_hold": "reinstated before LAB/live qualification by latest user direction",
+  "device_hold": "released by user on 2026-10-07; background profiler finished",
   "implementation": "authorized",
   "delegation": "configured gpt-6-luna named profiles; controller retains lifecycle/integration/acceptance",
   "defaults": {
@@ -31,15 +31,20 @@
     "controller_direct_work_reason": "manifest refresh and cross-owner policy/API decisions are inseparable from final integration; routine coding and tests remain delegated"
   },
   "resource_integration": {
-    "state": "under_source_investigation",
-    "observable_trigger": "central supervisor and CUDA foreground controller currently acquire separate owners; nested same-GPU lease would self-contend; observer-only RPC denies immediate full eviction",
-    "decision": "preserve ownership/proof checks; qualify supported handoff or implement bounded trusted controller bridge before live work"
+    "state": "bridge verified in current source; live proof pending",
+    "decision": "Use JobService-managed sessions and exact owned close receipts, request released_verified through existing trusted observer-release-owned RPC, then obtain independent CUDA foreground lease. Active sessions are closed first; no nested same-GPU leases.",
+    "source_references": [
+      "src/project_control/as1_jobs.py:429",
+      "src/project_control/assistance/resources.py:192",
+      "src/project_control/local_runtime/local_worker/supervisor.py:1680"
+    ],
+    "live_limits": "Do not label idle GPU status or source tests as ownership/release proof. Record live exact-session and physical cleanup proof before non-model experiment."
   },
   "latest_operator_direction": {
-    "observed_at_utc": "2026-10-06T19:22:06.279121+00:00",
-    "instruction": "Finish and validate ASSIST, then pause overnight before LAB or live qualification. Save a restart handoff and leave no background inference running.",
-    "scope": "Finish ASSIST source/CPU validation only; no LAB claim or implementation, no live model/GPU qualification, no selected-candidate deployment/activation.",
-    "resume_requirement": "Explicit operator resume; no automatic overnight wake or inference."
+    "observed_at_utc": "2026-10-07T04:12:48Z",
+    "instruction": "Continue with LAB and live qualification. Work efficiently and effectively. The background profiler is long finished. No longer applicable.",
+    "scope": "LAB implementation and finite real-model/GPU qualification; root intervenes on debugging loops; preserve durable state and foreign work.",
+    "end_state": "Automatic inference stays off unless bounded qualification passes; release owned inference after qualification; commit and push authorized work."
   },
   "assistance_source_scope": {
     "decision": "Selected automatic focus files are read scope, not only change triggers. Seal exact repository/path entries on automatic root and descendants; require current leased job/attempt and exact admission scope.",
@@ -53,6 +58,12 @@
   "validation_retry_boundary": {
     "instruction": "No massive issue search. If it is a transient runtime error it will still be fixable when we resume.",
     "decision": "Known inherited release-pin failure permits only the small source-test fixture correction and one required-gate retry. Any further failure is retained in the restart handoff and work pauses.",
-    "observed_at_utc": "2026-10-06T19:50:26.031227+00:00"
+    "observed_at_utc": "2026-10-06T19:50:26.031227+00:00",
+    "current_direction": "2026-10-07: coherent advance error review, root intervention on repeated failures; bounded investigation remains required."
+  },
+  "controller_direct_work_reason": "Root records operator authorization, architecture, resource admission and native lifecycle; bounded implementation and tests delegated.",
+  "lab_containment": {
+    "decision": "Bubblewrap minimal root with read-only detached source and actual cgroup v2 cpu/memory/pids enforcement. On-demand user transient service Delegate=yes supplies the parent cgroup; unavailable delegation fails closed.",
+    "host_probe": "2026-10-07 root actual transient delegation probe succeeded with cpu memory pids controllers; no persistent lab process."
   }
 }

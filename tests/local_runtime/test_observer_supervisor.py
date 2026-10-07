@@ -24,7 +24,7 @@ from local_worker import supervisor as _supervisor_module
 assert_receiver_module(_supervisor_module)
 from local_worker.supervisor import (RPC_FRAME_BYTES, SupervisorClient, SupervisorError,
                                     SupervisorServer, _check_peer_uid, main)
-from local_worker.residency import process_identity
+from local_worker.residency import process_identity, process_start_time
 
 
 class CentralBackend(_PoolBackend):
@@ -212,6 +212,70 @@ class CentralSupervisorTests(unittest.TestCase):
             with self.assertRaisesRegex(SupervisorError, "process_identity_mismatch"):
                 self.client.observer_status()
 
+    def test_peer_stat_authenticates_status_when_executable_resolution_is_denied(self):
+        session_id = self.client.open_observer_sessions(1)["session_ids"][0]
+        model_pid = next(iter(self.backend._slots.values())).endpoint_descriptor["server_pid"]
+        denied_executable_pids = {os.getpid(), model_pid}
+        original_read_text = Path.read_text
+        original_resolve = Path.resolve
+
+        def read_text(path, *args, **kwargs):
+            if path == Path("/proc") / str(model_pid) / "stat":
+                fields = ["S", "1", str(model_pid)] + ["0"] * 16 + ["987654"]
+                return f"{model_pid} (fixture model) " + " ".join(fields)
+            return original_read_text(path, *args, **kwargs)
+
+        def deny_executable(path, *args, **kwargs):
+            if (path.name == "exe" and path.parent.parent == Path("/proc") and
+                    path.parent.name in {str(pid) for pid in denied_executable_pids}):
+                raise PermissionError("fixture executable access denied")
+            return original_resolve(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", read_text), patch.object(Path, "resolve", deny_executable):
+            status = self.client.observer_status()
+            self.assertEqual(status["supervisor_pid"], os.getpid())
+            self.assertEqual(status["supervisor_process_start"], process_start_time(os.getpid()))
+            with self.assertRaisesRegex(PermissionError, "fixture executable access denied"):
+                process_identity(model_pid)
+            closed = self.client.close_observer_session(session_id)
+
+        self.assertTrue(closed["released"])
+        self.assertIsNone(closed["owned_resource_receipt"])
+
+    def test_peer_stat_denial_and_pid_reuse_fail_closed(self):
+        with patch("local_worker.supervisor.process_start_time", side_effect=PermissionError("peer stat denied")):
+            with self.assertRaisesRegex(SupervisorError, "peer stat denied"):
+                self.client.observer_status()
+
+        original_status = self.server._observer_status
+        with patch.object(self.server, "_observer_status",
+                          side_effect=lambda: {**original_status(), "supervisor_process_start": "1"}):
+            with self.assertRaisesRegex(SupervisorError, "central_supervisor_process_identity_mismatch"):
+                self.client.observer_status()
+
+        session_id = self.client.open_observer_sessions(1)["session_ids"][0]
+        with patch("local_worker.supervisor.process_start_time", return_value="1"):
+            self.server._reap_borrowers()
+        self.assertNotIn(session_id, self.backend._leases)
+        self.assertNotIn(session_id, self.server._borrowers)
+
+    def test_process_start_time_validates_stat_pid_and_token(self):
+        pid = 8123
+        fields = ["S", "1", "8123"] + ["0"] * 16 + ["12345"]
+        with patch("local_worker.residency.Path.read_text",
+                   return_value=f"{pid} (name with ) paren) " + " ".join(fields)):
+            self.assertEqual(process_start_time(pid), "12345")
+        with patch("local_worker.residency.Path.read_text", side_effect=PermissionError("stat denied")):
+            with self.assertRaisesRegex(PermissionError, "stat denied"):
+                process_start_time(pid)
+        with patch("local_worker.residency.Path.read_text", return_value="not-a-stat"):
+            with self.assertRaisesRegex(ValueError, "process_start_unavailable"):
+                process_start_time(pid)
+        with patch("local_worker.residency.Path.read_text",
+                   return_value=f"{pid + 1} (reused pid) " + " ".join(fields)):
+            with self.assertRaisesRegex(ValueError, "process_start_unavailable"):
+                process_start_time(pid)
+
     def test_deadlines_invalid_and_transport_timeout_do_not_evict_pool(self):
         sessions = self.client.open_observer_sessions(1)["session_ids"]
         for deadline in (True, float("nan"), time.time() - 1):
@@ -391,7 +455,7 @@ with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as connection:
         deadline = time.time() + 10
         session_id = self.client.open_observer_sessions(1, deadline_epoch=deadline)["session_ids"][0]
         self.assertEqual(self.server._borrowers[session_id]["deadline_epoch"], deadline)
-        with patch("local_worker.supervisor.process_identity", side_effect=PermissionError("unknown borrower")):
+        with patch("local_worker.supervisor.process_start_time", side_effect=PermissionError("unknown borrower")):
             self.server._reap_borrowers()
         self.assertIn(session_id, self.backend._leases)
         with self.server._borrowers_lock:

@@ -1,0 +1,109 @@
+{
+  "format": "pa1-lab-integration-evidence/1",
+  "scope": "LAB service integration mechanics and one disposable CPU fixture probe",
+  "acceptance_claim": "not an A31 live-model acceptance result",
+  "source": {
+    "kind": "disposable_git_copy_of_synthetic_fixture",
+    "repository": "pa1-odd-tail-fixture",
+    "root": "/tmp/pa1-lab-counterexample-x1yna65s/source",
+    "head_before": "db161941a5d0c50ca110153cade22d0f67c2964a",
+    "head_after": "db161941a5d0c50ca110153cade22d0f67c2964a",
+    "status_fingerprint_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status_fingerprint_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "selected_paths": ["demo", "tests"],
+    "source_files": {
+      "demo/__init__.py": "a36ae8f97b701d45dd4e73ef160e4c9059caeaad3a02e491027f87de98f3696f",
+      "demo/pairs.py": "a7da51faead3be54309308f32177766efec3d6c908751c6f9f3a96c02b28d81c",
+      "tests/test_pairs.py": "7f8da18524cec3ebad77393b950a26eb1f154f4930d54dbb27387bc45b691412"
+    },
+    "source_unchanged": true,
+    "canonical_fixture_template_unchanged": true
+  },
+  "experiment": {
+    "experiment_id": "lab_cd985d884a4247549836ad9d0a81bdd9",
+    "generation": 1,
+    "attempt_id": "attempt_338da01b75354a5e9e02e23597ae5f71",
+    "effect_id": "effect_3a7816bd080e4b88a3c45fc6dfbd490d",
+    "hypothesis": "pair_sum must include the final unpaired item",
+    "reference": "direct Python sum over [2, 3, 5]",
+    "input": [2, 3, 5],
+    "expected": 10,
+    "observed": 5,
+    "status": "command_failed",
+    "outcome": "negative",
+    "returncode": 1,
+    "stdout": "{\"defect_exposed\": true, \"expected\": 10, \"input\": [2, 3, 5], \"observed\": 5}\n",
+    "stderr": "",
+    "elapsed_ms": 86.207,
+    "uncertainty": "One deterministic input only; this demonstrates the fixture's odd-tail defect, not a general or production correctness claim."
+  },
+  "containment": {
+    "invocation": "systemd-run --user --wait --pipe --collect --property=Delegate=yes --property=DelegateSubgroup=controller",
+    "outer_argv": [
+      ".dev-venv/bin/python",
+      "/tmp/pa1_lab_counterexample.py"
+    ],
+    "transient_unit_invocation_id": "6889343c543b44c78c48d6e765c10935",
+    "persistent_service_created": false,
+    "backend": "bubblewrap+cgroup-v2",
+    "resource_grant": {
+      "cpu_cores": 1.0,
+      "memory_bytes": 1073741824,
+      "pids": 32,
+      "timeout_seconds": 30.0,
+      "output_bytes": 65536,
+      "artifact_bytes": 67108864
+    },
+    "cleanup_verified": true,
+    "process_identity": {
+      "pid": 76563,
+      "start_time_ticks": 145857,
+      "cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/run-u27.service/pc-lab-fdc9222b8334ac92ba9f-cf5b5eb2",
+      "cgroup_inode": 15680
+    }
+  },
+  "capture": {
+    "head_commit": "db161941a5d0c50ca110153cade22d0f67c2964a",
+    "base_commit": "db161941a5d0c50ca110153cade22d0f67c2964a",
+    "manifest_sha256": "8012238c1ceb674e9be18105c060522b43abe3e1f93c9d11088c95c3940f9b5a",
+    "status_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "private_snapshot_root": "/tmp/pa1-lab-counterexample-x1yna65s/private-state/experiments/lab_cd985d884a4247549836ad9d0a81bdd9/snapshot"
+  },
+  "artifact": {
+    "path": "/tmp/pa1-lab-counterexample-x1yna65s/private-state/experiments/lab_cd985d884a4247549836ad9d0a81bdd9/attempt_338da01b75354a5e9e02e23597ae5f71/result.bin",
+    "bytes": 76,
+    "sha256": "302f19c380c20fcd156c7916d1aeecc7dd69e6d891410af9cd5989bcf9f89d3b",
+    "state": "partial",
+    "qualified": false
+  },
+  "preservation": {
+    "preserved_at": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/lab-cpu-counterexample-preserved",
+    "original_tmp_tree_retained": true,
+    "entry_count_original": 69,
+    "entry_count_preserved": 69,
+    "contents_modes_and_paths_identical": true,
+    "preserved_private_state_root": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/lab-cpu-counterexample-preserved/private-state",
+    "preserved_source_root": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/lab-cpu-counterexample-preserved/source",
+    "preserved_artifact_path": "/home/tumlinson/.local/state/project-control/qualification/pa1-20261007/lab-cpu-counterexample-preserved/private-state/experiments/lab_cd985d884a4247549836ad9d0a81bdd9/attempt_338da01b75354a5e9e02e23597ae5f71/result.bin",
+    "preserved_artifact_sha256": "302f19c380c20fcd156c7916d1aeecc7dd69e6d891410af9cd5989bcf9f89d3b",
+    "preserved_root_mode": "0700"
+  },
+  "validation": {
+    "command": "scripts/pa1_source_tests.sh -m unittest tests.assistance.test_lab -v",
+    "interpreter": ".dev-venv/bin/python (Python 3.12.3)",
+    "result": "passed",
+    "tests_passed": 13,
+    "coverage": [
+      "intent is durable before launch and receipt survives service reopen",
+      "negative, timeout and containment-unavailable outcomes remain distinct",
+      "intent and exact process ownership reconcile without replay",
+      "unverified cleanup remains pending until exact reconciliation",
+      "snapshot contents, inventory, directories, symlinks, manifest and modes are verified",
+      "candidate source freshness includes captured modes and private snapshot integrity",
+      "runner argv bounds are rejected before capture",
+      "concurrent source selections receive unique generations"
+    ]
+  },
+  "authority_mutated": false,
+  "project_control_todo_mutated": false
+}

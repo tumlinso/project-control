@@ -1,0 +1,83 @@
+{
+  "format": "pa1-source-test-environment/1",
+  "status": "ready_for_source_tests",
+  "repository": "/home/tumlinson/project-control",
+  "environment": {
+    "path": "/home/tumlinson/project-control/.dev-venv",
+    "created_with": "uv venv .dev-venv --python /usr/bin/python3.12",
+    "installed_with": "uv pip install --python .dev-venv/bin/python -e . pytest",
+    "python_executable": "/home/tumlinson/project-control/.dev-venv/bin/python",
+    "python_version": "3.12.3",
+    "uv_version": "0.12.5",
+    "packages": {
+      "project-control": "0.3.2",
+      "todo-orchestrator-source": "0.3.0",
+      "pytest": "9.1.1",
+      "pydantic": "2.13.5",
+      "mcp": "1.30.0",
+      "PyYAML": "6.0.3",
+      "pyte": "0.8.2",
+      "starlette": "0.52.1",
+      "uvicorn": "0.54.0"
+    }
+  },
+  "source_binding": {
+    "project_control_import": "/home/tumlinson/project-control/src/project_control/__init__.py",
+    "lab_snapshot_import": "/home/tumlinson/project-control/src/project_control/assistance/lab_snapshot.py",
+    "canonical_skills_root": "/home/tumlinson/.agents/skills",
+    "todo_supplier_root": "/home/tumlinson/.agents/skills/todo-orchestrator",
+    "todo_entrypoint": "/home/tumlinson/.agents/skills/todo-orchestrator/scripts/todo.py",
+    "todo_package_import": "/home/tumlinson/.agents/skills/todo-orchestrator/todo_orchestrator/__init__.py",
+    "controlled_pythonpath_order": [
+      "/home/tumlinson/.agents/skills/todo-orchestrator",
+      "/home/tumlinson/project-control/src"
+    ]
+  },
+  "sanitization": {
+    "unset_before_run": [
+      "PYTHONHOME",
+      "PYTHONPATH",
+      "PROJECT_CONTROL_RELEASE_MANIFEST",
+      "PROJECT_CONTROL_RELEASE_DIGEST",
+      "CODING_WORKFLOW_SKILLS_ROOT"
+    ],
+    "set_before_run": {
+      "PROJECT_CONTROL_SKILLS_ROOT": "/home/tumlinson/.agents/skills",
+      "PYTHONNOUSERSITE": "1",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    },
+    "identity_checks": "Project Control source and runtime identity checks remain enabled."
+  },
+  "supported_lab_gate": {
+    "argv": ["-m", "unittest", "tests.assistance.test_lab", "-v"],
+    "command": "scripts/pa1_source_tests.sh -m unittest tests.assistance.test_lab -v",
+    "status": "not_run_waiting_for_workers"
+  },
+  "verification": {
+    "project_control_and_lab_snapshot_imported_from_source": true,
+    "todo_orchestrator_imported_from_canonical_skills_source": true,
+    "canonical_todo_script_help_exit_zero": true,
+    "todo_script_help_is_nonmutating": true,
+    "source_runtime_identity": {
+      "root": "/home/tumlinson/project-control/src/project_control/local_runtime",
+      "fingerprint": "9d5c01632e6fbad11649362d20edb7b74f6606c47348879487d96e4f9119e7e7",
+      "file_count": 42,
+      "identity_check": "local_runtime_identity() succeeded with inherited release pins removed."
+    },
+    "conflicting_environment_sentinels_removed": true,
+    "protected_installed_venv": {
+      "path": "/home/tumlinson/project-control/.venv",
+      "resolved_target": "/home/tumlinson/.local/share/project-control/releases/unified-20261006-final",
+      "modified": false
+    }
+  },
+  "source_sha256": {
+    "pyproject.toml": "a1eee03d574fb1f43bf6b1819a9aa4d127fe42f0145706c300a5ccd483646d5f",
+    "src/project_control/__init__.py": "c7c65cd3703db90fe29a27eafb9bb31079f32b6310799762e29ac287fd826304",
+    "src/project_control/assistance/lab_snapshot.py": "72624ed59d376b5ffe3b34962d503bab4025d9357854b815f0eecec56175e857",
+    "canonical_todo_orchestrator/pyproject.toml": "e1fdfbf58d27ec3a9dc9eb411035838ebbf19e2857d33fbcc07e7b2094ef8530",
+    "canonical_todo_orchestrator/scripts/todo.py": "dde57ccac73048ada5c1113b63dc62906e260ac85459a1e01458abd13e18f5e6",
+    "canonical_todo_orchestrator/todo_orchestrator/__init__.py": "f7c2d5e79305aa46f21ac48765c39660130d3db720ca2a94c50a6c1124ab8a78",
+    "canonical_todo_orchestrator/todo_orchestrator/cli.py": "b6ddd3d01bb1743503be48791a6ca579cc1cb3044d7bbfc394b4666861fabd0f"
+  }
+}

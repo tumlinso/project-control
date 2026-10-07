@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ from project_control.runtime_binding import (
     import_local_worker_supervisor,
     local_runtime_identity,
 )
+import project_control.runtime_binding as runtime_binding
 
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[2] / "src/project_control/local_runtime"
@@ -29,6 +31,23 @@ def use_source_candidate_without_production_release_environment(monkeypatch):
     """Exercise the checkout receiver independently of an installed release."""
     monkeypatch.delenv("PROJECT_CONTROL_RELEASE_MANIFEST", raising=False)
     monkeypatch.delenv("PROJECT_CONTROL_RELEASE_DIGEST", raising=False)
+    original_runtime_modules = {
+        name: module for name, module in tuple(sys.modules.items())
+        if name == "local_worker" or name.startswith("local_worker.")
+    }
+    for name in original_runtime_modules:
+        sys.modules.pop(name, None)
+    original_meta_path = list(sys.meta_path)
+    sys.meta_path[:] = [finder for finder in sys.meta_path
+                        if not isinstance(finder, runtime_binding._ManifestFinder)]
+    for name in ("_BOUND_FINGERPRINT", "_BOUND_FINDER", "_BOUND_MANIFEST_SHA256"):
+        monkeypatch.setattr(runtime_binding, name, None)
+    yield
+    for name in tuple(sys.modules):
+        if name == "local_worker" or name.startswith("local_worker."):
+            sys.modules.pop(name, None)
+    sys.modules.update(original_runtime_modules)
+    sys.meta_path[:] = original_meta_path
 
 
 class Backend:
@@ -44,8 +63,12 @@ def test_trusted_observer_factory_uses_receiver_manifest_and_observer_digest():
     identity = local_runtime_identity()
     observer = identity.root / "local_worker/observer_runtime.py"
     digest = hashlib.sha256(observer.read_bytes()).hexdigest()
+    receiver_manifest = json.loads(
+        (identity.root / runtime_binding.RECEIVER_MANIFEST).read_text(encoding="utf-8")
+    )
 
-    assert digest == QUALIFIED_OBSERVER_RUNTIME_SHA256
+    assert digest == receiver_manifest["files"]["local_worker/observer_runtime.py"]
+    assert digest != QUALIFIED_OBSERVER_RUNTIME_SHA256
     factory = make_factory(identity.root, digest)
 
     assert factory.root == identity.root
@@ -63,7 +86,8 @@ def test_worker_factory_imports_only_the_canonical_receiver_namespace():
     assert Path(supervisor.__file__).resolve() == identity.package_root / "supervisor.py"
     factory = make_factory(identity.root, digest, roots=[Path(__file__).resolve().parents[2]])
 
-    worker = factory(SimpleNamespace(), SimpleNamespace(job_id="job", attempt=1, scope={}))
+    service = SimpleNamespace(preparation_read_scope=lambda *_args, **_kwargs: None)
+    worker = factory(service, SimpleNamespace(job_id="job", attempt=1, scope={}))
 
     assert type(worker).__module__ == "local_worker.observer_runtime"
     assert Path(module.__file__).resolve() == observer.resolve()
@@ -73,7 +97,7 @@ def test_worker_factory_imports_only_the_canonical_receiver_namespace():
 
 
 def test_trusted_observer_factory_rejects_stale_supplier_pin_and_foreign_root():
-    stale_supplier_pin = "0" * 64
+    stale_supplier_pin = QUALIFIED_OBSERVER_RUNTIME_SHA256
     with pytest.raises(ValueError, match="observer runtime receipt mismatch"):
         make_factory(RUNTIME_ROOT, stale_supplier_pin)
 
