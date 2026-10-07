@@ -23,6 +23,11 @@ from .terminal import BubblewrapSandbox
 from .runtime_identity import runtime_diagnostics
 
 
+_ASSISTANCE_ASK_TIMEOUT_SECONDS = 300.0
+_ASSISTANCE_ASK_POLL_SECONDS = 1.0
+_ASSISTANCE_ASK_CLEANUP_SECONDS = 120.0
+
+
 def _lab_delegated_properties(runtime_limit: int) -> tuple[str, ...]:
     """Request CPU, memory, and pid delegation before creating the controller subgroup."""
     return (
@@ -456,12 +461,50 @@ def _assistance_repository(config, project: str, repository: str | None = None) 
 
 
 def _assistance_ask(composition, question: str, project: str) -> dict[str, object]:
-    """Submit a demand; the broker starts inference only after its cache gate."""
+    """Submit and wait for one exact foreground demand within a bounded window."""
     from .as1_surface import public_inquiry
 
     composition.start()
     scope = composition.scope(project)
-    value = composition.jobs.inquire(question=question, access_scope=scope)
+    deadline = time.monotonic() + _ASSISTANCE_ASK_TIMEOUT_SECONDS
+    value = composition.jobs.inquire(question=question, access_scope=scope, foreground_timeout=0)
+    saw_thinking = value.get("status") == "thinking"
+    while value.get("status") == "thinking":
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(_ASSISTANCE_ASK_POLL_SECONDS, remaining))
+        # Repeating the identical request reattaches to the durable inquiry.
+        # It cannot create a variant job or hold the CLI owner open in one
+        # long broker call.
+        value = composition.jobs.inquire(question=question, access_scope=scope, foreground_timeout=0)
+        saw_thinking = saw_thinking or value.get("status") == "thinking"
+    if saw_thinking and value.get("status") not in {"completed", "partial"}:
+        cancel = getattr(composition.jobs, "cancel_inquiry", None)
+        if not callable(cancel):
+            composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)
+            return {"status": "unavailable", "reason": "foreground_timeout_cancellation_unavailable"}
+        try:
+            cancelled = cancel(question=question, access_scope=scope)
+        except Exception:
+            joined = composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)
+            return {"status": "unavailable", "reason": (
+                "foreground_timeout_cancellation_failed" if joined
+                else "foreground_timeout_cleanup_incomplete")}
+        if not cancelled:
+            # A completion can race the timeout and cancellation. Re-read by
+            # the same identity once before reporting the unresolved outcome.
+            value = composition.jobs.inquire(question=question, access_scope=scope, foreground_timeout=0)
+            if value.get("status") == "thinking":
+                joined = composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)
+                if not joined:
+                    return {"status": "unavailable", "reason": "foreground_timeout_cleanup_incomplete"}
+                return {"status": "unavailable", "reason": "foreground_timeout_cancellation_unconfirmed"}
+        joined = composition.jobs.shutdown(timeout=_ASSISTANCE_ASK_CLEANUP_SECONDS)
+        if not joined:
+            return {"status": "unavailable", "reason": "foreground_timeout_cleanup_incomplete"}
+        if value.get("status") == "thinking":
+            return {"status": "unavailable", "reason": "foreground_timeout"}
     if value.get("status") not in {"completed", "partial"}:
         return public_inquiry(value)
     job = value.get("job")

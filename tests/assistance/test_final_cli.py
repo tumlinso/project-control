@@ -16,12 +16,14 @@ class _Jobs:
     def __init__(self):
         self.started = False
         self.stopped = False
+        self.shutdown_timeouts = []
 
     def inquire(self, **_kwargs):
         return {"status": "unavailable", "reason": "test"}
 
     def shutdown(self, timeout=1):
         self.stopped = True
+        self.shutdown_timeouts.append(timeout)
         return True
 
 
@@ -66,6 +68,57 @@ class FinalAssistanceCliTests(unittest.TestCase):
         self.assertTrue(composition.jobs.started)
         self.assertEqual("completed", result["status"])
         self.assertEqual("cached answer", result["answer"])
+
+    def test_foreground_ask_repeats_the_same_question_until_terminal(self):
+        composition = _Composition()
+        statuses = iter((
+            {"status": "thinking"},
+            {"status": "thinking"},
+            {"status": "completed", "job": {"result_packet": "cached-ref"}},
+        ))
+        calls = []
+
+        def inquire(**kwargs):
+            calls.append(kwargs)
+            return next(statuses)
+
+        composition.jobs.inquire = inquire
+        composition.jobs.reconcile = lambda: None
+        composition.store = SimpleNamespace(lookup=lambda reference, access_scope: SimpleNamespace(
+            status="ok", packet=SimpleNamespace(payload={"answer": "done"},
+                packet_id="packet-1", alias="summary", sources=[])))
+        with patch("project_control.cli.time.sleep") as sleep, \
+             patch("project_control.cli._ASSISTANCE_ASK_TIMEOUT_SECONDS", 10), \
+             patch("project_control.cli._ASSISTANCE_ASK_POLL_SECONDS", 0.25), \
+             patch("project_control.as1_surface.public_inquiry", side_effect=lambda value: value):
+            result = _assistance_ask(composition, "same question", "demo")
+
+        self.assertEqual("completed", result["status"])
+        self.assertEqual(3, len(calls))
+        self.assertEqual({"same question"}, {call["question"] for call in calls})
+        self.assertEqual({0}, {call["foreground_timeout"] for call in calls})
+        self.assertEqual({"project": "demo"}, calls[0]["access_scope"])
+        self.assertEqual(2, sleep.call_count)
+        self.assertFalse(composition.jobs.stopped)
+
+    def test_foreground_timeout_cancels_exact_inquiry_and_joins_dispatcher(self):
+        composition = _Composition()
+        composition.jobs.inquire = lambda **_kwargs: {"status": "thinking"}
+        cancelled = []
+
+        def cancel_inquiry(**kwargs):
+            cancelled.append(kwargs)
+            return True
+
+        composition.jobs.cancel_inquiry = cancel_inquiry
+        with patch("project_control.cli._ASSISTANCE_ASK_TIMEOUT_SECONDS", 0), \
+             patch("project_control.as1_surface.public_inquiry", side_effect=lambda value: value):
+            result = _assistance_ask(composition, "long question", "demo")
+
+        self.assertEqual({"status": "unavailable", "reason": "foreground_timeout"}, result)
+        self.assertEqual([{"question": "long question", "access_scope": {"project": "demo"}}], cancelled)
+        self.assertTrue(composition.jobs.stopped)
+        self.assertEqual([120.0], composition.jobs.shutdown_timeouts)
 
     def test_status_is_read_only_and_combines_runtime_and_operator(self):
         with patch("project_control.assistance.operator.AssistanceOperator.status",
