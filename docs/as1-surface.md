@@ -46,8 +46,12 @@ own inference residency and GPU policy; callers do not choose models or GPUs.
   stale historical passes, pending/failed evidence, and terminal frozen success.
   `impact` reports typed dependency witnesses and provider gaps; `history`
   traces material recorded events and Git ancestry. Neither guesses causality.
-- `machine` returns bounded observed host facts with observation time. It does
-  not launch benchmarks, reserve GPUs, or run arbitrary privileged commands.
+- `machine` returns bounded observed host facts with observation time. Supported
+  selectors are `gpu_summary`, `gpu_topology`, `gpu_processes`, `host_memory`,
+  `filesystem_capacity`, `services`, `processes`, `system`, `pcie_devices`,
+  `storage_block`, `network_state`, `project_control_logs`, `versions`,
+  `proc_sys`, and `filesystem`. It does not launch benchmarks, reserve GPUs,
+  or run arbitrary privileged commands.
 
 For an observer, exact file content uses registered project/repository IDs and
 relative paths, for example `read(project="demo", paths=["README.md"])`.
@@ -62,9 +66,12 @@ Source locators identify registered projects/repositories, relative paths and
 actual content/revision identity. Semantic records carry typed IDs rather than
 invented file paths. Compact is the default; 2 KiB compact, 8 KiB standard, and
 64 KiB observer extended are soft whole-response budgets. Omissions, stale or
-unavailable sources, and exact continuations stay visible. Retained packet aliases
-identify shared project evidence under configured project/source access; they are
-not mutation capabilities.
+unavailable sources, and exact continuations stay visible. A continuation is
+offered only when the complete packet-search response and its wrappers fit the
+caller's maximum permitted detail; otherwise `size_limit` explains the profile
+cap and the immutable packet remains stored. Retained packet aliases identify
+shared project evidence under configured project/source access; they are not
+mutation capabilities.
 
 `investigate(question="What invalidates this packet?", project="demo",
 request_id="packet-question-1")` reads a cached inquiry. Public calls return a

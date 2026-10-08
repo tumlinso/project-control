@@ -1,0 +1,135 @@
+{
+  "investigate": {
+    "answer": "Based on the Cellerator documentation, the legal execution candidates in the PBMC3K forward benchmark consist of exactly one legal FMP1 SpMM schedule per tested request. The reported planner regret measures the performance gap over this 'legal set' (the candidates exposed in the built-in catalog) and is explicitly documented as not being a universal cuSPARSE comparison. The explicit documented limits for the benchmark include: it is a computational fixture with no biological or scientific claims; it tests widths of 1, 16, 17, 31, 32, 48, and 64; it uses reuse values of 1, 8, and 1024; it utilizes two deterministic value generations (an identity cast and a signed stress-value generation); it employs an independent CSR referee; and it is restricted to 512 observations/row destinations.",
+    "authoritative": false,
+    "findings": [
+      {
+        "evidence_packets": [
+          "pkt_28b09bb0f95e4e798b704134edc9e2db"
+        ],
+        "text": "The built-in catalog exposes exactly one legal FMP1 SpMM schedule per tested request, defining the legal execution candidates."
+      },
+      {
+        "evidence_packets": [
+          "pkt_28b09bb0f95e4e798b704134edc9e2db"
+        ],
+        "text": "Planner regret measures the performance gap over the 'legal set' of catalog candidates, explicitly noting it is not a universal cuSPARSE comparison."
+      },
+      {
+        "evidence_packets": [
+          "pkt_28b09bb0f95e4e798b704134edc9e2db",
+          "pkt_9627cfac642d4e3e9de9d65885e4f5d2"
+        ],
+        "text": "The benchmark is explicitly limited to a computational fixture with no biological or scientific claims, using an independent CSR referee."
+      },
+      {
+        "evidence_packets": [
+          "pkt_28b09bb0f95e4e798b704134edc9e2db"
+        ],
+        "text": "The benchmark is limited to tested widths of 1, 16, 17, 31, 32, 48, and 64, and reuse values of 1, 8, and 1024."
+      },
+      {
+        "evidence_packets": [
+          "pkt_28b09bb0f95e4e798b704134edc9e2db",
+          "pkt_9627cfac642d4e3e9de9d65885e4f5d2"
+        ],
+        "text": "The benchmark is limited to two deterministic value generations (an explicit float32 identity cast and a signed float32 stress-value generation) and 512 observations/row destinations."
+      }
+    ],
+    "remaining_steps": 1,
+    "status": "completed",
+    "unresolved_questions": [],
+    "packet_id": "pkt_fea289ea33164a038c86fa97a90d6088",
+    "alias": "job-pokcijokddbgekadimigpkjhkjangaii",
+    "evidence_packets": [
+      "pkt_8a048da4575a42f7abb2d2a47201ee44",
+      "pkt_95aec2e0216249cd884dbdee125dc7b1",
+      "pkt_28b09bb0f95e4e798b704134edc9e2db",
+      "pkt_9627cfac642d4e3e9de9d65885e4f5d2"
+    ],
+    "sources": [
+      {
+        "project": "cellerator",
+        "repository": "cellerator",
+        "path": "docs/CE_LIVE_PROGRAM.md",
+        "content_sha256": "b447dcebf2f1ed5c6067412b42327e9436eb397f9c945e2ac3838d3c370f53e7"
+      },
+      {
+        "project": "cellerator",
+        "repository": "cellerator",
+        "path": "docs/CE_LIVE_QUANTITATIVE_FIXTURE.md",
+        "content_sha256": "85a5dfd03759b427d0a5af90ad890b14c9916ff69e14d500ddeaee8b363b901f"
+      }
+    ]
+  },
+  "skill": {
+    "status": "completed",
+    "synthesis": {
+      "label": "local-agent synthesis; not authoritative source text",
+      "text": "SKILL.md explicitly enumerates retrieval commands under 'Route one mode' (line 16) and defines .ctxpp bundles as read-only artifacts in 'Repository workflow' (line 12), directly resolving the inquiry.",
+      "excerpt_refs": [
+        "excerpt_0"
+      ],
+      "entailment_verified": false
+    },
+    "excerpts": [
+      {
+        "selection": 0,
+        "skill": "cpp-context-compiler",
+        "resource": "SKILL.md",
+        "id": "excerpt_0",
+        "content": "---\nname: cpp-context-compiler\ndescription: Minimize Codex context for C++ by indexing symbols, generating budgeted semantic slices, enforcing context-efficient authoring, and optionally sharding or safely compacting source. Use when a repository contains .ctxpp.toml or the user explicitly asks for machine-legible, context-dense, token-minimized, sharded, or model-optimized C++. Never rewrite ordinary C++ implicitly.\n---\n\n# C++ Context Compiler\n\n## Native skill access\n\nNative coder, mutator and scout agents read installed `SKILL.md` and its\nreferences through filesystem/command access. Follow the skill's own routes;\nindexes and graphs accelerate navigation without becoming routing authority.\nNo observer skill adapter or mandatory overview is needed for native use.\nRecord materially applied guidance during the existing context/handoff flow,\nwith skill hash and route relevance; a read alone remains merely consulted.\nSee [native routing and handoff](../integrations/native-skill-routing.md).\n\n## Repository workflow\n\nFor substantial repository work, use the `project-control` Codex profile.\nInvoke this skill only for the bounded source operation and scope authorized by\nProject Control, when the user explicitly requests ctxpp maintenance, or while\nProject Control itself is being debugged. A fallback authorization states the\npermitted operation, scope, reason, and read/write mode; it never carries a todo\ntoken.\n\nCanonical C++ is authoritative. `.ctxpp/` bundles are generated, read-only retrieval artifacts; map edits back to canonical ranges.\n\n## Route one mode\n\n- Retrieve: `status`; `where`/`route`; `slice --intent ...`. Read [retrieval](references/retrieval.md).\n- Task/CUDA route: use `packet --task-spec ... --consumer <name>` so accepted paths, task/campaign identity, canonical targets, and bounded performance context stay together.\n- Author: retrieve, edit canonical source, test, rescan/lint. Read [authoring](references/authoring.md); add [topology](references/topology.md) only for boundaries/shards.\n- Audit: `audit`, no mutation. Read [objective](references/objective.md).\n- Compact view: `view`; edit targets stay verbatim. Read [compact views](references/compact-views.md).\n- Plan source optimization: explicit compaction/sharding request only; dry-run only. Read [topology](references/topology.md), [transforms](references/source-transforms.md), [hazards](references/cpp-semantic-hazards.md), and [verification](references/verification.md).\n- Apply: explicit mutation intent plus an existing plan; revalidate, transact, verify, retain reverse plan. Never commit unless asked.\n- Explain/expand: `explain`/`expand`, no mutation.\n\nRead [comment contracts](references/comment-contracts.md) only for comment changes, [evaluation](references/evaluation.md) only for skill evaluation, and [configuration](references/configuration.md) only for setup/CLI details.\n\n## Open\n\n1. On explicit use, run `scripts/ctxpp --root ROOT init`. The agent owns initialization: config, core build, compilation-database discovery/generation, and safe verification-command inference. Preserve existing config. Ask only for a real package/authority blocker.\n2. Run `doctor` and `status`, then narrow with `where`/`route` and an intent slice. Retrieval refreshes relevant stale TUs lazily; do not preemptively full-scan. Before mutation, require a fresh full semantic scan.\n3. Open canonical source only for the edit range. Test changes; refresh index/routes afterward.\n\nInitialization is idempotent: never install packages or blindly configure an unknown project. In opted-in repositories, ordinary C++ work uses retrieval/authoring only. Never compact unrelated source; do not activate implicitly for routine C++ work in unconfigured repositories.\n\n## Gates\n\n- Preserve behavior, language modes, APIs/ABI, performance structure, diagnostics, and user work.\n- Exclude generated/vendor/dependency/build trees. Refuse `.ctxpp/` edits.\n- Semantic dependencies, renames, and plans require Clang identities/ranges; never semantic-regex rewrite.\n- Disable plans without compilation commands, tooling, configuration agreement, exact baseline hashes, or required verification.\n- Tool failure falls back to readable canonical inspection, never hand-minification.\n- Measure configured tokens, label estimates, reject negligible changes; abbreviations stay stable, scoped, mapped, collision-free, and net-profitable.\n\nValidate with `python -m unittest discover -s tests -v` and the skill-creator validator after metadata changes.\n",
+        "content_sha256": "ad6a88ce98bab68d27372d5858e35ba2eeacfac2ff5a9c579882165bfabc7660",
+        "line_start": 1,
+        "line_end": 59,
+        "reason": "Contains the explicit definitions for retrieval commands and the authoritative status of .ctxpp bundles.",
+        "prerequisites": [],
+        "authority": "direct original text",
+        "verbatim": true
+      }
+    ],
+    "omissions": [],
+    "unresolved": [],
+    "retained_dependencies": [],
+    "freshness": {
+      "checked_at": "2026-10-08T14:22:20.007310+00:00",
+      "max_age_seconds": 0,
+      "basis": "selected full-file hashes checked during this assembly only"
+    },
+    "continuation": null,
+    "packet_id": "pkt_cb0bd20fdeaa49f0b98a39667fcdc7e6",
+    "alias": "heron-reed-lake"
+  },
+  "local_packet": {
+    "status": "partial",
+    "packet": "pkt_707457200a1a43449b4e3e863ac37e9a",
+    "data": {
+      "size_limit": {
+        "reason": "response_exceeds_profile_maximum",
+        "maximum_detail": "standard",
+        "maximum_bytes": 8192,
+        "required_bytes": 15642
+      }
+    },
+    "sources": [],
+    "coverage": {
+      "omissions": [
+        {
+          "reason": "source_locators",
+          "omitted_count": 3
+        },
+        {
+          "reason": "response_exceeds_profile_maximum",
+          "maximum_detail": "standard",
+          "maximum_bytes": 8192,
+          "required_bytes": 15642
+        }
+      ],
+      "semantic_revision": null,
+      "context_revision": null,
+      "context_project_uuid": null,
+      "observed_at": "2026-10-08T14:23:44Z",
+      "complete": false
+    }
+  }
+}

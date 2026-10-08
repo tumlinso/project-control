@@ -14,7 +14,11 @@ Private packet, cache and scheduler bookkeeping can write service-owned state.
 
 The public states are `completed`, `partial`, `thinking`, `busy` and `unavailable`.
 Only `thinking` says to repeat the identical question later and avoid variants;
-continue useful work meanwhile. `busy` means the question was not accepted.
+continue useful work meanwhile. When the durable job state is known, its message
+says whether the accepted inquiry is waiting to run or running. Uncertain phases
+keep the generic in-progress message; no internal phase field or job identity is
+included in public results, including nested continuations. `busy` means the
+question was not accepted.
 Use search, read or evidence to contextualize or refine a later question.
 Answers retain supporting findings, evidence packet references and source identity.
 Nested results and continuations do not expose attempts, leases or queue metadata.
@@ -62,6 +66,16 @@ authorized service-side inspection. A diagnosed negative entry can be released
 with `release_failed_inquiries({job_id: observed_terminal_reason})`; this removes
 only the matching cache index entry and preserves the job, packets and observations
 as history. Repeating the question after release schedules a new generation.
+
+The operator-only `assistance status` work summary reports the two-slot execution
+capacity, occupied and available slots, and whether a slot marked with failed
+cleanup is degrading capacity. A separate `execution_cleanup_errors` list maps
+failed slots to their job and attempt with an allowlisted `cleanup_error_code`;
+the existing active-slot record shape stays unchanged. Only stable cleanup
+classes and approved resource-receipt codes are stored; raw exception text is
+neither persisted in the slot nor included in public inquiry results. Existing
+rows migrated from older schemas retain a null cleanup code because their earlier
+cleanup cause cannot be reconstructed.
 
 The internal scheduler permits two executing inquiries and four waiting, with a
 30 second foreground wait and 300 second inquiry lifetime. Private job identities,

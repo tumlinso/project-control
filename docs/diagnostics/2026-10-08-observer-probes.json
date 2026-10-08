@@ -1,0 +1,422 @@
+{
+  "observer_task_continuation": {
+    "initial": {
+      "status": "partial",
+      "packet": "pkt_c56138f973f5410cb9976a6c5080622d",
+      "data": {
+        "continuation": {
+          "tool": "search",
+          "query": {
+            "kind": "packet",
+            "target": "pkt_c56138f973f5410cb9976a6c5080622d"
+          },
+          "detail": "extended"
+        },
+        "needed_bytes": 9260
+      },
+      "sources": [],
+      "coverage": {
+        "omissions": [
+          {
+            "reason": "response_budget",
+            "unit": "utf8_bytes"
+          }
+        ],
+        "semantic_revision": 7942,
+        "context_revision": null,
+        "context_project_uuid": null,
+        "observed_at": "2026-10-08T12:29:08Z",
+        "complete": false
+      }
+    },
+    "followup": {
+      "status": "ok",
+      "packet": "pkt_a3d7a4fbeae74bcc99202897c27e29f6",
+      "coverage": {
+        "omissions": [],
+        "semantic_revision": null,
+        "context_revision": null,
+        "context_project_uuid": null,
+        "observed_at": "2026-10-08T12:29:16Z",
+        "complete": true
+      },
+      "storedCoverage": {
+        "complete": true,
+        "context_project_uuid": null,
+        "context_revision": null,
+        "observed_at": "2026-10-08T12:29:08Z",
+        "omissions": [],
+        "semantic_revision": 7942
+      },
+      "task": {
+        "active_claim": null,
+        "ancestor_chain": [
+          "CE-IS1-000"
+        ],
+        "artifacts": [],
+        "attention_eligible": true,
+        "attention_reason": null,
+        "authoritative_ready": false,
+        "created_at": "2026-10-02T16:37:27Z",
+        "current_program_eligible": true,
+        "current_relevance": "current_attention",
+        "dependencies": [
+          {
+            "prerequisite_task_id": "CE-IS1-MERGE-B",
+            "type": "task"
+          }
+        ],
+        "effective_state": "blocked",
+        "execution": "blocked_dependency",
+        "frontier_eligible": true,
+        "heuristic_program_id": null,
+        "id": "CE-IS1-TORCH",
+        "kind": "task",
+        "next_action": "Use the task brief and accepted predecessor source. Implement a substantive integrated outcome; bind real acceptance commands before completion. Do not split ordinary inspect/build/retry work into procedural tasks.\n\nUser hold (2026-10-03): defer packaging, frontends, provider delivery and final qualification while continuing native mechanics. Resume only after an explicit user instruction to resume this deferred scope and owner review of current prerequisite evidence; retain all existing completion/provider contracts.",
+        "objective": "Extend the optional Cellerator framework adapter under bindings/torch and cellerator.torch; preserve canonical masters and valid saved-primal semantics. This path reconciliation does not resume deferred frontend work.",
+        "parallel_policy": "parallel_safe",
+        "parent_id": "CE-IS1-000",
+        "priority": 100,
+        "program_basis": "parent_hierarchy",
+        "program_root_id": "CE-IS1-000",
+        "raw_result": null,
+        "raw_status": "blocked",
+        "reason_codes": [
+          "explicit_status_blocked"
+        ],
+        "relevance": "current_attention",
+        "relevance_reason": "explicit_status_blocked",
+        "revision": 7877,
+        "scopes": [
+          {
+            "mode": "exclusive",
+            "path": "bindings/torch"
+          },
+          {
+            "mode": "exclusive",
+            "path": "python/cellerator/torch"
+          },
+          {
+            "mode": "exclusive",
+            "path": "tests/substrate/torch"
+          },
+          {
+            "mode": "forbidden",
+            "path": ".todo-orchestrator"
+          },
+          {
+            "mode": "forbidden",
+            "path": "preprint"
+          },
+          {
+            "mode": "forbidden",
+            "path": "todo-status.md"
+          },
+          {
+            "mode": "forbidden",
+            "path": "todos"
+          },
+          {
+            "mode": "forbidden",
+            "path": "todos.md"
+          },
+          {
+            "mode": "read",
+            "path": "AGENTS.md"
+          },
+          {
+            "mode": "read",
+            "path": "README.md"
+          },
+          {
+            "mode": "read",
+            "path": "docs"
+          },
+          {
+            "mode": "read",
+            "path": "experiments"
+          },
+          {
+            "mode": "read",
+            "path": "include"
+          },
+          {
+            "mode": "read",
+            "path": "planning"
+          },
+          {
+            "mode": "read",
+            "path": "src"
+          },
+          {
+            "mode": "read",
+            "path": "tests"
+          }
+        ],
+        "tags": [
+          "deferred",
+          "is1-packaging-deferred"
+        ],
+        "terminal": false,
+        "title": "Expose native mathematics through optional Cellerator Torch bindings",
+        "updated_at": "2026-10-06T16:11:34Z"
+      },
+      "internalTruncation": {
+        "budget_bytes": 14527,
+        "historical_items_omitted": 0,
+        "items_considered": 605,
+        "items_returned": 52,
+        "truncated": true
+      },
+      "cursor_worktree_count": 52
+    },
+    "note": "Exact task was recovered via observer extended. Native coder cannot request extended."
+  },
+  "observer_readme_evidence": {
+    "status": "ok",
+    "packet": "pkt_4320b9a5f523478097be0274e0f638bd",
+    "data": {
+      "claim": "README.md",
+      "confidence": "high",
+      "support": [
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/diff/check_diff.py",
+          "line": 19,
+          "excerpt": "            if p.is_file() and (p.suffix in {'.py', '.cc', '.cpp', '.h', '.hh'} or p.name == 'README.md')}"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 15,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/runtime/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 34,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/planner/distributed/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 606,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/models/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 639,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/compute/sequence/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 650,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/compute/math/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 798,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/compute/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 875,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/trajectory/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 882,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/interop/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 927,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/execution/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 1064,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/Cellerator/geometry/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/integration/evidence/cuda-build-2.stdout.txt",
+          "line": 1126,
+          "excerpt": "-- Installing: /home/tumlinson/Cellerator/.git/todo-orchestrator/0ccaac37-dbbf-448e-a5f8-def197a70aba/workflow-workspaces/ce-moon-l-integrate-v1/build-product2-cuda-qualified-v3/installed/include/CellPack/README.md"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "experiments/moonshot-parallel-v1/rewrite/check_rewrite.py",
+          "line": 17,
+          "excerpt": "            for p in sorted(ROOT.iterdir()) if p.suffix == \".py\" or p.name == \"README.md\"}"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "scripts/ce_geo/validate_documentation.py",
+          "line": 14,
+          "excerpt": "    \"README.md\": (\"What exists now\", \"docs/status/current.md\"),"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "scripts/ce_geo/validate_documentation.py",
+          "line": 23,
+          "excerpt": "    \"docs/archive/README.md\": (\"2026-09-06\", \"migration_roadmap.qmd\"),"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-exop-plan.json",
+          "line": 6351,
+          "excerpt": "          \"bench/ce_geo/README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-exop-plan.json",
+          "line": 7431,
+          "excerpt": "          \"README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-exop-plan.json",
+          "line": 7475,
+          "excerpt": "            \"README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-geo-plan.json",
+          "line": 188,
+          "excerpt": "    {\"id\":\"CE-GEO-110\",\"parent_id\":\"CE-GEO-00\",\"kind\":\"workstream\",\"title\":\"Benchmark harness and evidence schema\",\"objective\":\"Create permanent methodology, command manifests, source/device/topology/toolchain/build capture, warmup/repeats, cold/warm complete phase accounting, contamination/spread, and JSON evidence validation without running unleased hardware.\",\"priority\":770,\"parallel_policy\":\"parallel_safe\",\"depends_on\":[{\"type\":\"checkpoint\",\"checkpoint_id\":\"CE-GEO-BASELINE-FROZEN\"}],\"scope\":"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-geo-plan.json",
+          "line": 205,
+          "excerpt": "    {\"id\":\"CE-GEO-124\",\"parent_id\":\"CE-GEO-00\",\"kind\":\"integration_task\",\"title\":\"Publish final documentation spine\",\"objective\":\"Update the authoritative existing documentation spine with implemented behavior, measured limits, promotions/non-promotions, evidence, interop boundaries, and migration state after final evidence fan-in.\",\"priority\":600,\"parallel_policy\":\"integration_exclusive\",\"depends_on\":[{\"type\":\"barrier\",\"barrier_id\":\"CE-GEO-FINAL-EVIDENCE-FANIN\"}],\"scope\":{\"exclusive_paths\":[\"RE"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-live-plan.json",
+          "line": 1321,
+          "excerpt": "          \"README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-live-plan.json",
+          "line": 4279,
+          "excerpt": "          \"README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-live-plan.json",
+          "line": 4946,
+          "excerpt": "          \"components/CelleraTorch/README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-live-plan.json",
+          "line": 4970,
+          "excerpt": "          \"path\": \"components/CelleraTorch/README.md\""
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "ce-live-plan.json",
+          "line": 5319,
+          "excerpt": "          \"README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "cellerator-post-remap-plan.json",
+          "line": 110,
+          "excerpt": "          \"README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "cellerator-post-remap-plan.json",
+          "line": 111,
+          "excerpt": "          \"components/README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "cellerator-post-remap-plan.json",
+          "line": 112,
+          "excerpt": "          \"src/compute/README.md\","
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "docs/development/fp64.md",
+          "line": 47,
+          "excerpt": "in [tests/fp64](../../tests/fp64/README.md). Device timings, byte counts,"
+        },
+        {
+          "kind": "source",
+          "repository": "cellerator",
+          "path": "docs/learning/bio-evidence/receipt.json",
+          "line": 5,
+          "excerpt": "    \"README.md\": \"9ed2431a6d1585490d28b5fa80f68e22a5a9f5a261d0ece1070e6b66e68f2f6b\","
+        }
+      ],
+      "contradictions": [],
+      "prepared_context": {
+        "notes": [],
+        "goals": [],
+        "omissions": [],
+        "coverage": {
+          "project": "cellerator",
+          "examined": 0,
+          "matched": 0,
+          "returned": 0,
+          "partial": false
+        },
+        "authoritative": false,
+        "mutation_authority": false,
+        "advisory_instruction": true
+      },
+      "registered_gates": [],
+      "source_mentions_are_proof": false
+    },
+    "sources": [],
+    "coverage": {
+      "omissions": [],
+      "semantic_revision": 7942,
+      "context_revision": null,
+      "context_project_uuid": null,
+      "observed_at": "2026-10-08T12:30:01Z",
+      "complete": true
+    }
+  }
+}

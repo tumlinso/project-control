@@ -1,0 +1,591 @@
+{
+  "format": "pc-today-functional-check/1",
+  "grounding_packet_id": "pkt_c53a1ae9ef9d425fb026a9460240b05b",
+  "http_url": "http://127.0.0.1:8768/mcp",
+  "run_id": "a3e84fd40ca6",
+  "source": {
+    "cellerator_doc_sha256": {
+      "docs/CE_LIVE_EVIDENCE.md": "2dc7c00fc1209f36f09c9892aeddfa465ca0ce1cdc68971a6fc8f52b98f1dabd",
+      "docs/biological_execution_model.qmd": "858db753298dfeedf4b8745a75a9d94f7e13c8e154e6308832221208e9ddeaa4",
+      "docs/current_implementation.qmd": "8c2beb3357ee13b37509f6e5bae78a69ab20429b51cdd9483cb3f1636cfe72ba",
+      "docs/performance_validation.qmd": "8de8ca61c8599b2157627cad2c5136f3fb541c7d36410db9f537c0b071342f18"
+    },
+    "dirty": true,
+    "dirty_path_count": 22,
+    "git_head": "d8c45ebf7991e9338da5e6971ac0be7ccfa455ae",
+    "launcher": "/home/tumlinson/project-control/scripts/pc-dev",
+    "pc_home": "/home/tumlinson/project-control"
+  },
+  "stages": {
+    "observer_investigate": {
+      "answer": {
+        "answer": "Based on the Cellerator documentation, the legal execution candidates in the PBMC3K forward benchmark consist of exactly one legal FMP1 SpMM schedule per tested request. The reported planner regret measures the performance gap over this 'legal set' (the candidates exposed in the built-in catalog) and is explicitly documented as not being a universal cuSPARSE comparison. The explicit documented limits for the benchmark include: it is a computational fixture with no biological or scientific claims; it tests widths of 1, 16, 17, 31, 32, 48, and 64; it uses reuse values of 1, 8, and 1024; it utilizes two deterministic value generations (an identity cast and a signed stress-value generation); it employs an independent CSR referee; and it is restricted to 512 observations/row destinations.",
+        "evidence_packet_ids": [
+          "pkt_8a048da4575a42f7abb2d2a47201ee44",
+          "pkt_95aec2e0216249cd884dbdee125dc7b1",
+          "pkt_28b09bb0f95e4e798b704134edc9e2db",
+          "pkt_9627cfac642d4e3e9de9d65885e4f5d2"
+        ],
+        "findings": [
+          {
+            "evidence_packets": [
+              "pkt_28b09bb0f95e4e798b704134edc9e2db"
+            ],
+            "text": "The built-in catalog exposes exactly one legal FMP1 SpMM schedule per tested request, defining the legal execution candidates."
+          },
+          {
+            "evidence_packets": [
+              "pkt_28b09bb0f95e4e798b704134edc9e2db"
+            ],
+            "text": "Planner regret measures the performance gap over the 'legal set' of catalog candidates, explicitly noting it is not a universal cuSPARSE comparison."
+          },
+          {
+            "evidence_packets": [
+              "pkt_28b09bb0f95e4e798b704134edc9e2db",
+              "pkt_9627cfac642d4e3e9de9d65885e4f5d2"
+            ],
+            "text": "The benchmark is explicitly limited to a computational fixture with no biological or scientific claims, using an independent CSR referee."
+          },
+          {
+            "evidence_packets": [
+              "pkt_28b09bb0f95e4e798b704134edc9e2db"
+            ],
+            "text": "The benchmark is limited to tested widths of 1, 16, 17, 31, 32, 48, and 64, and reuse values of 1, 8, and 1024."
+          },
+          {
+            "evidence_packets": [
+              "pkt_28b09bb0f95e4e798b704134edc9e2db",
+              "pkt_9627cfac642d4e3e9de9d65885e4f5d2"
+            ],
+            "text": "The benchmark is limited to two deterministic value generations (an explicit float32 identity cast and a signed float32 stress-value generation) and 512 observations/row destinations."
+          }
+        ],
+        "packet_id": "pkt_fea289ea33164a038c86fa97a90d6088",
+        "sources": [
+          {
+            "content_sha256": "b447dcebf2f1ed5c6067412b42327e9436eb397f9c945e2ac3838d3c370f53e7",
+            "path": "docs/CE_LIVE_PROGRAM.md",
+            "project": "cellerator",
+            "repository": "cellerator"
+          },
+          {
+            "content_sha256": "85a5dfd03759b427d0a5af90ad890b14c9916ff69e14d500ddeaee8b363b901f",
+            "path": "docs/CE_LIVE_QUANTITATIVE_FIXTURE.md",
+            "project": "cellerator",
+            "repository": "cellerator"
+          }
+        ],
+        "status": "completed",
+        "unresolved_questions": []
+      },
+      "complete": true,
+      "exact_arguments": {
+        "hints": [
+          "pkt_c53a1ae9ef9d425fb026a9460240b05b"
+        ],
+        "project": "cellerator",
+        "question": "[Acceptance run a3e84fd40ca6.] From Cellerator documentation, identify the legal execution candidates in the PBMC3K forward benchmark, define what reported planner regret measures, and list explicit documented limits. Cite concrete source paths; do not infer intelligent planning or design experiments.",
+        "request_id": "today-a3e84fd40ca6-investigate"
+      },
+      "finished_at": "2026-10-08T14:18:31+00:00",
+      "observations": [
+        {
+          "call_started_at": "2026-10-08T14:16:47+00:00",
+          "observed_at": "2026-10-08T14:17:17+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:18+00:00",
+          "observed_at": "2026-10-08T14:17:20+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:21+00:00",
+          "observed_at": "2026-10-08T14:17:22+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:23+00:00",
+          "observed_at": "2026-10-08T14:17:23+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:24+00:00",
+          "observed_at": "2026-10-08T14:17:25+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:26+00:00",
+          "observed_at": "2026-10-08T14:17:26+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:27+00:00",
+          "observed_at": "2026-10-08T14:17:28+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:29+00:00",
+          "observed_at": "2026-10-08T14:17:29+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:30+00:00",
+          "observed_at": "2026-10-08T14:17:31+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:32+00:00",
+          "observed_at": "2026-10-08T14:17:32+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:33+00:00",
+          "observed_at": "2026-10-08T14:17:34+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:35+00:00",
+          "observed_at": "2026-10-08T14:17:35+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:36+00:00",
+          "observed_at": "2026-10-08T14:17:37+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:38+00:00",
+          "observed_at": "2026-10-08T14:17:40+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:41+00:00",
+          "observed_at": "2026-10-08T14:17:41+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:42+00:00",
+          "observed_at": "2026-10-08T14:17:43+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:44+00:00",
+          "observed_at": "2026-10-08T14:17:44+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:45+00:00",
+          "observed_at": "2026-10-08T14:17:46+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:47+00:00",
+          "observed_at": "2026-10-08T14:17:47+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:48+00:00",
+          "observed_at": "2026-10-08T14:17:49+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:50+00:00",
+          "observed_at": "2026-10-08T14:17:50+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:51+00:00",
+          "observed_at": "2026-10-08T14:17:52+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:53+00:00",
+          "observed_at": "2026-10-08T14:17:53+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:54+00:00",
+          "observed_at": "2026-10-08T14:17:56+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:57+00:00",
+          "observed_at": "2026-10-08T14:17:58+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:17:59+00:00",
+          "observed_at": "2026-10-08T14:17:59+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:00+00:00",
+          "observed_at": "2026-10-08T14:18:01+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:02+00:00",
+          "observed_at": "2026-10-08T14:18:02+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:03+00:00",
+          "observed_at": "2026-10-08T14:18:04+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:05+00:00",
+          "observed_at": "2026-10-08T14:18:05+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:06+00:00",
+          "observed_at": "2026-10-08T14:18:07+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:08+00:00",
+          "observed_at": "2026-10-08T14:18:08+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:09+00:00",
+          "observed_at": "2026-10-08T14:18:10+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:11+00:00",
+          "observed_at": "2026-10-08T14:18:11+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:12+00:00",
+          "observed_at": "2026-10-08T14:18:13+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:14+00:00",
+          "observed_at": "2026-10-08T14:18:14+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:15+00:00",
+          "observed_at": "2026-10-08T14:18:16+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:17+00:00",
+          "observed_at": "2026-10-08T14:18:17+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:18+00:00",
+          "observed_at": "2026-10-08T14:18:19+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:20+00:00",
+          "observed_at": "2026-10-08T14:18:21+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:22+00:00",
+          "observed_at": "2026-10-08T14:18:22+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:23+00:00",
+          "observed_at": "2026-10-08T14:18:24+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:25+00:00",
+          "observed_at": "2026-10-08T14:18:25+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:26+00:00",
+          "observed_at": "2026-10-08T14:18:27+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:28+00:00",
+          "observed_at": "2026-10-08T14:18:28+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:29+00:00",
+          "observed_at": "2026-10-08T14:18:30+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:18:31+00:00",
+          "observed_at": "2026-10-08T14:18:31+00:00",
+          "status": "completed"
+        }
+      ],
+      "partial_is_not_completed": false,
+      "question": "[Acceptance run a3e84fd40ca6.] From Cellerator documentation, identify the legal execution candidates in the PBMC3K forward benchmark, define what reported planner regret measures, and list explicit documented limits. Cite concrete source paths; do not infer intelligent planning or design experiments.",
+      "request_id": "today-a3e84fd40ca6-investigate",
+      "started_at": "2026-10-08T14:16:47+00:00",
+      "status": "completed"
+    },
+    "preflight": {
+      "finished_at": "2026-10-08T14:16:10+00:00",
+      "grounding_read": {
+        "continuation": {
+          "detail": "extended",
+          "query": {
+            "kind": "packet",
+            "target": "pkt_c53a1ae9ef9d425fb026a9460240b05b"
+          },
+          "tool": "search"
+        },
+        "packet_id": "pkt_c53a1ae9ef9d425fb026a9460240b05b",
+        "sources": [
+          {
+            "content_sha256": "2dc7c00fc1209f36f09c9892aeddfa465ca0ce1cdc68971a6fc8f52b98f1dabd",
+            "line_end": 31,
+            "line_start": 9,
+            "path": "docs/CE_LIVE_EVIDENCE.md",
+            "project": "cellerator",
+            "repository": "cellerator"
+          },
+          {
+            "content_sha256": "8c2beb3357ee13b37509f6e5bae78a69ab20429b51cdd9483cb3f1636cfe72ba",
+            "line_end": 92,
+            "line_start": 73,
+            "path": "docs/current_implementation.qmd",
+            "project": "cellerator",
+            "repository": "cellerator"
+          }
+        ],
+        "status": "partial"
+      },
+      "http": {
+        "initialize": true,
+        "limited_reasoning_guidance": true,
+        "tool_names_match": true,
+        "tools": [
+          "delta",
+          "evidence",
+          "frontier",
+          "history",
+          "impact",
+          "investigate",
+          "machine",
+          "overview",
+          "read",
+          "search",
+          "skill"
+        ]
+      },
+      "inference_called": false,
+      "skill_catalog": {
+        "cpp_context_compiler_present": false,
+        "skill_ids": [
+          "skill-e9ffbbf58d77a715",
+          "skill-05409665e2e47957"
+        ],
+        "status": "ok"
+      },
+      "started_at": "2026-10-08T14:15:56+00:00",
+      "status": "complete",
+      "stdio": {
+        "initialize": true,
+        "observer_read_investigate_skill_absent": true,
+        "tool_names_match": true,
+        "tools": [
+          "coordinate_task",
+          "delta",
+          "evidence",
+          "finish_task",
+          "frontier",
+          "history",
+          "impact",
+          "inspect_task",
+          "machine",
+          "next_task",
+          "overview",
+          "search"
+        ]
+      },
+      "stdio_packet": {
+        "compact_status": "partial",
+        "continuation": null,
+        "followup_has_data": false,
+        "followup_status": null
+      }
+    },
+    "skill": {
+      "answer": {
+        "answer": null,
+        "evidence_packet_ids": [],
+        "findings": [],
+        "packet_id": "pkt_768e93997717411f90c8c9e65292e3d5",
+        "sources": [],
+        "status": "completed",
+        "unresolved_questions": []
+      },
+      "complete": true,
+      "exact_arguments": {
+        "query": "[Acceptance run a3e84fd40ca6-skill.] According to the installed cpp-context-compiler skill, which commands are listed for retrieval, and are .ctxpp bundles authoritative source or read-only retrieval artifacts? Give a concise answer with resource/line references; do not edit anything.",
+        "request_id": "today-a3e84fd40ca6-skill",
+        "skill": "cpp-context-compiler"
+      },
+      "finished_at": "2026-10-08T14:20:26+00:00",
+      "observations": [
+        {
+          "call_started_at": "2026-10-08T14:19:19+00:00",
+          "observed_at": "2026-10-08T14:19:49+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:19:50+00:00",
+          "observed_at": "2026-10-08T14:19:51+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:19:52+00:00",
+          "observed_at": "2026-10-08T14:19:52+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:19:53+00:00",
+          "observed_at": "2026-10-08T14:19:54+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:19:55+00:00",
+          "observed_at": "2026-10-08T14:19:55+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:19:56+00:00",
+          "observed_at": "2026-10-08T14:19:56+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:19:57+00:00",
+          "observed_at": "2026-10-08T14:19:58+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:19:59+00:00",
+          "observed_at": "2026-10-08T14:20:00+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:01+00:00",
+          "observed_at": "2026-10-08T14:20:01+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:02+00:00",
+          "observed_at": "2026-10-08T14:20:02+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:03+00:00",
+          "observed_at": "2026-10-08T14:20:04+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:05+00:00",
+          "observed_at": "2026-10-08T14:20:05+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:06+00:00",
+          "observed_at": "2026-10-08T14:20:07+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:08+00:00",
+          "observed_at": "2026-10-08T14:20:08+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:09+00:00",
+          "observed_at": "2026-10-08T14:20:10+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:11+00:00",
+          "observed_at": "2026-10-08T14:20:11+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:12+00:00",
+          "observed_at": "2026-10-08T14:20:13+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:14+00:00",
+          "observed_at": "2026-10-08T14:20:15+00:00",
+          "status": "thinking"
+        },
+        {
+          "call_started_at": "2026-10-08T14:20:16+00:00",
+          "observed_at": "2026-10-08T14:20:26+00:00",
+          "status": "completed"
+        }
+      ],
+      "partial_is_not_completed": false,
+      "question": "[Acceptance run a3e84fd40ca6-skill.] According to the installed cpp-context-compiler skill, which commands are listed for retrieval, and are .ctxpp bundles authoritative source or read-only retrieval artifacts? Give a concise answer with resource/line references; do not edit anything.",
+      "request_id": "today-a3e84fd40ca6-skill",
+      "started_at": "2026-10-08T14:19:18+00:00",
+      "status": "completed"
+    },
+    "local_ask": {
+      "answer": {
+        "answer": "In `docs/biological_execution_model.qmd`, the `axis_identity` struct specifies four fields: `domain` (which entities are present), `order` (their exact permutation), `geometry` (how they are grouped or tiled), and `partition` (which subset and ownership view is present). A typed relation connects two or more domains.",
+        "evidence_packet_ids": [
+          "pkt_ed3e89f1c2304b31b30434a6cf3a3cdd"
+        ],
+        "findings": [
+          {
+            "evidence_packets": [
+              "pkt_ed3e89f1c2304b31b30434a6cf3a3cdd"
+            ],
+            "text": "Lines 79-91 define the `axis_identity` struct and its four fields: `domain` (which entities are present), `order` (their exact permutation), `geometry` (how they are grouped or tiled), and `partition` (which subset and ownership view is present)."
+          },
+          {
+            "evidence_packets": [
+              "pkt_ed3e89f1c2304b31b30434a6cf3a3cdd"
+            ],
+            "text": "Lines 99-101 explicitly state that a typed relation connects two or more domains."
+          }
+        ],
+        "packet_id": "pkt_a38278a844d24e38b80f3f1073bd05be",
+        "sources": [
+          {
+            "content_sha256": "858db753298dfeedf4b8745a75a9d94f7e13c8e154e6308832221208e9ddeaa4",
+            "path": "docs/biological_execution_model.qmd",
+            "project": "cellerator",
+            "repository": "cellerator"
+          }
+        ],
+        "status": "completed",
+        "unresolved_questions": []
+      },
+      "complete": true,
+      "elapsed_seconds": 48.9,
+      "finished_at": "2026-10-08T14:20:52+00:00",
+      "partial_is_not_completed": false,
+      "question": "[Acceptance run a3e84fd40ca6-local.] From Cellerator docs/biological_execution_model.qmd, define the four axis_identity fields and what a typed relation connects. Cite exact line ranges; do not infer biological fidelity or extrapolate.",
+      "returncode": 0,
+      "started_at": "2026-10-08T14:20:03+00:00",
+      "status": "completed",
+      "stderr": "",
+      "timeout_contract": "assistance ask's existing 300-second poll/cancel behavior"
+    }
+  },
+  "final_capacity": {
+    "available": 2,
+    "degraded_by_failed_cleanup": false,
+    "occupied": 0,
+    "total": 2
+  }
+}

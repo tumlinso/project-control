@@ -274,7 +274,18 @@ def create_mcp(
     if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
         instructions += " " + WORKFLOW_INSTRUCTIONS
     if selected_profile == MCPProfile.OBSERVER:
-        instructions += " Observer tools provide read-only context, investigation and installed skill guidance. Use read or evidence for authoritative selected source. While investigate or skill is thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question."
+        instructions += (
+            " Observer tools provide read-only context, investigation and installed skill guidance. "
+            "Local analysis has limited reasoning: use it for bounded evidence gathering, targeted "
+            "read-only source or machine inspection, straightforward grounded summaries, and skill lookup. "
+            "Its advantage is registered-source, broker, command and skill context unavailable directly "
+            "to the caller, not stronger reasoning. Keep broad architecture, difficult inference, "
+            "multi-project synthesis, strategy and consequential decisions with the caller; ask narrow "
+            "factual subquestions, then decide. There is no implementation delegation, coding or network "
+            "authority. Use read or evidence for authoritative selected source. While investigate or skill "
+            "is thinking, continue useful work and repeat the identical question later; avoid submitting "
+            "variants. If busy, use search, read or evidence to contextualize or refine a later question."
+        )
     if selected_profile == MCPProfile.MUTATOR:
         instructions += " " + MUTATOR_INSTRUCTIONS
     if maintenance_host is not None:

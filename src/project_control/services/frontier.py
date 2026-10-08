@@ -95,7 +95,17 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
             if task.get("effective_state") == "blocked":
                 blockers = [item for item in dependencies.get(task_id, []) if dependency_unmet(item)]
                 blockers.extend(recovery_by_task.get(task_id, []))
-                blocked.append({"id": task_id, "title": task.get("title"), "immediate_blockers": list(dict.fromkeys(blockers))})
+                entry = {"id": task_id, "title": task.get("title"), "immediate_blockers": list(dict.fromkeys(blockers))}
+                next_action = task.get("next_action")
+                if not entry["immediate_blockers"] and isinstance(next_action, str) and next_action:
+                    raw = next_action.encode("utf-8")
+                    preview = raw[:512].decode("utf-8", errors="ignore")
+                    entry["recorded_context"] = {
+                        "label": "raw canonical task.next_action",
+                        "next_action_preview": preview,
+                        "truncated": len(raw) > 512,
+                    }
+                blocked.append(entry)
     active_claims = [
         {"task_id": item.get("task_id"), "observed_state": "active", "source": "todo_status"}
         for item in snapshot.todo_status.get("active_claims", [])

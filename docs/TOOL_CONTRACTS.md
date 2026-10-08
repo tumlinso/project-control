@@ -288,6 +288,13 @@ identity is provenance for source evidence, not affirmative support for an
 arbitrary claim. Provider failures degrade only tools and evidence kinds that
 depend on that provider; unrelated healthy reads do not inherit their warnings.
 
+The evidence result's `confidence` is a deterministic summary of matching
+record presence and contradiction state, not a judgment that the requested
+proposition is true. `confidence_basis` is `matching_evidence_presence` and
+`claim_support_status` is `not_evaluated`; source text matches can be incidental
+mentions. The adaptive evidence wrapper also reports
+`source_mentions_are_proof=false`.
+
 Budgets are enforced on serialized UTF-8 output. Results use deterministic
 ordering, stable identifiers, deduplication, truncation metadata, freshness,
 confidence, caveats, and secret redaction. Raw tokens, command lines, database

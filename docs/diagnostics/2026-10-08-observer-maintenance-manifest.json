@@ -1,0 +1,111 @@
+{
+  "base_commit": "d8c45ebf7991e9338da5e6971ac0be7ccfa455ae",
+  "candidate_checkout": "/tmp/pc-observer-quickfix-20261008",
+  "activation": "activated",
+  "patch_sha256": "831decaa9c01ba56b5e74a8342d6630b3db72faf25db1be35945437599fb1550",
+  "files": [
+    {
+      "path": "docs/TOOL_CONTRACTS.md",
+      "baseline_sha256": "f411fa81b7f7f677e0eb56423bad3da24f27dc774583fdc9a78597849db91f53",
+      "candidate_sha256": "878aa1f8dded02abf5526ca5e69d8bc8c585c0b398e1e64fadd7c2b3f59918c5"
+    },
+    {
+      "path": "docs/as1-context.md",
+      "baseline_sha256": "2aac52087560149990b48b4d9116fefa13b8a9c44a4ea3dbc23ecd3d16622d38",
+      "candidate_sha256": "3dc6575fc6d8ad6a7e846b8c8844ed38f702ba924588192bebd32e8e1a59c5d0"
+    },
+    {
+      "path": "docs/as1-inquiry-cache.md",
+      "baseline_sha256": "e41ee7ae8feb4ae4ca239196278e202f7335d7d654ac8e0cbafb2615e9c89cbe",
+      "candidate_sha256": "6e5a7c4e695fa8881ddf59d2450939ac5b54c884692938619874d817f6e9990a"
+    },
+    {
+      "path": "docs/as1-observer-readonly.md",
+      "baseline_sha256": "165994b0be93506c772f4aea1139690ad40b8cadac26197ce065137121ed85d4",
+      "candidate_sha256": "8a304896bf08f21b02249bebc5fee0259f23da773fdae3405be250a88bfe9a29"
+    },
+    {
+      "path": "docs/as1-surface.md",
+      "baseline_sha256": "a6d05cf8c95175ebc055a7f75b608d7bcce1beab23613f775a0ca58a16693f36",
+      "candidate_sha256": "de04a49f9acc3cc4cd0e73678cea8fa4910a70bc9ee2e133ced811707aaf4557"
+    },
+    {
+      "path": "src/project_control/app.py",
+      "baseline_sha256": "a7723b40d13711271dad49528edaf74e388a5c080903f7de472a4bc7ed4949e9",
+      "candidate_sha256": "0a95f7c8b85bce65df306fca36ace2a3c0374289c98b89e342e5b555ffbf7add"
+    },
+    {
+      "path": "src/project_control/as1_context.py",
+      "baseline_sha256": "dffe6e87bce91f74729e93c2e7e1a3d5866c8df98b5acf04789040741d56c936",
+      "candidate_sha256": "02acb1e65bb436d731c5246bca5322310b16543cc056d29e95c2d6a44935fb22"
+    },
+    {
+      "path": "src/project_control/as1_jobs.py",
+      "baseline_sha256": "450d96198c4f6f1b87a8b5873552719d876d3ddba1461d7ce4744a3522539bb8",
+      "candidate_sha256": "3ab9057e53bc82efb19cbac53ef3a73d0aa0549bd84e70eb9591b86c2c177d89"
+    },
+    {
+      "path": "src/project_control/as1_surface.py",
+      "baseline_sha256": "03735ef18016457e58d5eb815d877f5103842bd3669b409b3315ba14c1d996aa",
+      "candidate_sha256": "408e42a53d96e8e78bdea789f0babad4812cf26ec6a8599da75e6536c12bc700"
+    },
+    {
+      "path": "src/project_control/services/evidence.py",
+      "baseline_sha256": "489ebc333b9e1db72e0448906f1ba1ad38a29f15fe65d7559b78c8fbe68cd75d",
+      "candidate_sha256": "ab34ee441e14beef70713c3c00e518db69f5a292eaaddcaf8c32aa5ee671a90a"
+    },
+    {
+      "path": "src/project_control/services/frontier.py",
+      "baseline_sha256": "4c51f6c78d74d540126855f5ea064e23cdd8254dd0b51fd96a4709d4802f32e2",
+      "candidate_sha256": "ce68a6138a9c6a7be0e669113c6168c29c6164df12e9317f1c8b01012d4f6333"
+    },
+    {
+      "path": "tests/as1/test_pc_as1_context.py",
+      "baseline_sha256": "47a09402752d91d3e84bb20a6cfed89e9bec2c5ad54f141c6e3090baddd15ff6",
+      "candidate_sha256": "f3b32314f0b7368bdc84464016f23d9332ce2b5522f78617793cf095e2eefca9"
+    },
+    {
+      "path": "tests/as1/test_pc_as1_surface.py",
+      "baseline_sha256": "43dc79d3d506e94e6ffa5e4678c8e0d7c1f210ea863566be2d97f58261c9fb6d",
+      "candidate_sha256": "79a7acc45a47cb4bf8b1972da62f4031a0b9860a1371d23d95b8f11717d8d582"
+    },
+    {
+      "path": "tests/assistance/test_broker_close_persistence.py",
+      "baseline_sha256": "f1f3c9a54c069fffc88b37344294ae2953a7b92aa50c54061bb45068cfc1666c",
+      "candidate_sha256": "f8d1d54dc7d8fa0358084d7615466a3db430875eefa358277ffb95939022d637"
+    },
+    {
+      "path": "tests/assistance/test_demand_broker.py",
+      "baseline_sha256": "99c2bff0de168aa543369b4566e09d8f7777eaa81b91e98d1fa3b5b47530802a",
+      "candidate_sha256": "ae4ae8ad1f9229338b9df862f6becd80f4d2e0463ce19ed396a994c02a3e2faa"
+    },
+    {
+      "path": "tests/assistance/test_inquiry_guidance.py",
+      "baseline_sha256": null,
+      "candidate_sha256": "d65d719eb0ec79f3f2ba7c3fc49545c7c09119eb9351b2278f78a59f8b4dcc5a"
+    },
+    {
+      "path": "tests/test_project_model.py",
+      "baseline_sha256": "5049b3a5fe4973799fb445e27cdf47c352eb1fbae0b78d841706a56f32107498",
+      "candidate_sha256": "bd18c249172f0c4f09ae8d8318140fc037afe3ec8cd7da275a1a6c31bfab9b61"
+    },
+    {
+      "path": "tests/test_query_services.py",
+      "baseline_sha256": "e94af2421fc0bf37295d57b43797b8aae47b1f743e7f35127fddc1470a0b6607",
+      "candidate_sha256": "9d28e0b4fbaa8f62f60503c6c5633ae9c499f8c4d8e7a29f0fad6b38eb9a37d1"
+    }
+  ],
+  "activation_verification": {
+    "health": "ok",
+    "readiness": "ready",
+    "http_pid": 328536,
+    "inference_pid": 328534,
+    "candidate_hashes_verified": 18,
+    "physical_release_receipts": 2,
+    "historical_reservations_preserved": true,
+    "available_execution_slots": 0,
+    "evidence_packet": "pkt_c5ffe5eddd924137a424a1592098c94a",
+    "backup_directory": "/home/tumlinson/project-control/.cache/observer-maintenance-activation-20261008",
+    "health_verified_at_epoch": 1791466413.2603538
+  }
+}

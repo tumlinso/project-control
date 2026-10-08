@@ -13,9 +13,11 @@ import math
 import re
 from pathlib import Path
 import sqlite3
+import stat
 import threading
 import time
 import uuid
+from urllib.parse import quote
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .as1_contracts import DurableJob, Finding, InformationPacket, SourceLocator, canonical_digest
@@ -29,6 +31,7 @@ CHECKPOINT_MAX_FRAME_BYTES = 32768
 CHECKPOINT_MAX_BYTES = 96 * 1024
 WORKER_JOB_INPUT_MAX_BYTES = 256 * 1024
 WORKER_OBSERVATION_MAX_BYTES = 32768
+EXECUTION_SLOT_CAPACITY = 2
 _DB_LOCK = threading.RLock()
 _LOGGER = logging.getLogger(__name__)
 _RECONCILE_LOCKS_GUARD = threading.Lock()
@@ -76,6 +79,58 @@ def _reconcile_file_lock(directory):
                     fcntl.flock(fd, fcntl.LOCK_UN)
             finally:
                 os.close(fd)
+
+
+class _HostAdmissionFence:
+    """Bounded lock proving no external host admission can race recovery."""
+
+    __slots__ = ("connection", "deadline")
+
+    def __init__(self, connection: sqlite3.Connection, deadline: float):
+        self.connection = connection
+        self.deadline = deadline
+
+    def check(self) -> None:
+        if not self.connection.in_transaction:
+            raise RuntimeError("source_recovery_host_admission_fence_lost")
+        if time.monotonic() > self.deadline:
+            raise TimeoutError("source_recovery_host_admission_fence_expired")
+
+
+@contextmanager
+def _host_admission_fence(*, max_seconds: float = 45.0):
+    """Hold HostCoordinator's SQLite writer reservation without changing rows.
+
+    ``mode=rw`` plus lstat prevents recovery from silently creating a missing
+    host authority database.  BEGIN IMMEDIATE serializes the ordinary owner
+    and foreground-intent admission writers until the whole recheck/ACK/slot
+    reconciliation finishes.
+    """
+    connection = None
+    try:
+        from todo_orchestrator.background.host import HostCoordinator
+
+        host = HostCoordinator(create=False)
+        database = Path(host.database)
+        info = database.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+            raise RuntimeError("host_runtime_database_identity_invalid")
+        uri = f"file:{quote(str(database.resolve(strict=True)), safe='/')}?mode=rw"
+        connection = sqlite3.connect(uri, uri=True, timeout=5, isolation_level=None)
+        connection.execute("PRAGMA busy_timeout=5000")
+        connection.execute("BEGIN IMMEDIATE")
+    except Exception as error:
+        if connection is not None:
+            connection.close()
+        raise RuntimeError("source_recovery_host_admission_fence_unavailable") from error
+    fence = _HostAdmissionFence(connection, time.monotonic() + max_seconds)
+    try:
+        fence.check()
+        yield fence
+    finally:
+        if connection.in_transaction:
+            connection.rollback()
+        connection.close()
 
 
 def _load_assistance_components():
@@ -151,6 +206,24 @@ _CLOSE_RECEIPT_ERROR_CODES = frozenset({
     'close_receipt_gpu_scope_invalid', 'session_not_active',
     'resource_metadata_must_be_json',
 })
+_CLEANUP_ERROR_CODES = frozenset({
+    'observer_session_close_failed',
+    'observer_session_close_unproved',
+    'observer_close_receipt_persist_failed',
+    'observer_session_cleanup_failed',
+} | {
+    f'observer_close_receipt_persist_failed_{code}'
+    for code in _CLOSE_RECEIPT_ERROR_CODES
+})
+_INQUIRY_THINKING_QUEUED = (
+    'Read-only analysis was accepted and is waiting to run. Continue useful work '
+    'and repeat the identical question later; avoid submitting variants.')
+_INQUIRY_THINKING_RUNNING = (
+    'Read-only analysis is running. Continue useful work and repeat the identical '
+    'question later; avoid submitting variants.')
+_INQUIRY_THINKING_GENERIC = (
+    'Read-only analysis is in progress. Continue useful work and repeat the identical '
+    'question later; avoid submitting variants.')
 
 
 def _demand_readiness_failure_reason(value):
@@ -190,6 +263,17 @@ def _public_wait_reason(value):
     if value.startswith(('central_supervisor_', 'runtime_identity_')):
         return 'runtime_mismatch'
     return 'pending'
+
+
+def _inquiry_thinking_result(job_status=None):
+    """Return a content-free pending response with a known durable phase, if any."""
+    if job_status in {'queued', 'queued_after_eviction'}:
+        message = _INQUIRY_THINKING_QUEUED
+    elif job_status == 'running':
+        message = _INQUIRY_THINKING_RUNNING
+    else:
+        message = _INQUIRY_THINKING_GENERIC
+    return {'status': 'thinking', 'message': message}
 
 
 class InvalidToolArguments(ValueError):
@@ -390,7 +474,7 @@ class JobService:
                 CREATE TABLE IF NOT EXISTS pa1_child_packets(parent_id TEXT NOT NULL,generation INTEGER NOT NULL,
                     child_id TEXT NOT NULL,packet_id TEXT NOT NULL UNIQUE,
                     PRIMARY KEY(parent_id,generation,child_id));
-                CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0);''')
+                CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0, cleanup_error_code TEXT);''')
             db.execute('''CREATE TABLE IF NOT EXISTS stale_execution_cleanup_audit(
                 receipt_id TEXT PRIMARY KEY, job TEXT NOT NULL, slot_attempt INTEGER NOT NULL,
                 owner_pid INTEGER NOT NULL, owner_start TEXT NOT NULL, release_request_id TEXT NOT NULL,
@@ -414,6 +498,8 @@ class JobService:
                 db.execute('ALTER TABLE execution_slots ADD COLUMN owner_start TEXT')
             if 'cleanup_failed' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
                 db.execute('ALTER TABLE execution_slots ADD COLUMN cleanup_failed INTEGER NOT NULL DEFAULT 0')
+            if 'cleanup_error_code' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
+                db.execute('ALTER TABLE execution_slots ADD COLUMN cleanup_error_code TEXT')
             db.execute('CREATE TABLE IF NOT EXISTS broker_migrations(name TEXT PRIMARY KEY)')
             FrameStore.initialize(db)
             PowerPolicy.initialize(db)
@@ -571,7 +657,10 @@ class JobService:
                 WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled')
                 ORDER BY updated,id LIMIT 64""").fetchall()
             slots = db.execute('SELECT job,attempt,owner_pid,owner_start,cleanup_failed FROM execution_slots ORDER BY job LIMIT 16').fetchall()
-            slot_count = db.execute('SELECT count(*) FROM execution_slots').fetchone()[0]
+            slot_count = int(db.execute('SELECT count(*) FROM execution_slots').fetchone()[0])
+            cleanup_failed_count = int(db.execute('SELECT count(*) FROM execution_slots WHERE cleanup_failed=1').fetchone()[0])
+            cleanup_errors = db.execute('''SELECT job,attempt,cleanup_error_code FROM execution_slots
+                WHERE cleanup_failed=1 ORDER BY job LIMIT 16''').fetchall()
             resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
                                            clock=self.clock).summary()
         active = []
@@ -587,10 +676,19 @@ class JobService:
                 active.append({'job_id': row['id'], 'status': 'unavailable',
                                'wait_reason': 'job_record_invalid'})
         return {'active_work': active, 'active_work_truncated': len(rows) >= 64,
+            'execution_capacity': {'total': EXECUTION_SLOT_CAPACITY,
+                'occupied': slot_count,
+                'available': max(0, EXECUTION_SLOT_CAPACITY - slot_count),
+                'degraded_by_failed_cleanup': cleanup_failed_count > 0},
             'active_execution_slots': [{'job_id': row['job'], 'attempt': row['attempt'],
                 'cleanup_pending': bool(row['cleanup_failed']),
                 'owner_pid': row['owner_pid'], 'owner_process_start': row['owner_start']}
                 for row in slots], 'active_execution_slots_truncated': slot_count > len(slots),
+            'execution_cleanup_errors': [{'job_id': row['job'], 'attempt': row['attempt'],
+                'cleanup_error_code': (row['cleanup_error_code']
+                    if row['cleanup_error_code'] in _CLEANUP_ERROR_CODES else None)}
+                for row in cleanup_errors],
+            'execution_cleanup_errors_truncated': cleanup_failed_count > len(cleanup_errors),
             'owned_resources': resources,
             'dispatcher': self.health()['dispatcher']}
 
@@ -636,61 +734,120 @@ class JobService:
         else:
             raise ValueError('stale_execution_slot_owner_absence_unverifiable')
 
+        from .observer_analysis import (_is_verified_physical_release,
+            _require_process_absent, _source_identity_snapshot)
+        archived_recovery_proof = _is_verified_physical_release(proof)
         if not isinstance(proof, dict):
             raise ValueError('stale_execution_cleanup_proof_required')
-        required = {'format', 'job_id', 'attempt', 'owner_pid', 'owner_start', 'observed_at',
-            'release_manifest_sha256', 'helper', 'owner_process_absent', 'gpu_uuids',
-            'compute_processes', 'gpu_memory_mib', 'host_conflicts', 'native',
-            'process_released', 'memory_released', 'verified'}
-        if set(proof) != required:
-            raise ValueError('stale_execution_cleanup_proof_fields_invalid')
         now = float(self.clock())
-        observed_at = proof.get('observed_at')
-        if (proof.get('format') != 'PC-AS1-STALE-EXECUTION-CLEANUP/1'
-                or proof.get('job_id') != job_id or type(proof.get('attempt')) is not int
-                or proof.get('attempt') != attempt or type(proof.get('owner_pid')) is not int
-                or proof.get('owner_pid') != owner_pid or proof.get('owner_start') != owner_start
-                or isinstance(observed_at, bool) or not isinstance(observed_at, (int, float))
-                or not math.isfinite(float(observed_at)) or not now - 60 <= float(observed_at) <= now + 5):
-            raise ValueError('stale_execution_cleanup_proof_identity_or_freshness_invalid')
-        from .runtime_binding import RELEASE_DIGEST_VARIABLE
-        expected_release_digest = os.environ.get(RELEASE_DIGEST_VARIABLE)
-        if (not isinstance(expected_release_digest, str)
-                or not re.fullmatch(r'[0-9a-f]{64}', expected_release_digest)
-                or proof.get('release_manifest_sha256') != expected_release_digest):
-            raise ValueError('stale_execution_cleanup_release_pin_mismatch')
-        helper = proof.get('helper')
-        if (not isinstance(helper, dict)
-                or set(helper) != {'unit', 'active_state', 'main_pid', 'kill_mode'}
-                or type(helper.get('main_pid')) is not int
-                or helper != {'unit': 'project-control-inference.service', 'active_state': 'inactive',
-                              'main_pid': 0, 'kill_mode': 'control-group'}):
-            raise ValueError('stale_execution_cleanup_helper_state_invalid')
-        if (proof.get('owner_process_absent') is not True
-                or proof.get('process_released') is not True
-                or proof.get('memory_released') is not True
-                or proof.get('verified') is not True
-                or proof.get('compute_processes') != []
-                or proof.get('host_conflicts') != []):
-            raise ValueError('stale_execution_cleanup_release_unproved')
-        native = proof.get('native')
-        if (not isinstance(native, dict) or set(native) != {'active_leases', 'session_count'}
-                or type(native.get('active_leases')) is not int
-                or type(native.get('session_count')) is not int
-                or native != {'active_leases': 0, 'session_count': 0}):
-            raise ValueError('stale_execution_cleanup_native_state_invalid')
         allowed_gpu_uuids = getattr(self.backend, '_allowed_gpu_uuids', None)
-        gpu_uuids = proof.get('gpu_uuids')
-        memory = proof.get('gpu_memory_mib')
-        if (not isinstance(allowed_gpu_uuids, (list, tuple)) or not allowed_gpu_uuids
-                or any(not isinstance(item, str) or not item.startswith('GPU-') for item in allowed_gpu_uuids)
-                or not isinstance(gpu_uuids, list)
-                or any(not isinstance(item, str) for item in gpu_uuids)
-                or set(gpu_uuids) != set(allowed_gpu_uuids)
-                or len(gpu_uuids) != len(set(gpu_uuids))
-                or not isinstance(memory, dict) or set(memory) != set(allowed_gpu_uuids)
-                or any(type(memory[item]) is not int or memory[item] != 0 for item in allowed_gpu_uuids)):
-            raise ValueError('stale_execution_cleanup_gpu_scope_or_memory_invalid')
+        if archived_recovery_proof:
+            try:
+                current_source = _source_identity_snapshot()
+            except Exception as error:
+                raise ValueError('stale_execution_cleanup_source_identity_unavailable') from error
+            observed_at = proof.get('captured_at')
+            slots = proof.get('orphan_execution_slots')
+            matches = [item for item in slots if isinstance(item, dict) and
+                item.get('job_id') == job_id and item.get('attempt') == attempt and
+                item.get('owner_pid') == owner_pid and item.get('owner_process_start') == owner_start
+                ] if isinstance(slots, list) else []
+            fresh = proof.get('fresh_observations')
+            units = fresh.get('service_units') if isinstance(fresh, dict) else None
+            gpu = fresh.get('gpu') if isinstance(fresh, dict) else None
+            host = fresh.get('host') if isinstance(fresh, dict) else None
+            gpu_devices = gpu.get('devices') if isinstance(gpu, dict) else None
+            if (proof.get('recovery_kind') != 'source_mode_archived_whole_epoch'
+                    or proof.get('format') != 'PA1-PHYSICAL-RELEASE/1'
+                    or proof.get('released_verified') is not True or proof.get('stopped') is not True
+                    or proof.get('evicted') is not True or proof.get('quiescent') is not True
+                    or proof.get('source_identity') != current_source
+                    or len(matches) != 1 or matches[0].get('cleanup_pending') is not True
+                    or isinstance(observed_at, bool) or not isinstance(observed_at, (int, float))
+                    or not math.isfinite(float(observed_at)) or not now - 300 <= float(observed_at) <= now + 5
+                    or not isinstance(allowed_gpu_uuids, (list, tuple)) or not allowed_gpu_uuids
+                    or set(proof.get('gpu_uuids', [])) != set(allowed_gpu_uuids)
+                    or len(proof.get('gpu_uuids', [])) != len(set(proof.get('gpu_uuids', [])))
+                    or not isinstance(units, list) or len(units) != 2
+                    or {item.get('unit') for item in units if isinstance(item, dict)} !=
+                        {'project-control.service', 'project-control-inference.service'}
+                    or any(item.get('active_state') != 'inactive' or item.get('main_pid') != 0
+                        for item in units if isinstance(item, dict))
+                    or not isinstance(gpu_devices, list)
+                    or {item.get('uuid') for item in gpu_devices if isinstance(item, dict)} !=
+                        set(allowed_gpu_uuids)
+                    or len(gpu_devices) != len(set(item.get('uuid') for item in gpu_devices
+                        if isinstance(item, dict)))
+                    or any(not isinstance(item, dict) or isinstance(item.get('memory_used_mib'), bool)
+                        or not isinstance(item.get('memory_used_mib'), (int, float))
+                        or item.get('memory_used_mib') != 0 for item in gpu_devices)
+                    or gpu.get('processes') != [] or not isinstance(host, dict)
+                    or type(host.get('active_owners')) is not int or host.get('active_owners') != 0
+                    or type(host.get('active_reservations')) is not int
+                    or host.get('active_reservations') != 0
+                    or type(host.get('active_foreground_intents')) is not int
+                    or host.get('active_foreground_intents') != 0):
+                raise ValueError('stale_execution_cleanup_archived_proof_invalid')
+            try:
+                _require_process_absent(proof.get('supervisor_pid'),
+                    proof.get('supervisor_process_start'), error_prefix='physical_release_supervisor')
+                for item in proof.get('cleanup_receipts', []):
+                    _require_process_absent(item.get('owned_pid'), item.get('server_process_start'),
+                        error_prefix='physical_release_server')
+            except Exception as error:
+                raise ValueError('stale_execution_cleanup_archived_process_unproved') from error
+        else:
+            required = {'format', 'job_id', 'attempt', 'owner_pid', 'owner_start', 'observed_at',
+                'release_manifest_sha256', 'helper', 'owner_process_absent', 'gpu_uuids',
+                'compute_processes', 'gpu_memory_mib', 'host_conflicts', 'native',
+                'process_released', 'memory_released', 'verified'}
+            if set(proof) != required:
+                raise ValueError('stale_execution_cleanup_proof_fields_invalid')
+            observed_at = proof.get('observed_at')
+            if (proof.get('format') != 'PC-AS1-STALE-EXECUTION-CLEANUP/1'
+                    or proof.get('job_id') != job_id or type(proof.get('attempt')) is not int
+                    or proof.get('attempt') != attempt or type(proof.get('owner_pid')) is not int
+                    or proof.get('owner_pid') != owner_pid or proof.get('owner_start') != owner_start
+                    or isinstance(observed_at, bool) or not isinstance(observed_at, (int, float))
+                    or not math.isfinite(float(observed_at)) or not now - 60 <= float(observed_at) <= now + 5):
+                raise ValueError('stale_execution_cleanup_proof_identity_or_freshness_invalid')
+            from .runtime_binding import RELEASE_DIGEST_VARIABLE
+            expected_release_digest = os.environ.get(RELEASE_DIGEST_VARIABLE)
+            if (not isinstance(expected_release_digest, str)
+                    or not re.fullmatch(r'[0-9a-f]{64}', expected_release_digest)
+                    or proof.get('release_manifest_sha256') != expected_release_digest):
+                raise ValueError('stale_execution_cleanup_release_pin_mismatch')
+            helper = proof.get('helper')
+            if (not isinstance(helper, dict)
+                    or set(helper) != {'unit', 'active_state', 'main_pid', 'kill_mode'}
+                    or type(helper.get('main_pid')) is not int
+                    or helper != {'unit': 'project-control-inference.service', 'active_state': 'inactive',
+                                  'main_pid': 0, 'kill_mode': 'control-group'}):
+                raise ValueError('stale_execution_cleanup_helper_state_invalid')
+            if (proof.get('owner_process_absent') is not True
+                    or proof.get('process_released') is not True
+                    or proof.get('memory_released') is not True
+                    or proof.get('verified') is not True
+                    or proof.get('compute_processes') != []
+                    or proof.get('host_conflicts') != []):
+                raise ValueError('stale_execution_cleanup_release_unproved')
+            native = proof.get('native')
+            if (not isinstance(native, dict) or set(native) != {'active_leases', 'session_count'}
+                    or type(native.get('active_leases')) is not int
+                    or type(native.get('session_count')) is not int
+                    or native != {'active_leases': 0, 'session_count': 0}):
+                raise ValueError('stale_execution_cleanup_native_state_invalid')
+            gpu_uuids = proof.get('gpu_uuids')
+            memory = proof.get('gpu_memory_mib')
+            if (not isinstance(allowed_gpu_uuids, (list, tuple)) or not allowed_gpu_uuids
+                    or any(not isinstance(item, str) or not item.startswith('GPU-') for item in allowed_gpu_uuids)
+                    or not isinstance(gpu_uuids, list)
+                    or any(not isinstance(item, str) for item in gpu_uuids)
+                    or set(gpu_uuids) != set(allowed_gpu_uuids)
+                    or len(gpu_uuids) != len(set(gpu_uuids))
+                    or not isinstance(memory, dict) or set(memory) != set(allowed_gpu_uuids)
+                    or any(type(memory[item]) is not int or memory[item] != 0 for item in allowed_gpu_uuids)):
+                raise ValueError('stale_execution_cleanup_gpu_scope_or_memory_invalid')
 
         proof_text = wire(proof)
         proof_digest = hashlib.sha256(proof_text.encode('utf-8')).hexdigest()
@@ -786,6 +943,66 @@ class JobService:
                  power['release_request_id'], proof_text, proof_digest, now))
         return {'status': 'reconciled', 'receipt_id': receipt_id,
                 'job_id': job_id, 'attempt': attempt, 'proof_sha256': proof_digest}
+
+    def recover_archived_execution_cleanup(self, control, *, archived_proof):
+        """Operator-only source recovery for the exact mixed stale-slot state.
+
+        The archived release receipt supplies identity only.  The provider
+        rechecks both stopped units, source identity, process absence, current
+        GPU state and host reservations before issuing a private proof.  The
+        existing resource release acknowledgement and exact slot checks remain
+        mandatory before any failed slot can be removed.
+        """
+        PowerPolicy._authorized(control, 'request_release')
+        with _host_admission_fence() as host_fence:
+            return self._recover_archived_execution_cleanup_fenced(
+                control, archived_proof=archived_proof, host_fence=host_fence)
+
+    def _recover_archived_execution_cleanup_fenced(self, control, *, archived_proof, host_fence):
+        host_fence.check()
+        verifier = getattr(self.backend, 'verify_archived_physical_release', None)
+        if not callable(verifier):
+            raise ValueError('archived_physical_release_verifier_unavailable')
+        broker_status = self.demand_work_status()
+        proof = verifier(archived_proof, broker_status=broker_status)
+        host_fence.check()
+        from .assistance.power import ReleaseIntent
+        from .observer_analysis import _is_verified_physical_release
+        if not _is_verified_physical_release(proof):
+            raise ValueError('verified_physical_release_required')
+        slots = proof.get('orphan_execution_slots')
+        if not isinstance(slots, list) or not slots:
+            raise ValueError('archived_recovery_slots_missing')
+        with self._db() as db:
+            policy = PowerPolicy(db, clock=self.clock)
+            power = policy.snapshot()
+            if (not power.get('release_veto_active') or power.get('release_until') is not None
+                    or not power.get('release_request_id')):
+                raise ValueError('stale_execution_slot_permanent_release_veto_required')
+            intent = ReleaseIntent(power['release_request_id'], float(power['release_created_at']),
+                power['release_until'], power['release_reason'])
+            resources = ResourceController(db, power_policy=policy, clock=self.clock)
+            db.commit()
+            if power.get('physical_state') == 'pending':
+                session_ids = resources.record_archived_epoch_recovery_after_physical_release(
+                    control, intent, proof)
+            elif power.get('physical_state') == 'released_verified':
+                ack = resources.verified_release_ack(intent)
+                session_ids = list(ack.target_session_ids)
+            else:
+                raise ValueError('stale_execution_slot_owned_resource_release_mismatch')
+        host_fence.check()
+        if power.get('physical_state') == 'pending' and not self._ack_owned_release(intent):
+            raise ValueError('stale_execution_slot_owned_resource_release_mismatch')
+        reconciled = []
+        for slot in slots:
+            host_fence.check()
+            reconciled.append(self.reconcile_stale_execution_slot(control,
+                job_id=slot['job_id'], attempt=slot['attempt'], owner_pid=slot['owner_pid'],
+                owner_start=slot['owner_process_start'], proof=proof))
+        return {'status': 'reconciled', 'sessions': sorted(session_ids),
+            'execution_slots': reconciled,
+            'source_identity': proof.get('source_identity')}
 
     def coordinate_demand_stop(self, control, *, timeout=95.0):
         """Cancel broker work, then prove its exact owned resources released.
@@ -1738,21 +1955,21 @@ class JobService:
                 unavailable = self._ensure_demand_runtime(startup_timeout)
                 if unavailable:
                     return unavailable
-                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                return _inquiry_thinking_result(previous.status)
             if not self._cache_eligible(previous.model_dump()):
                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
             if not self._settled(previous.job_id):
                 unavailable = self._ensure_demand_runtime(startup_timeout)
                 if unavailable:
                     return unavailable
-                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                return _inquiry_thinking_result()
             freshness = self.freshness_provider(previous.model_dump()) if self.freshness_provider else {'fresh': False}
             freshness_snapshot = {'job_id': row['id'], 'record': row['record'], 'freshness': freshness}
             if previous.status in {'completed', 'partial'} and freshness.get('fresh'):
                 with self._db() as db:
                     current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
                     if not current or current['id'] != row['id'] or current['record'] != row['record']:
-                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                        return _inquiry_thinking_result()
                     if not self._inquiry_authorized(json.loads(current['record']), scope):
                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
                     observations = self._public_observations(db, current)
@@ -1761,7 +1978,7 @@ class JobService:
                 with self._db() as db:
                     current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
                     if not current or current['id'] != row['id'] or current['record'] != row['record']:
-                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                        return _inquiry_thinking_result()
                     current_job = json.loads(current['record'])
                     if not self._inquiry_authorized(current_job, scope):
                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
@@ -1778,7 +1995,7 @@ class JobService:
                 with self._db() as db:
                     current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
                     if not current or current['id'] != row['id'] or current['record'] != row['record']:
-                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                        return _inquiry_thinking_result()
                     if not self._inquiry_authorized(json.loads(current['record']), scope):
                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
                 return {'status': 'unavailable', 'reason': 'freshness_unverifiable'}
@@ -1792,7 +2009,7 @@ class JobService:
             _freshness_snapshot=freshness_snapshot)
         if not admitted['accepted']:
             if admitted['reason'] == 'inquiry_changed':
-                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+                return _inquiry_thinking_result()
             return {'status': 'busy' if admitted['reason'] == 'admission_limit' else 'unavailable',
                     'reason': admitted['reason']}
         value = self.lookup_inquiry(admitted['job_id'], access_scope=scope)
@@ -1803,7 +2020,7 @@ class JobService:
         if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
             return {**value, 'status': value['job']['status']}
         if not admitted.get('immediate') or admitted.get('retry'):
-            return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+            return _inquiry_thinking_result(value['job'].get('status'))
         end = time.monotonic() + max(0, min(30, foreground_timeout))
         while time.monotonic() < end:
             value = self.lookup_inquiry(admitted['job_id'], access_scope=scope)
@@ -1816,7 +2033,8 @@ class JobService:
             if value['job']['status'] in {'failed', 'cancelled'}:
                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
             time.sleep(min(.02, max(0, end-time.monotonic())))
-        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
+        pending_status = value.get('job', {}).get('status') if isinstance(value.get('job'), dict) else None
+        return _inquiry_thinking_result(pending_status)
 
     @staticmethod
     def _cache_eligible(job):
@@ -2221,7 +2439,7 @@ class JobService:
                     continue
                 if row['available'] > now:
                     continue
-                if db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] >= 2:
+                if db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] >= EXECUTION_SLOT_CAPACITY:
                     continue
                 job.attempt += 1; job.status = 'running'
                 if frame is not None:
@@ -3080,9 +3298,12 @@ class JobService:
                             self.last_error = 'observer_close_receipt_missing'
             except Exception:
                 cleanup_failed = True
-                self.last_error = cleanup_error_code or 'observer_session_cleanup_failed'
+                cleanup_error_code = (cleanup_error_code if cleanup_error_code in _CLEANUP_ERROR_CODES
+                                      else 'observer_session_cleanup_failed')
+                self.last_error = cleanup_error_code
                 with self._db() as db:
-                    db.execute('UPDATE execution_slots SET cleanup_failed=1 WHERE job=? AND attempt=?', (job.job_id, job.attempt))
+                    db.execute('UPDATE execution_slots SET cleanup_failed=1,cleanup_error_code=? WHERE job=? AND attempt=?',
+                        (cleanup_error_code, job.job_id, job.attempt))
             finally:
                 heartbeat_stop.set(); heartbeat.join()
                 if not cleanup_failed:

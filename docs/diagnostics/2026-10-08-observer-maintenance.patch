@@ -1,0 +1,1028 @@
+diff --git a/docs/TOOL_CONTRACTS.md b/docs/TOOL_CONTRACTS.md
+index db16482..588435e 100644
+--- a/docs/TOOL_CONTRACTS.md
++++ b/docs/TOOL_CONTRACTS.md
+@@ -288,6 +288,13 @@ identity is provenance for source evidence, not affirmative support for an
+ arbitrary claim. Provider failures degrade only tools and evidence kinds that
+ depend on that provider; unrelated healthy reads do not inherit their warnings.
+ 
++The evidence result's `confidence` is a deterministic summary of matching
++record presence and contradiction state, not a judgment that the requested
++proposition is true. `confidence_basis` is `matching_evidence_presence` and
++`claim_support_status` is `not_evaluated`; source text matches can be incidental
++mentions. The adaptive evidence wrapper also reports
++`source_mentions_are_proof=false`.
++
+ Budgets are enforced on serialized UTF-8 output. Results use deterministic
+ ordering, stable identifiers, deduplication, truncation metadata, freshness,
+ confidence, caveats, and secret redaction. Raw tokens, command lines, database
+diff --git a/docs/as1-context.md b/docs/as1-context.md
+index 9931b4c..595d5f6 100644
+--- a/docs/as1-context.md
++++ b/docs/as1-context.md
+@@ -14,7 +14,7 @@ result = service.call("search", project="demo",
+ 
+ The host binds trusted profile, principal and registered project allowlist. Requests cannot choose these. `codex` uses coder packet scope. Packet scope includes profile, preventing a caller with the same principal from replaying observer file reads or extended results through a local profile. Local profiles use native find, rg and Git, and cannot request `read` or `extended`.
+ 
+-Each operation writes an immutable response payload, source manifest, omissions, freshness and cursor to `SQLitePacketStore`. Responses contain `status`, `packet`, `data`, `sources` and `coverage`. Whole-response budgets are soft UTF-8 byte budgets. Oversized exact text stays intact in the stored packet; the caller gets its required size and an exact packet continuation with permitted detail. Packet retrieval retains the original payload and avoids recursively nesting full packet metadata.
++Each operation writes an immutable response payload, source manifest, omissions, freshness and cursor to `SQLitePacketStore`. Responses contain `status`, `packet`, `data`, `sources` and `coverage`. Whole-response budgets are soft UTF-8 byte budgets. Oversized exact text stays intact in the stored packet. A packet continuation is returned only when the complete public packet-search response, including source and coverage wrappers, fits within the caller's maximum permitted detail. Otherwise the partial response includes `size_limit` with the profile maximum and required UTF-8 byte estimate; the stored packet remains addressable. Packet retrieval retains the original payload and avoids recursively nesting full packet metadata.
+ 
+ Exact typed search uses `inspect_subject(..., exact_only=True)`: canonical reconciled graph records and relationships, expected type filtering, exact identity/name resolution and explicit ambiguity. It does not run token-overlap matching, lexical retrieval, ctxpp fallback or Git discovery. Resolved typed paths return semantic graph records; observer file content is requested through `read`. Packet/job exact requests skip project snapshot construction. Packet aliases require trusted scope; the host-installed job lookup must enforce the supplied scope. Registration uses the read-only canonical semantic context port, including its actual revision and UUID.
+ 
+@@ -26,7 +26,9 @@ Overview consumes versioned orientation and applied skill use from `Service.proj
+ 
+ Frontier and scoped coordination reuse their canonical services. Delta supports canonical cursors and retained packet baselines, with unavailable baseline errors and packet parent provenance. Evidence reuses gate synthesis and adds distinct registered-unrun, running, failed, current-pass, stale-historical-pass and terminal-frozen classifications; source mentions remain assertions. History reuses material Todo events and exact typed anchor revisions, replaces exported commit ordering with actual Git ancestry, and reports non-ancestor or unavailable ranges. Git history is bounded to 100 commits per repository; reaching the bound is disclosed. Missing retained task/checkpoint/interface anchors are partial, not inferred.
+ 
+-Machine uses fixed read-only machine-inspection views for every profile and records observation time with a five-second volatile lifetime. It cannot launch benchmarks or lease operations. Machine providers that require an unavailable sandbox report partial diagnostics.
++Machine uses fixed read-only machine-inspection views for every profile and records observation time with a five-second volatile lifetime. It cannot launch benchmarks or lease operations. Supported `query_or_view` selectors are `gpu_summary`, `gpu_topology`, `gpu_processes`, `host_memory`, `filesystem_capacity`, `services`, `processes`, `system`, `pcie_devices`, `storage_block`, `network_state`, `project_control_logs`, `versions`, `proc_sys`, and `filesystem`. Machine providers that require an unavailable sandbox report partial diagnostics.
++
++Frontier entries with no computed blockers may include `recorded_context` containing a UTF-8 bounded preview of the canonical task `next_action`. Its label identifies it as raw recorded context; it is not interpreted as an explanation of the blocked state and does not change readiness or blockers.
+ 
+ ## Qualification and integration boundaries
+ 
+diff --git a/docs/as1-inquiry-cache.md b/docs/as1-inquiry-cache.md
+index 82cb6d1..5cb6ccd 100644
+--- a/docs/as1-inquiry-cache.md
++++ b/docs/as1-inquiry-cache.md
+@@ -14,7 +14,11 @@ Private packet, cache and scheduler bookkeeping can write service-owned state.
+ 
+ The public states are `completed`, `partial`, `thinking`, `busy` and `unavailable`.
+ Only `thinking` says to repeat the identical question later and avoid variants;
+-continue useful work meanwhile. `busy` means the question was not accepted.
++continue useful work meanwhile. When the durable job state is known, its message
++says whether the accepted inquiry is waiting to run or running. Uncertain phases
++keep the generic in-progress message; no internal phase field or job identity is
++included in public results, including nested continuations. `busy` means the
++question was not accepted.
+ Use search, read or evidence to contextualize or refine a later question.
+ Answers retain supporting findings, evidence packet references and source identity.
+ Nested results and continuations do not expose attempts, leases or queue metadata.
+@@ -63,6 +67,16 @@ with `release_failed_inquiries({job_id: observed_terminal_reason})`; this remove
+ only the matching cache index entry and preserves the job, packets and observations
+ as history. Repeating the question after release schedules a new generation.
+ 
++The operator-only `assistance status` work summary reports the two-slot execution
++capacity, occupied and available slots, and whether a slot marked with failed
++cleanup is degrading capacity. A separate `execution_cleanup_errors` list maps
++failed slots to their job and attempt with an allowlisted `cleanup_error_code`;
++the existing active-slot record shape stays unchanged. Only stable cleanup
++classes and approved resource-receipt codes are stored; raw exception text is
++neither persisted in the slot nor included in public inquiry results. Existing
++rows migrated from older schemas retain a null cleanup code because their earlier
++cleanup cause cannot be reconstructed.
++
+ The internal scheduler permits two executing inquiries and four waiting, with a
+ 30 second foreground wait and 300 second inquiry lifetime. Private job identities,
+ fences, SQLite/outbox durability and restart recovery remain implementation
+diff --git a/docs/as1-observer-readonly.md b/docs/as1-observer-readonly.md
+index 3ad4b47..e24d92d 100644
+--- a/docs/as1-observer-readonly.md
++++ b/docs/as1-observer-readonly.md
+@@ -14,6 +14,16 @@ avoid variants. Busy means not accepted and suggests search, read or evidence
+ for contextualizing or refining a later question. Use read or evidence for
+ authoritative selected source. See [as1-inquiry-cache.md](as1-inquiry-cache.md).
+ 
++Observer local analysis has limited reasoning. Use it for bounded evidence
++gathering, targeted read-only source or machine inspection, straightforward
++grounded summaries, and installed-skill lookup. Its advantage is access to
++registered-source, broker, command, and skill context the caller may not have
++directly, not stronger reasoning. Keep broad architecture, difficult inference,
++multi-project synthesis, strategy, and consequential decisions with the caller;
++the caller may ask narrow factual subquestions and decide from the answers.
++Observer analysis provides no implementation delegation, coding, or network
++authority.
++
+ Annotations are client hints, not authorization. Startup profile registration,
+ dispatch allowlists, trusted scopes, source fences and the command sandbox retain
+ their enforcement. Mutator tools retain their write annotations. Tests verify the
+diff --git a/docs/as1-surface.md b/docs/as1-surface.md
+index 10c1726..02a555d 100644
+--- a/docs/as1-surface.md
++++ b/docs/as1-surface.md
+@@ -46,8 +46,12 @@ own inference residency and GPU policy; callers do not choose models or GPUs.
+   stale historical passes, pending/failed evidence, and terminal frozen success.
+   `impact` reports typed dependency witnesses and provider gaps; `history`
+   traces material recorded events and Git ancestry. Neither guesses causality.
+-- `machine` returns bounded observed host facts with observation time. It does
+-  not launch benchmarks, reserve GPUs, or run arbitrary privileged commands.
++- `machine` returns bounded observed host facts with observation time. Supported
++  selectors are `gpu_summary`, `gpu_topology`, `gpu_processes`, `host_memory`,
++  `filesystem_capacity`, `services`, `processes`, `system`, `pcie_devices`,
++  `storage_block`, `network_state`, `project_control_logs`, `versions`,
++  `proc_sys`, and `filesystem`. It does not launch benchmarks, reserve GPUs,
++  or run arbitrary privileged commands.
+ 
+ For an observer, exact file content uses registered project/repository IDs and
+ relative paths, for example `read(project="demo", paths=["README.md"])`.
+@@ -62,9 +66,12 @@ Source locators identify registered projects/repositories, relative paths and
+ actual content/revision identity. Semantic records carry typed IDs rather than
+ invented file paths. Compact is the default; 2 KiB compact, 8 KiB standard, and
+ 64 KiB observer extended are soft whole-response budgets. Omissions, stale or
+-unavailable sources, and exact continuations stay visible. Retained packet aliases
+-identify shared project evidence under configured project/source access; they are
+-not mutation capabilities.
++unavailable sources, and exact continuations stay visible. A continuation is
++offered only when the complete packet-search response and its wrappers fit the
++caller's maximum permitted detail; otherwise `size_limit` explains the profile
++cap and the immutable packet remains stored. Retained packet aliases identify
++shared project evidence under configured project/source access; they are not
++mutation capabilities.
+ 
+ `investigate(question="What invalidates this packet?", project="demo",
+ request_id="packet-question-1")` reads a cached inquiry. Public calls return a
+diff --git a/src/project_control/app.py b/src/project_control/app.py
+index 0b2ca07..e51a5d7 100644
+--- a/src/project_control/app.py
++++ b/src/project_control/app.py
+@@ -274,7 +274,18 @@ def create_mcp(
+     if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
+         instructions += " " + WORKFLOW_INSTRUCTIONS
+     if selected_profile == MCPProfile.OBSERVER:
+-        instructions += " Observer tools provide read-only context, investigation and installed skill guidance. Use read or evidence for authoritative selected source. While investigate or skill is thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question."
++        instructions += (
++            " Observer tools provide read-only context, investigation and installed skill guidance. "
++            "Local analysis has limited reasoning: use it for bounded evidence gathering, targeted "
++            "read-only source or machine inspection, straightforward grounded summaries, and skill lookup. "
++            "Its advantage is registered-source, broker, command and skill context unavailable directly "
++            "to the caller, not stronger reasoning. Keep broad architecture, difficult inference, "
++            "multi-project synthesis, strategy and consequential decisions with the caller; ask narrow "
++            "factual subquestions, then decide. There is no implementation delegation, coding or network "
++            "authority. Use read or evidence for authoritative selected source. While investigate or skill "
++            "is thinking, continue useful work and repeat the identical question later; avoid submitting "
++            "variants. If busy, use search, read or evidence to contextualize or refine a later question."
++        )
+     if selected_profile == MCPProfile.MUTATOR:
+         instructions += " " + MUTATOR_INSTRUCTIONS
+     if maintenance_host is not None:
+diff --git a/src/project_control/as1_context.py b/src/project_control/as1_context.py
+index 74f031e..38caa5b 100644
+--- a/src/project_control/as1_context.py
++++ b/src/project_control/as1_context.py
+@@ -228,44 +228,136 @@ class InformationService:
+         response_size = len(json.dumps(response, ensure_ascii=False).encode())
+         if response_size > RESPONSE_BUDGETS_BYTES[detail]:
+             # Exact excerpts are indivisible units. Keep them in the immutable
+-            # packet; return a targeted continuation instead of text slicing.
+-            continuation = {'tool': 'search', 'query': {'kind': 'packet',
+-                            'target': query.get('target') if tool == 'search' and isinstance(query, dict) and query.get('kind') == 'packet' else packet.packet_id},
+-                            'detail': 'extended' if self.host.profile == 'observer' else 'standard'}
++            # packet; offer a continuation only when its complete public packet
++            # search response fits within this caller's maximum permitted detail.
++            maximum_detail = 'extended' if self.host.profile == 'observer' else 'standard'
++            target = (query.get('target') if tool == 'search' and isinstance(query, dict)
++                      and query.get('kind') == 'packet' else packet.packet_id)
++            maximum_bytes = RESPONSE_BUDGETS_BYTES[maximum_detail]
++            required_bytes = self._packet_lookup_response_size(target, project)
++            if required_bytes is None:
++                required_bytes = response_size
++            required_bytes = max(required_bytes, response_size)
++            can_continue = detail != maximum_detail and required_bytes <= maximum_bytes
++            continuation = ({'tool': 'search', 'query': {'kind': 'packet', 'target': target},
++                             'detail': maximum_detail} if can_continue else None)
++            size_limit = {'reason': 'response_exceeds_profile_maximum',
++                          'maximum_detail': maximum_detail, 'maximum_bytes': maximum_bytes,
++                          'required_bytes': required_bytes}
++            source_count = len(response['sources'])
++            omitted_source_count = 0
+             if tool == 'impact':
+-                source_count = len(response['sources'])
+                 if len(response['sources']) > 2:
+                     response['sources'] = response['sources'][:2]
+-                response['coverage'] = {'complete': False,
+-                    'omissions': [*omissions[:2],
+-                                  *([{'reason': 'source_locators', 'omitted_count': source_count - 2}]
+-                                    if source_count > 2 else []),
+-                                  {'reason': 'response_budget', 'unit': 'utf8_bytes',
+-                                   'omitted_count': max(0, len(omissions) - 2)}]}
++                    omitted_source_count = source_count - 2
++                response['coverage'] = self._size_limited_coverage(
++                    coverage, size_limit=size_limit if not can_continue else None,
++                    source_count=omitted_source_count,
++                    extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
+                 base_size = len(json.dumps({**response, 'data': {}}, ensure_ascii=False).encode())
+-                preview_budget = max(256, RESPONSE_BUDGETS_BYTES[detail] - base_size - 64)
+-                response['data'] = self._impact_preview(packet.payload['data'], continuation, preview_budget)
++                limit_size = len(json.dumps(size_limit, ensure_ascii=False).encode()) + 16 if not can_continue else 0
++                preview_budget = max(256, RESPONSE_BUDGETS_BYTES[detail] - base_size - 64 - limit_size)
++                response['data'] = self._impact_preview(packet.payload['data'], continuation, preview_budget,
++                                                        size_limit=size_limit if not can_continue else None)
+                 # The wrapper budget includes sources and coverage too. If they
+                 # are unusually large, retry with the exact remaining space.
+                 actual_size = len(json.dumps(response, ensure_ascii=False).encode())
+                 if actual_size > RESPONSE_BUDGETS_BYTES[detail]:
+                     response['data'] = self._impact_preview(packet.payload['data'], continuation,
+-                        max(256, preview_budget - (actual_size - RESPONSE_BUDGETS_BYTES[detail]) - 64))
++                        max(256, preview_budget - (actual_size - RESPONSE_BUDGETS_BYTES[detail]) - 64 - limit_size),
++                        size_limit=size_limit if not can_continue else None)
+             else:
++                if len(response['sources']) > 2:
++                    response['sources'] = response['sources'][:2]
++                    omitted_source_count = source_count - 2
+                 response['data'] = {'continuation': continuation, 'needed_bytes': response_size}
+-                response['coverage'] = {**coverage, 'complete': False, 'omissions': [*omissions, {'reason': 'response_budget', 'unit': 'utf8_bytes'}]}
++                response['coverage'] = self._size_limited_coverage(
++                    coverage, source_count=omitted_source_count,
++                    extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
+             response['status'] = 'partial'
+             if tool == 'impact' and len(json.dumps(response, ensure_ascii=False).encode()) > RESPONSE_BUDGETS_BYTES[detail]:
+                 response['sources'] = []
+-                response['coverage'] = {'complete': False,
+-                                        'omissions': [{'reason': 'response_budget', 'unit': 'utf8_bytes'}]}
++                response['coverage'] = self._size_limited_coverage(
++                    coverage, size_limit=size_limit if not can_continue else None,
++                    source_count=len(sources),
++                    extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
+                 base_size = len(json.dumps({**response, 'data': {}}, ensure_ascii=False).encode())
++                limit_size = len(json.dumps(size_limit, ensure_ascii=False).encode()) + 16 if not can_continue else 0
+                 response['data'] = self._impact_preview(packet.payload['data'], continuation,
+-                    max(128, RESPONSE_BUDGETS_BYTES[detail] - base_size - 32))
++                    max(128, RESPONSE_BUDGETS_BYTES[detail] - base_size - 32 - limit_size),
++                    size_limit=size_limit if not can_continue else None)
++                if len(json.dumps(response, ensure_ascii=False).encode()) > RESPONSE_BUDGETS_BYTES[detail]:
++                    response['data'] = ({'continuation': continuation, 'needed_bytes': response_size}
++                                         if can_continue else {'size_limit': size_limit})
++                    response['coverage'] = self._size_limited_coverage(
++                        coverage, size_limit=size_limit if not can_continue else None,
++                        source_count=source_count,
++                        extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
++            if not can_continue and tool != 'impact':
++                response['data'] = {'size_limit': size_limit}
++                response['sources'] = []
++                response['coverage'] = self._size_limited_coverage(
++                    coverage, size_limit=size_limit, source_count=source_count)
+         return response
+ 
+     @staticmethod
+-    def _impact_preview(data, continuation, budget):
++    def _size_limited_coverage(coverage, *, size_limit=None, source_count=0, extra_omissions=()):
++        """Retain coverage provenance and important omissions in a small limit response."""
++        original = list(coverage.get('omissions', [])) if isinstance(coverage, dict) else []
++        important_reasons = {'local_worker_state_unavailable', 'cuda_evidence_unavailable',
++                             'evidence_unavailable'}
++        important = {}
++        ordinary = []
++        for item in original:
++            reason = item.get('reason') if isinstance(item, dict) else None
++            if isinstance(reason, str) and reason in important_reasons:
++                important.setdefault(reason, item)
++            else:
++                ordinary.append(item)
++        chosen = [*important.values(), *ordinary[:max(0, 8 - len(important))]]
++        omissions = []
++        for item in chosen:
++            if isinstance(item, dict):
++                compact = {key: item[key] for key in ('reason', 'unit', 'omitted_count', 'count') if key in item}
++                if len(compact) != len(item):
++                    compact['details_truncated'] = True
++                omissions.append(compact)
++            else:
++                omissions.append({'reason': 'provider_omission'})
++        omitted_count = len(original) - len(chosen)
++        if omitted_count:
++            omissions.append({'reason': 'coverage_omissions', 'omitted_count': omitted_count})
++        if source_count:
++            omissions.append({'reason': 'source_locators', 'omitted_count': source_count})
++        omissions.extend(extra_omissions)
++        if size_limit is not None:
++            omissions.append(size_limit)
++        return {**(coverage if isinstance(coverage, dict) else {}),
++                'complete': False, 'omissions': omissions}
++
++    def _packet_lookup_response_size(self, target, project):
++        """Estimate the next public packet-search response, including its wrapper."""
++        found = self.store.lookup(target, access_scope=self.host.scope(project))
++        if found.status != 'ok' or found.packet is None:
++            return None
++        data = {'kind': 'packet', 'target': target, 'resolution': 'ok',
++                'result': found.packet.payload,
++                'sources': [source.model_dump() for source in found.packet.sources]}
++        source_locators = self._anchors(project, data)
++        response = {
++            'status': 'ok',
++            # Packet identifiers use this fixed-width representation in storage.
++            'packet': 'pkt_' + ('0' * 32),
++            'data': data,
++            'sources': [source.model_dump(exclude_none=True) for source in source_locators],
++            'coverage': {'omissions': [], 'semantic_revision': None,
++                         'context_revision': None, 'context_project_uuid': None,
++                         'observed_at': utc_now(), 'complete': True},
++        }
++        return len(json.dumps(response, ensure_ascii=False).encode()) + 64
++
++    @staticmethod
++    def _impact_preview(data, continuation, budget, *, size_limit=None):
+         """Show a compact affected-path sample while keeping the packet addressable."""
+         dependencies = data.get('dependencies', [])
+         compact_node = lambda node: {key: node[key] for key in
+@@ -301,8 +393,11 @@ class InformationService:
+                    'dependencies': sample,
+                    'unknown_scope': unknown,
+                    'coverage': {'complete_graph_cut': data.get('coverage', {}).get('complete_graph_cut')},
+-                   'traversal': traversal, 'warnings': data.get('warnings', [])[:1],
+-                   'continuation': continuation}
++                   'traversal': traversal, 'warnings': data.get('warnings', [])[:1]}
++        if continuation is not None:
++            preview['continuation'] = continuation
++        if size_limit is not None:
++            preview['size_limit'] = size_limit
+         if len(data.get('warnings', [])) > len(preview['warnings']):
+             preview['warning_omissions'] = {'full_count': len(data['warnings']),
+                                             'omitted_count': len(data['warnings']) - len(preview['warnings'])}
+@@ -331,8 +426,12 @@ class InformationService:
+             target = compact_node(seed) if isinstance(seed, dict) else {}
+             affected = dependencies[0].get('node', {}) if dependencies else {}
+             preview = {'generation': data.get('generation'), 'target': target,
+-                       'affected_node': compact_node(affected), 'unknown_scope': unknown[:1], 'continuation': continuation,
++                       'affected_node': compact_node(affected), 'unknown_scope': unknown[:1],
+                        'omissions': {'section': 'trace_preview', 'full_sha256': full_dependency_digest}}
++            if continuation is not None:
++                preview['continuation'] = continuation
++            if size_limit is not None:
++                preview['size_limit'] = size_limit
+             while len(encoded(preview)) > budget and preview.get('affected_node'):
+                 preview.pop('affected_node')
+                 preview['omissions']['affected_node_omitted'] = True
+diff --git a/src/project_control/as1_jobs.py b/src/project_control/as1_jobs.py
+index 0bea6fd..5a24211 100644
+--- a/src/project_control/as1_jobs.py
++++ b/src/project_control/as1_jobs.py
+@@ -29,6 +29,7 @@ CHECKPOINT_MAX_FRAME_BYTES = 32768
+ CHECKPOINT_MAX_BYTES = 96 * 1024
+ WORKER_JOB_INPUT_MAX_BYTES = 256 * 1024
+ WORKER_OBSERVATION_MAX_BYTES = 32768
++EXECUTION_SLOT_CAPACITY = 2
+ _DB_LOCK = threading.RLock()
+ _LOGGER = logging.getLogger(__name__)
+ _RECONCILE_LOCKS_GUARD = threading.Lock()
+@@ -151,6 +152,24 @@ _CLOSE_RECEIPT_ERROR_CODES = frozenset({
+     'close_receipt_gpu_scope_invalid', 'session_not_active',
+     'resource_metadata_must_be_json',
+ })
++_CLEANUP_ERROR_CODES = frozenset({
++    'observer_session_close_failed',
++    'observer_session_close_unproved',
++    'observer_close_receipt_persist_failed',
++    'observer_session_cleanup_failed',
++} | {
++    f'observer_close_receipt_persist_failed_{code}'
++    for code in _CLOSE_RECEIPT_ERROR_CODES
++})
++_INQUIRY_THINKING_QUEUED = (
++    'Read-only analysis was accepted and is waiting to run. Continue useful work '
++    'and repeat the identical question later; avoid submitting variants.')
++_INQUIRY_THINKING_RUNNING = (
++    'Read-only analysis is running. Continue useful work and repeat the identical '
++    'question later; avoid submitting variants.')
++_INQUIRY_THINKING_GENERIC = (
++    'Read-only analysis is in progress. Continue useful work and repeat the identical '
++    'question later; avoid submitting variants.')
+ 
+ 
+ def _demand_readiness_failure_reason(value):
+@@ -192,6 +211,17 @@ def _public_wait_reason(value):
+     return 'pending'
+ 
+ 
++def _inquiry_thinking_result(job_status=None):
++    """Return a content-free pending response with a known durable phase, if any."""
++    if job_status in {'queued', 'queued_after_eviction'}:
++        message = _INQUIRY_THINKING_QUEUED
++    elif job_status == 'running':
++        message = _INQUIRY_THINKING_RUNNING
++    else:
++        message = _INQUIRY_THINKING_GENERIC
++    return {'status': 'thinking', 'message': message}
++
++
+ class InvalidToolArguments(ValueError):
+     """Pre-dispatch argument error, distinct from authority/backend failures."""
+ 
+@@ -390,7 +420,7 @@ class JobService:
+                 CREATE TABLE IF NOT EXISTS pa1_child_packets(parent_id TEXT NOT NULL,generation INTEGER NOT NULL,
+                     child_id TEXT NOT NULL,packet_id TEXT NOT NULL UNIQUE,
+                     PRIMARY KEY(parent_id,generation,child_id));
+-                CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0);''')
++                CREATE TABLE IF NOT EXISTS execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL, owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0, cleanup_error_code TEXT);''')
+             db.execute('''CREATE TABLE IF NOT EXISTS stale_execution_cleanup_audit(
+                 receipt_id TEXT PRIMARY KEY, job TEXT NOT NULL, slot_attempt INTEGER NOT NULL,
+                 owner_pid INTEGER NOT NULL, owner_start TEXT NOT NULL, release_request_id TEXT NOT NULL,
+@@ -414,6 +444,8 @@ class JobService:
+                 db.execute('ALTER TABLE execution_slots ADD COLUMN owner_start TEXT')
+             if 'cleanup_failed' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
+                 db.execute('ALTER TABLE execution_slots ADD COLUMN cleanup_failed INTEGER NOT NULL DEFAULT 0')
++            if 'cleanup_error_code' not in {r['name'] for r in db.execute('PRAGMA table_info(execution_slots)')}:
++                db.execute('ALTER TABLE execution_slots ADD COLUMN cleanup_error_code TEXT')
+             db.execute('CREATE TABLE IF NOT EXISTS broker_migrations(name TEXT PRIMARY KEY)')
+             FrameStore.initialize(db)
+             PowerPolicy.initialize(db)
+@@ -571,7 +603,10 @@ class JobService:
+                 WHERE json_extract(record,'$.status') NOT IN ('completed','partial','failed','cancelled')
+                 ORDER BY updated,id LIMIT 64""").fetchall()
+             slots = db.execute('SELECT job,attempt,owner_pid,owner_start,cleanup_failed FROM execution_slots ORDER BY job LIMIT 16').fetchall()
+-            slot_count = db.execute('SELECT count(*) FROM execution_slots').fetchone()[0]
++            slot_count = int(db.execute('SELECT count(*) FROM execution_slots').fetchone()[0])
++            cleanup_failed_count = int(db.execute('SELECT count(*) FROM execution_slots WHERE cleanup_failed=1').fetchone()[0])
++            cleanup_errors = db.execute('''SELECT job,attempt,cleanup_error_code FROM execution_slots
++                WHERE cleanup_failed=1 ORDER BY job LIMIT 16''').fetchall()
+             resources = ResourceController(db, power_policy=PowerPolicy(db, clock=self.clock),
+                                            clock=self.clock).summary()
+         active = []
+@@ -587,10 +622,19 @@ class JobService:
+                 active.append({'job_id': row['id'], 'status': 'unavailable',
+                                'wait_reason': 'job_record_invalid'})
+         return {'active_work': active, 'active_work_truncated': len(rows) >= 64,
++            'execution_capacity': {'total': EXECUTION_SLOT_CAPACITY,
++                'occupied': slot_count,
++                'available': max(0, EXECUTION_SLOT_CAPACITY - slot_count),
++                'degraded_by_failed_cleanup': cleanup_failed_count > 0},
+             'active_execution_slots': [{'job_id': row['job'], 'attempt': row['attempt'],
+                 'cleanup_pending': bool(row['cleanup_failed']),
+                 'owner_pid': row['owner_pid'], 'owner_process_start': row['owner_start']}
+                 for row in slots], 'active_execution_slots_truncated': slot_count > len(slots),
++            'execution_cleanup_errors': [{'job_id': row['job'], 'attempt': row['attempt'],
++                'cleanup_error_code': (row['cleanup_error_code']
++                    if row['cleanup_error_code'] in _CLEANUP_ERROR_CODES else None)}
++                for row in cleanup_errors],
++            'execution_cleanup_errors_truncated': cleanup_failed_count > len(cleanup_errors),
+             'owned_resources': resources,
+             'dispatcher': self.health()['dispatcher']}
+ 
+@@ -1738,21 +1782,21 @@ class JobService:
+                 unavailable = self._ensure_demand_runtime(startup_timeout)
+                 if unavailable:
+                     return unavailable
+-                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++                return _inquiry_thinking_result(previous.status)
+             if not self._cache_eligible(previous.model_dump()):
+                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
+             if not self._settled(previous.job_id):
+                 unavailable = self._ensure_demand_runtime(startup_timeout)
+                 if unavailable:
+                     return unavailable
+-                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++                return _inquiry_thinking_result()
+             freshness = self.freshness_provider(previous.model_dump()) if self.freshness_provider else {'fresh': False}
+             freshness_snapshot = {'job_id': row['id'], 'record': row['record'], 'freshness': freshness}
+             if previous.status in {'completed', 'partial'} and freshness.get('fresh'):
+                 with self._db() as db:
+                     current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
+                     if not current or current['id'] != row['id'] or current['record'] != row['record']:
+-                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++                        return _inquiry_thinking_result()
+                     if not self._inquiry_authorized(json.loads(current['record']), scope):
+                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
+                     observations = self._public_observations(db, current)
+@@ -1761,7 +1805,7 @@ class JobService:
+                 with self._db() as db:
+                     current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
+                     if not current or current['id'] != row['id'] or current['record'] != row['record']:
+-                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++                        return _inquiry_thinking_result()
+                     current_job = json.loads(current['record'])
+                     if not self._inquiry_authorized(current_job, scope):
+                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
+@@ -1778,7 +1822,7 @@ class JobService:
+                 with self._db() as db:
+                     current = db.execute('SELECT jobs.* FROM inquiry_index JOIN jobs ON jobs.id=inquiry_index.job WHERE identity=?', (identity,)).fetchone()
+                     if not current or current['id'] != row['id'] or current['record'] != row['record']:
+-                        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++                        return _inquiry_thinking_result()
+                     if not self._inquiry_authorized(json.loads(current['record']), scope):
+                         return {'status': 'unavailable', 'reason': 'access_unavailable'}
+                 return {'status': 'unavailable', 'reason': 'freshness_unverifiable'}
+@@ -1792,7 +1836,7 @@ class JobService:
+             _freshness_snapshot=freshness_snapshot)
+         if not admitted['accepted']:
+             if admitted['reason'] == 'inquiry_changed':
+-                return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++                return _inquiry_thinking_result()
+             return {'status': 'busy' if admitted['reason'] == 'admission_limit' else 'unavailable',
+                     'reason': admitted['reason']}
+         value = self.lookup_inquiry(admitted['job_id'], access_scope=scope)
+@@ -1803,7 +1847,7 @@ class JobService:
+         if value['job']['status'] in {'completed', 'partial'} and self._settled(value['job']['job_id']):
+             return {**value, 'status': value['job']['status']}
+         if not admitted.get('immediate') or admitted.get('retry'):
+-            return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++            return _inquiry_thinking_result(value['job'].get('status'))
+         end = time.monotonic() + max(0, min(30, foreground_timeout))
+         while time.monotonic() < end:
+             value = self.lookup_inquiry(admitted['job_id'], access_scope=scope)
+@@ -1816,7 +1860,8 @@ class JobService:
+             if value['job']['status'] in {'failed', 'cancelled'}:
+                 return {'status': 'unavailable', 'reason': 'analysis_unavailable'}
+             time.sleep(min(.02, max(0, end-time.monotonic())))
+-        return {'status': 'thinking', 'message': 'Read-only analysis is in progress.'}
++        pending_status = value.get('job', {}).get('status') if isinstance(value.get('job'), dict) else None
++        return _inquiry_thinking_result(pending_status)
+ 
+     @staticmethod
+     def _cache_eligible(job):
+@@ -2221,7 +2266,7 @@ class JobService:
+                     continue
+                 if row['available'] > now:
+                     continue
+-                if db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] >= 2:
++                if db.execute('SELECT count(*) FROM execution_slots').fetchone()[0] >= EXECUTION_SLOT_CAPACITY:
+                     continue
+                 job.attempt += 1; job.status = 'running'
+                 if frame is not None:
+@@ -3080,9 +3125,12 @@ class JobService:
+                             self.last_error = 'observer_close_receipt_missing'
+             except Exception:
+                 cleanup_failed = True
+-                self.last_error = cleanup_error_code or 'observer_session_cleanup_failed'
++                cleanup_error_code = (cleanup_error_code if cleanup_error_code in _CLEANUP_ERROR_CODES
++                                      else 'observer_session_cleanup_failed')
++                self.last_error = cleanup_error_code
+                 with self._db() as db:
+-                    db.execute('UPDATE execution_slots SET cleanup_failed=1 WHERE job=? AND attempt=?', (job.job_id, job.attempt))
++                    db.execute('UPDATE execution_slots SET cleanup_failed=1,cleanup_error_code=? WHERE job=? AND attempt=?',
++                        (cleanup_error_code, job.job_id, job.attempt))
+             finally:
+                 heartbeat_stop.set(); heartbeat.join()
+                 if not cleanup_failed:
+diff --git a/src/project_control/as1_surface.py b/src/project_control/as1_surface.py
+index d04d074..8b153e2 100644
+--- a/src/project_control/as1_surface.py
++++ b/src/project_control/as1_surface.py
+@@ -16,7 +16,9 @@ from .as1_contracts import (ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAI
+                             SourceLocator, canonical_digest, relative_path)
+ from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
+ from .as1_jobs import (JobService, TrustedObserverFactory, InvalidToolArguments,
+-                       ObserverLogArguments, source_locator_for_registered_roots)
++                       ObserverLogArguments, source_locator_for_registered_roots,
++                       _INQUIRY_THINKING_GENERIC, _INQUIRY_THINKING_QUEUED,
++                       _INQUIRY_THINKING_RUNNING)
+ from .as1_packets import SQLitePacketStore
+ from .as1_skill import (SkillService, SkillObserverFactory, _verified_reads,
+                         _entry_precedes_resource, registered_skill_roots)
+@@ -321,7 +323,12 @@ _PRIVATE_INQUIRY_FIELDS.update({
+ def public_inquiry(value):
+     if isinstance(value, dict):
+         if value.get('status') == 'thinking':
+-            return {'status': 'thinking', 'message': 'Read-only analysis is in progress. Continue useful work and repeat the identical question later; avoid submitting variants.'}
++            message = value.get('message')
++            if message not in {_INQUIRY_THINKING_QUEUED,
++                               _INQUIRY_THINKING_RUNNING,
++                               _INQUIRY_THINKING_GENERIC}:
++                message = _INQUIRY_THINKING_GENERIC
++            return {'status': 'thinking', 'message': message}
+         if value.get('status') == 'busy':
+             return {'status': 'busy', 'message': 'Read-only analysis is busy. This question was not accepted. Use search, read or evidence to contextualize or refine a later question.'}
+         return {key: public_inquiry(item) for key, item in value.items()
+@@ -1011,8 +1018,8 @@ def register_surface(mcp, c):
+         'history': 'Trace supported history for a project subject, optionally bounded by from_revision and to_revision. Returns scoped history with source locators.',
+         'machine': 'Read host facts or diagnostics selected by query_or_view, such as memory or runtime status. This reports machine context, not repository changes.',
+         'read': 'Read exact project repository paths or requested ranges, optionally from a named repository and revision. Returns content with immutable source identities; observer profile only.',
+-        'investigate': 'Ask a read-only question about project context using optional evidence packet hints. A cached answer for the same question and context is reused only while its sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Completed findings retain evidence and source references; use read or evidence to inspect authoritative source.',
+-        'skill': 'Read-only discovery and use of an installed native skill for a question, using optional project context and evidence hints. Always returns extended authoritative excerpts (up to 49,152 excerpt bytes across selected resources); this is a ceiling, not a target. The agent synthesis should stay concise and include useful context without repeating the excerpts. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
++        'investigate': 'Use this agent for bounded read-only project questions that can be answered by gathering and summarizing specific source or evidence. Its reasoning is limited; ask it to use the controlled Project Control environment to inspect targeted sources with search, read, evidence, history or machine, then report grounded findings and uncertainty. Keep system architecture, complex inference, strategy and consequential decisions with the caller, using the gathered facts. A cached answer for the same question and context is reused only while its sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Completed findings retain evidence and source references; inspect authoritative source for important claims.',
++        'skill': 'Read-only discovery and use of an installed native skill to find relevant instructions, using optional project context and evidence hints. This read-only agent can return focused guidance, source references and uncertainty, but its reasoning is limited; use the controlled Project Control environment to identify authoritative skill content. Keep system architecture, complex inference, strategy and consequential decisions with the caller. Always returns extended authoritative excerpts (up to 49,152 excerpt bytes across selected resources); this is a ceiling, not a target. The agent synthesis should stay concise and include useful context without repeating the excerpts. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
+         'command': 'Run a bounded read-only command within the configured repository roots using argv, optional cwd, and limits. Host policy clamps execution limits; output is recorded as evidence. No delegation or mutation.',
+         'log': 'Retrieve up to five question-and-answer briefs from the global latest-50 answered-inquiry cache, using query/path_or_entity for lexical matches. Optional project narrows results; job_id remains a compatibility exact-record read.',
+         'plan': 'Validate or compare a native Todo plan, or apply, amend, supersede, or retire project work through the scoped transaction authority. For exact run replacement, action=supersede with intent prepares a reviewed principal-bound grant; execute only that returned authorization_id through maintain_execution. The Todo engine is bundled with Project Control; this path does not require the Todo Orchestrator skill.',
+diff --git a/src/project_control/services/evidence.py b/src/project_control/services/evidence.py
+index fa34e1c..08d6103 100644
+--- a/src/project_control/services/evidence.py
++++ b/src/project_control/services/evidence.py
+@@ -201,6 +201,8 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
+     data = {
+         "claim": request.subject,
+         "confidence": confidence,
++        "confidence_basis": "matching_evidence_presence",
++        "claim_support_status": "not_evaluated",
+         "support": support[: request.max_items],
+         "contradictions": contradictions[: request.max_items],
+         "stale_or_historical": stale[: request.max_items],
+diff --git a/src/project_control/services/frontier.py b/src/project_control/services/frontier.py
+index bb8f1b8..512b48a 100644
+--- a/src/project_control/services/frontier.py
++++ b/src/project_control/services/frontier.py
+@@ -95,7 +95,17 @@ def project_frontier(snapshot: ProjectSnapshot, *, max_ready: int = 20, include_
+             if task.get("effective_state") == "blocked":
+                 blockers = [item for item in dependencies.get(task_id, []) if dependency_unmet(item)]
+                 blockers.extend(recovery_by_task.get(task_id, []))
+-                blocked.append({"id": task_id, "title": task.get("title"), "immediate_blockers": list(dict.fromkeys(blockers))})
++                entry = {"id": task_id, "title": task.get("title"), "immediate_blockers": list(dict.fromkeys(blockers))}
++                next_action = task.get("next_action")
++                if not entry["immediate_blockers"] and isinstance(next_action, str) and next_action:
++                    raw = next_action.encode("utf-8")
++                    preview = raw[:512].decode("utf-8", errors="ignore")
++                    entry["recorded_context"] = {
++                        "label": "raw canonical task.next_action",
++                        "next_action_preview": preview,
++                        "truncated": len(raw) > 512,
++                    }
++                blocked.append(entry)
+     active_claims = [
+         {"task_id": item.get("task_id"), "observed_state": "active", "source": "todo_status"}
+         for item in snapshot.todo_status.get("active_claims", [])
+diff --git a/tests/as1/test_pc_as1_context.py b/tests/as1/test_pc_as1_context.py
+index ecc6489..e372e0b 100644
+--- a/tests/as1/test_pc_as1_context.py
++++ b/tests/as1/test_pc_as1_context.py
+@@ -5,6 +5,7 @@ import os
+ from pathlib import Path
+ import subprocess
+ import sys
++from types import SimpleNamespace
+ from unittest.mock import patch
+ 
+ import pytest
+@@ -224,6 +225,75 @@ def test_applied_skill_notes_sources_and_budget_exactness(world):
+     compact = world[3].call('read', project='demo', paths=['big.py'])
+     assert compact['status'] == 'partial' and compact['data']['continuation']['query']['kind'] == 'packet'
+     assert world[2].resolve(compact['packet'], access_scope=world[3].host.scope('demo')).payload['data']['files'][0]['content'] == 'x'*6000+'\n'
++    continuation = compact['data']['continuation']
++    expanded = world[3].call(continuation['tool'], project='demo', detail=continuation['detail'],
++                             query=continuation['query'])
++    assert expanded['status'] == 'ok'
++    assert expanded['data']['result']['data']['files'][0]['content'] == 'x'*6000+'\n'
++    assert 'continuation' not in expanded['data']
++    assert len(json.dumps(expanded, ensure_ascii=False).encode()) <= context_module.RESPONSE_BUDGETS_BYTES['extended']
++
++
++@pytest.mark.as1_case('CTX-11')
++def test_indivisible_packet_over_profile_max_has_no_unusable_continuation(world):
++    (world[0]/'over-standard.py').write_text('s'*9000+'\n')
++    standard_source = world[3].call('read', project='demo', paths=['over-standard.py'])
++    assert standard_source['status'] == 'partial'
++    assert standard_source['data']['continuation']['detail'] == 'extended'
++    standard_packet = standard_source['packet']
++
++    world[3].host = ContextHost('coder', 'alice', frozenset({'demo'}))
++    standard_lookup = world[3].call('search', project='demo', detail='standard',
++                                    query={'kind': 'packet', 'target': standard_packet})
++    assert standard_lookup['status'] == 'partial'
++    assert 'continuation' not in standard_lookup['data']
++    assert standard_lookup['data']['size_limit']['maximum_detail'] == 'standard'
++    assert standard_lookup['data']['size_limit']['maximum_bytes'] == context_module.RESPONSE_BUDGETS_BYTES['standard']
++    assert world[2].lookup(standard_packet, access_scope=world[3].host.scope('demo')).status == 'ok'
++
++    world[3].host = ContextHost('observer', 'alice', frozenset({'demo'}))
++    (world[0]/'over-extended.py').write_text('e'*70000+'\n')
++    extended = world[3].call('read', project='demo', detail='extended', paths=['over-extended.py'])
++    assert extended['status'] == 'partial'
++    assert 'continuation' not in extended['data']
++    assert extended['data']['size_limit']['maximum_detail'] == 'extended'
++    assert extended['data']['size_limit']['maximum_bytes'] == context_module.RESPONSE_BUDGETS_BYTES['extended']
++    assert world[2].lookup(extended['packet'], access_scope=world[3].host.scope('demo')).status == 'ok'
++
++
++@pytest.mark.as1_case('CTX-11')
++def test_size_limit_keeps_provider_omissions_and_coverage_identity(world):
++    missing = ['local_worker_state_unavailable', 'cuda_evidence_unavailable', 'evidence_unavailable']
++    oversized = {'summary': 'x' * 70000, 'warnings': missing}
++    with patch.object(context_module, 'project_frontier', return_value=SimpleNamespace(data=oversized)):
++        result = world[3].call('frontier', project='demo', detail='extended')
++
++    assert result['status'] == 'partial'
++    assert 'continuation' not in result['data']
++    reasons = {item['reason'] for item in result['coverage']['omissions']}
++    assert set(missing).issubset(reasons)
++    assert result['coverage']['semantic_revision'] == world[1].todo_revision
++    assert result['coverage']['observed_at'] == world[1].observed_at
++    assert world[2].lookup(result['packet'], access_scope=world[3].host.scope('demo')).status == 'ok'
++
++
++@pytest.mark.as1_case('CTX-11')
++def test_impact_unknown_target_cannot_overflow_extended_response(world):
++    huge_target = '🧪' * 20000
++    world[3].impact_provider = lambda **_: {
++        'seeds': [], 'dependencies': [], 'unknown_scope': [
++            {'target': huge_target, 'reason': 'unresolved'}],
++        'coverage': {'complete_graph_cut': False}, 'traversal': {}, 'warnings': [],
++    }
++
++    result = world[3].call('impact', project='demo', detail='extended', targets=[])
++    encoded = json.dumps(result, ensure_ascii=False).encode('utf-8')
++    assert result['status'] == 'partial'
++    assert len(encoded) <= context_module.RESPONSE_BUDGETS_BYTES['extended']
++    assert set(result['data']) == {'size_limit'}
++    assert result['data']['size_limit']['maximum_detail'] == 'extended'
++    assert result['coverage']['semantic_revision'] == world[1].todo_revision
++    assert world[2].lookup(result['packet'], access_scope=world[3].host.scope('demo')).status == 'ok'
+ 
+ 
+ @pytest.mark.as1_case('CTX-01', 'CTX-11')
+diff --git a/tests/as1/test_pc_as1_surface.py b/tests/as1/test_pc_as1_surface.py
+index 62d163c..2f79a2a 100644
+--- a/tests/as1/test_pc_as1_surface.py
++++ b/tests/as1/test_pc_as1_surface.py
+@@ -144,6 +144,13 @@ def test_observer_guidance_and_pending_response_are_read_oriented(servers):
+     from unittest.mock import Mock
+     server = servers()
+     tools = {tool.name: tool for tool in run(server.list_tools())}
++    for phrase in (
++        'limited reasoning', 'bounded evidence gathering', 'targeted read-only source or machine inspection',
++        'straightforward grounded summaries', 'skill lookup', 'not stronger reasoning',
++        'broad architecture', 'multi-project synthesis', 'narrow factual subquestions',
++        'no implementation delegation, coding or network authority',
++    ):
++        assert phrase in server.instructions.lower(), phrase
+     for text in (server.instructions, tools['investigate'].description, tools['skill'].description):
+         assert 'read-only' in text.lower()
+         assert 'job_id' not in text and 'poll' not in text
+diff --git a/tests/assistance/test_broker_close_persistence.py b/tests/assistance/test_broker_close_persistence.py
+index f3a3ebc..13bdf93 100644
+--- a/tests/assistance/test_broker_close_persistence.py
++++ b/tests/assistance/test_broker_close_persistence.py
+@@ -1,12 +1,14 @@
+ """Broker close and receipt-persistence failure classification."""
+ from __future__ import annotations
+ 
++import sqlite3
+ import time
+ 
+ from project_control.as1_contracts import DurableJob
+ from project_control.as1_jobs import JobService
+ from project_control.as1_packets import SQLitePacketStore
+ from project_control.assistance.resources import ResourceController, ResourceControllerError
++from project_control.observer_analysis import _orphan_cleanup_slots_from_status
+ 
+ 
+ SCOPE = {"principal": "cleanup-test", "profile": "observer", "project": "fixture"}
+@@ -67,7 +69,7 @@ def execute_one(tmp_path, backend):
+ 
+ def cleanup_rows(service, job_id):
+     with service._db() as db:
+-        slot = db.execute("SELECT cleanup_failed FROM execution_slots WHERE job=?", (job_id,)).fetchone()
++        slot = db.execute("SELECT cleanup_failed,cleanup_error_code FROM execution_slots WHERE job=?", (job_id,)).fetchone()
+         resources = db.execute("SELECT state FROM pa1_owned_resource_sessions WHERE session_id=?",
+             (RECEIPT["session_id"],)).fetchone()
+     return slot, resources
+@@ -95,6 +97,7 @@ def test_broker_reports_receipt_persistence_failure_separately(tmp_path, monkeyp
+ 
+     slot, resource = cleanup_rows(service, job.job_id)
+     assert slot["cleanup_failed"] == 1
++    assert slot["cleanup_error_code"] == "observer_close_receipt_persist_failed"
+     assert resource["state"] == "active"
+     assert service.last_error == "observer_close_receipt_persist_failed"
+ 
+@@ -108,6 +111,9 @@ def test_broker_preserves_only_allowlisted_receipt_error_code(tmp_path, monkeypa
+     monkeypatch.setattr(ResourceController, "record_session", fail_persist)
+     service._execute(job)
+ 
++    slot, _resource = cleanup_rows(service, job.job_id)
++    assert slot["cleanup_error_code"] == (
++        "observer_close_receipt_persist_failed_close_receipt_identity_invalid")
+     assert service.last_error == (
+         "observer_close_receipt_persist_failed_close_receipt_identity_invalid")
+ 
+@@ -119,5 +125,81 @@ def test_broker_reports_close_failure_separately(tmp_path):
+ 
+     slot, resource = cleanup_rows(service, job.job_id)
+     assert slot["cleanup_failed"] == 1
++    assert slot["cleanup_error_code"] == "observer_session_close_failed"
+     assert resource["state"] == "active"
+     assert service.last_error == "observer_session_close_failed"
++
++
++def test_broker_persists_only_allowlisted_cleanup_code(tmp_path):
++    service, job = execute_one(tmp_path, Backend(close_error=True))
++
++    service._execute(job)
++
++    slot, _resource = cleanup_rows(service, job.job_id)
++    assert slot["cleanup_failed"] == 1
++    assert slot["cleanup_error_code"] == "observer_session_close_failed"
++    assert "private transport detail" not in str(dict(slot))
++
++
++def test_cleanup_error_code_migration_preserves_old_rows_and_is_idempotent(tmp_path):
++    directory = tmp_path / "jobs"
++    directory.mkdir()
++    path = directory / "jobs.sqlite3"
++    with sqlite3.connect(path) as db:
++        db.execute("""CREATE TABLE execution_slots(
++            job TEXT PRIMARY KEY, attempt INTEGER NOT NULL, lease REAL NOT NULL,
++            owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0)""")
++        db.execute("INSERT INTO execution_slots VALUES(?,?,?,?,?,?)",
++            ("legacy-job", 4, 123.0, 987, "legacy-process-start", 1))
++
++    first = JobService(directory, packets=SQLitePacketStore(tmp_path / "packets"))
++    first.shutdown(timeout=0)
++    second = JobService(directory, packets=SQLitePacketStore(tmp_path / "packets"))
++    with second._db() as db:
++        columns = [row["name"] for row in db.execute("PRAGMA table_info(execution_slots)")]
++        row = db.execute("SELECT * FROM execution_slots WHERE job='legacy-job'").fetchone()
++    assert columns.count("cleanup_error_code") == 1
++    assert row["attempt"] == 4
++    assert row["owner_pid"] == 987
++    assert row["owner_start"] == "legacy-process-start"
++    assert row["cleanup_failed"] == 1
++    assert row["cleanup_error_code"] is None
++
++
++def test_demand_work_status_reports_cleanup_degraded_capacity(tmp_path):
++    service, job = execute_one(tmp_path, Backend())
++    with service._db() as db:
++        db.execute("UPDATE execution_slots SET cleanup_failed=1,cleanup_error_code=? WHERE job=?",
++            ("observer_session_close_failed", job.job_id))
++
++    status = service.demand_work_status()
++
++    assert status["execution_capacity"] == {
++        "total": 2, "occupied": 1, "available": 1,
++        "degraded_by_failed_cleanup": True,
++    }
++    assert status["execution_cleanup_errors"] == [{"job_id": job.job_id, "attempt": 1,
++        "cleanup_error_code": "observer_session_close_failed"}]
++
++
++def test_demand_status_slot_projection_remains_accepted_by_orphan_verifier(tmp_path, monkeypatch):
++    service, job = execute_one(tmp_path, Backend())
++    terminal = job.model_copy(update={"status": "failed"})
++    with service._db() as db:
++        db.execute("UPDATE jobs SET record=? WHERE id=?", (terminal.model_dump_json(), job.job_id))
++        db.execute("""UPDATE execution_slots SET owner_pid=321,owner_start='11111',
++            cleanup_failed=1,cleanup_error_code=? WHERE job=?""",
++            ("observer_session_close_failed", job.job_id))
++    monkeypatch.setattr("project_control.observer_analysis._proc_start_time",
++                        lambda _pid: "22222")
++
++    status = service.demand_work_status()
++
++    assert status["active_work"] == []
++    slot = status["active_execution_slots"][0]
++    assert set(slot) == {"job_id", "attempt", "cleanup_pending", "owner_pid", "owner_process_start"}
++    assert status["execution_cleanup_errors"] == [{"job_id": job.job_id, "attempt": 1,
++        "cleanup_error_code": "observer_session_close_failed"}]
++    assert _orphan_cleanup_slots_from_status(status) == [{"job_id": job.job_id,
++        "attempt": 1, "cleanup_pending": True, "owner_pid": 321,
++        "owner_process_start": "11111"}]
+diff --git a/tests/assistance/test_demand_broker.py b/tests/assistance/test_demand_broker.py
+index 1fe45b8..7d49ae1 100644
+--- a/tests/assistance/test_demand_broker.py
++++ b/tests/assistance/test_demand_broker.py
+@@ -5,8 +5,10 @@ import threading
+ from unittest.mock import patch
+ import pytest
+ 
++from project_control.as1_contracts import DurableJob
+ from project_control.as1_jobs import JobService
+ from project_control.as1_packets import SQLitePacketStore
++from project_control.as1_surface import public_inquiry
+ from project_control.assistance.power import trusted_operator_control
+ from project_control.assistance.power import PowerPolicy
+ from project_control.assistance.resources import ResourceController
+@@ -54,6 +56,43 @@ def test_fresh_explicit_inquiry_ensures_runtime_but_fresh_cache_does_not(tmp_pat
+         service.shutdown()
+ 
+ 
++def test_pending_inquiries_distinguish_durable_queue_from_running_without_private_fields(tmp_path):
++    service = JobService(tmp_path / "jobs", packets=SQLitePacketStore(tmp_path / "packets"))
++    observed = {}
++    for status in ("queued", "running"):
++        question = f"pending {status} question"
++        job = DurableJob(job_id=f"job-pending-{status}", mode="investigate", question=question,
++            hints=[], status=status, attempt=0 if status == "queued" else 1,
++            created_at="2026-10-08T00:00:00Z", findings=[], evidence_packets=[],
++            unresolved_questions=[], answer=None, project="pc", scope=SCOPE,
++            deadline_epoch=time.time() + 60)
++        identity = service._inquiry_identity(question, SCOPE, "investigate", None)
++        with service._db() as db:
++            db.execute("INSERT INTO jobs(id,scope,request_hash,record,updated,inquiry) VALUES(?,?,?,?,?,1)",
++                (job.job_id, json.dumps(SCOPE, sort_keys=True, separators=(",", ":")),
++                 "c" * 64, job.model_dump_json(), time.time()))
++            db.execute("INSERT INTO inquiry_index(identity,job) VALUES(?,?)", (identity, job.job_id))
++
++        result = public_inquiry(service.inquire(question, SCOPE, foreground_timeout=0))
++        observed[status] = result
++
++    assert observed["queued"]["status"] == observed["running"]["status"] == "thinking"
++    assert "accepted and is waiting to run" in observed["queued"]["message"]
++    assert "analysis is running" in observed["running"]["message"]
++    assert observed["queued"]["message"] != observed["running"]["message"]
++    assert "job-pending" not in json.dumps(observed)
++    assert "attempt" not in json.dumps(observed)
++
++    nested = public_inquiry({"continuation": {
++        "status": "thinking", "message": observed["queued"]["message"],
++        "job_id": "job-private-nested", "attempt": 3}})
++    assert nested == {"continuation": {"status": "thinking",
++        "message": observed["queued"]["message"]}}
++    ambiguous = public_inquiry({"status": "thinking", "message": "private queued phase"})
++    assert "accepted and is waiting" not in ambiguous["message"]
++    assert "private queued phase" not in ambiguous["message"]
++
++
+ def test_runtime_identity_failure_prevents_new_durable_admission(tmp_path):
+     service = JobService(tmp_path / 'jobs', packets=SQLitePacketStore(tmp_path / 'packets'))
+ 
+diff --git a/tests/assistance/test_inquiry_guidance.py b/tests/assistance/test_inquiry_guidance.py
+new file mode 100644
+index 0000000..e22ca09
+--- /dev/null
++++ b/tests/assistance/test_inquiry_guidance.py
+@@ -0,0 +1,30 @@
++"""Agentic inquiry tool descriptions preserve the intended reasoning boundary."""
++from __future__ import annotations
++
++import asyncio
++from types import SimpleNamespace
++
++from project_control.as1_surface import register_surface
++from project_control.profiles import MCPProfile, ProfiledFastMCP
++
++
++def test_registered_observer_tools_explain_bounded_reasoning_and_retry_contract():
++    server = ProfiledFastMCP("guidance-test", profile=MCPProfile.OBSERVER)
++    register_surface(server, SimpleNamespace())
++    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
++
++    investigate = tools["investigate"].description
++    assert "reasoning is limited" in investigate
++    assert "controlled Project Control environment" in investigate
++    assert "system architecture, complex inference, strategy and consequential decisions" in investigate
++    assert "repeat the identical question later" in investigate
++    assert "If busy" in investigate
++    assert "source" in investigate and "uncertainty" in investigate
++
++    skill = tools["skill"].description
++    assert "reasoning is limited" in skill
++    assert "installed native skill" in skill
++    assert "controlled Project Control environment" in skill
++    assert "complex inference, strategy and consequential decisions" in skill
++    assert "repeat the identical question later" in skill
++    assert "If busy" in skill
+diff --git a/tests/test_project_model.py b/tests/test_project_model.py
+index d82ce78..673e7cd 100644
+--- a/tests/test_project_model.py
++++ b/tests/test_project_model.py
+@@ -169,6 +169,28 @@ class ProjectModelTests(unittest.TestCase):
+         self.assertIn("heuristic", result.data["critical_path_basis"])
+         self.assertEqual(result.data["blocked"][0]["immediate_blockers"], ["T2"])
+ 
++    def test_blocked_frontier_exposes_only_bounded_raw_next_action_context(self) -> None:
++        snapshot = fixture_snapshot().model_copy(deep=True)
++        tasks = snapshot.todo_tables["tasks"]
++        blocked = next(task for task in tasks if task["id"] == "T3")
++        blocked.update(status="blocked", next_action="🧪" * 150)
++        snapshot.todo_tables["task_dependencies"] = []
++
++        result = project_frontier(snapshot)
++        item = next(entry for entry in result.data["blocked"] if entry["id"] == "T3")
++        context = item["recorded_context"]
++        self.assertEqual(item["immediate_blockers"], [])
++        self.assertEqual(context["label"], "raw canonical task.next_action")
++        self.assertLessEqual(len(context["next_action_preview"].encode("utf-8")), 512)
++        self.assertTrue(context["truncated"])
++        self.assertEqual([entry["id"] for entry in result.data["ready"]], ["T2"])
++
++        blocked["next_action"] = ""
++        absent = project_frontier(snapshot)
++        absent_item = next(entry for entry in absent.data["blocked"] if entry["id"] == "T3")
++        self.assertEqual(absent_item["immediate_blockers"], [])
++        self.assertNotIn("recorded_context", absent_item)
++
+     def test_frontier_omits_completed_prerequisite_and_reports_task_recovery(self) -> None:
+         snapshot = fixture_snapshot().model_copy(deep=True)
+         snapshot.todo_tables["task_dependencies"] = [{"task_id": "T3", "prerequisite_task_id": "T0"}]
+diff --git a/tests/test_query_services.py b/tests/test_query_services.py
+index 6ebcacd..9bf1975 100644
+--- a/tests/test_query_services.py
++++ b/tests/test_query_services.py
+@@ -106,6 +106,8 @@ class QueryServiceTests(unittest.TestCase):
+     def test_evidence_reports_support_and_provenance(self) -> None:
+         result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["gates", "worker", "git"], detail="provenance"))
+         self.assertEqual(result.data["confidence"], "high")
++        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
++        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
+         self.assertIn("todo-gate:G1", result.data["provenance_ids"])
+         self.assertNotIn("stdout", json.dumps(result.model_dump()))
+ 
+@@ -124,13 +126,32 @@ class QueryServiceTests(unittest.TestCase):
+         subject = "THIS-SUBJECT-DEFINITELY-DOES-NOT-EXIST-XYZ-92841"
+         result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject=subject, kinds=["git"]))
+         self.assertEqual(result.data["confidence"], "insufficient")
++        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
++        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
+         self.assertEqual(result.data["support"], [])
+ 
+     def test_git_evidence_requires_matching_repository_or_commit(self) -> None:
+         result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="source", kinds=["git"]))
+         self.assertEqual(result.data["confidence"], "high")
++        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
++        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
+         self.assertEqual(result.data["support"][0]["kind"], "git_identity")
+ 
++    def test_source_filename_mention_is_not_labeled_as_claim_support(self) -> None:
++        incidental = self.root / "install.sh"
++        incidental.write_text("# Build helper\ninstall -m 644 README.md ./share/README.md\n", encoding="utf-8")
++        subprocess.run(["git", "add", "install.sh"], cwd=self.root, check=True, capture_output=True)
++        subprocess.run(["git", "commit", "-m", "add incidental filename mention"], cwd=self.root, check=True, capture_output=True)
++
++        result = evidence_for(self.config, self.snapshot, EvidenceInput(
++            project="demo", subject="README.md", kinds=["source"], detail="provenance",
++        ))
++
++        self.assertEqual(result.data["confidence"], "high")
++        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
++        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
++        self.assertTrue(any(item.get("path") == "install.sh" for item in result.data["support"]))
++
+     def test_agents_are_observable_only(self) -> None:
+         result = agent_status(self.snapshot, AgentStatusInput(project="demo"))
+         self.assertTrue(result.data["observable_only"])

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -224,6 +225,75 @@ def test_applied_skill_notes_sources_and_budget_exactness(world):
     compact = world[3].call('read', project='demo', paths=['big.py'])
     assert compact['status'] == 'partial' and compact['data']['continuation']['query']['kind'] == 'packet'
     assert world[2].resolve(compact['packet'], access_scope=world[3].host.scope('demo')).payload['data']['files'][0]['content'] == 'x'*6000+'\n'
+    continuation = compact['data']['continuation']
+    expanded = world[3].call(continuation['tool'], project='demo', detail=continuation['detail'],
+                             query=continuation['query'])
+    assert expanded['status'] == 'ok'
+    assert expanded['data']['result']['data']['files'][0]['content'] == 'x'*6000+'\n'
+    assert 'continuation' not in expanded['data']
+    assert len(json.dumps(expanded, ensure_ascii=False).encode()) <= context_module.RESPONSE_BUDGETS_BYTES['extended']
+
+
+@pytest.mark.as1_case('CTX-11')
+def test_indivisible_packet_over_profile_max_has_no_unusable_continuation(world):
+    (world[0]/'over-standard.py').write_text('s'*9000+'\n')
+    standard_source = world[3].call('read', project='demo', paths=['over-standard.py'])
+    assert standard_source['status'] == 'partial'
+    assert standard_source['data']['continuation']['detail'] == 'extended'
+    standard_packet = standard_source['packet']
+
+    world[3].host = ContextHost('coder', 'alice', frozenset({'demo'}))
+    standard_lookup = world[3].call('search', project='demo', detail='standard',
+                                    query={'kind': 'packet', 'target': standard_packet})
+    assert standard_lookup['status'] == 'partial'
+    assert 'continuation' not in standard_lookup['data']
+    assert standard_lookup['data']['size_limit']['maximum_detail'] == 'standard'
+    assert standard_lookup['data']['size_limit']['maximum_bytes'] == context_module.RESPONSE_BUDGETS_BYTES['standard']
+    assert world[2].lookup(standard_packet, access_scope=world[3].host.scope('demo')).status == 'ok'
+
+    world[3].host = ContextHost('observer', 'alice', frozenset({'demo'}))
+    (world[0]/'over-extended.py').write_text('e'*70000+'\n')
+    extended = world[3].call('read', project='demo', detail='extended', paths=['over-extended.py'])
+    assert extended['status'] == 'partial'
+    assert 'continuation' not in extended['data']
+    assert extended['data']['size_limit']['maximum_detail'] == 'extended'
+    assert extended['data']['size_limit']['maximum_bytes'] == context_module.RESPONSE_BUDGETS_BYTES['extended']
+    assert world[2].lookup(extended['packet'], access_scope=world[3].host.scope('demo')).status == 'ok'
+
+
+@pytest.mark.as1_case('CTX-11')
+def test_size_limit_keeps_provider_omissions_and_coverage_identity(world):
+    missing = ['local_worker_state_unavailable', 'cuda_evidence_unavailable', 'evidence_unavailable']
+    oversized = {'summary': 'x' * 70000, 'warnings': missing}
+    with patch.object(context_module, 'project_frontier', return_value=SimpleNamespace(data=oversized)):
+        result = world[3].call('frontier', project='demo', detail='extended')
+
+    assert result['status'] == 'partial'
+    assert 'continuation' not in result['data']
+    reasons = {item['reason'] for item in result['coverage']['omissions']}
+    assert set(missing).issubset(reasons)
+    assert result['coverage']['semantic_revision'] == world[1].todo_revision
+    assert result['coverage']['observed_at'] == world[1].observed_at
+    assert world[2].lookup(result['packet'], access_scope=world[3].host.scope('demo')).status == 'ok'
+
+
+@pytest.mark.as1_case('CTX-11')
+def test_impact_unknown_target_cannot_overflow_extended_response(world):
+    huge_target = '🧪' * 20000
+    world[3].impact_provider = lambda **_: {
+        'seeds': [], 'dependencies': [], 'unknown_scope': [
+            {'target': huge_target, 'reason': 'unresolved'}],
+        'coverage': {'complete_graph_cut': False}, 'traversal': {}, 'warnings': [],
+    }
+
+    result = world[3].call('impact', project='demo', detail='extended', targets=[])
+    encoded = json.dumps(result, ensure_ascii=False).encode('utf-8')
+    assert result['status'] == 'partial'
+    assert len(encoded) <= context_module.RESPONSE_BUDGETS_BYTES['extended']
+    assert set(result['data']) == {'size_limit'}
+    assert result['data']['size_limit']['maximum_detail'] == 'extended'
+    assert result['coverage']['semantic_revision'] == world[1].todo_revision
+    assert world[2].lookup(result['packet'], access_scope=world[3].host.scope('demo')).status == 'ok'
 
 
 @pytest.mark.as1_case('CTX-01', 'CTX-11')

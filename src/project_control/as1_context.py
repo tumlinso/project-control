@@ -228,44 +228,136 @@ class InformationService:
         response_size = len(json.dumps(response, ensure_ascii=False).encode())
         if response_size > RESPONSE_BUDGETS_BYTES[detail]:
             # Exact excerpts are indivisible units. Keep them in the immutable
-            # packet; return a targeted continuation instead of text slicing.
-            continuation = {'tool': 'search', 'query': {'kind': 'packet',
-                            'target': query.get('target') if tool == 'search' and isinstance(query, dict) and query.get('kind') == 'packet' else packet.packet_id},
-                            'detail': 'extended' if self.host.profile == 'observer' else 'standard'}
+            # packet; offer a continuation only when its complete public packet
+            # search response fits within this caller's maximum permitted detail.
+            maximum_detail = 'extended' if self.host.profile == 'observer' else 'standard'
+            target = (query.get('target') if tool == 'search' and isinstance(query, dict)
+                      and query.get('kind') == 'packet' else packet.packet_id)
+            maximum_bytes = RESPONSE_BUDGETS_BYTES[maximum_detail]
+            required_bytes = self._packet_lookup_response_size(target, project)
+            if required_bytes is None:
+                required_bytes = response_size
+            required_bytes = max(required_bytes, response_size)
+            can_continue = detail != maximum_detail and required_bytes <= maximum_bytes
+            continuation = ({'tool': 'search', 'query': {'kind': 'packet', 'target': target},
+                             'detail': maximum_detail} if can_continue else None)
+            size_limit = {'reason': 'response_exceeds_profile_maximum',
+                          'maximum_detail': maximum_detail, 'maximum_bytes': maximum_bytes,
+                          'required_bytes': required_bytes}
+            source_count = len(response['sources'])
+            omitted_source_count = 0
             if tool == 'impact':
-                source_count = len(response['sources'])
                 if len(response['sources']) > 2:
                     response['sources'] = response['sources'][:2]
-                response['coverage'] = {'complete': False,
-                    'omissions': [*omissions[:2],
-                                  *([{'reason': 'source_locators', 'omitted_count': source_count - 2}]
-                                    if source_count > 2 else []),
-                                  {'reason': 'response_budget', 'unit': 'utf8_bytes',
-                                   'omitted_count': max(0, len(omissions) - 2)}]}
+                    omitted_source_count = source_count - 2
+                response['coverage'] = self._size_limited_coverage(
+                    coverage, size_limit=size_limit if not can_continue else None,
+                    source_count=omitted_source_count,
+                    extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
                 base_size = len(json.dumps({**response, 'data': {}}, ensure_ascii=False).encode())
-                preview_budget = max(256, RESPONSE_BUDGETS_BYTES[detail] - base_size - 64)
-                response['data'] = self._impact_preview(packet.payload['data'], continuation, preview_budget)
+                limit_size = len(json.dumps(size_limit, ensure_ascii=False).encode()) + 16 if not can_continue else 0
+                preview_budget = max(256, RESPONSE_BUDGETS_BYTES[detail] - base_size - 64 - limit_size)
+                response['data'] = self._impact_preview(packet.payload['data'], continuation, preview_budget,
+                                                        size_limit=size_limit if not can_continue else None)
                 # The wrapper budget includes sources and coverage too. If they
                 # are unusually large, retry with the exact remaining space.
                 actual_size = len(json.dumps(response, ensure_ascii=False).encode())
                 if actual_size > RESPONSE_BUDGETS_BYTES[detail]:
                     response['data'] = self._impact_preview(packet.payload['data'], continuation,
-                        max(256, preview_budget - (actual_size - RESPONSE_BUDGETS_BYTES[detail]) - 64))
+                        max(256, preview_budget - (actual_size - RESPONSE_BUDGETS_BYTES[detail]) - 64 - limit_size),
+                        size_limit=size_limit if not can_continue else None)
             else:
+                if len(response['sources']) > 2:
+                    response['sources'] = response['sources'][:2]
+                    omitted_source_count = source_count - 2
                 response['data'] = {'continuation': continuation, 'needed_bytes': response_size}
-                response['coverage'] = {**coverage, 'complete': False, 'omissions': [*omissions, {'reason': 'response_budget', 'unit': 'utf8_bytes'}]}
+                response['coverage'] = self._size_limited_coverage(
+                    coverage, source_count=omitted_source_count,
+                    extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
             response['status'] = 'partial'
             if tool == 'impact' and len(json.dumps(response, ensure_ascii=False).encode()) > RESPONSE_BUDGETS_BYTES[detail]:
                 response['sources'] = []
-                response['coverage'] = {'complete': False,
-                                        'omissions': [{'reason': 'response_budget', 'unit': 'utf8_bytes'}]}
+                response['coverage'] = self._size_limited_coverage(
+                    coverage, size_limit=size_limit if not can_continue else None,
+                    source_count=len(sources),
+                    extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
                 base_size = len(json.dumps({**response, 'data': {}}, ensure_ascii=False).encode())
+                limit_size = len(json.dumps(size_limit, ensure_ascii=False).encode()) + 16 if not can_continue else 0
                 response['data'] = self._impact_preview(packet.payload['data'], continuation,
-                    max(128, RESPONSE_BUDGETS_BYTES[detail] - base_size - 32))
+                    max(128, RESPONSE_BUDGETS_BYTES[detail] - base_size - 32 - limit_size),
+                    size_limit=size_limit if not can_continue else None)
+                if len(json.dumps(response, ensure_ascii=False).encode()) > RESPONSE_BUDGETS_BYTES[detail]:
+                    response['data'] = ({'continuation': continuation, 'needed_bytes': response_size}
+                                         if can_continue else {'size_limit': size_limit})
+                    response['coverage'] = self._size_limited_coverage(
+                        coverage, size_limit=size_limit if not can_continue else None,
+                        source_count=source_count,
+                        extra_omissions=[{'reason': 'response_budget', 'unit': 'utf8_bytes'}])
+            if not can_continue and tool != 'impact':
+                response['data'] = {'size_limit': size_limit}
+                response['sources'] = []
+                response['coverage'] = self._size_limited_coverage(
+                    coverage, size_limit=size_limit, source_count=source_count)
         return response
 
     @staticmethod
-    def _impact_preview(data, continuation, budget):
+    def _size_limited_coverage(coverage, *, size_limit=None, source_count=0, extra_omissions=()):
+        """Retain coverage provenance and important omissions in a small limit response."""
+        original = list(coverage.get('omissions', [])) if isinstance(coverage, dict) else []
+        important_reasons = {'local_worker_state_unavailable', 'cuda_evidence_unavailable',
+                             'evidence_unavailable'}
+        important = {}
+        ordinary = []
+        for item in original:
+            reason = item.get('reason') if isinstance(item, dict) else None
+            if isinstance(reason, str) and reason in important_reasons:
+                important.setdefault(reason, item)
+            else:
+                ordinary.append(item)
+        chosen = [*important.values(), *ordinary[:max(0, 8 - len(important))]]
+        omissions = []
+        for item in chosen:
+            if isinstance(item, dict):
+                compact = {key: item[key] for key in ('reason', 'unit', 'omitted_count', 'count') if key in item}
+                if len(compact) != len(item):
+                    compact['details_truncated'] = True
+                omissions.append(compact)
+            else:
+                omissions.append({'reason': 'provider_omission'})
+        omitted_count = len(original) - len(chosen)
+        if omitted_count:
+            omissions.append({'reason': 'coverage_omissions', 'omitted_count': omitted_count})
+        if source_count:
+            omissions.append({'reason': 'source_locators', 'omitted_count': source_count})
+        omissions.extend(extra_omissions)
+        if size_limit is not None:
+            omissions.append(size_limit)
+        return {**(coverage if isinstance(coverage, dict) else {}),
+                'complete': False, 'omissions': omissions}
+
+    def _packet_lookup_response_size(self, target, project):
+        """Estimate the next public packet-search response, including its wrapper."""
+        found = self.store.lookup(target, access_scope=self.host.scope(project))
+        if found.status != 'ok' or found.packet is None:
+            return None
+        data = {'kind': 'packet', 'target': target, 'resolution': 'ok',
+                'result': found.packet.payload,
+                'sources': [source.model_dump() for source in found.packet.sources]}
+        source_locators = self._anchors(project, data)
+        response = {
+            'status': 'ok',
+            # Packet identifiers use this fixed-width representation in storage.
+            'packet': 'pkt_' + ('0' * 32),
+            'data': data,
+            'sources': [source.model_dump(exclude_none=True) for source in source_locators],
+            'coverage': {'omissions': [], 'semantic_revision': None,
+                         'context_revision': None, 'context_project_uuid': None,
+                         'observed_at': utc_now(), 'complete': True},
+        }
+        return len(json.dumps(response, ensure_ascii=False).encode()) + 64
+
+    @staticmethod
+    def _impact_preview(data, continuation, budget, *, size_limit=None):
         """Show a compact affected-path sample while keeping the packet addressable."""
         dependencies = data.get('dependencies', [])
         compact_node = lambda node: {key: node[key] for key in
@@ -301,8 +393,11 @@ class InformationService:
                    'dependencies': sample,
                    'unknown_scope': unknown,
                    'coverage': {'complete_graph_cut': data.get('coverage', {}).get('complete_graph_cut')},
-                   'traversal': traversal, 'warnings': data.get('warnings', [])[:1],
-                   'continuation': continuation}
+                   'traversal': traversal, 'warnings': data.get('warnings', [])[:1]}
+        if continuation is not None:
+            preview['continuation'] = continuation
+        if size_limit is not None:
+            preview['size_limit'] = size_limit
         if len(data.get('warnings', [])) > len(preview['warnings']):
             preview['warning_omissions'] = {'full_count': len(data['warnings']),
                                             'omitted_count': len(data['warnings']) - len(preview['warnings'])}
@@ -331,8 +426,12 @@ class InformationService:
             target = compact_node(seed) if isinstance(seed, dict) else {}
             affected = dependencies[0].get('node', {}) if dependencies else {}
             preview = {'generation': data.get('generation'), 'target': target,
-                       'affected_node': compact_node(affected), 'unknown_scope': unknown[:1], 'continuation': continuation,
+                       'affected_node': compact_node(affected), 'unknown_scope': unknown[:1],
                        'omissions': {'section': 'trace_preview', 'full_sha256': full_dependency_digest}}
+            if continuation is not None:
+                preview['continuation'] = continuation
+            if size_limit is not None:
+                preview['size_limit'] = size_limit
             while len(encoded(preview)) > budget and preview.get('affected_node'):
                 preview.pop('affected_node')
                 preview['omissions']['affected_node_omitted'] = True

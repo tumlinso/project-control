@@ -5,8 +5,10 @@ import threading
 from unittest.mock import patch
 import pytest
 
+from project_control.as1_contracts import DurableJob
 from project_control.as1_jobs import JobService
 from project_control.as1_packets import SQLitePacketStore
+from project_control.as1_surface import public_inquiry
 from project_control.assistance.power import trusted_operator_control
 from project_control.assistance.power import PowerPolicy
 from project_control.assistance.resources import ResourceController
@@ -52,6 +54,43 @@ def test_fresh_explicit_inquiry_ensures_runtime_but_fresh_cache_does_not(tmp_pat
         assert len(starts) == 1
     finally:
         service.shutdown()
+
+
+def test_pending_inquiries_distinguish_durable_queue_from_running_without_private_fields(tmp_path):
+    service = JobService(tmp_path / "jobs", packets=SQLitePacketStore(tmp_path / "packets"))
+    observed = {}
+    for status in ("queued", "running"):
+        question = f"pending {status} question"
+        job = DurableJob(job_id=f"job-pending-{status}", mode="investigate", question=question,
+            hints=[], status=status, attempt=0 if status == "queued" else 1,
+            created_at="2026-10-08T00:00:00Z", findings=[], evidence_packets=[],
+            unresolved_questions=[], answer=None, project="pc", scope=SCOPE,
+            deadline_epoch=time.time() + 60)
+        identity = service._inquiry_identity(question, SCOPE, "investigate", None)
+        with service._db() as db:
+            db.execute("INSERT INTO jobs(id,scope,request_hash,record,updated,inquiry) VALUES(?,?,?,?,?,1)",
+                (job.job_id, json.dumps(SCOPE, sort_keys=True, separators=(",", ":")),
+                 "c" * 64, job.model_dump_json(), time.time()))
+            db.execute("INSERT INTO inquiry_index(identity,job) VALUES(?,?)", (identity, job.job_id))
+
+        result = public_inquiry(service.inquire(question, SCOPE, foreground_timeout=0))
+        observed[status] = result
+
+    assert observed["queued"]["status"] == observed["running"]["status"] == "thinking"
+    assert "accepted and is waiting to run" in observed["queued"]["message"]
+    assert "analysis is running" in observed["running"]["message"]
+    assert observed["queued"]["message"] != observed["running"]["message"]
+    assert "job-pending" not in json.dumps(observed)
+    assert "attempt" not in json.dumps(observed)
+
+    nested = public_inquiry({"continuation": {
+        "status": "thinking", "message": observed["queued"]["message"],
+        "job_id": "job-private-nested", "attempt": 3}})
+    assert nested == {"continuation": {"status": "thinking",
+        "message": observed["queued"]["message"]}}
+    ambiguous = public_inquiry({"status": "thinking", "message": "private queued phase"})
+    assert "accepted and is waiting" not in ambiguous["message"]
+    assert "private queued phase" not in ambiguous["message"]
 
 
 def test_runtime_identity_failure_prevents_new_durable_admission(tmp_path):

@@ -16,7 +16,9 @@ from .as1_contracts import (ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAI
                             SourceLocator, canonical_digest, relative_path)
 from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
 from .as1_jobs import (JobService, TrustedObserverFactory, InvalidToolArguments,
-                       ObserverLogArguments, source_locator_for_registered_roots)
+                       ObserverLogArguments, source_locator_for_registered_roots,
+                       _INQUIRY_THINKING_GENERIC, _INQUIRY_THINKING_QUEUED,
+                       _INQUIRY_THINKING_RUNNING)
 from .as1_packets import SQLitePacketStore
 from .as1_skill import (SkillService, SkillObserverFactory, _verified_reads,
                         _entry_precedes_resource, registered_skill_roots)
@@ -321,7 +323,12 @@ _PRIVATE_INQUIRY_FIELDS.update({
 def public_inquiry(value):
     if isinstance(value, dict):
         if value.get('status') == 'thinking':
-            return {'status': 'thinking', 'message': 'Read-only analysis is in progress. Continue useful work and repeat the identical question later; avoid submitting variants.'}
+            message = value.get('message')
+            if message not in {_INQUIRY_THINKING_QUEUED,
+                               _INQUIRY_THINKING_RUNNING,
+                               _INQUIRY_THINKING_GENERIC}:
+                message = _INQUIRY_THINKING_GENERIC
+            return {'status': 'thinking', 'message': message}
         if value.get('status') == 'busy':
             return {'status': 'busy', 'message': 'Read-only analysis is busy. This question was not accepted. Use search, read or evidence to contextualize or refine a later question.'}
         return {key: public_inquiry(item) for key, item in value.items()
@@ -1011,8 +1018,8 @@ def register_surface(mcp, c):
         'history': 'Trace supported history for a project subject, optionally bounded by from_revision and to_revision. Returns scoped history with source locators.',
         'machine': 'Read host facts or diagnostics selected by query_or_view, such as memory or runtime status. This reports machine context, not repository changes.',
         'read': 'Read exact project repository paths or requested ranges, optionally from a named repository and revision. Returns content with immutable source identities; observer profile only.',
-        'investigate': 'Ask a read-only question about project context using optional evidence packet hints. A cached answer for the same question and context is reused only while its sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Completed findings retain evidence and source references; use read or evidence to inspect authoritative source.',
-        'skill': 'Read-only discovery and use of an installed native skill for a question, using optional project context and evidence hints. Always returns extended authoritative excerpts (up to 49,152 excerpt bytes across selected resources); this is a ceiling, not a target. The agent synthesis should stay concise and include useful context without repeating the excerpts. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
+        'investigate': 'Use this agent for bounded read-only project questions that can be answered by gathering and summarizing specific source or evidence. Its reasoning is limited; ask it to use the controlled Project Control environment to inspect targeted sources with search, read, evidence, history or machine, then report grounded findings and uncertainty. Keep system architecture, complex inference, strategy and consequential decisions with the caller, using the gathered facts. A cached answer for the same question and context is reused only while its sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Completed findings retain evidence and source references; inspect authoritative source for important claims.',
+        'skill': 'Read-only discovery and use of an installed native skill to find relevant instructions, using optional project context and evidence hints. This read-only agent can return focused guidance, source references and uncertainty, but its reasoning is limited; use the controlled Project Control environment to identify authoritative skill content. Keep system architecture, complex inference, strategy and consequential decisions with the caller. Always returns extended authoritative excerpts (up to 49,152 excerpt bytes across selected resources); this is a ceiling, not a target. The agent synthesis should stay concise and include useful context without repeating the excerpts. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
         'command': 'Run a bounded read-only command within the configured repository roots using argv, optional cwd, and limits. Host policy clamps execution limits; output is recorded as evidence. No delegation or mutation.',
         'log': 'Retrieve up to five question-and-answer briefs from the global latest-50 answered-inquiry cache, using query/path_or_entity for lexical matches. Optional project narrows results; job_id remains a compatibility exact-record read.',
         'plan': 'Validate or compare a native Todo plan, or apply, amend, supersede, or retire project work through the scoped transaction authority. For exact run replacement, action=supersede with intent prepares a reviewed principal-bound grant; execute only that returned authorization_id through maintain_execution. The Todo engine is bundled with Project Control; this path does not require the Todo Orchestrator skill.',

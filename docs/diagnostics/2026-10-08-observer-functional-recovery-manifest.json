@@ -1,0 +1,44 @@
+{
+  "activation": "activated_and_functionally_verified",
+  "files": [
+    {
+      "path": "src/project_control/as1_jobs.py",
+      "before_sha256": "3ab9057e53bc82efb19cbac53ef3a73d0aa0549bd84e70eb9591b86c2c177d89",
+      "after_sha256": "04d5dc329b6bc55a1818e6ccbb9a24dacfdfd79355870d9a5b54b5ad7161cc0f"
+    },
+    {
+      "path": "src/project_control/observer_analysis.py",
+      "before_sha256": "85010e22146e9b0bca7a80384bef83096b2d8aa7160213244695f47ce143e6ea",
+      "after_sha256": "fdbaae1a8dc3999a7b0db3639e7f61cdbce82391cabe51abc9b0bf4e2fdcf7dd"
+    },
+    {
+      "path": "src/project_control/assistance/resources.py",
+      "before_sha256": "e6359916056356229422ea7f9dcb58b7652da7105027c0529ee8473aa6f7fa94",
+      "after_sha256": "99de3d06f694ce41d62576b24ff180988dc5b8aebc2cbfe54227743a04c26155"
+    },
+    {
+      "path": "tests/assistance/test_archived_epoch_recovery.py",
+      "before_sha256": null,
+      "after_sha256": "a4d32e575012991b373474a831a823e41f5b4b9ee0bfad1d02335db12e038a8d"
+    }
+  ],
+  "patch_sha256": "eeaa569223020de48a48f580aef34d0f6d68d2a87b73e2702c7ad4b41f31b3a0",
+  "backup_directory": "/home/tumlinson/project-control/.cache/observer-functional-recovery-20261008",
+  "verification": {
+    "observer_investigate": "completed",
+    "observer_skill": "completed",
+    "local_assistance": "completed",
+    "fresh_codex_stdio": "passed",
+    "connected_client_cached_retrieval": "passed",
+    "capacity": {
+      "available": 2,
+      "degraded_by_failed_cleanup": false,
+      "occupied": 0,
+      "total": 2
+    },
+    "http_health": "ok",
+    "readiness": "ready",
+    "automatic_assistance_enabled": false,
+    "source_fingerprint": "7897320b1cdd39a0e95cc783dcd646dc43b82f9b2fbac6f124213feb2dab5482"
+  }
+}

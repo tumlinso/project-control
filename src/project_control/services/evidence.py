@@ -201,6 +201,8 @@ def evidence_for(config: ProjectControlConfig, snapshot: ProjectSnapshot, reques
     data = {
         "claim": request.subject,
         "confidence": confidence,
+        "confidence_basis": "matching_evidence_presence",
+        "claim_support_status": "not_evaluated",
         "support": support[: request.max_items],
         "contradictions": contradictions[: request.max_items],
         "stale_or_historical": stale[: request.max_items],

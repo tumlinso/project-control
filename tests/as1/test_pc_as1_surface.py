@@ -144,6 +144,13 @@ def test_observer_guidance_and_pending_response_are_read_oriented(servers):
     from unittest.mock import Mock
     server = servers()
     tools = {tool.name: tool for tool in run(server.list_tools())}
+    for phrase in (
+        'limited reasoning', 'bounded evidence gathering', 'targeted read-only source or machine inspection',
+        'straightforward grounded summaries', 'skill lookup', 'not stronger reasoning',
+        'broad architecture', 'multi-project synthesis', 'narrow factual subquestions',
+        'no implementation delegation, coding or network authority',
+    ):
+        assert phrase in server.instructions.lower(), phrase
     for text in (server.instructions, tools['investigate'].description, tools['skill'].description):
         assert 'read-only' in text.lower()
         assert 'job_id' not in text and 'poll' not in text

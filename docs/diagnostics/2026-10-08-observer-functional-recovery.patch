@@ -1,0 +1,1494 @@
+--- a/src/project_control/as1_jobs.py
++++ b/src/project_control/as1_jobs.py
+@@ -13,9 +13,11 @@
+ import re
+ from pathlib import Path
+ import sqlite3
++import stat
+ import threading
+ import time
+ import uuid
++from urllib.parse import quote
+ from pydantic import BaseModel, ConfigDict, Field, ValidationError
+ 
+ from .as1_contracts import DurableJob, Finding, InformationPacket, SourceLocator, canonical_digest
+@@ -77,6 +79,58 @@
+                     fcntl.flock(fd, fcntl.LOCK_UN)
+             finally:
+                 os.close(fd)
++
++
++class _HostAdmissionFence:
++    """Bounded lock proving no external host admission can race recovery."""
++
++    __slots__ = ("connection", "deadline")
++
++    def __init__(self, connection: sqlite3.Connection, deadline: float):
++        self.connection = connection
++        self.deadline = deadline
++
++    def check(self) -> None:
++        if not self.connection.in_transaction:
++            raise RuntimeError("source_recovery_host_admission_fence_lost")
++        if time.monotonic() > self.deadline:
++            raise TimeoutError("source_recovery_host_admission_fence_expired")
++
++
++@contextmanager
++def _host_admission_fence(*, max_seconds: float = 45.0):
++    """Hold HostCoordinator's SQLite writer reservation without changing rows.
++
++    ``mode=rw`` plus lstat prevents recovery from silently creating a missing
++    host authority database.  BEGIN IMMEDIATE serializes the ordinary owner
++    and foreground-intent admission writers until the whole recheck/ACK/slot
++    reconciliation finishes.
++    """
++    connection = None
++    try:
++        from todo_orchestrator.background.host import HostCoordinator
++
++        host = HostCoordinator(create=False)
++        database = Path(host.database)
++        info = database.lstat()
++        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
++            raise RuntimeError("host_runtime_database_identity_invalid")
++        uri = f"file:{quote(str(database.resolve(strict=True)), safe='/')}?mode=rw"
++        connection = sqlite3.connect(uri, uri=True, timeout=5, isolation_level=None)
++        connection.execute("PRAGMA busy_timeout=5000")
++        connection.execute("BEGIN IMMEDIATE")
++    except Exception as error:
++        if connection is not None:
++            connection.close()
++        raise RuntimeError("source_recovery_host_admission_fence_unavailable") from error
++    fence = _HostAdmissionFence(connection, time.monotonic() + max_seconds)
++    try:
++        fence.check()
++        yield fence
++    finally:
++        if connection.in_transaction:
++            connection.rollback()
++        connection.close()
+ 
+ 
+ def _load_assistance_components():
+@@ -680,61 +734,120 @@
+         else:
+             raise ValueError('stale_execution_slot_owner_absence_unverifiable')
+ 
++        from .observer_analysis import (_is_verified_physical_release,
++            _require_process_absent, _source_identity_snapshot)
++        archived_recovery_proof = _is_verified_physical_release(proof)
+         if not isinstance(proof, dict):
+             raise ValueError('stale_execution_cleanup_proof_required')
+-        required = {'format', 'job_id', 'attempt', 'owner_pid', 'owner_start', 'observed_at',
+-            'release_manifest_sha256', 'helper', 'owner_process_absent', 'gpu_uuids',
+-            'compute_processes', 'gpu_memory_mib', 'host_conflicts', 'native',
+-            'process_released', 'memory_released', 'verified'}
+-        if set(proof) != required:
+-            raise ValueError('stale_execution_cleanup_proof_fields_invalid')
+         now = float(self.clock())
+-        observed_at = proof.get('observed_at')
+-        if (proof.get('format') != 'PC-AS1-STALE-EXECUTION-CLEANUP/1'
+-                or proof.get('job_id') != job_id or type(proof.get('attempt')) is not int
+-                or proof.get('attempt') != attempt or type(proof.get('owner_pid')) is not int
+-                or proof.get('owner_pid') != owner_pid or proof.get('owner_start') != owner_start
+-                or isinstance(observed_at, bool) or not isinstance(observed_at, (int, float))
+-                or not math.isfinite(float(observed_at)) or not now - 60 <= float(observed_at) <= now + 5):
+-            raise ValueError('stale_execution_cleanup_proof_identity_or_freshness_invalid')
+-        from .runtime_binding import RELEASE_DIGEST_VARIABLE
+-        expected_release_digest = os.environ.get(RELEASE_DIGEST_VARIABLE)
+-        if (not isinstance(expected_release_digest, str)
+-                or not re.fullmatch(r'[0-9a-f]{64}', expected_release_digest)
+-                or proof.get('release_manifest_sha256') != expected_release_digest):
+-            raise ValueError('stale_execution_cleanup_release_pin_mismatch')
+-        helper = proof.get('helper')
+-        if (not isinstance(helper, dict)
+-                or set(helper) != {'unit', 'active_state', 'main_pid', 'kill_mode'}
+-                or type(helper.get('main_pid')) is not int
+-                or helper != {'unit': 'project-control-inference.service', 'active_state': 'inactive',
+-                              'main_pid': 0, 'kill_mode': 'control-group'}):
+-            raise ValueError('stale_execution_cleanup_helper_state_invalid')
+-        if (proof.get('owner_process_absent') is not True
+-                or proof.get('process_released') is not True
+-                or proof.get('memory_released') is not True
+-                or proof.get('verified') is not True
+-                or proof.get('compute_processes') != []
+-                or proof.get('host_conflicts') != []):
+-            raise ValueError('stale_execution_cleanup_release_unproved')
+-        native = proof.get('native')
+-        if (not isinstance(native, dict) or set(native) != {'active_leases', 'session_count'}
+-                or type(native.get('active_leases')) is not int
+-                or type(native.get('session_count')) is not int
+-                or native != {'active_leases': 0, 'session_count': 0}):
+-            raise ValueError('stale_execution_cleanup_native_state_invalid')
+         allowed_gpu_uuids = getattr(self.backend, '_allowed_gpu_uuids', None)
+-        gpu_uuids = proof.get('gpu_uuids')
+-        memory = proof.get('gpu_memory_mib')
+-        if (not isinstance(allowed_gpu_uuids, (list, tuple)) or not allowed_gpu_uuids
+-                or any(not isinstance(item, str) or not item.startswith('GPU-') for item in allowed_gpu_uuids)
+-                or not isinstance(gpu_uuids, list)
+-                or any(not isinstance(item, str) for item in gpu_uuids)
+-                or set(gpu_uuids) != set(allowed_gpu_uuids)
+-                or len(gpu_uuids) != len(set(gpu_uuids))
+-                or not isinstance(memory, dict) or set(memory) != set(allowed_gpu_uuids)
+-                or any(type(memory[item]) is not int or memory[item] != 0 for item in allowed_gpu_uuids)):
+-            raise ValueError('stale_execution_cleanup_gpu_scope_or_memory_invalid')
++        if archived_recovery_proof:
++            try:
++                current_source = _source_identity_snapshot()
++            except Exception as error:
++                raise ValueError('stale_execution_cleanup_source_identity_unavailable') from error
++            observed_at = proof.get('captured_at')
++            slots = proof.get('orphan_execution_slots')
++            matches = [item for item in slots if isinstance(item, dict) and
++                item.get('job_id') == job_id and item.get('attempt') == attempt and
++                item.get('owner_pid') == owner_pid and item.get('owner_process_start') == owner_start
++                ] if isinstance(slots, list) else []
++            fresh = proof.get('fresh_observations')
++            units = fresh.get('service_units') if isinstance(fresh, dict) else None
++            gpu = fresh.get('gpu') if isinstance(fresh, dict) else None
++            host = fresh.get('host') if isinstance(fresh, dict) else None
++            gpu_devices = gpu.get('devices') if isinstance(gpu, dict) else None
++            if (proof.get('recovery_kind') != 'source_mode_archived_whole_epoch'
++                    or proof.get('format') != 'PA1-PHYSICAL-RELEASE/1'
++                    or proof.get('released_verified') is not True or proof.get('stopped') is not True
++                    or proof.get('evicted') is not True or proof.get('quiescent') is not True
++                    or proof.get('source_identity') != current_source
++                    or len(matches) != 1 or matches[0].get('cleanup_pending') is not True
++                    or isinstance(observed_at, bool) or not isinstance(observed_at, (int, float))
++                    or not math.isfinite(float(observed_at)) or not now - 300 <= float(observed_at) <= now + 5
++                    or not isinstance(allowed_gpu_uuids, (list, tuple)) or not allowed_gpu_uuids
++                    or set(proof.get('gpu_uuids', [])) != set(allowed_gpu_uuids)
++                    or len(proof.get('gpu_uuids', [])) != len(set(proof.get('gpu_uuids', [])))
++                    or not isinstance(units, list) or len(units) != 2
++                    or {item.get('unit') for item in units if isinstance(item, dict)} !=
++                        {'project-control.service', 'project-control-inference.service'}
++                    or any(item.get('active_state') != 'inactive' or item.get('main_pid') != 0
++                        for item in units if isinstance(item, dict))
++                    or not isinstance(gpu_devices, list)
++                    or {item.get('uuid') for item in gpu_devices if isinstance(item, dict)} !=
++                        set(allowed_gpu_uuids)
++                    or len(gpu_devices) != len(set(item.get('uuid') for item in gpu_devices
++                        if isinstance(item, dict)))
++                    or any(not isinstance(item, dict) or isinstance(item.get('memory_used_mib'), bool)
++                        or not isinstance(item.get('memory_used_mib'), (int, float))
++                        or item.get('memory_used_mib') != 0 for item in gpu_devices)
++                    or gpu.get('processes') != [] or not isinstance(host, dict)
++                    or type(host.get('active_owners')) is not int or host.get('active_owners') != 0
++                    or type(host.get('active_reservations')) is not int
++                    or host.get('active_reservations') != 0
++                    or type(host.get('active_foreground_intents')) is not int
++                    or host.get('active_foreground_intents') != 0):
++                raise ValueError('stale_execution_cleanup_archived_proof_invalid')
++            try:
++                _require_process_absent(proof.get('supervisor_pid'),
++                    proof.get('supervisor_process_start'), error_prefix='physical_release_supervisor')
++                for item in proof.get('cleanup_receipts', []):
++                    _require_process_absent(item.get('owned_pid'), item.get('server_process_start'),
++                        error_prefix='physical_release_server')
++            except Exception as error:
++                raise ValueError('stale_execution_cleanup_archived_process_unproved') from error
++        else:
++            required = {'format', 'job_id', 'attempt', 'owner_pid', 'owner_start', 'observed_at',
++                'release_manifest_sha256', 'helper', 'owner_process_absent', 'gpu_uuids',
++                'compute_processes', 'gpu_memory_mib', 'host_conflicts', 'native',
++                'process_released', 'memory_released', 'verified'}
++            if set(proof) != required:
++                raise ValueError('stale_execution_cleanup_proof_fields_invalid')
++            observed_at = proof.get('observed_at')
++            if (proof.get('format') != 'PC-AS1-STALE-EXECUTION-CLEANUP/1'
++                    or proof.get('job_id') != job_id or type(proof.get('attempt')) is not int
++                    or proof.get('attempt') != attempt or type(proof.get('owner_pid')) is not int
++                    or proof.get('owner_pid') != owner_pid or proof.get('owner_start') != owner_start
++                    or isinstance(observed_at, bool) or not isinstance(observed_at, (int, float))
++                    or not math.isfinite(float(observed_at)) or not now - 60 <= float(observed_at) <= now + 5):
++                raise ValueError('stale_execution_cleanup_proof_identity_or_freshness_invalid')
++            from .runtime_binding import RELEASE_DIGEST_VARIABLE
++            expected_release_digest = os.environ.get(RELEASE_DIGEST_VARIABLE)
++            if (not isinstance(expected_release_digest, str)
++                    or not re.fullmatch(r'[0-9a-f]{64}', expected_release_digest)
++                    or proof.get('release_manifest_sha256') != expected_release_digest):
++                raise ValueError('stale_execution_cleanup_release_pin_mismatch')
++            helper = proof.get('helper')
++            if (not isinstance(helper, dict)
++                    or set(helper) != {'unit', 'active_state', 'main_pid', 'kill_mode'}
++                    or type(helper.get('main_pid')) is not int
++                    or helper != {'unit': 'project-control-inference.service', 'active_state': 'inactive',
++                                  'main_pid': 0, 'kill_mode': 'control-group'}):
++                raise ValueError('stale_execution_cleanup_helper_state_invalid')
++            if (proof.get('owner_process_absent') is not True
++                    or proof.get('process_released') is not True
++                    or proof.get('memory_released') is not True
++                    or proof.get('verified') is not True
++                    or proof.get('compute_processes') != []
++                    or proof.get('host_conflicts') != []):
++                raise ValueError('stale_execution_cleanup_release_unproved')
++            native = proof.get('native')
++            if (not isinstance(native, dict) or set(native) != {'active_leases', 'session_count'}
++                    or type(native.get('active_leases')) is not int
++                    or type(native.get('session_count')) is not int
++                    or native != {'active_leases': 0, 'session_count': 0}):
++                raise ValueError('stale_execution_cleanup_native_state_invalid')
++            gpu_uuids = proof.get('gpu_uuids')
++            memory = proof.get('gpu_memory_mib')
++            if (not isinstance(allowed_gpu_uuids, (list, tuple)) or not allowed_gpu_uuids
++                    or any(not isinstance(item, str) or not item.startswith('GPU-') for item in allowed_gpu_uuids)
++                    or not isinstance(gpu_uuids, list)
++                    or any(not isinstance(item, str) for item in gpu_uuids)
++                    or set(gpu_uuids) != set(allowed_gpu_uuids)
++                    or len(gpu_uuids) != len(set(gpu_uuids))
++                    or not isinstance(memory, dict) or set(memory) != set(allowed_gpu_uuids)
++                    or any(type(memory[item]) is not int or memory[item] != 0 for item in allowed_gpu_uuids)):
++                raise ValueError('stale_execution_cleanup_gpu_scope_or_memory_invalid')
+ 
+         proof_text = wire(proof)
+         proof_digest = hashlib.sha256(proof_text.encode('utf-8')).hexdigest()
+@@ -830,6 +943,66 @@
+                  power['release_request_id'], proof_text, proof_digest, now))
+         return {'status': 'reconciled', 'receipt_id': receipt_id,
+                 'job_id': job_id, 'attempt': attempt, 'proof_sha256': proof_digest}
++
++    def recover_archived_execution_cleanup(self, control, *, archived_proof):
++        """Operator-only source recovery for the exact mixed stale-slot state.
++
++        The archived release receipt supplies identity only.  The provider
++        rechecks both stopped units, source identity, process absence, current
++        GPU state and host reservations before issuing a private proof.  The
++        existing resource release acknowledgement and exact slot checks remain
++        mandatory before any failed slot can be removed.
++        """
++        PowerPolicy._authorized(control, 'request_release')
++        with _host_admission_fence() as host_fence:
++            return self._recover_archived_execution_cleanup_fenced(
++                control, archived_proof=archived_proof, host_fence=host_fence)
++
++    def _recover_archived_execution_cleanup_fenced(self, control, *, archived_proof, host_fence):
++        host_fence.check()
++        verifier = getattr(self.backend, 'verify_archived_physical_release', None)
++        if not callable(verifier):
++            raise ValueError('archived_physical_release_verifier_unavailable')
++        broker_status = self.demand_work_status()
++        proof = verifier(archived_proof, broker_status=broker_status)
++        host_fence.check()
++        from .assistance.power import ReleaseIntent
++        from .observer_analysis import _is_verified_physical_release
++        if not _is_verified_physical_release(proof):
++            raise ValueError('verified_physical_release_required')
++        slots = proof.get('orphan_execution_slots')
++        if not isinstance(slots, list) or not slots:
++            raise ValueError('archived_recovery_slots_missing')
++        with self._db() as db:
++            policy = PowerPolicy(db, clock=self.clock)
++            power = policy.snapshot()
++            if (not power.get('release_veto_active') or power.get('release_until') is not None
++                    or not power.get('release_request_id')):
++                raise ValueError('stale_execution_slot_permanent_release_veto_required')
++            intent = ReleaseIntent(power['release_request_id'], float(power['release_created_at']),
++                power['release_until'], power['release_reason'])
++            resources = ResourceController(db, power_policy=policy, clock=self.clock)
++            db.commit()
++            if power.get('physical_state') == 'pending':
++                session_ids = resources.record_archived_epoch_recovery_after_physical_release(
++                    control, intent, proof)
++            elif power.get('physical_state') == 'released_verified':
++                ack = resources.verified_release_ack(intent)
++                session_ids = list(ack.target_session_ids)
++            else:
++                raise ValueError('stale_execution_slot_owned_resource_release_mismatch')
++        host_fence.check()
++        if power.get('physical_state') == 'pending' and not self._ack_owned_release(intent):
++            raise ValueError('stale_execution_slot_owned_resource_release_mismatch')
++        reconciled = []
++        for slot in slots:
++            host_fence.check()
++            reconciled.append(self.reconcile_stale_execution_slot(control,
++                job_id=slot['job_id'], attempt=slot['attempt'], owner_pid=slot['owner_pid'],
++                owner_start=slot['owner_process_start'], proof=proof))
++        return {'status': 'reconciled', 'sessions': sorted(session_ids),
++            'execution_slots': reconciled,
++            'source_identity': proof.get('source_identity')}
+ 
+     def coordinate_demand_stop(self, control, *, timeout=95.0):
+         """Cancel broker work, then prove its exact owned resources released.
+--- a/src/project_control/observer_analysis.py
++++ b/src/project_control/observer_analysis.py
+@@ -6,6 +6,7 @@
+ import hashlib
+ import importlib
+ import csv
++import math
+ import os
+ import re
+ import socket
+@@ -17,6 +18,7 @@
+ 
+ from .call_audit import call_id_var, summarize_messages, write_event
+ from .runtime_binding import RuntimeBindingError, _source_receiver_files, bind_local_runtime
++from .runtime_identity import package_fingerprint
+ from .security import redact_output_text
+ 
+ 
+@@ -106,6 +108,133 @@
+     if len(fields) <= 19 or not fields[19].isdigit():
+         raise RuntimeError("physical_release_process_identity_invalid")
+     return fields[19]
++
++
++def _source_identity_snapshot() -> dict[str, str]:
++    """Bind recovery evidence to this exact source checkout and receiver."""
++    try:
++        receiver = bind_local_runtime()
++        # Match the canonical runtime attestation boundary for the complete
++        # ``project_control`` package.
++        project_root = Path(__file__).resolve().parent
++        project_fingerprint = package_fingerprint(project_root)
++        # The HostCoordinator admission fence is implemented in this sibling
++        # bundled package, so pin its source independently as well.
++        todo_root = project_root.parent / "todo_orchestrator"
++        todo_fingerprint = package_fingerprint(todo_root)
++    except Exception as error:
++        raise RuntimeError("physical_release_source_identity_unavailable") from error
++    if receiver.source_commit != "working-tree":
++        raise RuntimeError("physical_release_source_mode_required")
++    return {
++        "format": "PC-SOURCE-IDENTITY/1",
++        "project_control_root": str(project_root),
++        "project_control_fingerprint": project_fingerprint,
++        "todo_orchestrator_root": str(todo_root),
++        "todo_orchestrator_fingerprint": todo_fingerprint,
++        "receiver_root": str(receiver.root),
++        "receiver_manifest_sha256": receiver.manifest_sha256,
++        "receiver_fingerprint": receiver.fingerprint,
++        "receiver_source_commit": receiver.source_commit,
++    }
++
++
++def _require_process_absent(pid: int, start: str, *, error_prefix: str) -> None:
++    """Require kernel-confirmed absence of the recorded process generation.
++
++    A different process start token means PID reuse, not proof that the old
++    owner is absent.  Permission and procfs failures remain unverifiable.
++    """
++    current = _proc_start_time(pid)
++    if current is not None:
++        raise RuntimeError(f"{error_prefix}_present_or_reused")
++    try:
++        os.kill(pid, 0)
++    except ProcessLookupError:
++        return
++    except (PermissionError, OSError) as error:
++        raise RuntimeError(f"{error_prefix}_absence_unverifiable") from error
++    raise RuntimeError(f"{error_prefix}_absence_unverifiable")
++
++
++def _inactive_service_state(unit: str) -> dict[str, Any]:
++    """Read one fixed user unit without starting, stopping, or reloading it."""
++    try:
++        result = subprocess.run(["systemctl", "--user", "show", unit,
++            "-p", "ActiveState", "-p", "MainPID"], check=True, capture_output=True,
++            text=True, timeout=3)
++    except (OSError, subprocess.SubprocessError) as error:
++        raise RuntimeError("physical_release_service_state_unavailable") from error
++    fields: dict[str, str] = {}
++    for line in result.stdout.splitlines():
++        key, separator, value = line.partition("=")
++        if not separator or key not in {"ActiveState", "MainPID"} or key in fields:
++            raise RuntimeError("physical_release_service_state_invalid")
++        fields[key] = value
++    if fields != {"ActiveState": "inactive", "MainPID": "0"}:
++        raise RuntimeError("physical_release_service_not_inactive")
++    return {"unit": unit, "active_state": "inactive", "main_pid": 0}
++
++
++def _fresh_gpu_release_observation(allowed_gpu_uuids: tuple[str, ...]) -> dict[str, Any]:
++    """Read current memory and compute-process state for the fixed GPU scope."""
++    try:
++        memory_result = subprocess.run(["nvidia-smi", "--query-gpu=uuid,memory.used",
++            "--format=csv,noheader,nounits"], check=True, capture_output=True,
++            text=True, timeout=8)
++        process_result = subprocess.run(["nvidia-smi", "--query-compute-apps=pid,gpu_uuid,used_memory",
++            "--format=csv,noheader,nounits"], check=True, capture_output=True,
++            text=True, timeout=8)
++    except (OSError, subprocess.SubprocessError) as error:
++        raise RuntimeError("physical_release_fresh_gpu_observation_unavailable") from error
++    memory: dict[str, float] = {}
++    for row in csv.reader(memory_result.stdout.splitlines()):
++        if len(row) != 2:
++            raise RuntimeError("physical_release_fresh_gpu_observation_invalid")
++        try:
++            memory[row[0].strip()] = float(row[1].strip())
++        except ValueError:
++            raise RuntimeError("physical_release_fresh_gpu_observation_invalid") from None
++    if any(uuid not in memory or memory[uuid] != 0 for uuid in allowed_gpu_uuids):
++        raise RuntimeError("physical_release_gpu_memory_not_zero")
++    processes = []
++    for row in csv.reader(process_result.stdout.splitlines()):
++        if not row:
++            continue
++        if len(row) < 2:
++            raise RuntimeError("physical_release_fresh_gpu_observation_invalid")
++        uuid = row[1].strip()
++        if uuid in allowed_gpu_uuids:
++            processes.append({"pid": row[0].strip(), "gpu_uuid": uuid})
++    if processes:
++        raise RuntimeError("physical_release_gpu_process_reappeared")
++    return {"observed_at": time.time(),
++        "devices": [{"uuid": uuid, "memory_used_mib": memory[uuid]}
++                    for uuid in sorted(allowed_gpu_uuids)],
++        "processes": []}
++
++
++def _fresh_host_release_observation() -> dict[str, int]:
++    """Require no host reservation or pending owner intent before recovery."""
++    try:
++        from todo_orchestrator.background.host import HostCoordinator
++        host = HostCoordinator(create=False)
++        connection = host.connect(readonly=True)
++        try:
++            active_owners = connection.execute(
++                "SELECT count(*) FROM host_owners WHERE state IN ('active','intent')").fetchone()[0]
++            active_reservations = connection.execute(
++                "SELECT count(*) FROM host_reservations WHERE state='active'").fetchone()[0]
++            active_foreground_intents = connection.execute(
++                "SELECT count(*) FROM host_foreground_intents WHERE state='active'").fetchone()[0]
++        finally:
++            connection.close()
++    except Exception as error:
++        raise RuntimeError("physical_release_fresh_host_observation_unavailable") from error
++    if active_owners or active_reservations or active_foreground_intents:
++        raise RuntimeError("physical_release_host_owner_reappeared")
++    return {"active_owners": int(active_owners), "active_reservations": int(active_reservations),
++        "active_foreground_intents": int(active_foreground_intents)}
+ 
+ 
+ def _orphan_cleanup_slots_from_status(before: dict[str, Any]) -> list[dict[str, Any]]:
+@@ -684,6 +813,120 @@
+         token_value["source_proof_captured_at"] = float(captured)
+         return _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, token_value, socket.gethostname())
+ 
++    def verify_archived_physical_release(self, archived: dict[str, Any], *,
++                                         broker_status: dict[str, Any]) -> _VerifiedPhysicalRelease:
++        """Revalidate an archived stop receipt using fresh, local host evidence.
++
++        This path supports only operator-directed source-mode recovery.  The
++        archived supervisor receipt contributes the old epoch and exact owned
++        process identities; it is not accepted as fresh physical evidence.
++        Current source identity, both stopped user units, exact process absence,
++        GPU state, host reservations, and failed broker slots are checked here
++        before a private release token is minted.
++        """
++        # Bind the current receiver without constructing a supervisor client
++        # or creating runtime state; this verifier is deliberately read-only.
++        source_identity = _source_identity_snapshot()
++        if not isinstance(archived, dict):
++            raise RuntimeError("archived_physical_release_invalid")
++        captured = archived.get("captured_at")
++        if (isinstance(captured, bool) or not isinstance(captured, (int, float)) or
++                not math.isfinite(float(captured)) or float(captured) <= 0 or
++                float(captured) > time.time() + 5):
++            raise RuntimeError("archived_physical_release_timestamp_invalid")
++        daemon_epoch = archived.get("daemon_epoch")
++        supervisor_pid = archived.get("supervisor_pid")
++        supervisor_start = archived.get("supervisor_process_start")
++        runtime_fingerprint = archived.get("runtime_fingerprint")
++        if (archived.get("format") != "PA1-PHYSICAL-RELEASE/1" or
++                archived.get("released_verified") is not True or archived.get("stopped") is not True or
++                archived.get("evicted") is not True or archived.get("quiescent") is not True or
++                archived.get("status", "released_verified") != "released_verified" or
++                not isinstance(daemon_epoch, str) or re.fullmatch(r"[0-9a-f]{64}", daemon_epoch) is None or
++                type(supervisor_pid) is not int or supervisor_pid <= 0 or
++                not isinstance(supervisor_start, str) or not supervisor_start.isdigit() or
++                not isinstance(runtime_fingerprint, str) or
++                re.fullmatch(r"[0-9a-f]{64}", runtime_fingerprint) is None):
++            raise RuntimeError("archived_physical_release_identity_invalid")
++        allowed = self._allowed_gpu_uuids
++        if (not isinstance(allowed, tuple) or not allowed or
++                any(not isinstance(uuid, str) or not uuid.startswith("GPU-") for uuid in allowed)):
++            raise RuntimeError("physical_release_gpu_scope_unbound")
++        archive_gpu_uuids = archived.get("gpu_uuids")
++        cleanup = archived.get("cleanup_receipts")
++        if (not isinstance(archive_gpu_uuids, list) or len(archive_gpu_uuids) != len(set(archive_gpu_uuids)) or
++                set(archive_gpu_uuids) != set(allowed) or not isinstance(cleanup, list) or
++                not 1 <= len(cleanup) <= 4):
++            raise RuntimeError("archived_physical_release_scope_invalid")
++        normalized = []
++        seen_slots: set[tuple[str, int, str]] = set()
++        seen_gpus: set[str] = set()
++        for item in cleanup:
++            if not isinstance(item, dict):
++                raise RuntimeError("archived_physical_release_receipt_invalid")
++            owner_id, pid, start = item.get("owner_id"), item.get("owned_pid"), item.get("server_process_start")
++            generation, uuids = item.get("generation"), item.get("gpu_uuids")
++            if (not isinstance(owner_id, str) or not owner_id or type(pid) is not int or pid <= 0 or
++                    not isinstance(start, str) or not start.isdigit() or
++                    not isinstance(generation, str) or not generation or
++                    not isinstance(uuids, list) or not 1 <= len(uuids) <= 4 or
++                    any(not isinstance(uuid, str) or uuid not in allowed for uuid in uuids) or
++                    len(set(uuids)) != len(uuids) or seen_gpus.intersection(uuids) or
++                    item.get("released") is not True or item.get("process_released") is not True or
++                    item.get("memory_released") is not True or
++                    not isinstance(item.get("observation"), dict) or
++                    not isinstance(item.get("memory_baseline"), dict)):
++                raise RuntimeError("archived_physical_release_receipt_invalid")
++            identity = (owner_id, pid, start)
++            if identity in seen_slots:
++                raise RuntimeError("archived_physical_release_receipt_duplicate")
++            seen_slots.add(identity)
++            seen_gpus.update(uuids)
++            normalized.append({"owner_id": owner_id, "owned_pid": pid,
++                "server_process_start": start, "generation": generation,
++                "gpu_uuids": list(uuids), "released": True,
++                "process_released": True, "memory_released": True})
++        if seen_gpus != set(allowed):
++            raise RuntimeError("archived_physical_release_scope_invalid")
++
++        # Do not infer absence from stale status booleans.  Kernel process
++        # identity and ESRCH must agree for the old supervisor and every owner.
++        _require_process_absent(supervisor_pid, supervisor_start,
++                                error_prefix="physical_release_supervisor")
++        for item in normalized:
++            _require_process_absent(item["owned_pid"], item["server_process_start"],
++                                    error_prefix="physical_release_server")
++
++        units = [_inactive_service_state("project-control.service"),
++                 _inactive_service_state("project-control-inference.service")]
++        gpu_observation = _fresh_gpu_release_observation(allowed)
++
++        if (not isinstance(broker_status, dict) or broker_status.get("active_work") != [] or
++                broker_status.get("active_work_truncated") is not False):
++            raise RuntimeError("physical_release_controller_not_quiescent")
++        orphan_slots = _orphan_cleanup_slots_from_status(broker_status)
++        for item in orphan_slots:
++            _require_process_absent(item["owner_pid"], item["owner_process_start"],
++                                    error_prefix="physical_release_execution_owner")
++        host_observation = _fresh_host_release_observation()
++
++        if _source_identity_snapshot() != source_identity:
++            raise RuntimeError("physical_release_source_identity_changed")
++        captured_now = time.time()
++        value = {"format": "PA1-PHYSICAL-RELEASE/1", "captured_at": captured_now,
++            "status": "released_verified", "released_verified": True,
++            "supervisor_pid": supervisor_pid, "supervisor_process_start": supervisor_start,
++            "daemon_epoch": daemon_epoch, "runtime_fingerprint": runtime_fingerprint,
++            "quiescent": True, "evicted": True, "stopped": True,
++            "gpu_uuids": sorted(allowed), "cleanup_receipts": normalized,
++            "orphan_execution_slots": orphan_slots,
++            "recovery_kind": "source_mode_archived_whole_epoch",
++            "source_identity": source_identity,
++            "source_proof_captured_at": float(captured),
++            "fresh_observations": {"service_units": units,
++                "gpu": gpu_observation, "host": host_observation}}
++        return _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, value, socket.gethostname())
++
+     def close(self) -> None:
+         """Disconnect this frontend; global residency belongs to the operator."""
+         with self._backend_lock:
+--- a/src/project_control/assistance/resources.py
++++ b/src/project_control/assistance/resources.py
+@@ -10,6 +10,7 @@
+ import json
+ import hashlib
+ import math
++import os
+ import re
+ import sqlite3
+ import time
+@@ -23,6 +24,7 @@
+ _HEX_64 = re.compile(r"^[0-9a-f]{64}$")
+ _OWNED_RELEASE_INPUT_BATCH = 64
+ _HEX_32 = re.compile(r"^[0-9a-f]{32}$")
++_UUID_TEXT = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+ _SESSION = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+ _STATES = frozenset({"active", "idle_owned", "release_pending", "released_verified", "stale", "superseded"})
+ _ACK_SEAL = object()
+@@ -44,6 +46,20 @@
+     if len(fields) <= 19 or not fields[19].isdigit():
+         raise ResourceControllerError("orphan_execution_slot_owner_identity_invalid")
+     return fields[19]
++
++
++def _require_process_absent(pid: int, start: str, *, error_prefix: str) -> None:
++    """Require exact kernel-confirmed absence; a reused PID is not absence."""
++    current = _process_start_time(pid)
++    if current is not None:
++        raise ResourceControllerError(f"{error_prefix}_present_or_reused")
++    try:
++        os.kill(pid, 0)
++    except ProcessLookupError:
++        return
++    except (PermissionError, OSError) as error:
++        raise ResourceControllerError(f"{error_prefix}_absence_unverifiable") from error
++    raise ResourceControllerError(f"{error_prefix}_absence_unverifiable")
+ 
+ 
+ def _validate_orphan_execution_slots(value: object) -> list[dict[str, Any]]:
+@@ -67,6 +83,29 @@
+         accepted.append({"job_id": job_id, "attempt": attempt, "cleanup_pending": True,
+             "owner_pid": owner_pid, "owner_process_start": owner_start})
+     return accepted
++
++
++def _physical_cleanup_identities(value: object) -> tuple[tuple[Any, ...], ...] | None:
++    if not isinstance(value, list):
++        return None
++    identities = []
++    for item in value:
++        if (not isinstance(item, Mapping) or not isinstance(item.get("owner_id"), str) or
++                type(item.get("owned_pid")) is not int or
++                not isinstance(item.get("server_process_start"), str) or
++                not isinstance(item.get("generation"), str) or
++                not isinstance(item.get("gpu_uuids"), list) or
++                any(not isinstance(uuid, str) for uuid in item["gpu_uuids"])):
++            return None
++        identities.append((item["owner_id"], item["owned_pid"],
++            item["server_process_start"], item["generation"], tuple(sorted(item["gpu_uuids"]))))
++    return tuple(sorted(identities))
++
++
++def _orphan_audit_id(value: object) -> bool:
++    """Accept current hex UUIDs and legacy canonical dashed UUID receipts."""
++    return isinstance(value, str) and (
++        _HEX_32.fullmatch(value) is not None or _UUID_TEXT.fullmatch(value) is not None)
+ 
+ 
+ class ResourceControllerError(ValueError):
+@@ -362,6 +401,265 @@
+             raise
+         return session_ids
+ 
++    def record_archived_epoch_recovery_after_physical_release(
++            self, control: object, intent: ReleaseIntent, proof: object) -> list[str]:
++        """Reconcile mixed orphan/closed rows from a freshly revalidated old epoch.
++
++        This is a source-mode operator recovery for the specific state where
++        receiptless active sessions and receipt-bearing release-pending sessions
++        coexist with terminal failed execution slots.  The private proof is
++        minted only after fresh host checks; this method additionally matches
++        every durable row, process generation, GPU owner, source identity, and
++        failed slot before updating any resource state.
++        """
++        from ..observer_analysis import _is_verified_physical_release, _source_identity_snapshot
++
++        if not _is_verified_physical_release(proof):
++            raise ResourceControllerError("verified_physical_release_required")
++        if not isinstance(intent, ReleaseIntent):
++            raise ResourceControllerError("release_intent_invalid")
++        PowerPolicy._authorized(control, "request_release")
++        if proof.get("recovery_kind") != "source_mode_archived_whole_epoch":
++            raise ResourceControllerError("archived_physical_release_proof_required")
++        try:
++            current_source = _source_identity_snapshot()
++        except Exception as error:
++            raise ResourceControllerError("physical_release_source_identity_unavailable") from error
++        if proof.get("source_identity") != current_source:
++            raise ResourceControllerError("physical_release_source_identity_mismatch")
++
++        state = self.power_policy.snapshot()
++        if (state.get("release_veto_active") is not True or state.get("release_until") is not None or
++                state.get("release_request_id") != intent.request_id or
++                state.get("physical_state") != "pending"):
++            raise ResourceControllerError("permanent_release_veto_required")
++        now = float(self.clock())
++        captured = proof.get("captured_at")
++        if (isinstance(captured, bool) or not isinstance(captured, (int, float)) or
++                not math.isfinite(float(captured)) or now < float(captured) or now - float(captured) > 300):
++            raise ResourceControllerError("physical_release_proof_expired")
++        required = ("daemon_epoch", "supervisor_pid", "supervisor_process_start",
++                    "runtime_fingerprint", "gpu_uuids", "cleanup_receipts",
++                    "orphan_execution_slots", "fresh_observations")
++        if (proof.get("format") != "PA1-PHYSICAL-RELEASE/1" or
++                proof.get("status") != "released_verified" or proof.get("released_verified") is not True or
++                proof.get("stopped") is not True or proof.get("evicted") is not True or
++                proof.get("quiescent") is not True or any(key not in proof for key in required) or
++                not isinstance(proof.get("daemon_epoch"), str) or
++                not _HEX_64.fullmatch(proof["daemon_epoch"]) or
++                type(proof.get("supervisor_pid")) is not int or proof["supervisor_pid"] <= 0 or
++                not isinstance(proof.get("supervisor_process_start"), str) or
++                not proof["supervisor_process_start"].isdigit() or
++                not isinstance(proof.get("runtime_fingerprint"), str) or
++                not _HEX_64.fullmatch(proof["runtime_fingerprint"]) or
++                not isinstance(proof.get("gpu_uuids"), list) or not proof["gpu_uuids"] or
++                not isinstance(proof.get("cleanup_receipts"), list) or not proof["cleanup_receipts"] or
++                not isinstance(getattr(proof, "host", None), str) or not proof.host):
++            raise ResourceControllerError("physical_release_proof_invalid")
++        fresh = proof.get("fresh_observations")
++        units = fresh.get("service_units") if isinstance(fresh, Mapping) else None
++        gpu = fresh.get("gpu") if isinstance(fresh, Mapping) else None
++        host = fresh.get("host") if isinstance(fresh, Mapping) else None
++        expected_units = {"project-control.service", "project-control-inference.service"}
++        gpu_devices = gpu.get("devices") if isinstance(gpu, Mapping) else None
++        gpu_ids = ({item.get("uuid") for item in gpu_devices if isinstance(item, Mapping)}
++                   if isinstance(gpu_devices, list) else set())
++        if (not isinstance(units, list) or len(units) != 2 or
++                {item.get("unit") for item in units if isinstance(item, Mapping)} != expected_units or
++                any(item.get("active_state") != "inactive" or item.get("main_pid") != 0
++                    for item in units if isinstance(item, Mapping)) or
++                not isinstance(gpu, Mapping) or not isinstance(gpu_devices, list) or
++                gpu_ids != set(proof.get("gpu_uuids", [])) or len(gpu_devices) != len(gpu_ids) or
++                gpu.get("processes") != [] or
++                any(not isinstance(item, Mapping) or
++                    isinstance(item.get("memory_used_mib"), bool) or
++                    not isinstance(item.get("memory_used_mib"), (int, float)) or
++                    item.get("memory_used_mib") != 0 for item in gpu_devices) or
++                not isinstance(host, Mapping) or type(host.get("active_owners")) is not int or
++                host.get("active_owners") != 0 or type(host.get("active_reservations")) is not int or
++                host.get("active_reservations") != 0 or
++                type(host.get("active_foreground_intents")) is not int or
++                host.get("active_foreground_intents") != 0):
++            raise ResourceControllerError("physical_release_fresh_observation_invalid")
++
++        attested_slots = _validate_orphan_execution_slots(proof["orphan_execution_slots"])
++        try:
++            active_jobs = self.db.execute("""SELECT count(*) FROM jobs
++                WHERE COALESCE(json_extract(record,'$.status'),'') NOT IN
++                ('completed','partial','failed','cancelled')""").fetchone()[0]
++            slot_count = self.db.execute("SELECT count(*) FROM execution_slots").fetchone()[0]
++        except sqlite3.OperationalError as error:
++            raise ResourceControllerError("controller_quiescence_unavailable") from error
++        if active_jobs != 0:
++            raise ResourceControllerError("controller_work_not_quiescent")
++        self._validate_recoverable_execution_slots(attested_slots, expected_count=slot_count)
++        for slot in attested_slots:
++            _require_process_absent(slot["owner_pid"], slot["owner_process_start"],
++                                    error_prefix="orphan_execution_slot_owner")
++        _require_process_absent(proof["supervisor_pid"], proof["supervisor_process_start"],
++                                error_prefix="physical_release_supervisor")
++
++        epoch_identity = {key: proof[key] for key in
++            ("daemon_epoch", "supervisor_pid", "supervisor_process_start", "runtime_fingerprint")}
++        rows = self._rows()
++        unresolved = [tuple(row) for row in rows if tuple(row)[2] in
++                      {"active", "idle_owned", "release_pending", "stale"}]
++        if not unresolved:
++            return self._existing_archived_epoch_recovery(intent, proof, attested_slots)
++        if state.get("physical_state") != "pending":
++            raise ResourceControllerError("permanent_release_veto_required")
++        targets: list[str] = []
++        preserved_receipts: dict[str, Any] = {}
++        receipt_identities = set()
++        for row in unresolved:
++            session_id, epoch_text, row_state, receipt_text, request_id = row
++            try:
++                epoch = _epoch(json.loads(epoch_text))
++            except (TypeError, ValueError, json.JSONDecodeError, ResourceControllerError) as error:
++                raise ResourceControllerError("orphaned_epoch_session_identity_invalid") from error
++            if (epoch != epoch_identity or request_id != intent.request_id or
++                    row_state not in {"active", "release_pending"} or
++                    (row_state == "active" and receipt_text is not None) or
++                    (row_state == "release_pending" and not receipt_text)):
++                raise ResourceControllerError("orphaned_epoch_session_set_incomplete")
++            prior_receipt = None
++            if receipt_text is not None:
++                try:
++                    prior_receipt = _receipt(session_id, json.loads(receipt_text), epoch)
++                except (TypeError, ValueError, json.JSONDecodeError, ResourceControllerError) as error:
++                    raise ResourceControllerError("orphaned_epoch_close_receipt_invalid") from error
++                identity = (prior_receipt["owner_id"], prior_receipt["server_pid"],
++                    prior_receipt["server_process_start"], prior_receipt["residency_generation"],
++                    tuple(sorted(prior_receipt["gpu_uuids"])))
++                if identity in receipt_identities:
++                    raise ResourceControllerError("orphaned_epoch_close_receipt_duplicate")
++                receipt_identities.add(identity)
++                _require_process_absent(prior_receipt["server_pid"],
++                    prior_receipt["server_process_start"], error_prefix="orphan_owned_server")
++            preserved_receipts[session_id] = prior_receipt
++            targets.append(session_id)
++
++        cleanup_identities = set()
++        observed_gpu_uuids = set()
++        for item in proof["cleanup_receipts"]:
++            if not isinstance(item, Mapping):
++                raise ResourceControllerError("physical_release_proof_invalid")
++            uuids = item.get("gpu_uuids")
++            key = (item.get("owner_id"), item.get("owned_pid"),
++                item.get("server_process_start"), item.get("generation"),
++                tuple(sorted(uuids)) if isinstance(uuids, list) else ())
++            if (not isinstance(item.get("owner_id"), str) or type(item.get("owned_pid")) is not int or
++                    not isinstance(item.get("server_process_start"), str) or
++                    not isinstance(item.get("generation"), str) or not isinstance(uuids, list) or
++                    not uuids or any(not isinstance(uuid, str) or not uuid.startswith("GPU-") for uuid in uuids) or
++                    item.get("released") is not True or item.get("process_released") is not True or
++                    item.get("memory_released") is not True or key in cleanup_identities):
++                raise ResourceControllerError("physical_release_proof_invalid")
++            cleanup_identities.add(key)
++            observed_gpu_uuids.update(uuids)
++            _require_process_absent(item["owned_pid"], item["server_process_start"],
++                                    error_prefix="orphan_owned_server")
++        if (cleanup_identities != receipt_identities or
++                sorted(observed_gpu_uuids) != sorted(set(proof["gpu_uuids"]))):
++            raise ResourceControllerError("orphaned_epoch_physical_identity_mismatch")
++
++        session_ids = sorted(targets)
++        proof_value = dict(proof)
++        proof_value["recovery_context"] = {
++            "format": "PA1-MIXED-EPOCH-RECOVERY/1",
++            "request_id": intent.request_id,
++            "session_ids": session_ids,
++            "preserved_close_receipts": preserved_receipts,
++        }
++        encoded_proof = _json(proof_value)
++        proof_digest = hashlib.sha256(encoded_proof.encode("utf-8")).hexdigest()
++        audit_id = uuid.uuid4().hex
++        encoded_receipt = _json({"format": "PA1-ORPHANED-SESSION-RELEASE/1",
++            "receipt_id": audit_id, "release_request_id": intent.request_id,
++            "daemon_epoch": proof["daemon_epoch"], "session_ids": session_ids,
++            "physical_release_proof_sha256": proof_digest,
++            "preserved_close_receipts_sha256": hashlib.sha256(
++                _json(preserved_receipts).encode("utf-8")).hexdigest()})
++
++        if self.db.in_transaction:
++            raise ResourceControllerError("physical_release_requires_committed_state")
++        self.db.execute("SAVEPOINT pa1_archived_epoch_recovery")
++        try:
++            current_state = self.power_policy.snapshot()
++            if (current_state.get("release_veto_active") is not True or
++                    current_state.get("release_until") is not None or
++                    current_state.get("release_request_id") != intent.request_id or
++                    current_state.get("physical_state") != "pending"):
++                raise ResourceControllerError("permanent_release_veto_required")
++            try:
++                active_jobs_now = self.db.execute("""SELECT count(*) FROM jobs
++                    WHERE COALESCE(json_extract(record,'$.status'),'') NOT IN
++                    ('completed','partial','failed','cancelled')""").fetchone()[0]
++                current_slot_count = self.db.execute("SELECT count(*) FROM execution_slots").fetchone()[0]
++                current_rows = self._rows()
++            except sqlite3.OperationalError as error:
++                raise ResourceControllerError("controller_quiescence_unavailable") from error
++            current_unresolved = [tuple(row) for row in current_rows if tuple(row)[2] in
++                                  {"active", "idle_owned", "release_pending", "stale"}]
++            if (active_jobs_now != 0 or current_unresolved != unresolved or
++                    len(current_unresolved) != len(session_ids)):
++                raise ResourceControllerError("orphaned_epoch_session_set_changed")
++            self._validate_recoverable_execution_slots(attested_slots, expected_count=current_slot_count)
++            for slot in attested_slots:
++                _require_process_absent(slot["owner_pid"], slot["owner_process_start"],
++                                        error_prefix="orphan_execution_slot_owner")
++            self.db.execute("""INSERT INTO pa1_orphan_resource_reconciliation_audit
++                (receipt_id,release_request_id,daemon_epoch,session_ids,proof,proof_sha256,controller_host,reconciled_at)
++                VALUES(?,?,?,?,?,?,?,?)""", (audit_id, intent.request_id, proof["daemon_epoch"],
++                _json({"session_ids": session_ids}), encoded_proof, proof_digest, proof.host, now))
++            for session_id in session_ids:
++                changed = self.db.execute("""UPDATE pa1_owned_resource_sessions SET
++                    state='released_verified',close_receipt=?,release_request_id=?,release_proof=?,updated=?
++                    WHERE session_id=? AND state IN ('active','release_pending') AND release_request_id=?""",
++                    (encoded_receipt, intent.request_id, encoded_proof, now,
++                     session_id, intent.request_id)).rowcount
++                if changed != 1:
++                    raise ResourceControllerError("orphaned_epoch_session_changed_during_recovery")
++            self.db.execute("RELEASE SAVEPOINT pa1_archived_epoch_recovery")
++        except Exception:
++            self.db.execute("ROLLBACK TO SAVEPOINT pa1_archived_epoch_recovery")
++            self.db.execute("RELEASE SAVEPOINT pa1_archived_epoch_recovery")
++            raise
++        return session_ids
++
++    def _existing_archived_epoch_recovery(self, intent: ReleaseIntent, proof: Mapping[str, Any],
++                                          attested_slots: list[dict[str, Any]]) -> list[str]:
++        """Resume only this same audited recovery after an interruption before ACK."""
++        acknowledgment = self.verified_release_ack(intent)
++        try:
++            audits = self.db.execute("""SELECT daemon_epoch,session_ids,proof
++                FROM pa1_orphan_resource_reconciliation_audit WHERE release_request_id=?
++                AND daemon_epoch=?""", (intent.request_id, proof.get("daemon_epoch"))).fetchall()
++            if len(audits) != 1:
++                raise ResourceControllerError("orphaned_epoch_recovery_audit_missing")
++            audit_epoch, session_text, proof_text = tuple(audits[0])
++            audited = json.loads(proof_text)
++            session_ids = json.loads(session_text).get("session_ids")
++            context = audited.get("recovery_context") if isinstance(audited, Mapping) else None
++            if (audit_epoch != proof.get("daemon_epoch") or not isinstance(session_ids, list) or
++                    session_ids != sorted(acknowledgment.target_session_ids) or
++                    not isinstance(context, Mapping) or
++                    context.get("format") != "PA1-MIXED-EPOCH-RECOVERY/1" or
++                    context.get("request_id") != intent.request_id or
++                    context.get("session_ids") != session_ids or
++                    audited.get("source_identity") != proof.get("source_identity") or
++                    any(audited.get(key) != proof.get(key) for key in
++                        ("supervisor_pid", "supervisor_process_start", "runtime_fingerprint")) or
++                    audited.get("orphan_execution_slots") != attested_slots or
++                    _physical_cleanup_identities(audited.get("cleanup_receipts")) !=
++                        _physical_cleanup_identities(proof.get("cleanup_receipts"))):
++                raise ResourceControllerError("orphaned_epoch_recovery_audit_mismatch")
++        except ResourceControllerError:
++            raise
++        except Exception as error:
++            raise ResourceControllerError("orphaned_epoch_recovery_audit_unavailable") from error
++        return session_ids
++
+     def _validate_recoverable_execution_slots(self, attested: list[dict[str, Any]], *,
+                                               expected_count: int) -> list[dict[str, Any]]:
+         """Match every remaining execution row to a terminal failed generation."""
+@@ -842,6 +1140,35 @@
+             raise ResourceControllerError("verified_release_target_set_changed")
+         return acknowledgment
+ 
++    def _load_orphan_release_audit(self, receipt_id: str) -> dict[str, Any]:
++        """Load an immutable initial audit, including pre-existing dashed UUID IDs."""
++        if not _orphan_audit_id(receipt_id):
++            raise ResourceControllerError("verified_release_audit_mismatch")
++        try:
++            base = self.db.execute("""SELECT release_request_id,daemon_epoch,session_ids,proof,
++                proof_sha256,controller_host FROM pa1_orphan_resource_reconciliation_audit
++                WHERE receipt_id=?""", (receipt_id,)).fetchone()
++        except sqlite3.OperationalError as error:
++            raise ResourceControllerError("verified_release_audit_unavailable") from error
++        if base is None:
++            raise ResourceControllerError("verified_release_audit_missing")
++        request_id, epoch, sessions_text, proof_text, digest, host = tuple(base)
++        try:
++            sessions = json.loads(sessions_text).get("session_ids")
++            proof = json.loads(proof_text)
++            actual_digest = hashlib.sha256(proof_text.encode("utf-8")).hexdigest()
++            canonical_digest = hashlib.sha256(_json(proof).encode("utf-8")).hexdigest()
++        except (TypeError, ValueError, AttributeError, json.JSONDecodeError) as error:
++            raise ResourceControllerError("verified_release_audit_mismatch") from error
++        if (not isinstance(sessions, list) or sessions != sorted(sessions) or
++                len(sessions) != len(set(sessions)) or actual_digest != digest or
++                canonical_digest != digest or not isinstance(host, str) or not host or
++                not isinstance(proof, Mapping)):
++            raise ResourceControllerError("verified_release_audit_mismatch")
++        return {"receipt_id": receipt_id, "release_request_id": request_id,
++            "daemon_epoch": epoch, "session_ids": sessions, "proof": proof,
++            "proof_text": proof_text, "proof_sha256": digest, "controller_host": host}
++
+     def _verify_release_ack_rows(self, intent: ReleaseIntent) -> _VerifiedOwnedReleaseAck:
+         if not isinstance(intent, ReleaseIntent):
+             raise ResourceControllerError("release_intent_invalid")
+@@ -893,22 +1220,15 @@
+             if stale_rows or len(aggregate_rows) != len(rows):
+                 raise ResourceControllerError("verified_release_proof_mismatch")
+             _, first_receipt, first_proof = aggregate_rows[0]
+-            try:
+-                audited = self.db.execute("""SELECT release_request_id,daemon_epoch,session_ids,proof,
+-                    proof_sha256,controller_host FROM pa1_orphan_resource_reconciliation_audit
+-                    WHERE receipt_id=?""", (first_receipt["receipt_id"],)).fetchone()
+-            except sqlite3.OperationalError as error:
+-                raise ResourceControllerError("verified_release_audit_unavailable") from error
+-            if audited is None:
+-                raise ResourceControllerError("verified_release_audit_missing")
+-            audit_request, audit_epoch, audit_sessions, audit_proof, audit_hash, audit_host = tuple(audited)
+-            aggregate_proof = json.loads(audit_proof)
++            audited = self._load_orphan_release_audit(first_receipt["receipt_id"])
++            audit_request, audit_epoch = audited["release_request_id"], audited["daemon_epoch"]
++            audit_sessions, aggregate_proof = audited["session_ids"], audited["proof"]
++            audit_proof, audit_hash = audited["proof_text"], audited["proof_sha256"]
++            audit_host = audited["controller_host"]
+             target_ids = sorted(session_ids)
+             if (audit_request != intent.request_id or audit_epoch != first_receipt.get("daemon_epoch") or
+                     not isinstance(audit_host, str) or not audit_host or
+-                    json.loads(audit_sessions).get("session_ids") != target_ids or
+-                    hashlib.sha256(audit_proof.encode("utf-8")).hexdigest() != audit_hash or
+-                    hashlib.sha256(_json(aggregate_proof).encode("utf-8")).hexdigest() != audit_hash or
++                    audit_sessions != target_ids or
+                     first_proof != aggregate_proof or aggregate_proof.get("format") != "PA1-PHYSICAL-RELEASE/1" or
+                     aggregate_proof.get("daemon_epoch") != audit_epoch or
+                     aggregate_proof.get("stopped") is not True or aggregate_proof.get("quiescent") is not True or
+@@ -989,8 +1309,7 @@
+             if isinstance(raw_receipt, Mapping) and raw_receipt.get("format") == "PA1-ORPHANED-SESSION-RELEASE/1":
+                 if (not isinstance(proof, Mapping) or proof.get("request_id") != request_id or
+                         raw_receipt.get("release_request_id") != request_id or
+-                        not isinstance(raw_receipt.get("receipt_id"), str) or
+-                        not _HEX_32.fullmatch(raw_receipt["receipt_id"])):
++                        not _orphan_audit_id(raw_receipt.get("receipt_id"))):
+                     raise ResourceControllerError("verified_release_proof_mismatch")
+                 aggregate_groups.setdefault(request_id, []).append(
+                     (session_id, raw_receipt, proof, epoch))
+@@ -1157,23 +1476,14 @@
+         session_ids = sorted(session_id for session_id, _receipt, _proof, _epoch in rows)
+         first_receipt, first_proof = rows[0][1], rows[0][2]
+         receipt_id = first_receipt.get("receipt_id")
+-        if not isinstance(receipt_id, str) or not _HEX_32.fullmatch(receipt_id):
++        if not _orphan_audit_id(receipt_id):
+             raise ResourceControllerError("verified_release_audit_mismatch")
+-        try:
+-            audited = self.db.execute("""SELECT release_request_id,daemon_epoch,session_ids,proof,
+-                proof_sha256,controller_host FROM pa1_orphan_resource_reconciliation_audit
+-                WHERE receipt_id=?""", (receipt_id,)).fetchone()
+-        except sqlite3.OperationalError as error:
+-            raise ResourceControllerError("verified_release_audit_unavailable") from error
+-        if audited is None:
+-            raise ResourceControllerError("verified_release_audit_missing")
+-        audit_request, audit_epoch, audit_sessions, audit_text, audit_hash, audit_host = tuple(audited)
+-        try:
+-            audit_targets = json.loads(audit_sessions).get("session_ids")
+-            audit_proof = json.loads(audit_text)
+-            proof_hash = hashlib.sha256(_json(audit_proof).encode("utf-8")).hexdigest()
+-        except (TypeError, ValueError, AttributeError, json.JSONDecodeError) as error:
+-            raise ResourceControllerError("verified_release_audit_mismatch") from error
++        audited = self._load_orphan_release_audit(receipt_id)
++        audit_request, audit_epoch = audited["release_request_id"], audited["daemon_epoch"]
++        audit_targets, audit_proof = audited["session_ids"], audited["proof"]
++        audit_text, audit_hash, audit_host = (audited["proof_text"], audited["proof_sha256"],
++            audited["controller_host"])
++        proof_hash = hashlib.sha256(_json(audit_proof).encode("utf-8")).hexdigest()
+         captured = first_proof.get("captured_at") if isinstance(first_proof, Mapping) else None
+         if (audit_request != request_id or audit_epoch != first_receipt.get("daemon_epoch") or
+                 not isinstance(audit_host, str) or not audit_host or audit_targets != session_ids or
+--- /dev/null
++++ b/tests/assistance/test_archived_epoch_recovery.py
+@@ -0,0 +1,465 @@
++"""Fail-closed source-mode recovery for mixed orphan resource rows and slots."""
++from __future__ import annotations
++
++import json
++import os
++import sqlite3
++import time
++from contextlib import contextmanager
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++
++import pytest
++
++from project_control.as1_jobs import JobService
++from project_control.as1_contracts import DurableJob
++from project_control.as1_packets import SQLitePacketStore
++from project_control.assistance.power import PowerPolicy, ReleaseIntent, trusted_operator_control
++from project_control.assistance.resources import ResourceController, ResourceControllerError
++from project_control.observer_analysis import (
++    SkillsObserverAnalysisProvider, _PHYSICAL_RELEASE_SEAL, _VerifiedPhysicalRelease,
++    _fresh_host_release_observation,
++)
++from project_control.as1_jobs import _host_admission_fence
++
++
++GPU_UUIDS = tuple(f"GPU-00000000-0000-0000-0000-{index:012d}" for index in range(1, 5))
++EPOCH = {
++    "daemon_epoch": "a" * 64,
++    "supervisor_pid": 98_000_001,
++    "supervisor_process_start": "1234567",
++    "runtime_fingerprint": "b" * 64,
++}
++SOURCE_IDENTITY = {
++    "format": "PC-SOURCE-IDENTITY/1",
++    "project_control_root": "/fixture/project-control/src/project_control",
++    "project_control_fingerprint": "c" * 64,
++    "todo_orchestrator_root": "/fixture/project-control/src/todo_orchestrator",
++    "todo_orchestrator_fingerprint": "f" * 64,
++    "receiver_root": "/fixture/project-control/src/project_control/local_runtime",
++    "receiver_manifest_sha256": "d" * 64,
++    "receiver_fingerprint": "e" * 64,
++    "receiver_source_commit": "working-tree",
++}
++
++
++def cleanup_receipts():
++    return [
++        {"owner_id": "owner-a", "owned_pid": 71_001, "server_process_start": "71001",
++         "generation": "generation-a", "gpu_uuids": list(GPU_UUIDS[:2]),
++         "released": True, "process_released": True, "memory_released": True},
++        {"owner_id": "owner-b", "owned_pid": 71_002, "server_process_start": "71002",
++         "generation": "generation-b", "gpu_uuids": list(GPU_UUIDS[2:]),
++         "released": True, "process_released": True, "memory_released": True},
++    ]
++
++
++def broker_slots():
++    return [
++        {"job_id": "failed-job-a", "attempt": 2, "cleanup_pending": True,
++         "owner_pid": 72_001, "owner_process_start": "72001"},
++        {"job_id": "failed-job-b", "attempt": 3, "cleanup_pending": True,
++         "owner_pid": 72_002, "owner_process_start": "72002"},
++    ]
++
++
++def fresh_observations():
++    return {
++        "service_units": [
++            {"unit": "project-control.service", "active_state": "inactive", "main_pid": 0},
++            {"unit": "project-control-inference.service", "active_state": "inactive", "main_pid": 0},
++        ],
++        "gpu": {"observed_at": 1000.0,
++            "devices": [{"uuid": uuid, "memory_used_mib": 0.0} for uuid in GPU_UUIDS],
++            "processes": []},
++        "host": {"active_owners": 0, "active_reservations": 0,
++            "active_foreground_intents": 0},
++    }
++
++
++def sealed_recovery_proof(*, slots=None):
++    value = {
++        "format": "PA1-PHYSICAL-RELEASE/1", "captured_at": 1000.0,
++        "status": "released_verified", "released_verified": True,
++        **EPOCH, "quiescent": True, "evicted": True, "stopped": True,
++        "gpu_uuids": list(GPU_UUIDS), "cleanup_receipts": cleanup_receipts(),
++        "orphan_execution_slots": broker_slots() if slots is None else slots,
++        "recovery_kind": "source_mode_archived_whole_epoch",
++        "source_identity": dict(SOURCE_IDENTITY),
++        "source_proof_captured_at": 900.0,
++        "fresh_observations": fresh_observations(),
++    }
++    return _VerifiedPhysicalRelease(_PHYSICAL_RELEASE_SEAL, value, "fixture-host")
++
++
++def archived_release():
++    return {
++        "format": "PA1-PHYSICAL-RELEASE/1", "captured_at": 900.0,
++        "status": "released_verified", "released_verified": True,
++        **EPOCH, "quiescent": True, "evicted": True, "stopped": True,
++        "gpu_uuids": list(GPU_UUIDS),
++        "cleanup_receipts": [
++            {**item, "observation": {"observed_unix": 899.0, "devices": [], "processes": []},
++             "memory_baseline": {uuid: 1 for uuid in item["gpu_uuids"]}}
++            for item in cleanup_receipts()
++        ],
++    }
++
++
++def _add_mixed_rows(db, *, clock):
++    db.execute("CREATE TABLE jobs(id TEXT, record TEXT NOT NULL)")
++    db.execute("""CREATE TABLE execution_slots(job TEXT PRIMARY KEY, attempt INTEGER NOT NULL,
++        owner_pid INTEGER, owner_start TEXT, cleanup_failed INTEGER NOT NULL DEFAULT 0)""")
++    power = PowerPolicy(db, clock=clock)
++    resources = ResourceController(db, power_policy=power, clock=clock)
++    control = trusted_operator_control()
++    intent = power.set_release(control, reason="operator-requested-recovery")
++    db.commit()
++
++    for index, session_id in enumerate(("orphan-a", "orphan-b")):
++        resources.record_active_session(session_id, EPOCH)
++        db.execute("UPDATE pa1_owned_resource_sessions SET release_request_id=? WHERE session_id=?",
++                   (intent.request_id, session_id))
++    prior_receipts = {}
++    for index, (session_id, physical) in enumerate(zip(("closed-a", "closed-b"), cleanup_receipts())):
++        resources.record_active_session(session_id, EPOCH)
++        receipt = {"format": "PA1-OWNED-RESOURCE/1", "session_id": session_id,
++            "daemon_epoch": EPOCH["daemon_epoch"], "slot_id": f"slot-{index}",
++            "owner_id": physical["owner_id"], "host_lease_id": physical["owner_id"],
++            "residency_generation": physical["generation"], "server_pid": physical["owned_pid"],
++            "server_process_start": physical["server_process_start"],
++            "gpu_uuids": physical["gpu_uuids"], "capability": str(index + 1) * 64}
++        resources.record_session(session_id, receipt)
++        db.execute("UPDATE pa1_owned_resource_sessions SET state='release_pending',release_request_id=? WHERE session_id=?",
++                   (intent.request_id, session_id))
++        prior_receipts[session_id] = receipt
++
++    for slot in broker_slots():
++        db.execute("INSERT INTO jobs(id,record) VALUES(?,?)",
++                   (slot["job_id"], json.dumps({"status": "partial", "attempt": slot["attempt"]})))
++        db.execute("""INSERT INTO execution_slots(job,attempt,owner_pid,owner_start,cleanup_failed)
++            VALUES(?,?,?,?,1)""", (slot["job_id"], slot["attempt"], slot["owner_pid"],
++                                    slot["owner_process_start"]))
++    db.commit()
++    return resources, control, intent, prior_receipts
++
++
++def _absence_proof_patches():
++    return (
++        patch("project_control.observer_analysis._source_identity_snapshot",
++              return_value=SOURCE_IDENTITY),
++        patch("project_control.assistance.resources._process_start_time", return_value=None),
++        patch("project_control.assistance.resources.os.kill", side_effect=ProcessLookupError),
++    )
++
++
++def test_archived_source_verifier_mints_only_after_fresh_local_rechecks(monkeypatch):
++    provider = SkillsObserverAnalysisProvider()
++    provider._allowed_gpu_uuids = GPU_UUIDS
++    monkeypatch.setattr(provider, "_get_backend", lambda: pytest.fail("must_not_construct_backend"))
++    monkeypatch.setattr("project_control.observer_analysis._source_identity_snapshot",
++                        lambda: dict(SOURCE_IDENTITY))
++    monkeypatch.setattr("project_control.observer_analysis._require_process_absent", lambda *_a, **_k: None)
++    monkeypatch.setattr("project_control.observer_analysis._inactive_service_state",
++        lambda unit: {"unit": unit, "active_state": "inactive", "main_pid": 0})
++    monkeypatch.setattr("project_control.observer_analysis._fresh_gpu_release_observation",
++        lambda _uuids: fresh_observations()["gpu"])
++    monkeypatch.setattr("project_control.observer_analysis._fresh_host_release_observation",
++        lambda: fresh_observations()["host"])
++    monkeypatch.setattr("project_control.observer_analysis._proc_start_time", lambda _pid: None)
++
++    proof = provider.verify_archived_physical_release(archived_release(), broker_status={
++        "active_work": [], "active_work_truncated": False,
++        "active_execution_slots": broker_slots(), "active_execution_slots_truncated": False,
++    })
++
++    assert isinstance(proof, _VerifiedPhysicalRelease)
++    assert proof["recovery_kind"] == "source_mode_archived_whole_epoch"
++    assert proof["source_identity"] == SOURCE_IDENTITY
++    assert proof["daemon_epoch"] == EPOCH["daemon_epoch"]
++    assert proof["orphan_execution_slots"] == broker_slots()
++    assert proof["fresh_observations"]["gpu"]["processes"] == []
++
++
++@pytest.mark.parametrize("row", ["active_owner", "intent_owner", "reservation", "foreground_intent"])
++def test_host_fresh_observation_rejects_all_admission_states(tmp_path, monkeypatch, row):
++    database = tmp_path / "physical-resources.sqlite3"
++    db = sqlite3.connect(database)
++    db.executescript("""
++        CREATE TABLE host_owners(id TEXT, state TEXT);
++        CREATE TABLE host_reservations(owner_id TEXT, state TEXT);
++        CREATE TABLE host_foreground_intents(id TEXT, state TEXT);
++    """)
++    if row == "active_owner":
++        db.execute("INSERT INTO host_owners VALUES('owner','active')")
++    elif row == "intent_owner":
++        db.execute("INSERT INTO host_owners VALUES('owner','intent')")
++    elif row == "reservation":
++        db.execute("INSERT INTO host_reservations VALUES('owner','active')")
++    else:
++        db.execute("INSERT INTO host_foreground_intents VALUES('intent','active')")
++    db.commit()
++    db.close()
++
++    class Host:
++        def __init__(self, *, create):
++            assert create is False
++            self.database = database
++
++        def connect(self, *, readonly=False):
++            assert readonly is True
++            return sqlite3.connect(f"file:{database}?mode=ro", uri=True)
++
++    monkeypatch.setattr("todo_orchestrator.background.host.HostCoordinator", Host)
++    with pytest.raises(RuntimeError, match="host_owner_reappeared"):
++        _fresh_host_release_observation()
++
++
++def test_host_admission_fence_serializes_new_reservations_without_writing(tmp_path, monkeypatch):
++    root = tmp_path / "host-runtime"
++    root.mkdir()
++    database = root / "physical-resources.sqlite3"
++    db = sqlite3.connect(database)
++    db.execute("CREATE TABLE retained(value TEXT)")
++    db.execute("INSERT INTO retained VALUES('unchanged')")
++    db.commit()
++    db.close()
++    monkeypatch.setenv("TODO_BACKGROUND_HOST_RUNTIME_DIR", str(root))
++
++    with _host_admission_fence(max_seconds=2) as fence:
++        fence.check()
++        contender = sqlite3.connect(database, timeout=0.01, isolation_level=None)
++        try:
++            with pytest.raises(sqlite3.OperationalError, match="locked"):
++                contender.execute("BEGIN IMMEDIATE")
++        finally:
++            contender.close()
++
++    db = sqlite3.connect(database)
++    try:
++        assert db.execute("SELECT value FROM retained").fetchone()[0] == "unchanged"
++    finally:
++        db.close()
++
++
++def test_host_admission_fence_fails_closed_without_creating_database(tmp_path, monkeypatch):
++    root = tmp_path / "missing-host-runtime"
++    root.mkdir()
++    monkeypatch.setenv("TODO_BACKGROUND_HOST_RUNTIME_DIR", str(root))
++    with pytest.raises(RuntimeError, match="host_admission_fence_unavailable"):
++        with _host_admission_fence():
++            pytest.fail("missing_host_database_must_not_open")
++    assert not (root / "physical-resources.sqlite3").exists()
++
++
++@pytest.mark.parametrize("failure, expected", [
++    ("occupied_gpu", "gpu_memory_not_zero"),
++    ("active_host", "host_owner_reappeared"),
++    ("active_unit", "service_not_inactive"),
++    ("source_changes_during_check", "source_identity_changed"),
++    ("reused_process", "present_or_reused"),
++])
++def test_archived_source_verifier_fails_closed_on_fresh_observation_failures(
++        monkeypatch, failure, expected):
++    provider = SkillsObserverAnalysisProvider()
++    provider._allowed_gpu_uuids = GPU_UUIDS
++    monkeypatch.setattr(provider, "_get_backend", lambda: pytest.fail("must_not_construct_backend"))
++    if failure == "source_changes_during_check":
++        changed = dict(SOURCE_IDENTITY, todo_orchestrator_fingerprint="9" * 64)
++        identities = iter((dict(SOURCE_IDENTITY), changed))
++        monkeypatch.setattr("project_control.observer_analysis._source_identity_snapshot",
++                            lambda: next(identities))
++    else:
++        monkeypatch.setattr("project_control.observer_analysis._source_identity_snapshot",
++                            lambda: dict(SOURCE_IDENTITY))
++    if failure == "occupied_gpu":
++        def gpu(_uuids):
++            raise RuntimeError("physical_release_gpu_memory_not_zero")
++        monkeypatch.setattr("project_control.observer_analysis._fresh_gpu_release_observation", gpu)
++    else:
++        monkeypatch.setattr("project_control.observer_analysis._fresh_gpu_release_observation",
++                            lambda _uuids: fresh_observations()["gpu"])
++    monkeypatch.setattr("project_control.observer_analysis._fresh_host_release_observation",
++        lambda: (_ for _ in ()).throw(RuntimeError("physical_release_host_owner_reappeared"))
++        if failure == "active_host" else fresh_observations()["host"])
++    monkeypatch.setattr("project_control.observer_analysis._inactive_service_state",
++        lambda unit: (_ for _ in ()).throw(RuntimeError("physical_release_service_not_inactive"))
++        if failure == "active_unit" and unit == "project-control.service" else
++        {"unit": unit, "active_state": "inactive", "main_pid": 0})
++    monkeypatch.setattr("project_control.observer_analysis._proc_start_time", lambda _pid: None)
++    monkeypatch.setattr("project_control.observer_analysis._require_process_absent",
++        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("physical_release_supervisor_present_or_reused"))
++        if failure == "reused_process" else None)
++    with pytest.raises(RuntimeError, match=expected):
++        provider.verify_archived_physical_release(archived_release(), broker_status={
++            "active_work": [], "active_work_truncated": False,
++            "active_execution_slots": broker_slots(), "active_execution_slots_truncated": False,
++        })
++
++
++def test_mixed_epoch_recovery_preserves_close_receipts_and_releases_only_exact_slots(monkeypatch):
++    db = sqlite3.connect(":memory:")
++    clock = lambda: 1000.0
++    resources, control, intent, prior_receipts = _add_mixed_rows(db, clock=clock)
++    proof = sealed_recovery_proof()
++    try:
++        with _absence_proof_patches()[0], _absence_proof_patches()[1], _absence_proof_patches()[2]:
++            recovered = resources.record_archived_epoch_recovery_after_physical_release(
++                control, intent, proof)
++            assert recovered == ["closed-a", "closed-b", "orphan-a", "orphan-b"]
++            db.commit()
++
++        # Simulate an operator interruption after the durable resource audit
++        # commits but before the separate PowerPolicy release ACK is written.
++        with _absence_proof_patches()[0], _absence_proof_patches()[1], _absence_proof_patches()[2]:
++            resumed = resources.record_archived_epoch_recovery_after_physical_release(
++                control, intent, sealed_recovery_proof())
++        assert resumed == recovered
++        assert db.execute("SELECT count(*) FROM pa1_orphan_resource_reconciliation_audit").fetchone()[0] == 1
++
++        rows = db.execute("SELECT session_id,state,close_receipt,release_proof FROM "
++                          "pa1_owned_resource_sessions ORDER BY session_id").fetchall()
++        assert all(row[1] == "released_verified" for row in rows)
++        assert all(len(json.loads(row[2])["receipt_id"]) == 32 for row in rows)
++        for session_id, _state, close_text, proof_text in rows:
++            close = json.loads(close_text)
++            assert close["format"] == "PA1-ORPHANED-SESSION-RELEASE/1"
++            aggregate = json.loads(proof_text)
++            preserved = aggregate["recovery_context"]["preserved_close_receipts"]
++            assert preserved[session_id] == prior_receipts.get(session_id)
++        ack = resources.verified_release_ack(intent)
++        assert ack.target_session_ids == tuple(recovered)
++        resources.acknowledge_verified_release(intent)
++        assert resources.power_policy.snapshot()["physical_state"] == "released_verified"
++    finally:
++        db.close()
++
++
++@pytest.mark.parametrize("mutation, expected", [
++    ("active_job", "controller_work_not_quiescent"),
++    ("release_veto", "permanent_release_veto_required"),
++    ("unrelated_epoch", "orphaned_epoch_session_set_incomplete"),
++    ("receipt_owner", "orphaned_epoch_physical_identity_mismatch"),
++    ("source_identity", "source_identity_mismatch"),
++    ("source_identity_missing", "source_identity_mismatch"),
++    ("occupied_gpu", "fresh_observation_invalid"),
++    ("live_or_reused_owner", "present_or_reused"),
++])
++def test_mixed_epoch_recovery_rejects_unsafe_state_without_mutation(monkeypatch, mutation, expected):
++    db = sqlite3.connect(":memory:")
++    clock = lambda: 1000.0
++    resources, control, intent, _prior_receipts = _add_mixed_rows(db, clock=clock)
++    proof = sealed_recovery_proof()
++    if mutation == "active_job":
++        db.execute("UPDATE jobs SET record=? WHERE id='failed-job-a'",
++                   (json.dumps({"status": "running", "attempt": 2}),))
++    elif mutation == "release_veto":
++        db.execute("UPDATE pa1_power_state SET release_veto=0 WHERE singleton=1")
++    elif mutation == "unrelated_epoch":
++        other = dict(EPOCH, daemon_epoch="f" * 64)
++        resources.record_active_session("foreign-session", other)
++        db.execute("UPDATE pa1_owned_resource_sessions SET release_request_id=? WHERE session_id=?",
++                   (intent.request_id, "foreign-session"))
++    elif mutation == "receipt_owner":
++        proof["cleanup_receipts"][0]["owner_id"] = "foreign-owner"
++    elif mutation == "source_identity":
++        proof["source_identity"]["project_control_fingerprint"] = "9" * 64
++    elif mutation == "source_identity_missing":
++        proof.pop("source_identity")
++    elif mutation == "occupied_gpu":
++        proof["fresh_observations"]["gpu"]["devices"][0]["memory_used_mib"] = 64.0
++    db.commit()
++    try:
++        source = SOURCE_IDENTITY if mutation != "source_identity" else dict(SOURCE_IDENTITY)
++        if mutation == "source_identity":
++            proof["source_identity"]["project_control_fingerprint"] = "9" * 64
++        with patch("project_control.observer_analysis._source_identity_snapshot", return_value=source), \
++             patch("project_control.assistance.resources._process_start_time",
++                   return_value="different-start" if mutation == "live_or_reused_owner" else None), \
++             patch("project_control.assistance.resources.os.kill", side_effect=ProcessLookupError):
++            with pytest.raises(ResourceControllerError, match=expected):
++                resources.record_archived_epoch_recovery_after_physical_release(control, intent, proof)
++            assert resources.power_policy.snapshot()["physical_state"] == "pending"
++            assert db.execute("SELECT count(*) FROM pa1_orphan_resource_reconciliation_audit").fetchone()[0] == 0
++        assert db.execute("SELECT count(*) FROM execution_slots").fetchone()[0] == 2
++        assert db.execute("SELECT count(*) FROM pa1_owned_resource_sessions WHERE state='released_verified'").fetchone()[0] == 0
++    finally:
++        db.close()
++
++
++def test_job_service_operator_recovery_runs_resource_ack_before_exact_slot_removal(tmp_path, monkeypatch):
++    proof = sealed_recovery_proof()
++
++    class Backend:
++        _allowed_gpu_uuids = GPU_UUIDS
++
++        @staticmethod
++        def verify_archived_physical_release(_archive, *, broker_status):
++            assert broker_status["active_work"] == []
++            assert broker_status["active_execution_slots"] == broker_slots()
++            return proof
++
++    service = JobService(tmp_path / "jobs", packets=SQLitePacketStore(tmp_path / "packets"),
++                         backend=Backend(), clock=lambda: 1000.0)
++    try:
++        with service._db() as db:
++            power = PowerPolicy(db, clock=service.clock)
++            resources = ResourceController(db, power_policy=power, clock=service.clock)
++            control = trusted_operator_control()
++            intent = power.set_release(control, reason="operator-requested-recovery")
++            for session_id in ("orphan-a", "orphan-b"):
++                resources.record_active_session(session_id, EPOCH)
++                db.execute("UPDATE pa1_owned_resource_sessions SET release_request_id=? WHERE session_id=?",
++                           (intent.request_id, session_id))
++            for index, physical in enumerate(cleanup_receipts()):
++                session_id = ("closed-a", "closed-b")[index]
++                resources.record_active_session(session_id, EPOCH)
++                receipt = {"format": "PA1-OWNED-RESOURCE/1", "session_id": session_id,
++                    "daemon_epoch": EPOCH["daemon_epoch"], "slot_id": f"slot-{index}",
++                    "owner_id": physical["owner_id"], "host_lease_id": physical["owner_id"],
++                    "residency_generation": physical["generation"], "server_pid": physical["owned_pid"],
++                    "server_process_start": physical["server_process_start"],
++                    "gpu_uuids": physical["gpu_uuids"], "capability": str(index + 1) * 64}
++                resources.record_session(session_id, receipt)
++                db.execute("UPDATE pa1_owned_resource_sessions SET state='release_pending',release_request_id=? WHERE session_id=?",
++                           (intent.request_id, session_id))
++            for slot in broker_slots():
++                job_record = DurableJob(job_id=slot["job_id"], mode="investigate",
++                    question="retained", hints=[], status="partial", attempt=slot["attempt"],
++                    created_at="2026-10-08T00:00:00Z", findings=[], evidence_packets=[],
++                    unresolved_questions=[])
++                db.execute("INSERT INTO jobs(id,scope,request_hash,record,updated,lease,available) VALUES(?,?,?,?,?,?,?)",
++                    (slot["job_id"], "{}", "b" * 64,
++                     job_record.model_dump_json(), 1000.0, 0.0, 0.0))
++                db.execute("""INSERT INTO execution_slots(job,attempt,lease,owner_pid,owner_start,cleanup_failed)
++                    VALUES(?,?,?,?,?,1)""", (slot["job_id"], slot["attempt"], 0.0,
++                        slot["owner_pid"], slot["owner_process_start"]))
++        monkeypatch.setattr("project_control.observer_analysis._source_identity_snapshot",
++                            lambda: dict(SOURCE_IDENTITY))
++        monkeypatch.setattr("project_control.assistance.resources._process_start_time", lambda _pid: None)
++        monkeypatch.setattr("project_control.assistance.resources.os.kill",
++                            lambda *_a, **_k: (_ for _ in ()).throw(ProcessLookupError()))
++        monkeypatch.setattr("project_control.observer_analysis._source_identity_snapshot",
++                            lambda: dict(SOURCE_IDENTITY))
++        monkeypatch.setattr("project_control.observer_analysis._require_process_absent", lambda *_a, **_k: None)
++        monkeypatch.setattr(JobService, "_process_start", staticmethod(lambda _pid: None))
++        class FakeFence:
++            def check(self):
++                return None
++        @contextmanager
++        def fake_host_fence():
++            yield FakeFence()
++        monkeypatch.setattr("project_control.as1_jobs._host_admission_fence", fake_host_fence)
++
++        result = service.recover_archived_execution_cleanup(trusted_operator_control(), archived_proof=archived_release())
++
++        assert result["status"] == "reconciled"
++        assert result["sessions"] == ["closed-a", "closed-b", "orphan-a", "orphan-b"]
++        assert len(result["execution_slots"]) == 2
++        with service._db() as db:
++            assert db.execute("SELECT count(*) FROM execution_slots").fetchone()[0] == 0
++            assert db.execute("SELECT count(*) FROM stale_execution_cleanup_audit").fetchone()[0] == 2
++            assert PowerPolicy(db, clock=service.clock).snapshot()["physical_state"] == "released_verified"
++    finally:
++        service.shutdown()

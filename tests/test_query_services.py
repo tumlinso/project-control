@@ -106,6 +106,8 @@ class QueryServiceTests(unittest.TestCase):
     def test_evidence_reports_support_and_provenance(self) -> None:
         result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="T1", kinds=["gates", "worker", "git"], detail="provenance"))
         self.assertEqual(result.data["confidence"], "high")
+        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
+        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
         self.assertIn("todo-gate:G1", result.data["provenance_ids"])
         self.assertNotIn("stdout", json.dumps(result.model_dump()))
 
@@ -124,12 +126,31 @@ class QueryServiceTests(unittest.TestCase):
         subject = "THIS-SUBJECT-DEFINITELY-DOES-NOT-EXIST-XYZ-92841"
         result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject=subject, kinds=["git"]))
         self.assertEqual(result.data["confidence"], "insufficient")
+        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
+        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
         self.assertEqual(result.data["support"], [])
 
     def test_git_evidence_requires_matching_repository_or_commit(self) -> None:
         result = evidence_for(self.config, self.snapshot, EvidenceInput(project="demo", subject="source", kinds=["git"]))
         self.assertEqual(result.data["confidence"], "high")
+        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
+        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
         self.assertEqual(result.data["support"][0]["kind"], "git_identity")
+
+    def test_source_filename_mention_is_not_labeled_as_claim_support(self) -> None:
+        incidental = self.root / "install.sh"
+        incidental.write_text("# Build helper\ninstall -m 644 README.md ./share/README.md\n", encoding="utf-8")
+        subprocess.run(["git", "add", "install.sh"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "add incidental filename mention"], cwd=self.root, check=True, capture_output=True)
+
+        result = evidence_for(self.config, self.snapshot, EvidenceInput(
+            project="demo", subject="README.md", kinds=["source"], detail="provenance",
+        ))
+
+        self.assertEqual(result.data["confidence"], "high")
+        self.assertEqual(result.data["confidence_basis"], "matching_evidence_presence")
+        self.assertEqual(result.data["claim_support_status"], "not_evaluated")
+        self.assertTrue(any(item.get("path") == "install.sh" for item in result.data["support"]))
 
     def test_agents_are_observable_only(self) -> None:
         result = agent_status(self.snapshot, AgentStatusInput(project="demo"))

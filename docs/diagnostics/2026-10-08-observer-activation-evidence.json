@@ -1,0 +1,48 @@
+{
+  "status": "partial",
+  "packet": "pkt_c5ffe5eddd924137a424a1592098c94a",
+  "data": {
+    "claim": "PBMC3K zero planner regret",
+    "confidence": "insufficient",
+    "confidence_basis": "matching_evidence_presence",
+    "claim_support_status": "not_evaluated",
+    "support": [],
+    "contradictions": [],
+    "unmeasured_or_unvalidated": [
+      "PBMC3K zero planner regret"
+    ],
+    "caveats": [
+      "no_matching_evidence"
+    ],
+    "prepared_context": {
+      "notes": [],
+      "goals": [],
+      "omissions": [],
+      "coverage": {
+        "project": "cellerator",
+        "examined": 0,
+        "matched": 0,
+        "returned": 0,
+        "partial": false
+      },
+      "authoritative": false,
+      "mutation_authority": false,
+      "advisory_instruction": true
+    },
+    "registered_gates": [],
+    "source_mentions_are_proof": false
+  },
+  "sources": [],
+  "coverage": {
+    "omissions": [
+      {
+        "reason": "evidence_unavailable"
+      }
+    ],
+    "semantic_revision": 7942,
+    "context_revision": null,
+    "context_project_uuid": null,
+    "observed_at": "2026-10-08T13:32:06Z",
+    "complete": false
+  }
+}

@@ -169,6 +169,28 @@ class ProjectModelTests(unittest.TestCase):
         self.assertIn("heuristic", result.data["critical_path_basis"])
         self.assertEqual(result.data["blocked"][0]["immediate_blockers"], ["T2"])
 
+    def test_blocked_frontier_exposes_only_bounded_raw_next_action_context(self) -> None:
+        snapshot = fixture_snapshot().model_copy(deep=True)
+        tasks = snapshot.todo_tables["tasks"]
+        blocked = next(task for task in tasks if task["id"] == "T3")
+        blocked.update(status="blocked", next_action="🧪" * 150)
+        snapshot.todo_tables["task_dependencies"] = []
+
+        result = project_frontier(snapshot)
+        item = next(entry for entry in result.data["blocked"] if entry["id"] == "T3")
+        context = item["recorded_context"]
+        self.assertEqual(item["immediate_blockers"], [])
+        self.assertEqual(context["label"], "raw canonical task.next_action")
+        self.assertLessEqual(len(context["next_action_preview"].encode("utf-8")), 512)
+        self.assertTrue(context["truncated"])
+        self.assertEqual([entry["id"] for entry in result.data["ready"]], ["T2"])
+
+        blocked["next_action"] = ""
+        absent = project_frontier(snapshot)
+        absent_item = next(entry for entry in absent.data["blocked"] if entry["id"] == "T3")
+        self.assertEqual(absent_item["immediate_blockers"], [])
+        self.assertNotIn("recorded_context", absent_item)
+
     def test_frontier_omits_completed_prerequisite_and_reports_task_recovery(self) -> None:
         snapshot = fixture_snapshot().model_copy(deep=True)
         snapshot.todo_tables["task_dependencies"] = [{"task_id": "T3", "prerequisite_task_id": "T0"}]
