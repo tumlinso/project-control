@@ -40,6 +40,15 @@ dispatch is owned by the observer and mutator profiles; coder/codex,
 investigator, and skill-assembler profiles do not start it. The local
 `assistance ask`/`chat` CLI manages its intended local dispatcher.
 
+The source HTTP and inference units refer to the host runtime directory under
+`/tmp` with an optional `ReadWritePaths` entry (`-/tmp/...`). `/tmp` is
+ephemeral and may not contain that directory after reboot; systemd must still
+allow the service namespace to start in that case. `ProtectSystem=full` leaves
+`/tmp` writable, and the Todo runtime creates its directory with restrictive
+permissions when it first needs it. Keep this path optional in both source
+units so boot and demand-driven inference startup do not depend on stale `/tmp`
+contents.
+
 Before editing executable Project Control or Todo Python, stop active
 assistance while the current source identity can still release its owned work.
 Then edit and run focused source checks before restarting both services

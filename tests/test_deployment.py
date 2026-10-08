@@ -12,6 +12,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_source_units_allow_missing_ephemeral_todo_runtime_path(self) -> None:
+        for name in ("project-control.service", "project-control-inference.service"):
+            with self.subTest(unit=name):
+                unit = (ROOT / "scripts" / "services" / name).read_text(encoding="utf-8")
+                read_write_paths = next(
+                    line for line in unit.splitlines() if line.startswith("ReadWritePaths=")
+                )
+                self.assertIn("-/tmp/codex-todo-orchestrator-1000", read_write_paths)
+                self.assertNotIn(" /tmp/codex-todo-orchestrator-1000", read_write_paths)
+                self.assertIn("ProtectSystem=full", unit)
+
     def test_doctor_classifies_bubblewrap_service_policy(self) -> None:
         cases = (
             (

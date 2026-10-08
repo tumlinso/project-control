@@ -18,7 +18,7 @@ NoNewPrivileges=true
 PrivateTmp=false
 ProtectSystem=full
 ProtectHome=read-only
-ReadWritePaths=%h/.cache/project-control %h/.local/state/project-control %h/.config/project-control /tmp/codex-todo-orchestrator-1000
+ReadWritePaths=%h/.cache/project-control %h/.local/state/project-control %h/.config/project-control -/tmp/codex-todo-orchestrator-1000
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
