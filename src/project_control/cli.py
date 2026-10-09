@@ -327,6 +327,11 @@ def _parser() -> argparse.ArgumentParser:
     retire_batch.add_argument("--request", required=True)
     retire_batch.add_argument("--apply", action="store_true")
     retire_batch.add_argument("--confirm")
+    reconcile_cancelled = admin_commands.add_parser("reconcile-cancelled-run-workspaces")
+    reconcile_cancelled.add_argument("--repo", required=True)
+    reconcile_cancelled.add_argument("--request", required=True)
+    reconcile_cancelled.add_argument("--apply", action="store_true")
+    reconcile_cancelled.add_argument("--confirm")
     prepare_retire = admin_commands.add_parser("prepare-retire-run-batch")
     prepare_retire.add_argument("--repo", required=True)
     prepare_retire.add_argument("--intent", required=True)
@@ -1237,6 +1242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 recover_authorized,
                 prepare_retire_run_batch,
                 retire_run_batch,
+                reconcile_cancelled_run_workspaces,
                 prepare_maintenance_assignment,
                 prepare_supersession_assignment,
             )
@@ -1283,6 +1289,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(json.dumps({**assignment, "operator_launch": operator_launch_command(args.recipient)}, sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "retire-run-batch":
                 result = retire_run_batch(args.repo, args.request, apply=args.apply, confirmation=args.confirm)
+                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            elif args.admin_command == "reconcile-cancelled-run-workspaces":
+                result = reconcile_cancelled_run_workspaces(
+                    args.repo, args.request, apply=args.apply, confirmation=args.confirm,
+                )
                 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             elif args.admin_command == "prepare-retire-run-batch":
                 result = prepare_retire_run_batch(args.repo, args.intent, args.output)

@@ -25,6 +25,7 @@ INTEGRATION_WAVE_CONFIRMATION = "INTEGRATION-WAVE"
 BIND_INTEGRATION_GATES_CONFIRMATION = "BIND-INTEGRATION-GATES"
 PUBLISH_COMPLETED_INTERFACE_CONFIRMATION = "PUBLISH-COMPLETED-INTERFACE"
 RETIRE_RUN_BATCH_CONFIRMATION = "RETIRE-RUN-BATCH"
+RECONCILE_CANCELLED_RUN_WORKSPACES_CONFIRMATION = "RECONCILE-CANCELLED-RUN-WORKSPACES"
 
 
 def _runtime_identity() -> object:
@@ -167,6 +168,46 @@ def retire_run_batch(repo: str | Path, request_file: str | Path, *, apply: bool,
     service = Service(repo, mutation_mode="self_debug")
     receipt = kernel_retire(service, request)
     return {**receipt, "request_sha256": digest, "request_file": str(path.resolve())}
+
+
+
+def reconcile_cancelled_run_workspaces(
+    repo: str | Path,
+    request_file: str | Path,
+    *,
+    apply: bool,
+    confirmation: str | None,
+) -> dict[str, object]:
+    """Preview or apply a source-proven repair for one cancelled run."""
+    _runtime_identity()
+    from todo_orchestrator.service import Service
+    from todo_orchestrator.workflow.reconcile_cancelled_run import reconcile_cancelled_run_workspaces as reconcile
+    from todo_orchestrator.workflow.service import repository_identity
+
+    path = Path(request_file)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid cancelled-run reconciliation request: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError("cancelled-run reconciliation request must be a JSON object")
+    if apply and confirmation != RECONCILE_CANCELLED_RUN_WORKSPACES_CONFIRMATION:
+        raise ValueError(f"--confirm must equal {RECONCILE_CANCELLED_RUN_WORKSPACES_CONFIRMATION}")
+    service = Service(repo, mutation_mode="self_debug", read_only=not apply)
+    project_uuid = str(service.project["project_uuid"])
+    result = reconcile(
+        service.db,
+        repository_root=service.paths.repo_root,
+        managed_root=service.paths.state_dir / "workflow-workspaces",
+        repository_identity=repository_identity(service.paths.repo_root, project_uuid),
+        project_uuid=project_uuid,
+        request=value,
+        apply=apply,
+    )
+    result["request_file"] = str(path.resolve())
+    if not apply:
+        result["apply_confirmation"] = RECONCILE_CANCELLED_RUN_WORKSPACES_CONFIRMATION
+    return result
 
 
 def prepare_retire_run_batch(repo: str | Path, intent_file: str | Path, output_file: str | Path | None = None) -> dict[str, object]:
