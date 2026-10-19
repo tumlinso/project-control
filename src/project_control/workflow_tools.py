@@ -22,8 +22,10 @@ WORKFLOW_INSTRUCTIONS = (
     "then commit that exact preview with an idempotency key. Open a run with an explicit "
     "schedule; create or select a workspace before dispatch. Dispatch returns a public "
     "attempt reference and lease, while the narrowed attempt credential remains private "
-    "to Project Control. Report, verify, accept or reject outcomes as distinct steps, then "
-    "finish the attempt. Read authority/run/context before acting when needed. Each tool "
+    "to Project Control. Report and verify a candidate before authorized outcome review. "
+    "Acceptance or rejection finalizes the attempt; integrate only an accepted attempt. "
+    "Use finish only to safely release work with no accepted outcome. Read authority/run/context "
+    "before acting when needed. Each tool "
     "accepts an optional registered repository alias; use it when a workspace has multiple "
     "Todo authorities, otherwise the workspace authority repository is selected."
 )
@@ -213,7 +215,7 @@ _DESCRIPTIONS = {
     "todo_read_run": "Read the native schedule and state for one run.",
     "todo_create_workspace": "Create a native managed workspace for a work item through the configured Git provider.",
     "todo_dispatch_attempt": "Dispatch a work item into a managed workspace; the attempt bearer stays in private host storage.",
-    "todo_integrate_attempt": "Integrate one reported attempt through the configured Git provider.",
+    "todo_integrate_attempt": "Integrate one accepted attempt through the configured Git provider.",
     "todo_verify_attempt": "Run a configured verifier for one attempt and requirement.",
     "todo_heartbeat_attempt": "Renew an attempt lease using its private attempt session.",
     "todo_resume_attempt": "Resume an exact attempt after reviewing its native state.",
@@ -227,7 +229,7 @@ _DESCRIPTIONS = {
     "todo_read_candidate": "Read one candidate report before acceptance review.",
     "todo_accept_outcome": "Accept a reviewed candidate for an attempt.",
     "todo_reject_outcome": "Reject a reviewed candidate for an attempt.",
-    "todo_finish_attempt": "Finish an attempt with its exact lease after outcome handling.",
+    "todo_finish_attempt": "Safely release work with its exact lease when it has no accepted outcome; acceptance or rejection finalizes the attempt.",
     "todo_inspect_attempt": "Inspect attempt recovery state without modifying it.",
     "todo_inspect_effect": "Inspect one uncertain effect before choosing a recovery action.",
     "todo_apply_recovery": "Apply the inspected recovery intent using its complete canonical Todo API document: JSON with format `todo-orchestrator.api-document`, version 1, kind `recovery_intent`, and the inspected intent under `payload`. Do not pass only the payload mapping.",
