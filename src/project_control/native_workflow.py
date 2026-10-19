@@ -1078,4 +1078,3 @@ def invoke_local_mutator(config: ProjectControlConfig, project: str, tool: str,
     if "project" in arguments:
         raise ValueError("project_must_be_selected_outside_todo_arguments")
     return local_mutator_workflow(config).invoke(tool, project=project, **dict(arguments))
-

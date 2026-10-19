@@ -14,4 +14,3 @@ class LocalWorkerRuntime:
     def __init__(self, project_root: str | Path, *, host: HostCoordinator | None = None):
         self.project_root = Path(project_root).resolve()
         self.host = HostResourceFacade(host or HostCoordinator())
-

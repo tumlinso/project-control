@@ -150,4 +150,3 @@ def test_host_review_and_integration_use_host_session_but_worker_effects_use_att
             assert session.calls[-1][2] == "lease-1"
         assert session.closed
     assert forgotten_attempts == [("trusted-mutator", "mutator", "attempt-42")]
-

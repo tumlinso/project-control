@@ -13,4 +13,3 @@ def canonical_json(value: object) -> str:
 
 def digest(value: object) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
-

@@ -227,4 +227,3 @@ class HostResourceFacade:
         self._coordinator.release(owner_id, residency_quiescence=residency_quiescence,
                                   residency_capability=residency_capability, generation=generation)
         self._drain_callbacks.pop(owner_id, None)
-

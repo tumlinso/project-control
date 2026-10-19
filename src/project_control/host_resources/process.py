@@ -22,4 +22,3 @@ def _alive(pid: int | None, expected: str | None) -> bool:
         return not expected or not actual or expected == actual
     except OSError:
         return False
-
