@@ -35,13 +35,46 @@ class MCPProfile(StrEnum):
 
 
 RICH_READ_TOOL_NAMES = ("overview", "delta", "frontier", "search", "evidence", "impact", "history", "machine")
-WORKFLOW_TOOL_NAMES = ("next_task", "inspect_task", "coordinate_task", "finish_task")
-MAINTENANCE_TOOL_NAME = "maintain_execution"
-MUTATION_TOOL_NAMES = ("plan", "amend_project", MAINTENANCE_TOOL_NAME)
+TODO_READ_TOOL_NAMES = (
+    "todo_read_authority", "todo_read_run", "todo_read_candidate",
+    "todo_inspect_attempt", "todo_inspect_effect", "todo_inspect_resource",
+    "todo_build_context", "todo_search_legacy_history", "todo_read_legacy_current_tasks",
+    "todo_read_legacy_project_context",
+    "todo_inbox_status",
+)
+TODO_ADMIN_TOOL_NAMES = (
+    "todo_preview_legacy_import", "todo_import_legacy_snapshot",
+)
+TODO_WORKFLOW_TOOL_NAMES = (
+    "todo_preview_plan", "todo_commit_plan", "todo_read_authority",
+    "todo_open_run", "todo_read_run", "todo_create_workspace",
+    "todo_dispatch_attempt", "todo_integrate_attempt", "todo_verify_attempt",
+    "todo_heartbeat_attempt", "todo_resume_attempt", "todo_release_attempt",
+    "todo_reserve_resource", "todo_inspect_resource", "todo_reconcile_resource",
+    "todo_retry_resource", "todo_release_resource", "todo_report_outcome",
+    "todo_read_candidate", "todo_accept_outcome", "todo_reject_outcome",
+    "todo_finish_attempt", "todo_inspect_attempt", "todo_inspect_effect",
+    "todo_apply_recovery", "todo_close_run", "todo_retire_run",
+    "todo_resolve_decision", "todo_publish_interface", "todo_accept_checkpoint",
+    "todo_release_barrier", "todo_arrive_rendezvous", "todo_open_blocker",
+    "todo_clear_blocker", "todo_build_context", "todo_expand_context",
+    "todo_publish_finding", "todo_invalidate_finding",
+    "todo_send_message", "todo_ask_question", "todo_answer_question",
+    "todo_sync_inbox", "todo_mark_messages_read", "todo_inbox_status",
+    "todo_read_child_execution", "todo_submit_child_candidate",
+    "todo_review_child_candidate", "todo_cancel_child", "todo_reconcile_child",
+    "todo_start_child",
+    "todo_search_legacy_history",
+    "todo_read_legacy_current_tasks",
+    "todo_read_legacy_project_context",
+)
+WORKFLOW_TOOL_NAMES = TODO_WORKFLOW_TOOL_NAMES
+MUTATION_TOOL_NAMES: tuple[str, ...] = ("amend_project",)
 OBSERVER_ONLY_TOOL_NAMES = ("read", "investigate", "skill")
-OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + OBSERVER_ONLY_TOOL_NAMES
+OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + OBSERVER_ONLY_TOOL_NAMES + TODO_READ_TOOL_NAMES
 CODEX_TOOL_NAMES = RICH_READ_TOOL_NAMES + WORKFLOW_TOOL_NAMES
-MUTATOR_TOOL_NAMES = RICH_READ_TOOL_NAMES + ("investigate",) + WORKFLOW_TOOL_NAMES + MUTATION_TOOL_NAMES
+MUTATOR_TOOL_NAMES = (RICH_READ_TOOL_NAMES + ("investigate",) + WORKFLOW_TOOL_NAMES
+                      + TODO_ADMIN_TOOL_NAMES + MUTATION_TOOL_NAMES)
 INTERNAL_TOOL_NAMES = RICH_READ_TOOL_NAMES + ("command", "log")
 CODEX_RICH_READ_DESCRIPTION_PREFIX = "Read-only project context: use deliberately when needed. "
 

@@ -1,3 +1,8 @@
+> Current runtime: Project Control 0.4.0 / MCP schema 11 uses the independently
+> installed Todo Orchestrator 0.2.0 and native `todo_*` tools. Follow the
+> [current README](../README.md) for setup, paired-wheel verification and
+> workflow operations. Legacy Todo commands below are historical context.
+
 # Development
 
 Use one checkout, one Python environment, and one launcher for Project Control

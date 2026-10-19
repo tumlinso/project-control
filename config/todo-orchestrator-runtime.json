@@ -1,0 +1,10 @@
+{
+  "format": "project-control.todo-runtime-lock",
+  "version": 1,
+  "distribution": "todo-orchestrator",
+  "distribution_version": "0.2.0",
+  "source_commit": "6fed74a0b4af12148995650c1255986ba93936d3",
+  "wheel_sha256": "30108f0baa0bff5a34fca81a1e0f421afa0b7b8473279830168946a9d71cf274",
+  "package_fingerprint": "11c35c9b4e04d411b2564515272b6d84cca7d301430b744559071aa6a9097597",
+  "provisional": false
+}

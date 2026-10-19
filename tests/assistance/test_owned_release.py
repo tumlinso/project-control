@@ -517,37 +517,15 @@ class ResourceControllerTests(unittest.TestCase):
                                              for uuid in item["gpu_uuids"])
         gpu_output = "".join(f"{uuid}, 0\n" for uuid in provider._allowed_gpu_uuids)
 
-        class Cursor:
-            @staticmethod
-            def fetchone():
-                return (0,)
-
-        class Connection:
-            @staticmethod
-            def execute(*_args):
-                return Cursor()
-
-            @staticmethod
-            def close():
-                return None
-
         class HostCoordinator:
             def __init__(self, **_kwargs):
                 pass
 
             @staticmethod
-            def connect(*_args, **_kwargs):
-                return Connection()
+            def owner_activity(_owner_ids):
+                return 0, 0
 
-        host_module = types.ModuleType("todo_orchestrator.background.host")
-        host_module.HostCoordinator = HostCoordinator
-        parent_module = types.ModuleType("todo_orchestrator")
-        parent_module.__path__ = []
-        background_module = types.ModuleType("todo_orchestrator.background")
-        background_module.__path__ = []
-        with patch.dict(sys.modules, {"todo_orchestrator": parent_module,
-                "todo_orchestrator.background": background_module,
-                "todo_orchestrator.background.host": host_module}), \
+        with patch("project_control.host_resources.HostCoordinator", HostCoordinator), \
              patch("project_control.observer_analysis._proc_start_time", return_value=None), \
              patch("project_control.observer_analysis.subprocess.run", side_effect=[
                  types.SimpleNamespace(stdout=gpu_output), types.SimpleNamespace(stdout="")]):

@@ -118,20 +118,20 @@ def _source_identity_snapshot() -> dict[str, str]:
         # ``project_control`` package.
         project_root = Path(__file__).resolve().parent
         project_fingerprint = package_fingerprint(project_root)
-        # The HostCoordinator admission fence is implemented in this sibling
-        # bundled package, so pin its source independently as well.
-        todo_root = project_root.parent / "todo_orchestrator"
-        todo_fingerprint = package_fingerprint(todo_root)
+        # Host admission and physical release checks are host-owned, so pin
+        # their implementation independently of the Todo distribution.
+        host_root = project_root / "host_resources"
+        host_fingerprint = package_fingerprint(host_root)
     except Exception as error:
         raise RuntimeError("physical_release_source_identity_unavailable") from error
     if receiver.source_commit != "working-tree":
         raise RuntimeError("physical_release_source_mode_required")
     return {
-        "format": "PC-SOURCE-IDENTITY/1",
+        "format": "PC-SOURCE-IDENTITY/2",
         "project_control_root": str(project_root),
         "project_control_fingerprint": project_fingerprint,
-        "todo_orchestrator_root": str(todo_root),
-        "todo_orchestrator_fingerprint": todo_fingerprint,
+        "host_resources_root": str(host_root),
+        "host_resources_fingerprint": host_fingerprint,
         "receiver_root": str(receiver.root),
         "receiver_manifest_sha256": receiver.manifest_sha256,
         "receiver_fingerprint": receiver.fingerprint,
@@ -217,18 +217,9 @@ def _fresh_gpu_release_observation(allowed_gpu_uuids: tuple[str, ...]) -> dict[s
 def _fresh_host_release_observation() -> dict[str, int]:
     """Require no host reservation or pending owner intent before recovery."""
     try:
-        from todo_orchestrator.background.host import HostCoordinator
+        from .host_resources import HostCoordinator
         host = HostCoordinator(create=False)
-        connection = host.connect(readonly=True)
-        try:
-            active_owners = connection.execute(
-                "SELECT count(*) FROM host_owners WHERE state IN ('active','intent')").fetchone()[0]
-            active_reservations = connection.execute(
-                "SELECT count(*) FROM host_reservations WHERE state='active'").fetchone()[0]
-            active_foreground_intents = connection.execute(
-                "SELECT count(*) FROM host_foreground_intents WHERE state='active'").fetchone()[0]
-        finally:
-            connection.close()
+        active_owners, active_reservations, active_foreground_intents = host.release_observation_counts()
     except Exception as error:
         raise RuntimeError("physical_release_fresh_host_observation_unavailable") from error
     if active_owners or active_reservations or active_foreground_intents:
@@ -783,20 +774,10 @@ class SkillsObserverAnalysisProvider:
             if len(row) >= 2 and row[1].strip() in seen_gpus:
                 raise RuntimeError("physical_release_gpu_process_reappeared")
         try:
-            from todo_orchestrator.background.host import HostCoordinator
+            from .host_resources import HostCoordinator
             host = HostCoordinator(create=False)
-            connection = host.connect(readonly=True)
-            try:
-                owner_ids = sorted(item["owner_id"] for item in cleanup)
-                placeholders = ",".join("?" for _ in owner_ids)
-                active_owners = connection.execute(
-                    f"SELECT count(*) FROM host_owners WHERE id IN ({placeholders}) AND state='active'",
-                    owner_ids).fetchone()[0]
-                active_reservations = connection.execute(
-                    f"SELECT count(*) FROM host_reservations WHERE owner_id IN ({placeholders}) AND state='active'",
-                    owner_ids).fetchone()[0]
-            finally:
-                connection.close()
+            owner_ids = sorted(item["owner_id"] for item in cleanup)
+            active_owners, active_reservations = host.owner_activity(owner_ids)
         except Exception:
             raise RuntimeError("physical_release_fresh_host_observation_unavailable") from None
         if active_owners or active_reservations:

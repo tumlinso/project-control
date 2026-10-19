@@ -1,4 +1,4 @@
-"""Bridge local-worker startup to Todo's canonical runtime contract."""
+"""Bridge local-worker startup to Project Control's canonical runtime contract."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ class CanonicalRuntimeError(RuntimeError):
 
 def _api():
     try:
-        from todo_orchestrator import runtime_identity
+        from project_control import runtime_identity
         return runtime_identity
     except ModuleNotFoundError as exc:
-        if exc.name in {"todo_orchestrator", "todo_orchestrator.runtime_identity"}:
+        if exc.name in {"project_control", "project_control.runtime_identity"}:
             raise CanonicalRuntimeError(
-                "runtime_identity_mismatch: bundled todo_orchestrator is unavailable"
+                "runtime_identity_mismatch: Project Control runtime identity is unavailable"
             ) from exc
         raise
 
@@ -24,17 +24,13 @@ def _api():
 def bind(repo_root: str | Path):
     api = _api()
     try:
-        identity = api.bind_canonical_runtime()
+        identity = api.bind_runtime()
     except Exception as exc:
         if getattr(exc, "code", None) == "runtime_identity_mismatch":
             raise CanonicalRuntimeError(f"runtime_identity_mismatch: {exc}") from exc
         raise
-    try:
-        context = api.project_runtime_context(repo_root, identity)
-    except Exception as exc:
-        if getattr(exc, "code", None) != "project_not_bootstrapped":
-            raise
-        context = identity.public()
+    context = identity.public()
+    context["project_root"] = str(Path(repo_root).resolve())
     return identity, context
 
 
@@ -48,4 +44,22 @@ def validate(identity) -> None:
 
 
 def subprocess_environment(identity) -> dict[str, str]:
-    return _api().controlled_subprocess_env(identity)
+    return _api().runtime_environment(identity)
+
+
+def todo_cli_path(repo_root: str | Path) -> Path:
+    """Locate the already-verified standalone Todo CLI module."""
+    bind(repo_root)
+    try:
+        import todo_orchestrator
+    except ImportError as exc:
+        raise CanonicalRuntimeError(
+            "runtime_identity_mismatch: standalone Todo Orchestrator is unavailable"
+        ) from exc
+    module_file = getattr(todo_orchestrator, "__file__", None)
+    if not isinstance(module_file, str) or not module_file:
+        raise CanonicalRuntimeError("runtime_identity_mismatch: Todo module has no filesystem identity")
+    cli = Path(module_file).resolve().with_name("__main__.py")
+    if not cli.is_file():
+        raise CanonicalRuntimeError("runtime_identity_mismatch: standalone Todo CLI module is missing")
+    return cli

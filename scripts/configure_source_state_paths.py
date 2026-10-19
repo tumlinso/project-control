@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -22,8 +23,7 @@ from pathlib import Path
 from typing import Iterable
 
 from project_control.config import ProjectControlConfig, config_path, load_config
-from todo_orchestrator.config import project_paths, read_project
-from todo_orchestrator.models import TodoError
+from todo_orchestrator.api.metadata import read_project_metadata, authority_path
 
 
 DEFAULT_DROP_IN = Path.home() / ".config" / "systemd" / "user" / "project-control.service.d" / "90-todo-state-paths.conf"
@@ -62,34 +62,49 @@ def discover_state_directories(
             if repo_root in seen_roots:
                 continue
             seen_roots.add(repo_root)
-            try:
-                project_uuid = read_project(repo_root).get("project_uuid")
-                if not isinstance(project_uuid, str) or str(uuid.UUID(project_uuid)) != project_uuid:
-                    raise ValueError("project_uuid is not a canonical UUID")
-                paths = project_paths(repo_root, require_identity=True)
-            except TodoError as exc:
-                if exc.code == "project_not_bootstrapped":
-                    reports.append(RepositoryState(
-                        workspace_id, repository_id, str(repo_root), None, "skipped", "project_not_bootstrapped"
-                    ))
-                    continue
-                raise RuntimeError(f"Cannot resolve Todo state for {repo_root}: {exc.code}: {exc.message}") from exc
-            except (ValueError, TypeError, AttributeError) as exc:
-                raise RuntimeError(f"Cannot resolve Todo state for {repo_root}: invalid project UUID") from exc
-
-            try:
-                state_dir = paths.state_dir.resolve(strict=True)
-                db_file = paths.db_file.resolve(strict=True)
-            except OSError:
-                reports.append(RepositoryState(
-                    workspace_id, repository_id, str(repo_root), str(paths.state_dir), "skipped", "todo_state_missing"
-                ))
+            metadata_file = repo_root / ".todo-orchestrator" / "project.json"
+            if not metadata_file.exists():
+                reports.append(RepositoryState(workspace_id, repository_id, str(repo_root),
+                                               None, "skipped", "project_not_bootstrapped"))
                 continue
-            if not state_dir.is_dir() or db_file.parent != state_dir or not db_file.is_file():
-                reports.append(RepositoryState(
-                    workspace_id, repository_id, str(repo_root), str(state_dir), "skipped", "todo_state_missing_or_noncanonical"
-                ))
+            try:
+                raw = json.loads(metadata_file.read_text(encoding="utf-8"))
+                if raw.get("format") == "todo-orchestrator.project-metadata":
+                    metadata = read_project_metadata(repo_root)
+                    db_file = authority_path(repo_root, metadata)
+                    state_dir = db_file.parent
+                elif raw.get("schema_version") == 2:
+                    # Transitional discovery only. No legacy executable code or
+                    # authority mutation is needed to retain the old grants.
+                    project_uuid = raw.get("project_uuid")
+                    if not isinstance(project_uuid, str) or str(uuid.UUID(project_uuid)) != project_uuid:
+                        raise ValueError("invalid project UUID")
+                    override = os.environ.get("TODO_ORCHESTRATOR_STATE_DIR")
+                    if override:
+                        state_dir = Path(override).expanduser().resolve() / project_uuid
+                    elif not (repo_root / ".git").exists():
+                        reports.append(RepositoryState(workspace_id, repository_id, str(repo_root),
+                                                       None, "skipped", "todo_state_missing"))
+                        continue
+                    else:
+                        found = subprocess.run(["git", "-C", str(repo_root), "rev-parse", "--git-common-dir"],
+                                               capture_output=True, text=True, check=True)
+                        common = Path(found.stdout.strip())
+                        if not common.is_absolute():
+                            common = repo_root / common
+                        state_dir = common.resolve() / "todo-orchestrator" / project_uuid
+                    db_file = state_dir / "state.sqlite3"
+                else:
+                    raise ValueError("unsupported project metadata")
+            except Exception as exc:
+                raise RuntimeError(f"Cannot resolve Todo state for {repo_root}: invalid project metadata or invalid project UUID") from exc
+            if not state_dir.is_dir() or not db_file.is_file():
+                reports.append(RepositoryState(workspace_id, repository_id, str(repo_root),
+                                               str(state_dir), "skipped", "todo_state_missing"))
                 continue
+            if state_dir.is_symlink() or db_file.is_symlink() or db_file.resolve().parent != state_dir.resolve():
+                raise RuntimeError(f"Cannot resolve Todo state for {repo_root}: noncanonical state path")
+            state_dir = state_dir.resolve(strict=True)
             directories.add(state_dir)
             reports.append(RepositoryState(
                 workspace_id, repository_id, str(repo_root), str(state_dir), "included"

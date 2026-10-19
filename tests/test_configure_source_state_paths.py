@@ -16,17 +16,23 @@ from scripts.configure_source_state_paths import (
     main,
     render_drop_in,
 )
-from tests.todo.v2_helpers import V2Repo
+from types import SimpleNamespace
+from todo_orchestrator.api import TodoApplication
+from todo_orchestrator.contracts import StableId
 
 
 class ConfigureSourceStatePathsTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.repo = V2Repo()
         self.temp = tempfile.TemporaryDirectory()
         self.temp_path = Path(self.temp.name)
+        root = self.temp_path / "native-project"
+        session = TodoApplication.initialize(root, project_id=StableId("state-path-project"),
+            repository_id=StableId("state-path-repository"), owner_credential="state path fixture owner")
+        session.close()
+        self.repo = SimpleNamespace(root=root, state_root=root / ".todo-orchestrator",
+            service=SimpleNamespace(paths=SimpleNamespace(state_dir=root / ".todo-orchestrator")))
 
     def tearDown(self) -> None:
-        self.repo.close()
         self.temp.cleanup()
 
     def _config(self, *roots: Path) -> ProjectControlConfig:

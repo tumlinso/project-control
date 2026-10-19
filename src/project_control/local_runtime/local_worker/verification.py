@@ -14,7 +14,7 @@ class VerificationError(RuntimeError):
 def _runtime_contracts():
     from .canonical_runtime import bind
     bind(Path.cwd())
-    from todo_orchestrator.runtime import normalize_command_spec
+    from project_control.host_resources import normalize_command_spec
     return normalize_command_spec
 
 

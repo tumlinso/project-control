@@ -19,6 +19,187 @@ from ..subprocesses import (
     FixedCommandRunner,
 )
 
+
+class NativeTodoReadPort:
+    """Project-bound adapter over the standalone public authority read model."""
+
+    MAX_LEGACY_CURRENT_TASKS = 5000
+
+    def __init__(self, root: Path, *, principal: str, profile: str, providers=None):
+        from ..workflow_binding import open_session_for_host, runtime_identity
+
+        self.root = root.resolve(strict=True)
+        self.principal = principal
+        self.profile = profile
+        self.runtime_identity = runtime_identity()
+        self.session = open_session_for_host(self.root, principal=principal, profile=profile,
+                                             providers=providers)
+        self._model = None
+
+    def identity(self) -> dict[str, Any]:
+        from ..runtime_identity import bind_runtime
+        identity = bind_runtime()
+        return {"contract": "PCU-TODO-READ-PORT/2", "version": identity.distribution_version,
+                "source_identity": identity.fingerprint, "capabilities": ["authority.read_model"],
+                "project_id": str(self.session.metadata.project_id),
+                "authority_id": str(self.session.metadata.authority_id)}
+
+    def _read(self) -> dict[str, Any]:
+        from ..runtime_identity import validate_runtime
+        validate_runtime(self.runtime_identity)
+        if self._model is None:
+            initial = self.session.read_model()
+            model = initial.to_dict()
+            records = []
+            page = self.session.read_legacy_current_tasks(limit=500)
+            while True:
+                records.extend(page.records)
+                if len(records) > self.MAX_LEGACY_CURRENT_TASKS:
+                    raise RuntimeError("legacy current-task read exceeds the Project Control projection limit")
+                if page.next_cursor is None:
+                    break
+                page = self.session.read_legacy_current_tasks(limit=500, after=page.next_cursor)
+            # Detect an import or native authority change that raced the
+            # separately paged public reads, without opening or mutating state.
+            self.session.read_model(expected_revision=initial.semantic_revision)
+            model["_project_control_current_tasks"] = self._legacy_projection(model, records)["tasks"]
+            self._model = model
+        return self._model
+
+    @staticmethod
+    def _legacy_projection(model: dict[str, Any], current_tasks=()) -> dict[str, Any]:
+        sections = model.get("sections", {})
+        if not isinstance(sections, dict):
+            sections = {}
+        definitions = sections.get("work_definitions", [])
+        membership = sections.get("plan_membership", [])
+        revisions = sections.get("plan_revisions", [])
+        active_plan = next((row for row in reversed(revisions) if row.get("state") == "accepted"), None)
+        plan_id = active_plan.get("plan_revision_id") if active_plan else None
+        active_ids = {row.get("work_item_id") for row in membership if row.get("plan_revision_id") == plan_id}
+        definitions_by_id = {
+            str(row.get("work_item_id")): dict(row)
+            for row in definitions if isinstance(row, dict) and row.get("work_item_id")
+        }
+        tasks = []
+        mapped_native_ids = set()
+        for record in current_tasks:
+            source_id = str(record.source_task_id)
+            native_id = str(record.native_work_item_id) if record.native_work_item_id is not None else None
+            if native_id is not None:
+                mapped_native_ids.add(native_id)
+            item = dict(definitions_by_id.get(native_id, {}))
+            source_status = str(record.source_status)
+            archived = record.mapping_kind == "archive_only"
+            if record.completion_asserted:
+                status = "done"
+            elif source_status == "closed" or (archived and source_status == "done"):
+                status = "archived"
+            elif archived and source_status not in {
+                "superseded", "cancelled", "canceled", "stale", "invalidated", "abandoned",
+            }:
+                status = "archived"
+            else:
+                status = source_status
+            effective_state = {
+                "done": "done", "superseded": "superseded", "cancelled": "cancelled",
+                "canceled": "cancelled", "stale": "stale", "archived": "historical",
+                "invalidated": "historical", "abandoned": "historical", "blocked": "blocked",
+                "in_progress": "active", "review": "planned",
+            }.get(status, "planned")
+            item.update({
+                "task_id": source_id,
+                "id": source_id,
+                "title": item.get("title") or item.get("objective") or source_id,
+                "status": status,
+                "source_status": source_status,
+                "source_project_id": str(record.source_project_id),
+                "legacy_import_id": str(record.import_id),
+                "legacy_mapping_kind": record.mapping_kind,
+                "native_work_item_id": native_id,
+                "definition_revision_id": (str(record.definition_revision_id)
+                                            if record.definition_revision_id is not None else None),
+                "completion_asserted": bool(record.completion_asserted),
+                "completion_assertion_digest": record.completion_assertion_digest,
+                "in_current_plan": native_id in active_ids if native_id is not None else False,
+                "archived": archived,
+                "effective_state": effective_state,
+                "current_relevance": ("superseded" if effective_state == "superseded" else
+                                      "reference" if effective_state in {"done", "cancelled", "stale", "historical"} else
+                                      "current_attention" if effective_state == "blocked" else "current"),
+                "terminal": effective_state in {"done", "superseded", "cancelled", "stale", "historical"},
+            })
+            tasks.append(item)
+        # Preserve post-migration native work definitions without fabricating
+        # a source identity or completion assertion for them.
+        for native_id, row in definitions_by_id.items():
+            if native_id in mapped_native_ids:
+                continue
+            item = dict(row)
+            item.update({"task_id": native_id, "id": native_id,
+                         "title": item.get("title") or item.get("objective") or native_id,
+                         "status": "planned", "in_current_plan": native_id in active_ids,
+                         "completion_asserted": False, "archived": False,
+                         "effective_state": "planned", "current_relevance": "current",
+                         "terminal": False})
+            tasks.append(item)
+        tables = {
+            "tasks": tasks,
+            "task_dependencies": [],
+            "plan_revisions": list(revisions),
+            "plan_membership": list(membership),
+            "requirements": list(sections.get("requirements", [])),
+            "events": list(sections.get("authority_history", [])),
+            "runs": list(sections.get("runs", [])),
+            "run_lanes": list(sections.get("run_lanes", [])),
+            "assignments": list(sections.get("assignments", [])),
+            "run_queue": list(sections.get("run_queue", [])),
+            "attempts": list(sections.get("attempts", [])),
+            "child_executions": list(sections.get("child_executions", [])),
+            "task_artifacts": list(sections.get("artifacts", [])),
+            "evidence": list(sections.get("evidence", [])),
+            "outcomes": list(sections.get("outcomes", [])),
+        }
+        return tables
+
+    def invoke(self, operation: str, *, repo_root: Path, arguments: tuple[str, ...] = ()) -> dict[str, Any]:
+        if repo_root.resolve() != self.root:
+            return {"ok": False, "code": "todo_project_identity_mismatch", "data": {}}
+        model = self._read()
+        project_id, revision = model["project_id"], model["semantic_revision"]
+        tables = self._legacy_projection(model)
+        tables["tasks"] = model.get("_project_control_current_tasks", tables["tasks"])
+        if operation in {"export", "status"}:
+            data = {"project_revision": revision, "project_uuid": project_id,
+                    "project": {"project_id": project_id, "project_uuid": project_id,
+                                "authority_id": model["authority_id"]}, "tables": tables}
+        elif operation == "ready":
+            data = {"available": True, "project_revision": revision, "project_uuid": project_id}
+        elif operation == "semantic.state":
+            data = {"available": True, "revision": revision, "project_uuid": project_id,
+                    "tasks": tables["tasks"], "requirements": tables["requirements"]}
+        elif operation == "semantic.workflow":
+            data = {"available": True, "revision": revision, "project_uuid": project_id,
+                    "runs": tables["runs"], "lanes": tables["run_lanes"],
+                    "assignments": tables["assignments"], "queue": tables["run_queue"],
+                    "attempts": tables["attempts"]}
+        elif operation == "changes":
+            try:
+                since = int(arguments[-1]) if arguments else 0
+            except ValueError:
+                return {"ok": False, "code": "todo_invalid_revision", "data": {}}
+            data = {"revision": revision, "project_uuid": project_id,
+                    "events": [row for row in tables["events"] if row.get("semantic_revision", 0) > since]}
+        elif operation == "explain":
+            task_id = arguments[0] if arguments else ""
+            data = {"task": next((row for row in tables["tasks"] if row.get("task_id") == task_id), None),
+                    "project_uuid": project_id, "revision": revision}
+        elif operation in {"semantic.anchor", "semantic.delta", "plan.validate", "plan.diff"}:
+            return {"ok": False, "code": "todo_native_operation_unsupported", "data": {}}
+        else:
+            return {"ok": False, "code": "todo_native_operation_unsupported", "data": {}}
+        return {"ok": True, "data": data}
+
 if TYPE_CHECKING:
     from ..todo_authority import TodoReadPort
 
@@ -244,7 +425,7 @@ class TodoReadAdapter:
         # than silently degrading planning metadata into execution/readiness.
         tasks = data.get("tasks")
         if isinstance(tasks, list):
-            from ..workflow_core.profiles import normalize_task_work_profile
+            from ..task_profiles import normalize_task_work_profile
 
             data = dict(data)
             data["tasks"] = [
@@ -284,19 +465,24 @@ class TodoReadAdapter:
     def _authority_root(self, start: Path | None = None) -> Path:
         current = start or self.root
         while True:
-            if (current / ".todo-orchestrator" / "project.json").is_file():
-                return current
+            if (current / ".todo-orchestrator" / "authority.sqlite3").is_file():
+                try:
+                    from todo_orchestrator.api import read_project_metadata
+                    read_project_metadata(current)
+                    return current
+                except Exception:
+                    pass
             if current.parent == current:
                 raise TodoReadError("todo_not_configured")
             current = current.parent
 
     def _project_uuid(self, authority_root: Path) -> str | None:
         try:
-            value = json.loads((authority_root / ".todo-orchestrator" / "project.json").read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            from todo_orchestrator.api import read_project_metadata
+            metadata = read_project_metadata(authority_root)
+            return str(metadata.project_id)
+        except Exception:
             return None
-        project_uuid = value.get("project_uuid") if isinstance(value, dict) else None
-        return project_uuid if isinstance(project_uuid, str) else None
 
     @staticmethod
     def _git_common_dir(root: Path) -> Path | None:
@@ -320,6 +506,10 @@ class TodoReadAdapter:
     def authority_candidates(self) -> tuple[Path, ...]:
         """Configured authority first, then verified same-repository worktrees with the same UUID."""
         authority = self._authority_root()
+        # Native Todo has one registered authority per project. Linked
+        # worktrees remain source/context candidates, not authority candidates.
+        if isinstance(self.read_port, NativeTodoReadPort):
+            return (authority,)
         expected_uuid = self._project_uuid(authority)
         common = self._git_common_dir(authority)
         candidates: list[Path] = [authority]
@@ -342,7 +532,8 @@ class TodoReadAdapter:
             if root == authority or self._git_common_dir(root) != common:
                 continue
             manifest = root / ".todo-orchestrator" / "project.json"
-            if not manifest.is_file() or self._project_uuid(root) != expected_uuid:
+            native_manifest = root / ".todo-orchestrator" / "authority.sqlite3"
+            if not (manifest.is_file() or native_manifest.is_file()) or self._project_uuid(root) != expected_uuid:
                 continue
             candidates.append(root)
         return tuple(candidates)

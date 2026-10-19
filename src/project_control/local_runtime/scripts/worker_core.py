@@ -301,10 +301,10 @@ def run_controller(request_value: object, *, production_runtime: object | None =
         todo_cli = Path(todo_cli_value).expanduser().resolve()
     else:
         try:
-            import todo_orchestrator
-        except ImportError as exc:
-            raise WorkerError("bundled todo_orchestrator CLI is unavailable") from exc
-        todo_cli = Path(todo_orchestrator.__file__).with_name("__main__.py")
+            from local_worker.canonical_runtime import todo_cli_path
+            todo_cli = todo_cli_path(root)
+        except Exception as exc:
+            raise WorkerError("verified standalone Todo Orchestrator CLI is unavailable") from exc
     ctxpp_cli = configured_tool("LCW_CTXPP_CLI", "cpp-context-compiler/scripts/ctxpp")
     heartbeat_command = [
         sys.executable, str(todo_cli), "child", "heartbeat", "--repo-root", str(root),

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
@@ -18,6 +19,7 @@ class InstallError(RuntimeError):
 
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
+TODO_LOCK = Path("config/todo-orchestrator-runtime.json")
 
 
 def _run(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
@@ -52,36 +54,93 @@ class CandidateIdentity:
     project_control_root: str
     project_control_commit: str
     project_control_tree: str
-    todo_root: str
-    todo_commit: str
-    todo_tree: str
+    todo_wheel: str
+    todo_wheel_sha256: str
+    todo_version: str
     python_executable: str
 
 
 def source_identity(
     project_control_root: Path,
+    todo_wheel: Path,
     _skills_root: Path | None = None,
     *,
     runner: Runner = _run,
 ) -> CandidateIdentity:
     project_control_root = project_control_root.resolve()
-    todo_root = project_control_root / "src" / "todo_orchestrator"
     if not (project_control_root / "pyproject.toml").is_file():
         raise InstallError("Project Control source is missing pyproject.toml")
-    if not (todo_root / "__init__.py").is_file():
-        raise InstallError("bundled Todo Orchestrator package is missing")
+    todo_wheel = todo_wheel.expanduser()
+    if todo_wheel.is_symlink() or not todo_wheel.is_file():
+        raise InstallError("standalone Todo wheel is missing or unsafe")
+    todo_wheel = todo_wheel.resolve(strict=True)
+    version = _wheel_version(todo_wheel)
     project_commit = _git_value(project_control_root, "rev-parse", "HEAD", runner=runner)
     project_tree = _git_value(project_control_root, "rev-parse", "HEAD^{tree}", runner=runner)
     return CandidateIdentity(
-        schema_version=1,
+        schema_version=2,
         project_control_root=str(project_control_root),
         project_control_commit=project_commit,
         project_control_tree=project_tree,
-        todo_root=str(todo_root),
-        todo_commit=project_commit,
-        todo_tree=project_tree,
+        todo_wheel=str(todo_wheel),
+        todo_wheel_sha256=_sha256_file(todo_wheel),
+        todo_version=version,
         python_executable=sys.executable,
     )
+
+
+def _wheel_version(wheel: Path) -> str:
+    if wheel.suffix != ".whl" or wheel.is_symlink() or not wheel.is_file():
+        raise InstallError("standalone Todo wheel must be a regular .whl file")
+    try:
+        with zipfile.ZipFile(wheel) as archive:
+            paths = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+            if len(paths) != 1:
+                raise ValueError("missing or ambiguous wheel metadata")
+            lines = archive.read(paths[0]).decode("utf-8").splitlines()
+    except (OSError, zipfile.BadZipFile, UnicodeError, ValueError) as exc:
+        raise InstallError("standalone Todo wheel is invalid") from exc
+    fields: dict[str, str] = {}
+    for line in lines:
+        if line.startswith("Name: ") or line.startswith("Version: "):
+            key, value = line.split(": ", 1)
+            if key in fields:
+                raise InstallError("standalone Todo wheel metadata has duplicate identity fields")
+            fields[key] = value
+    if fields != {"Name": "todo-orchestrator", "Version": "0.2.0"}:
+        raise InstallError("standalone Todo wheel must be todo-orchestrator==0.2.0")
+    return fields["Version"]
+
+
+def _todo_runtime_lock(project_root: Path, todo_wheel: Path) -> dict:
+    lock_path = project_root / TODO_LOCK
+    try:
+        value = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as exc:
+        raise InstallError("Project Control Todo pairing lock is missing or invalid") from exc
+    expected = {"format", "version", "distribution", "distribution_version", "source_commit",
+                "wheel_sha256", "package_fingerprint", "provisional"}
+    if (not isinstance(value, dict) or set(value) != expected
+            or value.get("format") != "project-control.todo-runtime-lock"
+            or value.get("version") != 1 or value.get("distribution") != "todo-orchestrator"
+            or value.get("distribution_version") != "0.2.0"
+            or type(value.get("provisional")) is not bool):
+        raise InstallError("Project Control Todo pairing lock has an unsupported shape or package version")
+    if value["provisional"] and os.environ.get("PROJECT_CONTROL_ALLOW_PROVISIONAL_TODO") != "1":
+        raise InstallError("provisional Todo pairing lock requires explicit staging opt-in")
+    if not value["provisional"]:
+        commit, wheel_hash, package_hash = value["source_commit"], value["wheel_sha256"], value["package_fingerprint"]
+        if (not isinstance(commit, str) or len(commit) != 40
+                or any(char not in "0123456789abcdef" for char in commit)):
+            raise InstallError("Todo source commit pin is missing or invalid")
+        for pin in (wheel_hash, package_hash):
+            if (not isinstance(pin, str) or len(pin) != 64
+                    or any(char not in "0123456789abcdef" for char in pin)):
+                raise InstallError("Todo wheel hash or package fingerprint pin is missing or invalid")
+    wheel_hash = _sha256_file(todo_wheel)
+    if value["wheel_sha256"] is not None and value["wheel_sha256"] != wheel_hash:
+        raise InstallError("standalone Todo wheel differs from the paired runtime lock")
+    return value
 
 
 def _refuse_unsafe_destination(destination: Path, roots: Iterable[Path]) -> None:
@@ -196,18 +255,27 @@ def _freeze_skills(skills: Path | None, temporary: Path, destination: Path) -> d
         if source is not None and source.is_dir():
             shutil.copytree(source, snapshot / name, ignore=shutil.ignore_patterns(
                 "__pycache__", "*.pyc", ".git", ".venv", "build", "dist", "*.egg-info", ".ctxpp", ".todo"))
-    return {"schema_version": 3, "skills_root": str(destination / "runtime-skills"),
+    return {"schema_version": 4, "skills_root": str(destination / "runtime-skills"),
             "tools_fingerprint": _source_fingerprint(snapshot)}
 
 
-def _bind_todo_package(temporary: Path, destination: Path, release: dict) -> None:
+def _bind_todo_package(temporary: Path, destination: Path, release: dict, todo_wheel: Path,
+                       todo_lock: dict) -> None:
     packages = sorted(temporary.glob("lib/python*/site-packages/todo_orchestrator"))
     if len(packages) != 1 or not (packages[0] / "__init__.py").is_file():
-        raise InstallError("candidate Project Control wheel omitted or ambiguously installed the bundled Todo package")
+        raise InstallError("candidate environment omitted or ambiguously installed standalone Todo package")
     package = packages[0]
     relative = package.relative_to(temporary)
-    release["todo_package_root"] = str((destination / relative).resolve())
-    release["todo_runtime_fingerprint"] = _source_fingerprint(package)
+    fingerprint = _source_fingerprint(package)
+    if todo_lock["package_fingerprint"] is not None and todo_lock["package_fingerprint"] != fingerprint:
+        raise InstallError("installed Todo source differs from the paired runtime lock")
+    release["todo_distribution"] = {
+        "name": "todo-orchestrator", "version": "0.2.0",
+        "package_path": str((destination / relative).resolve()),
+        "fingerprint": fingerprint,
+        "wheel_sha256": _sha256_file(todo_wheel),
+        "source_commit": todo_lock["source_commit"],
+    }
 
 
 def _refresh_candidate_receiver_manifest(root: Path) -> None:
@@ -309,6 +377,7 @@ def _bind_project_control_runtime(temporary: Path, *, allow_missing_stub: bool =
 def build_candidate(
     *,
     project_control_root: Path,
+    todo_wheel: Path,
     skills_root: Path | None = None,
     destination: Path,
     offline: bool = False,
@@ -322,9 +391,13 @@ def build_candidate(
     """
 
     project_control_root = project_control_root.resolve()
+    todo_wheel = todo_wheel.expanduser()
+    if todo_wheel.is_symlink() or not todo_wheel.is_file():
+        raise InstallError("standalone Todo wheel is missing or unsafe; pass an explicit built .whl file")
+    todo_wheel = todo_wheel.resolve(strict=True)
     skills_root = skills_root.resolve() if skills_root is not None else None
     destination = destination.resolve()
-    unsafe_roots = [project_control_root]
+    unsafe_roots = [project_control_root, todo_wheel]
     if skills_root is not None:
         unsafe_roots.append(skills_root)
     _refuse_unsafe_destination(destination, unsafe_roots)
@@ -332,10 +405,14 @@ def build_candidate(
         raise InstallError("offline builds require an explicit writable uv cache directory")
     if offline and not uv_cache_dir.expanduser().is_dir():
         raise InstallError(f"offline uv cache directory is unavailable: {uv_cache_dir}")
-    identity = source_identity(project_control_root, skills_root, runner=runner)
+    identity = source_identity(project_control_root, todo_wheel, skills_root, runner=runner)
+    todo_lock = _todo_runtime_lock(project_control_root, todo_wheel)
     tree_inventory = {
         "schema_version": 1,
         "project_control": _working_tree_inventory(project_control_root, runner=runner),
+        "todo_distribution": {"version": identity.todo_version,
+                              "wheel_sha256": identity.todo_wheel_sha256,
+                              "wheel_name": Path(identity.todo_wheel).name},
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.building-", dir=destination.parent))
@@ -350,12 +427,16 @@ def build_candidate(
                 (uv, "--cache-dir", cache, "venv", "--python", sys.executable, str(temporary)),
                 (uv, "--cache-dir", cache, "pip", "install", "--offline", "--python",
                  str(temporary / "bin" / "python"), str(project_control_root)),
+                (uv, "--cache-dir", cache, "pip", "install", "--offline", "--no-deps", "--python",
+                 str(temporary / "bin" / "python"), str(todo_wheel)),
             )
         else:
             commands = (
                 (sys.executable, "-m", "venv", str(temporary)),
                 (str(temporary / "bin" / "python"), "-m", "pip", "install",
                  "--disable-pip-version-check", str(project_control_root)),
+                (str(temporary / "bin" / "python"), "-m", "pip", "install",
+                 "--disable-pip-version-check", "--no-deps", str(todo_wheel)),
             )
         for command in commands:
             completed = runner(command)
@@ -364,14 +445,14 @@ def build_candidate(
                     f"candidate command failed ({command[0]}): {completed.stderr.strip()}"
                 )
         release = _freeze_skills(skills_root, temporary, destination)
-        _bind_todo_package(temporary, destination, release)
+        _bind_todo_package(temporary, destination, release, todo_wheel, todo_lock)
         runtime_binding = _bind_project_control_runtime(temporary, allow_missing_stub=runner is not _run)
         if runtime_binding is not None:
             release["local_runtime_binding"] = runtime_binding
         inventory_path = temporary / "source-working-tree-inventory.json"
         inventory_path.write_text(json.dumps(tree_inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         release.update({"project_control_commit": identity.project_control_commit,
-                        "todo_commit": identity.todo_commit,
+                        "todo_wheel_sha256": identity.todo_wheel_sha256,
                         "project_control_fingerprint": _source_fingerprint(project_control_root / "src" / "project_control"),
                         "source_working_tree_inventory": {
                             "path": inventory_path.name,

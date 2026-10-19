@@ -14,7 +14,8 @@ from pydantic import ConfigDict, Field, ValidationError, create_model
 from .as1_context import ContextHost, InformationService
 from .as1_contracts import (ExactEntityQuery, ImpactTarget, SKILL_ASSEMBLY_DETAIL,
                             SourceLocator, canonical_digest, relative_path)
-from .as1_control import ControlService, ProjectAmendment, MaintenanceRequest
+from .as1_control import ControlService
+from .native_workflow import NativeWorkflowHost
 from .as1_jobs import (JobService, TrustedObserverFactory, InvalidToolArguments,
                        ObserverLogArguments, source_locator_for_registered_roots,
                        _INQUIRY_THINKING_GENERIC, _INQUIRY_THINKING_QUEUED,
@@ -542,21 +543,6 @@ class SurfaceComposition:
             close()
         return stopped
 
-    def publish_context(self, protocol, workflow_handle, request):
-        if set(request) - {'kind', 'task_id', 'payload'}:
-            raise ValueError('invalid_publication_fields')
-        capability = protocol.capabilities.resolve(workflow_handle,
-            required_operation='coordinate:publish_project_context', expected_class='first_class')
-        root = capability.repository_root
-        matches = [project for project in self.host.projects
-                   if self.control.registry.workspace(project).authority_repository
-                   and self.control.registry.repository(project,
-                       self.control.registry.workspace(project).authority_repository).root.resolve() == root]
-        if len(matches) != 1:
-            raise PermissionError('publication_registered_authority_required')
-        return self.control.publish_workflow_context(matches[0], request,
-            workflow_handle=workflow_handle, protocol=protocol)
-
     def scope(self, project):
         if project is not None and project not in self.host.projects:
             raise PermissionError('project_not_permitted')
@@ -613,6 +599,17 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     state_root = state_directory or observer_analysis_state_root() / 'as1'
     c.store = SQLitePacketStore(state_root)
     c.control = ControlService(config, c.host, coder_claim_provider=coder_claim_provider)
+    def native_providers(active_config, project, project_root, *, principal, profile, repository=None,
+                         principal_authenticator=None):
+        # Imported only after NativeWorkflowHost verifies the standalone runtime
+        # identity and resolves the project root from the host registry.
+        from .native_providers import providers_for_project
+        return providers_for_project(active_config, project, project_root,
+                                     principal=principal, profile=profile,
+                                     repository=repository,
+                                     principal_authenticator=principal_authenticator)
+    c.workflow = NativeWorkflowHost(config, c.host, providers_for_project=native_providers)
+    c.control.workflow = c.workflow
     c.trace = TraceService(config, lambda project: runtime.snapshot(project), c.host, semantic_provider=c.control.project_context)
     c.information = InformationService(config, c.store, lambda project: runtime.snapshot(project), c.host,
         semantic_provider=c.control.project_context, impact_provider=c.trace, todo_adapter=runtime.todo_adapter)
@@ -1002,12 +999,6 @@ def register_surface(mcp, c):
         if job_id:
             return c.jobs.lookup(job_id, access_scope=scope)
         return {'records': c.jobs.log(access_scope=scope, query=query or path_or_entity or '', limit=min(50, max(1, limit)))}
-    def plan(project: str, action: Literal['validate', 'diff', 'apply', 'amend', 'supersede', 'retire'], native_plan: dict[str, Any] | None = None, proposal: dict[str, Any] | None = None, replan: dict[str, Any] | None = None, intent: dict[str, Any] | None = None, prepared_request: dict[str, Any] | None = None, authorization_id: str | None = None) -> dict[str, Any]:
-        return c.control.plan(project, action, native_plan=native_plan, proposal=proposal, replan=replan, intent=intent, prepared_request=prepared_request, authorization_id=authorization_id)
-    def amend_project(request: ProjectAmendment) -> dict[str, Any]:
-        return c.control.amend_project(request)
-    def maintain_execution(request: MaintenanceRequest) -> dict[str, Any]:
-        return c.control.maintain_execution(request)
     descriptions = {
         'overview': 'Read registered projects and repositories, or give orientation for the named project. Omit project to list the catalog; nothing is loaded automatically.',
         'delta': 'Summarize project changes since a prior commit or a DeltaSince cursor with a supported revision, task, checkpoint, interface, or time anchor. Returns scoped immutable packets with source locators.',
@@ -1022,9 +1013,12 @@ def register_surface(mcp, c):
         'skill': 'Read-only discovery and use of an installed native skill to find relevant instructions, using optional project context and evidence hints. This read-only agent can return focused guidance, source references and uncertainty, but its reasoning is limited; use the controlled Project Control environment to identify authoritative skill content. Keep system architecture, complex inference, strategy and consequential decisions with the caller. Always returns extended authoritative excerpts (up to 49,152 excerpt bytes across selected resources); this is a ceiling, not a target. The agent synthesis should stay concise and include useful context without repeating the excerpts. A cached answer for the same question and context is reused only while its selected sources remain current; while thinking, continue useful work and repeat the identical question later; avoid submitting variants. If busy, use search, read or evidence to contextualize or refine a later question. Results identify the selected authoritative skill source.',
         'command': 'Run a bounded read-only command within the configured repository roots using argv, optional cwd, and limits. Host policy clamps execution limits; output is recorded as evidence. No delegation or mutation.',
         'log': 'Retrieve up to five question-and-answer briefs from the global latest-50 answered-inquiry cache, using query/path_or_entity for lexical matches. Optional project narrows results; job_id remains a compatibility exact-record read.',
-        'plan': 'Validate or compare a native Todo plan, or apply, amend, supersede, or retire project work through the scoped transaction authority. For exact run replacement, action=supersede with intent prepares a reviewed principal-bound grant; execute only that returned authorization_id through maintain_execution. The Todo engine is bundled with Project Control; this path does not require the Todo Orchestrator skill.',
-        'amend_project': 'Submit a typed semantic project amendment, such as a supported registration or evidence update. The request is checked against current project authority before it is previewed or committed.',
-        'maintain_execution': 'Native mutator rescue path; no Todo Orchestrator skill is required. Diagnose with {project, action:"diagnose", task_id}; inspect blockers. Prepare the same task with {project, action:"prepare", task_id, run_id?}; include run_id to select its exact active run when needed. Execute only the returned opaque grant with {project, action:"execute", authorization_id}. Project and startup-principal access checks apply. The grant and native transaction recheck exact ownership, live activity, retained dirty work, and continuation safety; blocked or corrupt state may need separate owner repair.',
     }
-    for fn in (overview, delta, frontier, search, evidence, impact, history, machine, read, investigate, skill, command, log, plan, amend_project, maintain_execution):
-        register(fn, descriptions[fn.__name__], mutation=fn.__name__ in {'plan', 'amend_project', 'maintain_execution'}, analysis=fn.__name__ in {'investigate', 'skill'})
+    for fn in (overview, delta, frontier, search, evidence, impact, history, machine, read, investigate, skill, command, log):
+        register(fn, descriptions[fn.__name__], analysis=fn.__name__ in {'investigate', 'skill'})
+    if mcp.profile == MCPProfile.MUTATOR:
+        def amend_project(request: dict[str, Any]) -> dict[str, Any]:
+            return c.control.amend_project(request)
+        register(amend_project,
+                 'Preview or apply an append-only Project Control metadata amendment. Supports identity, relation, generation, provider, registration removal, skill-use and orientation declarations. Uses the Project Control metadata revision and operation ID; source anchors must resolve to registered repositories.',
+                 mutation=True)

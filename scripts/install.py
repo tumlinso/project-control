@@ -16,10 +16,12 @@ from installer import InstallError, build_candidate, candidate_manifest_digest  
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build an isolated Project Control candidate")
     parser.add_argument("--project-control-root", type=Path, required=True)
+    parser.add_argument("--todo-wheel", type=Path, required=True,
+                        help="explicit standalone todo-orchestrator==0.2.0 wheel to install")
     parser.add_argument(
         "--skills-root",
         type=Path,
-        help="optional Skills content root to freeze (Todo is bundled in Project Control)",
+        help="optional Skills content root to freeze",
     )
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--offline", action="store_true", help="install only from the supplied uv cache")
@@ -30,6 +32,7 @@ def main() -> int:
     try:
         identity = build_candidate(
             project_control_root=args.project_control_root,
+            todo_wheel=args.todo_wheel,
             skills_root=args.skills_root,
             destination=args.destination,
             offline=args.offline,

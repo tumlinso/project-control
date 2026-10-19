@@ -19,7 +19,7 @@ from project_control.assistance.power import PowerPolicy, ReleaseIntent, trusted
 from project_control.assistance.resources import ResourceController, ResourceControllerError
 from project_control.observer_analysis import (
     SkillsObserverAnalysisProvider, _PHYSICAL_RELEASE_SEAL, _VerifiedPhysicalRelease,
-    _fresh_host_release_observation,
+    _fresh_host_release_observation, _source_identity_snapshot,
 )
 from project_control.as1_jobs import _host_admission_fence
 
@@ -32,11 +32,11 @@ EPOCH = {
     "runtime_fingerprint": "b" * 64,
 }
 SOURCE_IDENTITY = {
-    "format": "PC-SOURCE-IDENTITY/1",
+    "format": "PC-SOURCE-IDENTITY/2",
     "project_control_root": "/fixture/project-control/src/project_control",
     "project_control_fingerprint": "c" * 64,
-    "todo_orchestrator_root": "/fixture/project-control/src/todo_orchestrator",
-    "todo_orchestrator_fingerprint": "f" * 64,
+    "host_resources_root": "/fixture/project-control/src/project_control/host_resources",
+    "host_resources_fingerprint": "f" * 64,
     "receiver_root": "/fixture/project-control/src/project_control/local_runtime",
     "receiver_manifest_sha256": "d" * 64,
     "receiver_fingerprint": "e" * 64,
@@ -76,6 +76,28 @@ def fresh_observations():
         "host": {"active_owners": 0, "active_reservations": 0,
             "active_foreground_intents": 0},
     }
+
+
+def test_source_identity_v2_pins_host_physical_resource_code(tmp_path, monkeypatch):
+    receiver_root = tmp_path / "receiver"
+    monkeypatch.setattr(
+        "project_control.observer_analysis.bind_local_runtime",
+        lambda: SimpleNamespace(
+            root=receiver_root, manifest_sha256="d" * 64,
+            fingerprint="e" * 64, source_commit="working-tree",
+        ),
+    )
+    monkeypatch.setattr(
+        "project_control.observer_analysis.package_fingerprint",
+        lambda _root: "c" * 64,
+    )
+
+    identity = _source_identity_snapshot()
+
+    assert identity["format"] == "PC-SOURCE-IDENTITY/2"
+    assert identity["host_resources_root"].endswith("/project_control/host_resources")
+    assert identity["host_resources_fingerprint"] == "c" * 64
+    assert "todo_orchestrator_root" not in identity
 
 
 def sealed_recovery_proof(*, slots=None):
@@ -207,11 +229,18 @@ def test_host_fresh_observation_rejects_all_admission_states(tmp_path, monkeypat
             assert create is False
             self.database = database
 
-        def connect(self, *, readonly=False):
-            assert readonly is True
-            return sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+        def release_observation_counts(self):
+            connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+            try:
+                return tuple(int(connection.execute(query).fetchone()[0]) for query in (
+                    "SELECT count(*) FROM host_owners WHERE state IN ('active','intent')",
+                    "SELECT count(*) FROM host_reservations WHERE state='active'",
+                    "SELECT count(*) FROM host_foreground_intents WHERE state='active'",
+                ))
+            finally:
+                connection.close()
 
-    monkeypatch.setattr("todo_orchestrator.background.host.HostCoordinator", Host)
+    monkeypatch.setattr("project_control.host_resources.HostCoordinator", Host)
     with pytest.raises(RuntimeError, match="host_owner_reappeared"):
         _fresh_host_release_observation()
 
@@ -266,7 +295,7 @@ def test_archived_source_verifier_fails_closed_on_fresh_observation_failures(
     provider._allowed_gpu_uuids = GPU_UUIDS
     monkeypatch.setattr(provider, "_get_backend", lambda: pytest.fail("must_not_construct_backend"))
     if failure == "source_changes_during_check":
-        changed = dict(SOURCE_IDENTITY, todo_orchestrator_fingerprint="9" * 64)
+        changed = dict(SOURCE_IDENTITY, host_resources_fingerprint="9" * 64)
         identities = iter((dict(SOURCE_IDENTITY), changed))
         monkeypatch.setattr("project_control.observer_analysis._source_identity_snapshot",
                             lambda: next(identities))

@@ -7,10 +7,11 @@ import shlex
 import shutil
 import subprocess
 import sys
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ("pc-dev", "dev_tests.sh", "pa1_source_tests.sh")
+SCRIPTS = ("pc-dev", "dev_tests.sh", "pa1_source_tests.sh", "verify_todo_runtime.py")
 PIN_ENV = (
     "PROJECT_CONTROL_RELEASE_MANIFEST",
     "PROJECT_CONTROL_RELEASE_DIGEST",
@@ -33,11 +34,13 @@ def _checkout(tmp_path: Path, *, symlink_venv: bool = False, with_python: bool =
     for name in SCRIPTS:
         shutil.copy2(ROOT / "scripts" / name, scripts / name)
 
+    config = repo / "config"
+    config.mkdir()
+    shutil.copy2(ROOT / "config" / "todo-orchestrator-runtime.json", config / "todo-orchestrator-runtime.json")
+
     source = repo / "src"
     pc = source / "project_control"
-    todo = source / "todo_orchestrator"
     pc.mkdir(parents=True)
-    todo.mkdir(parents=True)
     (pc / "__init__.py").write_text("SOURCE_PACKAGE = 'project_control'\n", encoding="utf-8")
     (pc / "cli.py").write_text(
         """import json, os, sys
@@ -47,7 +50,7 @@ def main():
     print(json.dumps({
         'args': sys.argv[1:],
         'project_control': project_control.__file__,
-        'todo_orchestrator': todo_orchestrator.__file__,
+    'todo_orchestrator': todo_orchestrator.__file__,
         'provider': os.environ.get('PC_TEST_PROVIDER_TOKEN'),
         'canonical_content_root': os.environ.get('PROJECT_CONTROL_SKILLS_ROOT'),
         'content_root': os.environ.get('PROJECT_CONTROL_OBSERVER_SKILLS_ROOT'),
@@ -69,7 +72,6 @@ if __name__ == '__main__':
 """,
         encoding="utf-8",
     )
-    (todo / "__init__.py").write_text("SOURCE_PACKAGE = 'todo_orchestrator'\n", encoding="utf-8")
     helpers = repo / "tests" / "todo"
     helper_scripts = helpers / "scripts"
     helper_scripts.mkdir(parents=True)
@@ -87,7 +89,7 @@ from scripts import qualify_assistance_live
 def test_source_packages_and_clean_pins():
     root = Path.cwd().resolve()
     assert Path(project_control.__file__).resolve().is_relative_to(root / 'src')
-    assert Path(todo_orchestrator.__file__).resolve().is_relative_to(root / 'src')
+    assert not Path(todo_orchestrator.__file__).resolve().is_relative_to(root / 'src')
     assert Path(qualify_assistance_live.__file__).resolve() == root / 'scripts/qualify_assistance_live.py'
     assert os.environ.get('PC_TEST_PROVIDER_TOKEN') == 'keep-provider'
     assert not os.environ.get('PROJECT_CONTROL_SKILLS_ROOT')
@@ -105,6 +107,7 @@ def test_source_packages_and_clean_pins():
         ("test_runtime_identity.py", "test_smoke_identity"),
         ("test_workflow_binding.py", "test_smoke_binding"),
         ("test_readiness.py", "test_smoke_readiness"),
+        ("test_native_todo_read.py", "test_smoke_native_read"),
         ("as1/test_pc_as1_control.py", "test_mutator_independent_plan_and_role_boundary"),
     ):
         path = tests / relative
@@ -126,10 +129,14 @@ def test_source_packages_and_clean_pins():
     fake_bin.mkdir()
     uv = fake_bin / "uv"
     uv.write_text(
-        "#!/bin/sh\nprintf '%s\\n%s\\n%s\\n' \"$UV_CACHE_DIR\" \"$UV_PROJECT_ENVIRONMENT\" \"$*\" > \"$PC_DEV_SETUP_RECORD\"\n",
+        "#!/bin/sh\nprintf '%s\\n%s\\n%s\\n' \"$UV_CACHE_DIR\" \"$UV_PROJECT_ENVIRONMENT\" \"$*\" >> \"$PC_DEV_SETUP_RECORD\"\n",
         encoding="utf-8",
     )
     uv.chmod(0o755)
+    wheel = repo / "todo-orchestrator-0.2.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("todo_orchestrator-0.2.0.dist-info/METADATA",
+                         "Metadata-Version: 2.1\nName: todo-orchestrator\nVersion: 0.2.0\n")
     return repo
 
 
@@ -148,6 +155,7 @@ def _pinned_environment(repo: Path) -> dict[str, str]:
             "PYTHONPATH": "/foreign/pythonpath",
             "PC_TEST_PROVIDER_TOKEN": "keep-provider",
             "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT": "/operator/content",
+            "PROJECT_CONTROL_ALLOW_PROVISIONAL_TODO": "1",
         }
     )
     return environment
@@ -186,7 +194,7 @@ def test_run_mode_uses_checkout_packages_and_forwards_cli_arguments(tmp_path: Pa
     payload = json.loads(result.stdout)
     assert payload["args"] == ["serve", "observer", "--host", "127.0.0.1", "--port", "8768"]
     assert Path(payload["project_control"]).resolve() == repo / "src/project_control/__init__.py"
-    assert Path(payload["todo_orchestrator"]).resolve() == repo / "src/todo_orchestrator/__init__.py"
+    assert not Path(payload["todo_orchestrator"]).resolve().is_relative_to(repo / "src")
     assert payload["provider"] == "keep-provider"
     assert payload["canonical_content_root"] == "/operator/canonical-content"
     assert payload["content_root"] == "/operator/content"
@@ -232,7 +240,7 @@ def test_test_and_legacy_wrappers_run_hermetic_source_pytest(tmp_path: Path) -> 
     )
     assert result.returncode == 0, result.stderr
     assert str(repo / "src/project_control/__init__.py") in result.stdout
-    assert str(repo / "src/todo_orchestrator/__init__.py") in result.stdout
+    assert not str(repo / "src/todo_orchestrator/__init__.py") in result.stdout
 
     result = _run(
         repo,
@@ -256,20 +264,23 @@ def test_setup_uses_repo_cache_and_preserves_existing_venv_symlink(tmp_path: Pat
         {
             "PATH": str(repo / "fake-bin") + os.pathsep + environment.get("PATH", ""),
             "PC_DEV_SETUP_RECORD": str(record),
+            "PROJECT_CONTROL_ALLOW_PROVISIONAL_TODO": "1",
         }
     )
-    result = _run(repo, "pc-dev", "setup", env=environment)
+    result = _run(repo, "pc-dev", "setup", "--todo-wheel", str(repo / "todo-orchestrator-0.2.0-py3-none-any.whl"), env=environment)
     assert result.returncode == 0, result.stderr
-    cache_dir, project_environment, arguments = record.read_text().splitlines()
+    records = record.read_text().splitlines()
+    cache_dir, project_environment, arguments = records[:3]
     assert Path(cache_dir) == repo / ".cache/uv"
     assert Path(project_environment) == repo / ".venv"
-    assert arguments == "sync --frozen --group dev"
+    assert arguments == "sync --no-install-project --frozen --group dev"
+    assert records[5] == f"pip install --python {repo}/.venv/bin/python --no-deps --force-reinstall {repo}/todo-orchestrator-0.2.0-py3-none-any.whl"
     assert os.readlink(repo / ".venv") == link_before
 
     environment["UV_CACHE_DIR"] = str(tmp_path / "provided-cache")
-    result = _run(repo, "pc-dev", "setup", env=environment)
+    result = _run(repo, "pc-dev", "setup", "--todo-wheel", str(repo / "todo-orchestrator-0.2.0-py3-none-any.whl"), env=environment)
     assert result.returncode == 0, result.stderr
-    cache_dir, _, _ = record.read_text().splitlines()
+    cache_dir = record.read_text().splitlines()[-6]
     assert cache_dir == str(tmp_path / "provided-cache")
 
 
@@ -288,7 +299,7 @@ def test_options_without_selectors_keep_the_fast_smoke_selection(tmp_path: Path)
 
     result = _run(repo, "pc-dev", "test", "-k", "smoke", "-q")
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    assert "4 passed" in result.stdout
+    assert "5 passed" in result.stdout
 
     result = _run(repo, "pc-dev", "test", "-p", "no:cacheprovider", "--maxfail", "1", "-q")
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"

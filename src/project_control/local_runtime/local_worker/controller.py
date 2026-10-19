@@ -339,7 +339,7 @@ class ProductionReadOnlyRuntime:
 def _runtime_source():
     from .canonical_runtime import bind
     bind(Path.cwd())
-    from todo_orchestrator.runtime import capture_source_identity
+    from project_control.host_resources import capture_source_identity
     return capture_source_identity
 
 
@@ -423,10 +423,10 @@ class IntegrationController:
                 return Path(value).expanduser().resolve()
             if variable == "LCW_TODO_CLI":
                 try:
-                    import todo_orchestrator
-                except ImportError as exc:
-                    raise IntegrationError("bundled todo_orchestrator CLI is unavailable") from exc
-                return Path(todo_orchestrator.__file__).with_name("__main__.py")
+                    from .canonical_runtime import todo_cli_path
+                    return todo_cli_path(Path.cwd())
+                except Exception as exc:
+                    raise IntegrationError("verified standalone Todo Orchestrator CLI is unavailable") from exc
             if skills_root is None:
                 raise IntegrationError(
                     "PROJECT_CONTROL_SKILLS_ROOT or an explicit domain-tool path must be configured"

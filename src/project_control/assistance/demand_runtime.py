@@ -139,7 +139,7 @@ def capture_runtime_pin() -> RuntimePin:
             release = json.loads(raw)
         except (ValueError, TypeError) as error:
             raise DemandRuntimeError("runtime_release_manifest_invalid") from error
-        if not isinstance(release, dict) or release.get("schema_version") not in {2, 3}:
+        if not isinstance(release, dict) or release.get("schema_version") not in {2, 3, 4}:
             raise DemandRuntimeError("runtime_release_manifest_invalid")
         release_root = manifest.parent.resolve()
         current_link = Path.home() / ".local/share/project-control/current"
@@ -149,7 +149,7 @@ def capture_runtime_pin() -> RuntimePin:
             raise DemandRuntimeError("selected_runtime_unavailable") from error
         if selected_root != release_root:
             raise DemandRuntimeError("selected_runtime_release_mismatch")
-        if release.get("schema_version") == 3 and release.get("project_control_fingerprint") != project_control_fingerprint:
+        if release.get("schema_version") in {3, 4} and release.get("project_control_fingerprint") != project_control_fingerprint:
             raise DemandRuntimeError("project_control_release_fingerprint_mismatch")
     try:
         todo = bind_runtime()

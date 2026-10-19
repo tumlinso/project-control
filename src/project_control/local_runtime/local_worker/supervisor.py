@@ -273,8 +273,8 @@ class ProductionBackend:
         )
         if runtime is None:
             self.runtime_identity, self.runtime_context = bind_canonical_runtime(self.repo_root)
-            from todo_orchestrator.runtime import RuntimeFacade, classify_local_worker_host_topology
-            self.runtime = RuntimeFacade(self.repo_root)
+            from project_control.host_resources import LocalWorkerRuntime, classify_local_worker_host_topology
+            self.runtime = LocalWorkerRuntime(self.repo_root)
             self._classify_host_topology = topology_classifier or classify_local_worker_host_topology
         else:
             self.runtime_identity = None

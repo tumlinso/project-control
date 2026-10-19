@@ -1,323 +1,305 @@
-"""Project Control's handle-scoped MCP adapter for the canonical workflow protocol.
+"""Typed MCP transport for the standalone Todo public application API.
 
-This module is deliberately only a transport adapter.  Claims, capabilities,
-scheduling, response bounds, recovery, and all other workflow semantics remain
-inside :class:`todo_orchestrator.workflow.protocol.WorkflowProtocol`.
+The adapter accepts native project/work-item/run identifiers only. Trusted
+host identity, profile, provider composition and bearer tokens are resolved by
+``NativeWorkflowHost`` and never appear in a tool schema.
 """
 
 from __future__ import annotations
 
-import secrets
-from collections.abc import Callable
+import inspect
 from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from .normalize import bounded_payload
+from .profiles import TODO_ADMIN_TOOL_NAMES, TODO_READ_TOOL_NAMES, TODO_WORKFLOW_TOOL_NAMES
 
-if TYPE_CHECKING:  # Avoid selecting a Todo installation before runtime identity verification.
-    from todo_orchestrator.workflow.protocol import WorkflowProtocol
-
-
-WORKFLOW_TOOL_NAMES = (
-    "next_task",
-    "inspect_task",
-    "coordinate_task",
-    "finish_task",
-)
-
-MAINTENANCE_TOOL_NAME = "maintain_execution"
-
+WORKFLOW_TOOL_NAMES = TODO_WORKFLOW_TOOL_NAMES
 WORKFLOW_INSTRUCTIONS = (
-    "For substantial repository work, use Project Control's workflow tools as the ordinary "
-    "workflow protocol. Start with next_task; when its context is ready, proceed. Use "
-    "inspect_task only for missing needed current-task context, and use coordinate_task for "
-    "synchronization. Read-only questions and research may use rich Project Control reads "
-    "directly without a task or claim. Finish_task runs required gates, so use run_gates "
-    "separately only when earlier validation is useful. First-class Codex "
-    "agents receive durable run lanes and roles. Project Control local inference "
-    "supports observer assistance; delegated coding and research use configured Codex "
-    "subagents under the parent claim. Opaque "
-    "handles are the only model-facing authorization."
+    "Use the native Todo tools for work planning and execution. Preview a native plan, "
+    "then commit that exact preview with an idempotency key. Open a run with an explicit "
+    "schedule; create or select a workspace before dispatch. Dispatch returns a public "
+    "attempt reference and lease, while the narrowed attempt credential remains private "
+    "to Project Control. Report, verify, accept or reject outcomes as distinct steps, then "
+    "finish the attempt. Read authority/run/context before acting when needed. Each tool "
+    "accepts an optional registered repository alias; use it when a workspace has multiple "
+    "Todo authorities, otherwise the workspace authority repository is selected."
 )
 
-_MUTATING = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=False,
-    idempotentHint=False,
-    openWorldHint=False,
-)
 _READ_ONLY = ToolAnnotations(
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=False,
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False,
+)
+_MUTATING = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False,
 )
 
 
 @dataclass(frozen=True, slots=True)
 class MaintenanceHostContext:
-    """Trusted startup binding; the model never supplies this principal."""
+    """Trusted startup identity for a native mutator profile."""
 
     recipient_principal: str
 
 
 def trusted_maintenance_context(principal: str) -> MaintenanceHostContext:
-    """Construct the context once in trusted host startup, never from a tool call."""
-    if not principal or len(principal) > 160:
+    if not isinstance(principal, str) or not principal or len(principal) > 160:
         raise ValueError("maintenance_host_principal_invalid")
-    return MaintenanceHostContext(recipient_principal=principal)
+    return MaintenanceHostContext(principal)
+
+# Each entry uses Python annotations to produce a precise FastMCP JSON schema.
+# ``None`` defaults make an argument optional; all other values are required.
+_COMMON_REV = {"expected_revision": (int | None, None)}
+_RUN_CONTEXT = {"run_id": (str | None, None), "assignment_id": (str | None, None),
+                "attempt_id": (str | None, None)}
+_TOOL_FIELDS: dict[str, dict[str, tuple[Any, Any]]] = {
+    "todo_preview_plan": {"project": (str, inspect.Parameter.empty), "package_json": (str, inspect.Parameter.empty)},
+    "todo_commit_plan": {"project": (str, inspect.Parameter.empty), "package_json": (str, inspect.Parameter.empty),
+                         "preview": (str | dict[str, object], inspect.Parameter.empty),
+                         "idempotency_key": (str, inspect.Parameter.empty)},
+    "todo_read_authority": {"project": (str, inspect.Parameter.empty), **_COMMON_REV,
+                            "limit": (int, 50), "page_token": (str | None, None)},
+    "todo_open_run": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                       "schedule": (dict[str, object], inspect.Parameter.empty), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_read_run": {"project": (str, inspect.Parameter.empty), "run_id": (str, inspect.Parameter.empty)},
+    "todo_create_workspace": {"project": (str, inspect.Parameter.empty), "work_item_id": (str, inspect.Parameter.empty),
+                              "plan_revision_id": (str | None, None), "run_id": (str | None, None),
+                              "assignment_id": (str | None, None), "workspace_id": (str | None, None),
+                              "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_dispatch_attempt": {"project": (str, inspect.Parameter.empty), "workspace_id": (str, inspect.Parameter.empty),
+                              "work_item_id": (str | None, None), "plan_revision_id": (str | None, None),
+                              "run_id": (str | None, None), "assignment_id": (str | None, None),
+                              "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_integrate_attempt": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                               "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_verify_attempt": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                            "requirement_id": (str, inspect.Parameter.empty), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_heartbeat_attempt": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                               "lease_id": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                               "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_resume_attempt": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                            "lease_id": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                            "idempotency_key": (str, inspect.Parameter.empty), "work_item_id": (str | None, None),
+                            "run_id": (str | None, None), "assignment_id": (str | None, None), **_COMMON_REV},
+    "todo_release_attempt": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                             "lease_id": (str, inspect.Parameter.empty), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_reserve_resource": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                              "resource_class": (str, inspect.Parameter.empty), "units": (int, inspect.Parameter.empty),
+                              "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_inspect_resource": {"project": (str, inspect.Parameter.empty), "operation_id": (str, inspect.Parameter.empty)},
+    "todo_reconcile_resource": {"project": (str, inspect.Parameter.empty), "operation_id": (str, inspect.Parameter.empty),
+                                "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_retry_resource": {"project": (str, inspect.Parameter.empty), "operation_id": (str, inspect.Parameter.empty),
+                            "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_release_resource": {"project": (str, inspect.Parameter.empty), "operation_id": (str, inspect.Parameter.empty),
+                              "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_report_outcome": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                            "disposition": (str, inspect.Parameter.empty), "note": (str | None, None),
+                            "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_read_candidate": {"project": (str, inspect.Parameter.empty), "candidate_id": (str, inspect.Parameter.empty)},
+    "todo_accept_outcome": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                            "candidate_id": (str, inspect.Parameter.empty), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_reject_outcome": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                            "candidate_id": (str, inspect.Parameter.empty), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_finish_attempt": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty),
+                            "lease_id": (str, inspect.Parameter.empty), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_inspect_attempt": {"project": (str, inspect.Parameter.empty), "attempt_id": (str, inspect.Parameter.empty)},
+    "todo_inspect_effect": {"project": (str, inspect.Parameter.empty), "operation_id": (str, inspect.Parameter.empty)},
+    "todo_apply_recovery": {"project": (str, inspect.Parameter.empty), "intent": (str, inspect.Parameter.empty),
+                            "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_close_run": {"project": (str, inspect.Parameter.empty), "run_id": (str, inspect.Parameter.empty),
+                       "idempotency_key": (str, inspect.Parameter.empty), "schedule_digest": (str | None, None), **_COMMON_REV},
+    "todo_retire_run": {"project": (str, inspect.Parameter.empty), "run_id": (str, inspect.Parameter.empty),
+                        "idempotency_key": (str, inspect.Parameter.empty), "schedule_digest": (str | None, None),
+                        "successor_run_id": (str | None, None), **_COMMON_REV},
+    "todo_resolve_decision": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                              "declaration_id": (str, inspect.Parameter.empty), "option_id": (str, inspect.Parameter.empty),
+                              "rationale": (str, inspect.Parameter.empty), **_RUN_CONTEXT,
+                              "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_publish_interface": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                               "declaration_id": (str, inspect.Parameter.empty), "version": (str, inspect.Parameter.empty),
+                               "rationale": (str, inspect.Parameter.empty), **_RUN_CONTEXT,
+                               "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_accept_checkpoint": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                               "declaration_id": (str, inspect.Parameter.empty), "evidence_ids": (list[str], inspect.Parameter.empty),
+                               "rationale": (str, inspect.Parameter.empty), **_RUN_CONTEXT,
+                               "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_release_barrier": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                             "declaration_id": (str, inspect.Parameter.empty), "rationale": (str, inspect.Parameter.empty),
+                             **_RUN_CONTEXT, "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_arrive_rendezvous": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                               "declaration_id": (str, inspect.Parameter.empty), "participant": (dict[str, object], inspect.Parameter.empty),
+                               **_RUN_CONTEXT, "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_open_blocker": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                          "declaration_id": (str, inspect.Parameter.empty), "reason": (str, inspect.Parameter.empty),
+                          **_RUN_CONTEXT, "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_clear_blocker": {"project": (str, inspect.Parameter.empty), "plan_revision_id": (str, inspect.Parameter.empty),
+                           "declaration_id": (str, inspect.Parameter.empty), "reason": (str, inspect.Parameter.empty),
+                           **_RUN_CONTEXT, "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_build_context": {"project": (str, inspect.Parameter.empty), "work_item_id": (str, inspect.Parameter.empty),
+                           **_RUN_CONTEXT, "max_bytes": (int, 16384)},
+    "todo_expand_context": {"project": (str, inspect.Parameter.empty), "work_item_id": (str, inspect.Parameter.empty),
+                            "fragment_id": (str, inspect.Parameter.empty), "expected_digest": (str, inspect.Parameter.empty),
+                            **_RUN_CONTEXT, "max_bytes": (int, 16384), "offset": (int | None, None),
+                            "since_revision": (int | None, None)},
+    "todo_publish_finding": {"project": (str, inspect.Parameter.empty), "work_item_id": (str, inspect.Parameter.empty),
+                             "summary": (str, inspect.Parameter.empty), "source_manifest": (dict[str, object], inspect.Parameter.empty),
+                             "source_fragment_refs": (list[dict[str, object]], inspect.Parameter.empty),
+                             "finding_id": (str | None, None), "expected_finding_version": (int | None, None),
+                             **_RUN_CONTEXT, "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_invalidate_finding": {"project": (str, inspect.Parameter.empty), "work_item_id": (str, inspect.Parameter.empty),
+                                "finding_id": (str, inspect.Parameter.empty), "finding_version": (int, inspect.Parameter.empty),
+                                "reason": (str, inspect.Parameter.empty), "source_manifest": (dict[str, object], inspect.Parameter.empty),
+                                **_RUN_CONTEXT, "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_send_message": {"project": (str, inspect.Parameter.empty), "scope": (dict[str, object], inspect.Parameter.empty),
+                          "recipients": (list[dict[str, object]], inspect.Parameter.empty), "subject": (str, inspect.Parameter.empty),
+                          "message_type": (str, "status"), "body": (str | None, None),
+                          "content_ref": (dict[str, object] | None, None), **_RUN_CONTEXT,
+                          "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_ask_question": {"project": (str, inspect.Parameter.empty), "scope": (dict[str, object], inspect.Parameter.empty),
+                          "recipients": (list[dict[str, object]], inspect.Parameter.empty), "subject": (str, inspect.Parameter.empty),
+                          "body": (str | None, None), "content_ref": (dict[str, object] | None, None), **_RUN_CONTEXT,
+                          "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_answer_question": {"project": (str, inspect.Parameter.empty), "question_id": (str, inspect.Parameter.empty),
+                             "body": (str | None, None), "content_ref": (dict[str, object] | None, None), **_RUN_CONTEXT,
+                             "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_sync_inbox": {"project": (str, inspect.Parameter.empty), "scope": (dict[str, object], inspect.Parameter.empty),
+                        **_RUN_CONTEXT, "limit": (int, 50), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_mark_messages_read": {"project": (str, inspect.Parameter.empty), "scope": (dict[str, object], inspect.Parameter.empty),
+                                "through_sequence": (int, inspect.Parameter.empty), **_RUN_CONTEXT,
+                                "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_inbox_status": {"project": (str, inspect.Parameter.empty), "scope": (dict[str, object], inspect.Parameter.empty), **_RUN_CONTEXT},
+    "todo_read_child_execution": {"project": (str, inspect.Parameter.empty), "parent_attempt_id": (str, inspect.Parameter.empty),
+                                  "execution_id": (str, inspect.Parameter.empty)},
+    "todo_start_child": {"project": (str, inspect.Parameter.empty), "parent_attempt_id": (str, inspect.Parameter.empty),
+                         "execution_id": (str, inspect.Parameter.empty), "logical_id": (str, inspect.Parameter.empty),
+                         "scope": (dict[str, object], inspect.Parameter.empty), "actions": (list[str], inspect.Parameter.empty),
+                         "idempotency_key": (str, inspect.Parameter.empty), "retry_of": (str | None, None), **_COMMON_REV},
+    "todo_submit_child_candidate": {"project": (str, inspect.Parameter.empty), "parent_attempt_id": (str, inspect.Parameter.empty),
+                                     "execution_id": (str, inspect.Parameter.empty), "candidate_id": (str, inspect.Parameter.empty),
+                                     "summary": (str, inspect.Parameter.empty), "artifacts": (list[dict[str, object]], []),
+                                     "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_review_child_candidate": {"project": (str, inspect.Parameter.empty), "parent_attempt_id": (str, inspect.Parameter.empty),
+                                    "execution_id": (str, inspect.Parameter.empty), "candidate_id": (str, inspect.Parameter.empty),
+                                    "decision": (str, inspect.Parameter.empty), "review_id": (str, inspect.Parameter.empty),
+                                    "reason": (str | None, None), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_cancel_child": {"project": (str, inspect.Parameter.empty), "parent_attempt_id": (str, inspect.Parameter.empty),
+                          "execution_id": (str, inspect.Parameter.empty), "cancellation_id": (str, inspect.Parameter.empty),
+                          "reason": (str | None, None), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_reconcile_child": {"project": (str, inspect.Parameter.empty), "parent_attempt_id": (str, inspect.Parameter.empty),
+                             "execution_id": (str, inspect.Parameter.empty), "idempotency_key": (str, inspect.Parameter.empty), **_COMMON_REV},
+    "todo_search_legacy_history": {"project": (str, inspect.Parameter.empty), "query": (str, ""),
+                                   "import_id": (str | None, None), "limit": (int, 100),
+                                   "after": (dict[str, object] | None, None)},
+    "todo_read_legacy_current_tasks": {"project": (str, inspect.Parameter.empty),
+                                        "import_id": (str | None, None), "limit": (int, 100),
+                                        "after": (dict[str, object] | None, None)},
+    "todo_read_legacy_project_context": {"project": (str, inspect.Parameter.empty),
+                                          "import_id": (str | None, None), "limit": (int, 100),
+                                          "after": (dict[str, object] | None, None)},
+    "todo_preview_legacy_import": {"project": (str, inspect.Parameter.empty), "snapshot": (dict[str, object], inspect.Parameter.empty),
+                                   "accepted_plan_revision_id": (str, inspect.Parameter.empty)},
+    "todo_import_legacy_snapshot": {"project": (str, inspect.Parameter.empty), "snapshot": (dict[str, object], inspect.Parameter.empty),
+                                    "preview": (dict[str, object], inspect.Parameter.empty),
+                                    "idempotency_key": (str, inspect.Parameter.empty)},
+}
+
+_DESCRIPTIONS = {
+    "todo_preview_plan": "Validate a native Todo plan and return its versioned preview without committing it.",
+    "todo_commit_plan": "Commit the exact reviewed native plan preview using an idempotency key.",
+    "todo_read_authority": "Read the bounded versioned native Todo authority model.",
+    "todo_open_run": "Open a scheduled run against an accepted native plan revision.",
+    "todo_read_run": "Read the native schedule and state for one run.",
+    "todo_create_workspace": "Create a native managed workspace for a work item through the configured Git provider.",
+    "todo_dispatch_attempt": "Dispatch a work item into a managed workspace; the attempt bearer stays in private host storage.",
+    "todo_integrate_attempt": "Integrate one reported attempt through the configured Git provider.",
+    "todo_verify_attempt": "Run a configured verifier for one attempt and requirement.",
+    "todo_heartbeat_attempt": "Renew an attempt lease using its private attempt session.",
+    "todo_resume_attempt": "Resume an exact attempt after reviewing its native state.",
+    "todo_release_attempt": "Release an attempt lease after reviewing its state.",
+    "todo_reserve_resource": "Request a logical resource permit for an attempt.",
+    "todo_inspect_resource": "Read one logical resource permit operation.",
+    "todo_reconcile_resource": "Reconcile an uncertain logical resource permit operation.",
+    "todo_retry_resource": "Retry a logical resource operation only when its provider proves it was not applied.",
+    "todo_release_resource": "Release one logical resource permit operation.",
+    "todo_report_outcome": "Report an attempt candidate; reporting does not accept the outcome.",
+    "todo_read_candidate": "Read one candidate report before acceptance review.",
+    "todo_accept_outcome": "Accept a reviewed candidate for an attempt.",
+    "todo_reject_outcome": "Reject a reviewed candidate for an attempt.",
+    "todo_finish_attempt": "Finish an attempt with its exact lease after outcome handling.",
+    "todo_inspect_attempt": "Inspect attempt recovery state without modifying it.",
+    "todo_inspect_effect": "Inspect one uncertain effect before choosing a recovery action.",
+    "todo_apply_recovery": "Apply the inspected recovery intent using its complete canonical Todo API document: JSON with format `todo-orchestrator.api-document`, version 1, kind `recovery_intent`, and the inspected intent under `payload`. Do not pass only the payload mapping.",
+    "todo_close_run": "Close a run whose exact schedule digest and current revision were reviewed.",
+    "todo_retire_run": "Retire a run while preserving an optional successor relationship.",
+    "todo_resolve_decision": "Resolve one declared decision with rationale.",
+    "todo_publish_interface": "Publish a declared interface version with rationale.",
+    "todo_accept_checkpoint": "Accept a declared checkpoint with evidence references and rationale.",
+    "todo_release_barrier": "Release one declared barrier with rationale.",
+    "todo_arrive_rendezvous": "Record one participant's arrival at a declared rendezvous.",
+    "todo_open_blocker": "Open a declared blocker with a reason.",
+    "todo_clear_blocker": "Clear a declared blocker with a reason.",
+    "todo_build_context": "Build a bounded context capsule for one work item.",
+    "todo_expand_context": "Expand one exact context fragment using its expected digest.",
+    "todo_publish_finding": "Publish a context finding with an exact source manifest and fragment references.",
+    "todo_invalidate_finding": "Invalidate a context finding against a new source manifest.",
+    "todo_send_message": "Send a typed native workflow message to exact same-project recipients.",
+    "todo_ask_question": "Ask exact same-project workflow recipients a typed question.",
+    "todo_answer_question": "Answer one native workflow question.",
+    "todo_sync_inbox": "Synchronize one scoped inbox and return its bounded native page.",
+    "todo_mark_messages_read": "Mark messages through one exact inbox sequence as read.",
+    "todo_inbox_status": "Read status for one scoped native workflow inbox.",
+    "todo_read_child_execution": "Read one child execution through its parent attempt session.",
+    "todo_start_child": "Delegate a bounded child execution to a trusted configured host actor; child credentials never enter MCP.",
+    "todo_submit_child_candidate": "Submit a child execution candidate with immutable artifact references.",
+    "todo_review_child_candidate": "Accept or reject a child candidate under the review capability.",
+    "todo_cancel_child": "Request cancellation of one child execution.",
+    "todo_reconcile_child": "Reconcile a child execution after its stop is confirmed.",
+    "todo_search_legacy_history": "Search immutable linked legacy history in the native authority.",
+    "todo_read_legacy_current_tasks": "Read paged current legacy task status mappings and completion assertions.",
+    "todo_read_legacy_project_context": "Read paged sanitized legacy project declarations and their import provenance.",
+    "todo_preview_legacy_import": "Preview a complete legacy snapshot import without mutating the native authority.",
+    "todo_import_legacy_snapshot": "Commit a previously reviewed legacy snapshot import.",
+}
 
 
-class _WorkflowProtocolPort(Protocol):
-    """Structural type for the already-verified canonical protocol instance."""
+def register_workflow_tools(server: FastMCP, workflow_host) -> tuple[str, ...]:
+    """Register explicitly named native Todo operations under profile allowlists."""
+    if workflow_host is None:
+        raise ValueError("native_workflow_host_required")
+    registered: list[str] = []
+    admin_names = set(TODO_ADMIN_TOOL_NAMES)
+    for name, fields in _TOOL_FIELDS.items():
+        if name in admin_names and server.profile.value != "mutator":
+            continue
+        # A trusted workspace may contain more than one registered repository
+        # with its own native Todo authority. The selector is an alias only;
+        # callers never supply a filesystem path or authority identifier.
+        fields = {**fields, "repository": (str | None, None)}
+        parameters = []
+        annotations = {}
+        # inspect.Signature (and FastMCP's schema builder) require all required
+        # parameters before optional parameters. Tool callers use named JSON
+        # fields, so keep the contract and only reorder the Python wrapper.
+        ordered_fields = sorted(fields.items(), key=lambda item: item[1][1] is not inspect.Parameter.empty)
+        for field, (annotation, default) in ordered_fields:
+            parameters.append(inspect.Parameter(field, inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                                default=default, annotation=annotation))
+            annotations[field] = annotation
 
-    def next_task(self, **arguments: object) -> dict[str, object]: ...
-    def inspect_task(self, **arguments: object) -> dict[str, object]: ...
-    def coordinate_task(self, **arguments: object) -> dict[str, object]: ...
-    def finish_task(self, **arguments: object) -> dict[str, object]: ...
+        def invoke(_name=name, **arguments):
+            return workflow_host.invoke(_name, **arguments)
 
-
-def _protocol_version() -> int:
-    """Read the canonical version lazily, after runtime identity is established."""
-
-    try:
-        from todo_orchestrator.workflow.foundation import PROTOCOL_VERSION
-
-        return int(PROTOCOL_VERSION)
-    except Exception:
-        # Error envelopes must remain bounded even when binding itself failed.
-        return 2
-
-
-def register_workflow_tools(
-    server: FastMCP,
-    protocol: "WorkflowProtocol | _WorkflowProtocolPort | None" = None,
-    *,
-    protocol_factory: Callable[[], "WorkflowProtocol | _WorkflowProtocolPort"] | None = None,
-    diagnostic_factory: Callable[[], str] | None = None,
-    context_publisher: Callable[[_WorkflowProtocolPort, str, dict], dict] | None = None,
-) -> tuple[str, ...]:
-    """Register the four canonical workflow tools without opening any authority.
-
-    The protocol is resolved lazily on first invocation.  The verified runtime
-    binding may therefore construct the MCP application without importing or
-    opening a Todo database.  Resolution is sticky: this adapter never rebinds a
-    live server to another protocol instance.
-    """
-
-    instance = protocol
-
-    def active_protocol() -> _WorkflowProtocolPort:
-        nonlocal instance
-        if instance is None:
-            if protocol_factory is None:
-                raise RuntimeError("workflow_kernel_unconfigured")
-            instance = protocol_factory()
-        return instance
-
-    def diagnostic_id() -> str:
-        return diagnostic_factory() if diagnostic_factory is not None else "diag_" + secrets.token_urlsafe(12)
-
-    def invoke(method: str, **arguments: object) -> dict[str, object]:
-        try:
-            selected = active_protocol()
-            body = arguments.get('payload')
-            if (method == 'coordinate_task' and arguments.get('action') == 'publish_context'
-                    and isinstance(body, dict) and body.get('kind') in {'skill_use', 'finding', 'candidate_relation'}):
-                if context_publisher is None:
-                    return {'status': 'unavailable', 'reason': 'capability_publication_port_unavailable'}
-                return context_publisher(selected, str(arguments['workflow_handle']), body)
-            return getattr(selected, method)(**arguments)
-        except Exception as error:
-            code = getattr(error, "code", None)
-            if isinstance(code, str) and code:
-                result: dict[str, object] = {
-                    "protocol_version": _protocol_version(),
-                    "status": "attention_required",
-                    "reason": code,
-                    "allowed_actions": [],
-                    "recommended_next_call": None,
-                    "warnings": [],
-                }
-                details = getattr(error, "details", None)
-                if details is not None:
-                    result["details"] = bounded_payload({"details": details}, 1024).get("details")
-                message = getattr(error, "message", None)
-                if isinstance(message, str) and message:
-                    result["message"] = message[:512]
-                if code == "runtime_identity_mismatch" and isinstance(details, dict):
-                    result["compatibility"] = details
-                if code.startswith(("runtime_", "workflow_owner_", "owner_")):
-                    result["required_decision"] = "repair the reported runtime or owner binding before retrying"
-                return result
-            return {
-                "protocol_version": _protocol_version(),
-                "status": "attention_required",
-                "reason": "unexpected_internal_failure",
-                "diagnostic_id": diagnostic_id(),
-                "allowed_actions": [],
-                "recommended_next_call": None,
-                "warnings": [],
-            }
-
-    @server.tool(
-        description=(
-            "Resume the current first-class lane or claim its next ready task for repo_root; "
-            "optional run_id and task_id select the intended work. Returns the task sheet, "
-            "scope, workflow handle, and allowed next actions. Claiming changes workflow state."
-        ),
-        annotations=_MUTATING,
-        structured_output=True,
-    )
-    def next_task(
-        repo_root: str,
-        task_id: str | None = None,
-        run_id: str | None = None,
-    ) -> dict[str, object]:
-        arguments: dict[str, object] = {"repo_root": repo_root}
-        if task_id is not None:
-            arguments["task_id"] = task_id
-        if run_id is not None:
-            arguments["run_id"] = run_id
-        return invoke("next_task", **arguments)
-
-    @server.tool(
-        description=(
-            "Read one bounded context target under workflow_handle. Choose kind and optional "
-            "target for the current task, run, lane, evidence, source, decision, messages, or "
-            "other supported context; budget_bytes limits the returned packet. Read-only."
-        ),
-        annotations=_READ_ONLY,
-        structured_output=True,
-    )
-    def inspect_task(
-        workflow_handle: str,
-        kind: Literal[
-            "task", "source", "evidence", "run", "lane", "decision", "messages",
-            "rendezvous", "context_fragment", "workspace", "integration",
-        ],
-        target: str | None = None,
-        budget_bytes: int = 8192,
-    ) -> dict[str, object]:
-        return invoke(
-            "inspect_task",
-            workflow_handle=workflow_handle,
-            kind=kind,
-            target=target,
-            budget_bytes=budget_bytes,
-        )
-
-    @server.tool(
-        description=(
-            "Perform one workflow action allowed by workflow_handle, such as sync, answer, "
-            "message, publish context, run gates, or request integration. Put that action's "
-            "typed fields in payload; the server checks role and task scope. May change workflow state."
-        ),
-        annotations=_MUTATING,
-        structured_output=True,
-    )
-    def coordinate_task(
-        workflow_handle: str,
-        action: Literal[
-            "sync", "fork", "message", "answer", "arrive", "publish_interface", "publish_context",
-            "run_gates", "bind_required_gates", "request_integration", "accept_child", "reject_child",
-        ],
-        payload: dict[str, object] | None = None,
-    ) -> dict[str, object]:
-        return invoke(
-            "coordinate_task", workflow_handle=workflow_handle, action=action, payload=payload
-        )
-
-    @server.tool(
-        description=(
-            "Set the parent task's disposition using workflow_handle: complete, handoff, "
-            "block, or release. Add disposition, note, or reason to record the outcome; "
-            "this updates workflow state and may release the claim."
-        ),
-        annotations=_MUTATING,
-        structured_output=True,
-    )
-    def finish_task(
-        workflow_handle: str,
-        action: Literal["complete", "handoff", "block", "release"],
-        disposition: str | None = None,
-        note: str | None = None,
-        reason: str | None = None,
-    ) -> dict[str, object]:
-        return invoke(
-            "finish_task",
-            workflow_handle=workflow_handle,
-            action=action,
-            disposition=disposition,
-            note=note,
-            reason=reason,
-        )
-
-    return WORKFLOW_TOOL_NAMES
-
-
-def register_maintenance_tool(
-    server: FastMCP,
-    *,
-    host: MaintenanceHostContext | None,
-    handler: Callable[..., dict[str, object]] | None = None,
-) -> str:
-    """Register the sole principal-bound recovery route for the Codex host."""
-    active_handler = handler
-
-    def invoke(repo_root: str, authorization_id: str) -> dict[str, object]:
-        if host is None:
-            return {
-                "status": "attention_required",
-                "reason": "maintenance_host_unconfigured",
-                "allowed_actions": [],
-                "recommended_next_call": None,
-            }
-        if active_handler is not None:
-            return active_handler(
-                repo_root=repo_root, authorization_id=authorization_id,
-                recipient_principal=host.recipient_principal,
-            )
-        from .admin import maintain_execution
-
-        return maintain_execution(
-            Path(repo_root), authorization_id=authorization_id,
-            recipient_principal=host.recipient_principal,
-        )
-
-    @server.tool(
-        description=(
-            "Resume one clean stopped execution under a host-issued, principal-bound mandate. "
-            "Provide repo_root and authorization_id; the mandate constrains the execution "
-            "that may be resumed. This changes workflow state."
-        ),
-        annotations=_MUTATING,
-        structured_output=True,
-    )
-    def maintain_execution(repo_root: str, authorization_id: str) -> dict[str, object]:
-        return invoke(repo_root, authorization_id)
-
-    return MAINTENANCE_TOOL_NAME
-
-
-def create_workflow_mcp(
-    protocol: "WorkflowProtocol | _WorkflowProtocolPort | None" = None,
-    *,
-    protocol_factory: Callable[[], "WorkflowProtocol | _WorkflowProtocolPort"] | None = None,
-    diagnostic_factory: Callable[[], str] | None = None,
-    context_publisher: Callable[[_WorkflowProtocolPort, str, dict], dict] | None = None,
-) -> FastMCP:
-    """Create a standalone stdio-capable Project Control workflow server."""
-
-    server = FastMCP("project-control", instructions=WORKFLOW_INSTRUCTIONS, log_level="ERROR")
-    register_workflow_tools(
-        server,
-        protocol,
-        protocol_factory=protocol_factory,
-        diagnostic_factory=diagnostic_factory,
-    )
-    return server
+        invoke.__name__ = name
+        invoke.__qualname__ = name
+        invoke.__annotations__ = {**annotations, "return": dict[str, object]}
+        invoke.__signature__ = inspect.Signature(parameters, return_annotation=dict[str, object])
+        readonly = name in TODO_READ_TOOL_NAMES or name in {"todo_preview_plan", "todo_preview_legacy_import"}
+        server.add_tool(invoke, name=name,
+                        description=_DESCRIPTIONS[name] +
+                        " Optional repository selects a registered repository alias within the workspace; omit it to use the workspace authority repository.",
+                        annotations=_READ_ONLY if readonly else _MUTATING,
+                        structured_output=True)
+        registered.append(name)
+    return tuple(registered)

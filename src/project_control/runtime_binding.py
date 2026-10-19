@@ -159,7 +159,7 @@ def _load_release(expected_release_digest: str | None) -> tuple[Path, dict[str, 
     except (OSError, ValueError, TypeError) as error:
         raise RuntimeBindingError("runtime_release_manifest_invalid") from error
     if (hashlib.sha256(raw).hexdigest() != digest or not isinstance(data, dict)
-            or data.get("schema_version") not in {2, 3}):
+            or data.get("schema_version") not in {2, 3, 4}):
         raise RuntimeBindingError("runtime_release_manifest_digest_mismatch")
     return path, data
 

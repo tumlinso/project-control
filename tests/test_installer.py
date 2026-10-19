@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -21,8 +22,52 @@ SPEC.loader.exec_module(MODULE)
 AtomicCutover = MODULE.AtomicCutover
 CutoverStep = MODULE.CutoverStep
 InstallError = MODULE.InstallError
-build_candidate = MODULE.build_candidate
 candidate_manifest_digest = MODULE.candidate_manifest_digest
+
+
+def _test_todo_wheel(project: Path) -> Path:
+    wheel = project.parent / "todo_orchestrator-0.2.0-py3-none-any.whl"
+    if not wheel.exists():
+        with zipfile.ZipFile(wheel, "w") as archive:
+            archive.writestr("todo_orchestrator/__init__.py", "API_VERSION = 1\n")
+            archive.writestr("todo_orchestrator-0.2.0.dist-info/METADATA",
+                             "Metadata-Version: 2.1\nName: todo-orchestrator\nVersion: 0.2.0\n\n")
+            archive.writestr("todo_orchestrator-0.2.0.dist-info/WHEEL",
+                             "Wheel-Version: 1.0\nGenerator: fixture\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+    return wheel
+
+
+def build_candidate(*, project_control_root, todo_wheel=None, **kwargs):
+    project = Path(project_control_root)
+    wheel = todo_wheel or _test_todo_wheel(project)
+    config = project / "config" / "todo-orchestrator-runtime.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    if not config.exists():
+        config.write_text(json.dumps({"format": "project-control.todo-runtime-lock", "version": 1,
+                                      "distribution": "todo-orchestrator", "distribution_version": "0.2.0",
+                                      "source_commit": None, "wheel_sha256": None,
+                                      "package_fingerprint": None, "provisional": True}), encoding="utf-8")
+    runner = kwargs.get("runner")
+    if runner is not None:
+        def install_fixture(command):
+            result = runner(command)
+            if "pip" in command:
+                if "--python" in command:
+                    python = Path(command[command.index("--python") + 1])
+                    venv = python.parent.parent
+                else:
+                    venv = Path(command[0]).parents[1]
+                package = venv / "lib/python3.13/site-packages/todo_orchestrator"
+                package.mkdir(parents=True, exist_ok=True)
+                (package / "__init__.py").write_text("API_VERSION = 1\n", encoding="utf-8")
+                dist = venv / "lib/python3.13/site-packages/todo_orchestrator-0.2.0.dist-info"
+                dist.mkdir(parents=True, exist_ok=True)
+                (dist / "METADATA").write_text("Name: todo-orchestrator\nVersion: 0.2.0\n", encoding="utf-8")
+            return result
+        kwargs["runner"] = install_fixture
+    with mock.patch.dict(os.environ, {"PROJECT_CONTROL_ALLOW_PROVISIONAL_TODO": "1"}):
+        return MODULE.build_candidate(project_control_root=project_control_root,
+                                      todo_wheel=wheel, **kwargs)
 
 
 def completed(command, code=0, stdout="", stderr=""):
@@ -56,6 +101,16 @@ def fake_project_control_wheel(temporary):
 
 
 class InstallerTests(unittest.TestCase):
+    def test_candidate_requires_an_explicit_standalone_wheel(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            project = Path(root) / "project"
+            project.mkdir()
+            (project / "pyproject.toml").write_text("[project]\nname='fixture'\n")
+            with self.assertRaisesRegex(InstallError, "wheel is missing or unsafe"):
+                MODULE.build_candidate(project_control_root=project,
+                                       todo_wheel=Path(root) / "missing.whl",
+                                       destination=Path(root) / "candidate")
+
     @unittest.skipUnless(shutil.which("uv"), "uv is required for offline candidate builds")
     def test_offline_candidate_uses_explicit_cache_and_records_source_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -95,15 +150,16 @@ class InstallerTests(unittest.TestCase):
             self.assertIn("--offline", install)
             self.assertIn(str(cache.resolve()), install)
             release = json.loads((destination / "release-manifest.json").read_text())
-            self.assertEqual(release["schema_version"], 2)
+            self.assertEqual(release["schema_version"], 4)
             inventory = destination / release["source_working_tree_inventory"]["path"]
             self.assertEqual(hashlib.sha256(inventory.read_bytes()).hexdigest(),
                              release["source_working_tree_inventory"]["sha256"])
             data = json.loads(inventory.read_text())
             self.assertEqual(data["project_control"]["files"]["current.py"]["sha256"],
                              hashlib.sha256(b"# current working tree\n").hexdigest())
-            self.assertEqual(data["todo_orchestrator"]["files"]["current.py"]["sha256"],
-                             hashlib.sha256(b"# current Todo tree\n").hexdigest())
+            self.assertEqual(data["todo_distribution"]["version"], "0.2.0")
+            self.assertEqual(data["todo_distribution"]["wheel_sha256"],
+                             MODULE._sha256_file(_test_todo_wheel(project)))
 
     def test_rollback_inventory_accepts_named_list_and_mapping(self) -> None:
         records = [
@@ -188,7 +244,7 @@ class InstallerTests(unittest.TestCase):
             build_candidate(project_control_root=project, skills_root=skills, destination=destination, runner=runner)
             snapshot = destination / "runtime-skills"
             for relative, expected in originals.items():
-                if relative.startswith("local-coding-worker/"):
+                if relative.startswith(("local-coding-worker/", "todo-orchestrator/")):
                     self.assertFalse((snapshot / relative).exists())
                 else:
                     self.assertEqual((snapshot / relative).read_bytes(), expected)
@@ -197,7 +253,7 @@ class InstallerTests(unittest.TestCase):
             self.assertFalse((snapshot / "integrations/native-skill-routing.md").exists())
             manifest = destination / "release-manifest.json"
             data = json.loads(manifest.read_bytes())
-            self.assertEqual(data["todo_commit"], "exact-source-commit")
+            self.assertEqual(data["todo_wheel_sha256"], MODULE._sha256_file(_test_todo_wheel(project)))
             self.assertNotIn("frozen_skill_resources", data)
             environment = {
                 RELEASE_MANIFEST_VARIABLE: str(manifest),
@@ -205,50 +261,7 @@ class InstallerTests(unittest.TestCase):
             }
             self.assertIsNotNone(_release(environment))
 
-            # Manifests made by earlier releases retain their strict resource
-            # pin checks even though new candidates no longer include these
-            # externally supplied resources.
-            catalog = "integrations/native-skill-catalog.json"
-            routing = "integrations/native-skill-routing.md"
-            legacy_pins = {}
-            for relative, content in ((catalog, b'{"entries": []}\n'),
-                                      (routing, b"# Native routing\n")):
-                frozen = snapshot / relative
-                frozen.parent.mkdir(parents=True, exist_ok=True)
-                frozen.write_bytes(content)
-                legacy_pins[relative] = hashlib.sha256(content).hexdigest()
-            data["frozen_skill_resources"] = legacy_pins
-            manifest.write_text(json.dumps(data))
-            environment[RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
-            self.assertIsNotNone(_release(environment))
-            for relative in (catalog, routing):
-                with self.subTest(resource=relative):
-                    frozen = snapshot / relative
-                    frozen.write_bytes(b"changed")
-                    manifest.write_text(json.dumps(data))
-                    environment[RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
-                    with self.assertRaisesRegex(RuntimeIdentityError, "Frozen Skills resource changed"):
-                        _release(environment)
-                    content = b'{"entries": []}\n' if relative == catalog else b"# Native routing\n"
-                    frozen.write_bytes(content)
-                    frozen.unlink()
-                    frozen.symlink_to(root / "external-resource")
-                    with self.assertRaisesRegex(RuntimeIdentityError, "Frozen Skills resource changed"):
-                        _release(environment)
-                    frozen.unlink()
-                    frozen.write_bytes(content)
-            for invalid in (None, {"../native-skill-catalog.json": "a" * 64},
-                            {**legacy_pins, catalog: "invalid"}):
-                with self.subTest(invalid_pins=invalid):
-                    data["frozen_skill_resources"] = invalid
-                    manifest.write_text(json.dumps(data))
-                    environment[RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
-                    with self.assertRaisesRegex(RuntimeIdentityError, "Invalid frozen Skills resource"):
-                        _release(environment)
-            del data["frozen_skill_resources"]
-            manifest.write_text(json.dumps(data))
-            environment[RELEASE_DIGEST_VARIABLE] = hashlib.sha256(manifest.read_bytes()).hexdigest()
-            self.assertIsNotNone(_release(environment))  # Existing manifests remain compatible.
+            self.assertNotIn("frozen_skill_resources", data)
 
     def test_candidate_does_not_require_legacy_native_catalog_resources(self) -> None:
         with tempfile.TemporaryDirectory() as root:
@@ -320,9 +333,10 @@ class InstallerTests(unittest.TestCase):
             )
             self.assertTrue((destination / "pcu-candidate.json").is_file())
             self.assertEqual(identity.project_control_commit, "pc")
-            install = next(command for command in commands if "pip" in command)
-            self.assertIn(str(project), install)
-            self.assertIn(str(skills / "todo-orchestrator"), install)
+            installs = [command for command in commands if "pip" in command]
+            self.assertEqual(len(installs), 2)
+            self.assertIn(str(project), installs[0])
+            self.assertIn(".whl", installs[1][-1])
 
     def test_promoted_console_and_module_entrypoints_use_final_path(self) -> None:
         with tempfile.TemporaryDirectory() as root:

@@ -21,18 +21,25 @@ from .todo_authority import (
 
 
 class SnapshotBuilder:
-    def __init__(self, config: ProjectControlConfig, *, todo_read_port_factory: TodoReadPortFactory | None = None):
+    def __init__(self, config: ProjectControlConfig, *, todo_read_port_factory: TodoReadPortFactory | None = None,
+                 todo_principal: str = "project-control-observer", todo_profile: str = "observer"):
         self.config = config
         self.registry = WorkspaceRegistry(config)
         self.cache: RevisionCache[ProjectSnapshot] = RevisionCache()
         self.todo_read_port_factory = todo_read_port_factory
+        self.todo_principal = todo_principal
+        self.todo_profile = todo_profile
         self._todo_providers: dict[str, TodoProviderResolution] = {}
 
     def _todo_provider(self, workspace_id: str) -> TodoProviderResolution:
         provider = self._todo_providers.get(workspace_id)
         if provider is None:
+            workspace = self.registry.workspace(workspace_id)
+            authority_root = (self.registry.repository(workspace_id, workspace.authority_repository).root
+                             if workspace.authority_repository else None)
             provider = resolve_todo_provider(
                 self.config, workspace_id, read_port_factory=self.todo_read_port_factory,
+                project_root=authority_root, principal=self.todo_principal, profile=self.todo_profile,
             )
             self._todo_providers[workspace_id] = provider
         return provider

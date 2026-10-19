@@ -25,6 +25,7 @@ class _Composition:
         self.jobs = SimpleNamespace(health=lambda: {"status": "ok"})
         self.backend = SimpleNamespace(central_status=self._central_status)
         self.skills = SimpleNamespace(skills={}, catalog_identity=self._catalog_identity)
+        self.workflow = SimpleNamespace()
         self.central_error = central_error
         self.content_error = content_error
 
@@ -56,6 +57,7 @@ def _routes(monkeypatch, *, binding_error=None, central_error=None, content_erro
         return function(*args, **kwargs)
     monkeypatch.setattr(app.asyncio, "to_thread", inline_thread)
     monkeypatch.setattr(app, "todo_read_port_factory", lambda: (lambda _root: None))
+    monkeypatch.setattr(app, "register_workflow_tools", lambda _mcp, _workflow: None)
     if binding_error is None:
         monkeypatch.setattr(app, "initialize_workflow_binding", lambda: _Binding())
     else:
@@ -91,7 +93,7 @@ def test_core_readiness_ignores_unavailable_optional_providers(monkeypatch):
     assert _request(routes, "/healthz")[0] == 200
 
 
-def test_core_readiness_fails_when_bundled_workflow_binding_is_unavailable(monkeypatch):
+def test_core_readiness_fails_when_standalone_workflow_binding_is_unavailable(monkeypatch):
     routes, _ = _routes(monkeypatch, binding_error="runtime_identity_mismatch")
     status, body = _request(routes, "/readyz")
     assert status == 503

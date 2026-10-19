@@ -58,7 +58,7 @@ from .services.inspect import inspect_subject
 from .services.overview import project_overview as project_overview_service
 from .services.performance import performance_status as performance_status_service
 from .services.performance_probe import performance_probe as performance_probe_service
-from .services.planning import MutationDetected, plan_preview as plan_preview_service
+from .services.planning import MutationDetected
 from .services.program import program_context as program_context_service
 from .services.source_context import source_context as source_context_service
 from .services.local_investigate import local_investigate as local_investigate_service
@@ -68,12 +68,10 @@ from .call_audit import caller_var
 from .normalize import bounded_envelope, bounded_payload
 from .terminal import TerminalSessionRegistry
 from .profiles import MCPProfile, ProfiledFastMCP
-from .mutation_tools import register_mutation_tools
-from .workflow_binding import initialize_workflow_binding, todo_read_port_factory, workflow_protocol
+from .workflow_binding import initialize_workflow_binding, todo_read_port_factory
 from .workflow_tools import (
     WORKFLOW_INSTRUCTIONS,
     MaintenanceHostContext,
-    register_maintenance_tool,
     register_workflow_tools,
 )
 from .observer_analysis import ObserverAnalysisRegistry, SkillsObserverAnalysisProvider
@@ -115,17 +113,10 @@ PERFORMANCE_PROBE = ToolAnnotations(
 )
 
 MUTATOR_INSTRUCTIONS = (
-    "Use plan, amend_project and maintain_execution for explicit transactional control. "
-    "The native Todo workflow engine is part of Project Control; rescue does not require "
-    "the Todo Orchestrator skill or a separate source checkout. For a stopped task, call "
-    "maintain_execution with {project, action:'diagnose', task_id}; inspect blockers, then "
-    "call {project, action:'prepare', task_id, run_id?} for that same task (include run_id "
-    "when needed to select its exact active run). Execute only the returned grant using "
-    "{project, action:'execute', authorization_id}; never substitute a task, run, workspace, "
-    "principal, or grant. For exact run replacement, use plan(action:'supersede') to prepare "
-    "the reviewed intent, then execute its returned grant with maintain_execution. Startup "
-    "project/principal access checks and native ownership, cleanliness, and affected-work "
-    "guards still apply; blocked or corrupt state may require owner repair outside this route."
+    "Use todo_preview_plan and todo_commit_plan for explicit native plan transactions. "
+    "Use the todo_* operations for runs, attempts, declarations, outcomes and recovery. "
+    "Project Control binds project roots, host principals, profiles and providers at startup; "
+    "tool arguments cannot select credentials, repositories or another identity."
 )
 
 OverviewDetail = Literal["compact", "standard", "expanded"]
@@ -191,44 +182,6 @@ class Runtime:
 
     def snapshot(self, project: str, *, host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
         return self.builder.build(project, include_host=host, campaign=campaign)
-
-    def todo_plan_reader(self, project: str):
-        """Use Todo's verified in-process plan service when this Runtime is bound.
-
-        The fallback preview path remains for unbound compatibility setups. A
-        bound Runtime must not select a second Todo script just to preview.
-        """
-
-        if self.todo_read_port_factory is None:
-            return None
-        workspace = self.builder.registry.workspace(project)
-        if not workspace.authority_repository:
-            return None
-        root = self.builder.registry.repository(project, workspace.authority_repository).root
-        binding = initialize_workflow_binding()
-        binding.validate()
-        from todo_orchestrator.service import Service
-
-        service = Service(root, read_only=True)
-
-        def read(plan_path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
-            binding.validate()
-            validation = service.plan_validate(str(plan_path))
-            diff = service.plan_diff(str(plan_path))
-            binding.validate()
-
-            def envelope_result(value: object) -> dict[str, Any]:
-                # Todo's in-process Service returns its native payload, while
-                # the compatibility CLI returns {ok, data}. Keep the existing
-                # preview consumer on one envelope without changing what Todo
-                # validates or diffs.
-                if isinstance(value, dict) and isinstance(value.get("data"), dict) and "ok" in value:
-                    return value
-                return {"ok": True, "data": dict(value) if isinstance(value, dict) else {}}
-
-            return envelope_result(validation), envelope_result(diff)
-
-        return read
 
     def failure(self, tool: str, project: str, status: ToolStatus, warning: str) -> dict[str, Any]:
         observed = utc_now()
@@ -303,8 +256,7 @@ def create_mcp(
         host=server.host, port=server.port, streamable_http_path="/mcp", stateless_http=True,
         json_response=True, max_request_body_size=384 * 1024)
     register_surface(mcp, composition)
-    if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
-        register_workflow_tools(mcp, protocol_factory=workflow_protocol, context_publisher=composition.publish_context)
+    register_workflow_tools(mcp, composition.workflow)
 
     def central_health():
         status = getattr(composition.backend, "central_status", None)
@@ -370,7 +322,7 @@ def create_mcp(
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request):
-        return JSONResponse({"name": "project-control", "version": "0.3.2", "tool_schema_version": 10,
+        return JSONResponse({"name": "project-control", "version": "0.4.0", "tool_schema_version": 11,
                              "features": mcp.feature_metadata})
 
     setattr(mcp, "_project_control_runtime", runtime)

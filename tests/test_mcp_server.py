@@ -20,7 +20,8 @@ from mcp.server.fastmcp.exceptions import ToolError
 from starlette.testclient import TestClient
 from project_control.app import create_asgi_app, create_mcp, serve_codex
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-from project_control.profiles import CODEX_TOOL_NAMES, OBSERVER_TOOL_NAMES, CODEX_RICH_READ_DESCRIPTION_PREFIX
+from project_control.profiles import (CODEX_TOOL_NAMES, OBSERVER_TOOL_NAMES, WORKFLOW_TOOL_NAMES,
+                                       CODEX_RICH_READ_DESCRIPTION_PREFIX)
 
 
 class MCPServerTests(unittest.TestCase):
@@ -59,12 +60,12 @@ class MCPServerTests(unittest.TestCase):
         tools = asyncio.run(mcp.list_tools())
         self.assertEqual({t.name for t in tools}, set(CODEX_TOOL_NAMES))
         for tool in tools:
-            if tool.name not in {'next_task', 'inspect_task', 'coordinate_task', 'finish_task'}:
+            if tool.name not in WORKFLOW_TOOL_NAMES:
                 self.assertTrue(tool.description.startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
         self.assertNotIn('read', {t.name for t in tools})
     def test_hidden_workflow_and_legacy_aliases_rejected_before_binding(self):
         mcp = self.make()
-        for name in ('next_task', 'project_overview', 'source_context', 'find', 'delegate_task', 'collect_delegation'):
+        for name in ('todo_preview_plan', 'next_task', 'project_overview', 'source_context', 'find', 'delegate_task', 'collect_delegation'):
             with self.assertRaises(ToolError):
                 asyncio.run(mcp.call_tool(name, {'project': 'demo'}))
     def test_runtime_receives_configured_read_port_factory(self):
@@ -93,7 +94,7 @@ class MCPServerTests(unittest.TestCase):
             self.assertEqual(ready.json()['core']['status'], 'available')
             self.assertEqual(ready.json()['central_inference']['reason'], 'central_supervisor_unavailable')
             version = client.get('/version').json()
-            self.assertEqual(version['tool_schema_version'], 10)
+            self.assertEqual(version['tool_schema_version'], 11)
             self.assertFalse(version['features']['automatic_overview'])
         from project_control.config import ServerConfig
         with self.assertRaises(ValueError):

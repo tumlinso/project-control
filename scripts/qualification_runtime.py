@@ -64,8 +64,8 @@ def runtime_provenance(mode: str, *, repository_root: Path,
                        release_cli: Path | None = None) -> dict[str, Any]:
     """Validate current package identity and report the selected CLI command.
 
-    Source mode only accepts imports from this checkout's ``src`` tree and
-    derives the receiver inventory from its current files. Release mode keeps
+    Source mode accepts Project Control from this checkout and standalone Todo
+    from the checked-in development environment. Release mode keeps
     the runtime identity module's manifest, digest, package, and receiver
     verification in force.
     """
@@ -94,8 +94,10 @@ def runtime_provenance(mode: str, *, repository_root: Path,
     pc_file = Path(pc.__file__).resolve(strict=True)
     todo_file = Path(todo.__file__).resolve(strict=True)
     if mode == "source":
-        if not _under(pc_file, expected_root) or not _under(todo_file, expected_root):
-            raise QualificationRuntimeError("source runtime imported a package outside this checkout")
+        if not _under(pc_file, expected_root) or not _under(todo_file, Path(sys.prefix)):
+            raise QualificationRuntimeError("source runtime package imports do not match the isolated development environment")
+        if _under(todo_file, repository_root):
+            raise QualificationRuntimeError("source Todo import resolved to the Project Control checkout")
     else:
         from project_control.runtime_identity import (
             RELEASE_DIGEST_VARIABLE, RELEASE_MANIFEST_VARIABLE, bind_runtime,
@@ -114,13 +116,12 @@ def runtime_provenance(mode: str, *, repository_root: Path,
             document = json.loads(raw)
         except (ValueError, TypeError) as error:
             raise QualificationRuntimeError("release manifest is invalid") from error
-        if not isinstance(document, dict) or document.get("schema_version") not in {2, 3}:
+        if not isinstance(document, dict) or document.get("schema_version") != 4:
             raise QualificationRuntimeError("release manifest schema is unsupported")
-        if document.get("schema_version") == 3:
-            declared_pc = document.get("project_control_fingerprint")
-            if (not isinstance(declared_pc, str) or len(declared_pc) != 64
-                    or any(char not in "0123456789abcdef" for char in declared_pc)):
-                raise QualificationRuntimeError("release Project Control fingerprint is missing or invalid")
+        declared_pc = document.get("project_control_fingerprint")
+        if (not isinstance(declared_pc, str) or len(declared_pc) != 64
+                or any(char not in "0123456789abcdef" for char in declared_pc)):
+            raise QualificationRuntimeError("release Project Control fingerprint is missing or invalid")
         release_root = manifest.parent.resolve(strict=True)
         if not _under(pc_file, release_root) or not _under(todo_file, release_root):
             raise QualificationRuntimeError("release runtime imported a package outside the selected release")
@@ -131,7 +132,8 @@ def runtime_provenance(mode: str, *, repository_root: Path,
         expected_pc = document.get("project_control_fingerprint")
         if expected_pc and pc_fingerprint != expected_pc:
             raise QualificationRuntimeError("release Project Control fingerprint mismatch")
-        if bound.fingerprint != document.get("todo_runtime_fingerprint"):
+        todo_manifest = document.get("todo_distribution")
+        if not isinstance(todo_manifest, dict) or bound.fingerprint != todo_manifest.get("fingerprint"):
             raise QualificationRuntimeError("release Todo fingerprint mismatch")
         receiver = _receiver_provenance(mode, manifest.parent, document)
         cli = release_cli

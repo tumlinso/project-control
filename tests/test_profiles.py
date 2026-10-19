@@ -19,9 +19,10 @@ project_control.__path__.insert(0, str(SOURCE_ROOT / "project_control"))
 from project_control.profiles import (
     CODEX_RICH_READ_DESCRIPTION_PREFIX,
     CODEX_TOOL_NAMES,
-    MAINTENANCE_TOOL_NAME,
+    INTERNAL_TOOL_NAMES,
     MUTATION_TOOL_NAMES,
     MUTATOR_TOOL_NAMES,
+    TODO_ADMIN_TOOL_NAMES,
     OBSERVER_TOOL_NAMES,
     RICH_READ_TOOL_NAMES,
     WORKFLOW_TOOL_NAMES,
@@ -36,7 +37,6 @@ from project_control.profiles import (
     validate_profile_registration,
 )
 from project_control.config import ProjectControlConfig
-from project_control.mutation_tools import register_mutation_tools
 
 
 def _handler(value: str = "ok") -> dict[str, str]:
@@ -45,21 +45,22 @@ def _handler(value: str = "ok") -> dict[str, str]:
 
 def _server(profile: MCPProfile) -> ProfiledFastMCP:
     server = ProfiledFastMCP("project-control", profile=profile)
-    for name in OBSERVER_TOOL_NAMES + WORKFLOW_TOOL_NAMES + (MAINTENANCE_TOOL_NAME,) + MUTATION_TOOL_NAMES:
+    all_tools = dict.fromkeys((*OBSERVER_TOOL_NAMES, *CODEX_TOOL_NAMES, *MUTATOR_TOOL_NAMES,
+                               *INTERNAL_TOOL_NAMES, *TODO_ADMIN_TOOL_NAMES, *MUTATION_TOOL_NAMES))
+    for name in all_tools:
         server.add_tool(_handler, name=name, description=f"{name} description", structured_output=True)
     return server
 
 
 class ProfilePolicyTests(unittest.TestCase):
     def test_contract_tool_sets_are_exact_and_distinct(self) -> None:
-        self.assertEqual(11, len(OBSERVER_TOOL_NAMES))
-        self.assertEqual(12, len(CODEX_TOOL_NAMES))
-        self.assertEqual(16, len(MUTATOR_TOOL_NAMES))
-        self.assertEqual(8, len(RICH_READ_TOOL_NAMES))
-        self.assertEqual(4, len(WORKFLOW_TOOL_NAMES))
-        self.assertEqual(set(RICH_READ_TOOL_NAMES) | {"read", "investigate", "skill"}, set(OBSERVER_TOOL_NAMES))
+        self.assertTrue(set(RICH_READ_TOOL_NAMES) <= set(OBSERVER_TOOL_NAMES))
+        self.assertTrue({"read", "investigate", "skill", "todo_read_authority"} <= set(OBSERVER_TOOL_NAMES))
         self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES))
-        self.assertEqual(set(MUTATOR_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES) | {"investigate", "plan", "amend_project", "maintain_execution"})
+        self.assertEqual(set(MUTATOR_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES)
+                         | set(TODO_ADMIN_TOOL_NAMES) | {"investigate", "amend_project"})
+        self.assertNotIn("plan", MUTATOR_TOOL_NAMES)
+        self.assertNotIn("maintain_execution", MUTATOR_TOOL_NAMES)
         self.assertNotIn("terminal_capture", MUTATOR_TOOL_NAMES)
 
     def test_profile_and_transport_are_explicit_startup_configuration(self) -> None:
@@ -86,13 +87,13 @@ class ProfilePolicyTests(unittest.TestCase):
 
 
 class ProfileRegistrationTests(unittest.TestCase):
-    def test_observer_registers_only_fifteen_observer_tools(self) -> None:
+    def test_observer_registers_exact_read_surface(self) -> None:
         server = _server(MCPProfile.OBSERVER)
         tools = asyncio.run(server.list_tools())
         self.assertEqual(set(OBSERVER_TOOL_NAMES), {tool.name for tool in tools})
         asyncio.run(validate_profile_registration(server))
 
-    def test_codex_registers_six_workflow_and_fourteen_secondary_reads(self) -> None:
+    def test_codex_registers_native_workflow_and_secondary_reads(self) -> None:
         server = _server(MCPProfile.CODEX)
         tools = asyncio.run(server.list_tools())
         self.assertEqual(set(CODEX_TOOL_NAMES), {tool.name for tool in tools})
@@ -101,10 +102,10 @@ class ProfileRegistrationTests(unittest.TestCase):
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
         for name in WORKFLOW_TOOL_NAMES:
             self.assertEqual(f"{name} description", descriptions[name])
-        self.assertNotIn(MAINTENANCE_TOOL_NAME, descriptions)
+        self.assertNotIn("amend_project", descriptions)
         asyncio.run(validate_profile_registration(server))
 
-    def test_mutator_registers_exact_codex_surface_plus_apply_plan(self) -> None:
+    def test_mutator_registers_exact_native_surface_plus_metadata_amendment(self) -> None:
         server = _server(MCPProfile.MUTATOR)
         tools = asyncio.run(server.list_tools())
         self.assertEqual(set(MUTATOR_TOOL_NAMES), {tool.name for tool in tools})
@@ -113,12 +114,12 @@ class ProfileRegistrationTests(unittest.TestCase):
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
         asyncio.run(validate_profile_registration(server))
 
-    def test_apply_plan_dispatch_is_mutator_only(self) -> None:
+    def test_legacy_import_is_mutator_only(self) -> None:
         for profile in (MCPProfile.OBSERVER, MCPProfile.CODEX):
             with self.subTest(profile=profile):
                 with self.assertRaisesRegex(ToolError, f"unavailable in the {profile.value} profile"):
-                    asyncio.run(_server(profile).call_tool("plan", {"value": "ok"}))
-        result = asyncio.run(_server(MCPProfile.MUTATOR).call_tool("plan", {"value": "ok"}))
+                    asyncio.run(_server(profile).call_tool("todo_import_legacy_snapshot", {"value": "ok"}))
+        result = asyncio.run(_server(MCPProfile.MUTATOR).call_tool("todo_import_legacy_snapshot", {"value": "ok"}))
         self.assertTrue(result)
 
     def test_hidden_invocation_is_denied_before_handler(self) -> None:
@@ -129,9 +130,9 @@ class ProfileRegistrationTests(unittest.TestCase):
             called = True
 
         server = ProfiledFastMCP("project-control", profile="observer")
-        server.add_tool(workflow_handler, name="next_task")
+        server.add_tool(workflow_handler, name="todo_preview_plan")
         with self.assertRaisesRegex(ToolError, "unavailable in the observer profile"):
-            asyncio.run(server.call_tool("next_task", {}))
+            asyncio.run(server.call_tool("todo_preview_plan", {}))
         self.assertFalse(called)
 
     def test_terminal_is_absent_and_denied_in_codex(self) -> None:

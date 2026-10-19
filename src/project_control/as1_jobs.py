@@ -108,7 +108,7 @@ def _host_admission_fence(*, max_seconds: float = 45.0):
     """
     connection = None
     try:
-        from todo_orchestrator.background.host import HostCoordinator
+        from .host_resources import HostCoordinator
 
         host = HostCoordinator(create=False)
         database = Path(host.database)

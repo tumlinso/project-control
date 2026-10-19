@@ -1082,9 +1082,8 @@ def _negative_cuda_probe(ungranted_nodes: Sequence[int]) -> str:
 
 
 def native_owner_reader(owner_id: str) -> Mapping[str, object] | None:
-    """Read an exact native host owner through the installed Todo façade."""
-    from todo_orchestrator.background.host import HostCoordinator
-    from todo_orchestrator.runtime.facade import HostResourceFacade
+    """Read an exact physical host owner from Project Control's host registry."""
+    from project_control.host_resources import HostCoordinator, HostResourceFacade
 
     return HostResourceFacade(HostCoordinator(create=False)).owner(owner_id)
 

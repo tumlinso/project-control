@@ -358,8 +358,13 @@ def _selected_release() -> tuple[Path, Path, str]:
         document = json.loads(raw)
     except (ValueError, TypeError) as error:
         raise QualificationError("selected release manifest is invalid") from error
-    if not isinstance(document, dict) or document.get("schema_version") not in {2, 3}:
+    if not isinstance(document, dict) or document.get("schema_version") != 4:
         raise QualificationError("selected release manifest schema mismatch")
+    todo = document.get("todo_distribution")
+    if (not isinstance(todo, dict) or todo.get("name") != "todo-orchestrator"
+            or todo.get("version") != "0.2.0"
+            or not isinstance(todo.get("fingerprint"), str)):
+        raise QualificationError("selected release standalone Todo identity is invalid")
     root = manifest.parent
     module_spec = __import__("importlib.util", fromlist=["find_spec"]).find_spec("project_control")
     origin = getattr(module_spec, "origin", None)

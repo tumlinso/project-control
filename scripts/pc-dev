@@ -8,7 +8,7 @@ python="$venv_path/bin/python"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  scripts/pc-dev setup
+  scripts/pc-dev setup --todo-wheel PATH
   scripts/pc-dev run <project-control arguments...>
   scripts/pc-dev test [pytest selectors and options...]
   scripts/pc-dev python <Python arguments...>  # internal source passthrough
@@ -70,8 +70,24 @@ source_environment() {
 
 case "$action" in
   setup)
-    if [[ $# -ne 0 ]]; then
-      echo "setup takes no arguments" >&2
+    todo_wheel="${PROJECT_CONTROL_TODO_WHEEL:-}"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --todo-wheel) [[ $# -ge 2 ]] || { echo "--todo-wheel needs a path" >&2; exit 2; }; todo_wheel="$2"; shift 2 ;;
+        *) echo "unknown setup argument: $1" >&2; exit 2 ;;
+      esac
+    done
+    if [[ -z "$todo_wheel" ]]; then
+      echo "standalone Todo wheel required; pass --todo-wheel PATH or set PROJECT_CONTROL_TODO_WHEEL" >&2
+      exit 2
+    fi
+    if [[ -L "$todo_wheel" ]]; then
+      echo "standalone Todo wheel path must not be a symlink" >&2
+      exit 2
+    fi
+    todo_wheel="$(readlink -f "$todo_wheel" 2>/dev/null || true)"
+    if [[ -z "$todo_wheel" || ! -f "$todo_wheel" ]]; then
+      echo "standalone Todo wheel is missing or unreadable: ${todo_wheel:-unset}" >&2
       exit 2
     fi
     if ! command -v uv >/dev/null 2>&1; then
@@ -84,7 +100,10 @@ case "$action" in
     mkdir -p "$cache_dir"
     export UV_CACHE_DIR="$cache_dir"
     export UV_PROJECT_ENVIRONMENT="$venv_path"
-    uv sync --frozen --group dev
+    uv sync --no-install-project --frozen --group dev
+    "$python" "$repo_root/scripts/verify_todo_runtime.py" --wheel "$todo_wheel"
+    uv pip install --python "$python" --no-deps --force-reinstall "$todo_wheel"
+    "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed
     ;;
   run)
     check_venv_target
@@ -93,8 +112,12 @@ case "$action" in
       exit 2
     fi
     source_environment
-    if [[ ! -f "$repo_root/src/project_control/cli.py" || ! -f "$repo_root/src/todo_orchestrator/__init__.py" ]]; then
+    if [[ ! -f "$repo_root/src/project_control/cli.py" ]]; then
       echo "Project Control source tree is incomplete under $repo_root/src" >&2
+      exit 2
+    fi
+    if ! "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed >/dev/null 2>&1; then
+      echo "standalone Todo runtime does not match config/todo-orchestrator-runtime.json; run scripts/pc-dev setup --todo-wheel PATH" >&2
       exit 2
     fi
     exec "$python" -m project_control.cli "$@"
@@ -111,8 +134,12 @@ case "$action" in
       echo "pytest is missing from $venv_path; run scripts/pc-dev setup" >&2
       exit 2
     fi
-    if [[ ! -f "$repo_root/src/project_control/cli.py" || ! -f "$repo_root/src/todo_orchestrator/__init__.py" ]]; then
+    if [[ ! -f "$repo_root/src/project_control/cli.py" ]]; then
       echo "Project Control source tree is incomplete under $repo_root/src" >&2
+      exit 2
+    fi
+    if ! "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed >/dev/null 2>&1; then
+      echo "standalone Todo runtime does not match config/todo-orchestrator-runtime.json; run scripts/pc-dev setup --todo-wheel PATH" >&2
       exit 2
     fi
     # Flags alone still mean "run the quick source smoke selection". Treat
@@ -143,7 +170,7 @@ case "$action" in
         tests/test_runtime_identity.py \
         tests/test_workflow_binding.py \
         tests/test_readiness.py \
-        tests/as1/test_pc_as1_control.py::test_mutator_independent_plan_and_role_boundary
+        tests/test_native_todo_read.py
     fi
     exec "$python" -m pytest "$@"
     ;;

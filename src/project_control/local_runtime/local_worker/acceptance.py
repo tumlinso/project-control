@@ -33,7 +33,7 @@ class PatchConflict(AcceptanceError):
 def _runtime_source():
     from .canonical_runtime import bind
     bind(Path.cwd())
-    from todo_orchestrator.runtime import capture_source_identity
+    from project_control.host_resources import capture_source_identity
     return capture_source_identity
 
 

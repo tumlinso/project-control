@@ -4,6 +4,7 @@ import ipaddress
 import hashlib
 import os
 import stat
+import math
 import tomllib
 import warnings
 from pathlib import Path
@@ -66,7 +67,36 @@ class WorkspaceConfig(BaseModel):
     authority_repository: str | None = None
     skills_root: Path | None = None
     deny_patterns: list[str] = Field(default_factory=list)
+    # Semantic provider names/options are inert metadata allowlists.  They do
+    # not grant executable, filesystem-root or credential trust.
+    project_providers: dict[str, dict[str, Any]] = Field(default_factory=dict)
     repositories: dict[str, RepositoryConfig]
+
+    @field_validator("project_providers")
+    @classmethod
+    def safe_project_providers(cls, value: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        for provider_id, definition in value.items():
+            if (not isinstance(provider_id, str) or not provider_id or len(provider_id) > 128
+                    or any(ord(char) < 32 for char in provider_id)):
+                raise ValueError("project provider ID must be nonempty text")
+            if not isinstance(definition, dict) or set(definition) - {"allowed_options"}:
+                raise ValueError("project provider registration permits only allowed_options")
+            options = definition.get("allowed_options", {})
+            if not isinstance(options, dict) or any(
+                not isinstance(key, str) or not key or any(ord(char) < 32 for char in key)
+                or not isinstance(choices, list)
+                for key, choices in options.items()
+            ):
+                raise ValueError("project provider allowed_options must map names to lists")
+            for key, choices in options.items():
+                normalized = key.casefold().replace("-", "_")
+                if any(term in normalized for term in ("executable", "command", "argv", "root", "install",
+                                                        "credential", "token", "secret", "password", "api_key")):
+                    raise ValueError("project provider options cannot grant execution or root trust")
+                if any(type(choice) not in {str, int, float, bool} or
+                       (type(choice) is float and not math.isfinite(choice)) for choice in choices):
+                    raise ValueError("project provider choices must be finite scalar values")
+        return value
 
     @model_validator(mode="after")
     def authority_is_registered(self) -> "WorkspaceConfig":
@@ -219,6 +249,18 @@ def _quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _toml_value(value: Any) -> str:
+    if isinstance(value, str):
+        return _quote(value)
+    if type(value) is bool:
+        return "true" if value else "false"
+    if type(value) in {int, float}:
+        if type(value) is float and not math.isfinite(value):
+            raise ValueError("non-finite configuration number")
+        return str(value)
+    raise ValueError("unsupported TOML scalar")
+
+
 def render_config(config: ProjectControlConfig) -> str:
     lines = [f"schema_version = {config.schema_version}"]
     if config.skills_root:
@@ -244,6 +286,15 @@ def render_config(config: ProjectControlConfig) -> str:
         if workspace.deny_patterns:
             values = ", ".join(_quote(item) for item in workspace.deny_patterns)
             lines.append(f"deny_patterns = [{values}]")
+        for provider_id, definition in sorted(workspace.project_providers.items()):
+            lines.extend(["", f"[{section}.project_providers.{_quote(provider_id)}]"])
+            options = definition.get("allowed_options", {})
+            values = []
+            for option, choices in sorted(options.items()):
+                encoded = ", ".join(_toml_value(choice) for choice in choices)
+                values.append(f"{_quote(option)} = [{encoded}]")
+            if values:
+                lines.append("allowed_options = { " + ", ".join(values) + " }")
         for alias in sorted(workspace.repositories):
             repository = workspace.repositories[alias]
             lines.extend([

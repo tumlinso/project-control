@@ -279,12 +279,26 @@ def _parser() -> argparse.ArgumentParser:
     compile_plan.add_argument("--package", type=Path, required=True)
     compile_plan.add_argument("--repository-label", required=True)
     compile_plan.add_argument("--output", type=Path, required=True)
-    validate_plan = plan_commands.add_parser("validate")
-    validate_plan.add_argument("--project", required=True)
-    validate_plan.add_argument("--file", type=Path, required=True)
-    apply_plan = plan_commands.add_parser("apply")
-    apply_plan.add_argument("--project", required=True)
-    apply_plan.add_argument("--file", type=Path, required=True)
+    preview_plan = plan_commands.add_parser("preview", help="preview one native Todo plan package")
+    preview_plan.add_argument("--project", required=True)
+    preview_plan.add_argument("--repository", help="registered repository alias; defaults to workspace authority")
+    preview_plan.add_argument("--file", type=Path, required=True)
+    commit_plan = plan_commands.add_parser("commit", help="commit the exact reviewed native plan preview")
+    commit_plan.add_argument("--project", required=True)
+    commit_plan.add_argument("--repository", help="registered repository alias; defaults to workspace authority")
+    commit_plan.add_argument("--file", type=Path, required=True)
+    commit_plan.add_argument("--preview", type=Path, required=True)
+    commit_plan.add_argument("--idempotency-key", required=True)
+
+    todo = commands.add_parser("todo", help="invoke a native Todo operation")
+    todo_commands = todo.add_subparsers(dest="todo_command", required=True)
+    todo_call = todo_commands.add_parser("call", help="call a todo_* native API operation")
+    todo_call.add_argument("operation")
+    todo_call.add_argument("--project", required=True)
+    todo_call.add_argument("--repository", help="registered repository alias; defaults to workspace authority")
+    todo_args = todo_call.add_mutually_exclusive_group()
+    todo_args.add_argument("--arguments-json", default="{}")
+    todo_args.add_argument("--arguments-file", type=Path)
 
     migrate_repo = commands.add_parser("migrate-repository")
     migrate_repo.add_argument("--repo", type=Path, required=True)
@@ -300,109 +314,6 @@ def _parser() -> argparse.ArgumentParser:
     ingest_skill.add_argument("--resource", required=True)
     ingest_skill.add_argument("--destination", required=True)
     ingest_skill.add_argument("--apply", action="store_true")
-    recover = admin_commands.add_parser("recover")
-    recover.add_argument("--repo", required=True)
-    recover.add_argument("--task")
-    recover.add_argument("--reason", required=True)
-    recover.add_argument("--inspect-only", action="store_true")
-    delegated_recovery = admin_commands.add_parser("recover-authorized")
-    delegated_recovery.add_argument("--repo", required=True)
-    delegated_recovery.add_argument("--authorization", required=True)
-    delegated_recovery.add_argument("--reason", required=True)
-    prepare_maintenance = admin_commands.add_parser(
-        "prepare-maintenance", help="issue one bounded maintenance assignment and operator launch packet"
-    )
-    prepare_maintenance.add_argument("--repo", required=True)
-    prepare_maintenance.add_argument("--task", required=True)
-    prepare_maintenance.add_argument("--run")
-    prepare_maintenance.add_argument("--recipient", required=True)
-    prepare_maintenance.add_argument("--expires", type=int, default=300)
-    prepare_supersession = admin_commands.add_parser("prepare-supersession")
-    prepare_supersession.add_argument("--repo", required=True)
-    prepare_supersession.add_argument("--intent", required=True)
-    prepare_supersession.add_argument("--recipient", required=True)
-    prepare_supersession.add_argument("--expires", type=int, default=1800)
-    retire_batch = admin_commands.add_parser("retire-run-batch")
-    retire_batch.add_argument("--repo", required=True)
-    retire_batch.add_argument("--request", required=True)
-    retire_batch.add_argument("--apply", action="store_true")
-    retire_batch.add_argument("--confirm")
-    reconcile_cancelled = admin_commands.add_parser("reconcile-cancelled-run-workspaces")
-    reconcile_cancelled.add_argument("--repo", required=True)
-    reconcile_cancelled.add_argument("--request", required=True)
-    reconcile_cancelled.add_argument("--apply", action="store_true")
-    reconcile_cancelled.add_argument("--confirm")
-    prepare_retire = admin_commands.add_parser("prepare-retire-run-batch")
-    prepare_retire.add_argument("--repo", required=True)
-    prepare_retire.add_argument("--intent", required=True)
-    prepare_retire.add_argument("--output")
-    prepare = admin_commands.add_parser("prepare-run-workspaces")
-    prepare.add_argument("--repo", required=True)
-    prepare.add_argument("--plan", required=True)
-    prepare.add_argument("--run", required=True)
-    prepare.add_argument("--lane")
-    prepare.add_argument("--apply", action="store_true")
-    prepare.add_argument("--confirm")
-    reconcile = admin_commands.add_parser("reconcile-workspace-base")
-    reconcile.add_argument("--repo", required=True)
-    reconcile.add_argument("--run", required=True)
-    reconcile.add_argument("--lane", required=True)
-    reconcile.add_argument("--base", required=True)
-    reconcile.add_argument("--reason", required=True)
-    reconcile.add_argument("--apply", action="store_true")
-    reconcile.add_argument("--confirm")
-    cleanup = admin_commands.add_parser("mark-run-workspaces-cleanup-eligible")
-    cleanup.add_argument("--repo", required=True)
-    cleanup.add_argument("--run", required=True)
-    cleanup.add_argument("--apply", action="store_true")
-    cleanup.add_argument("--confirm")
-    advance = admin_commands.add_parser("advance-producer-wave")
-    advance.add_argument("--repo", required=True)
-    advance.add_argument("--plan", required=True)
-    advance.add_argument("--run", required=True)
-    advance.add_argument("--lane", required=True)
-    advance.add_argument("--base", required=True)
-    advance.add_argument("--integration-task", required=True)
-    advance.add_argument("--reason", required=True)
-    advance.add_argument("--apply", action="store_true")
-    advance.add_argument("--confirm")
-    publish = admin_commands.add_parser("publish-producer-wave")
-    publish.add_argument("--repo", required=True)
-    publish.add_argument("--plan", required=True)
-    publish.add_argument("--run", required=True)
-    publish.add_argument("--lane", required=True)
-    publish.add_argument("--apply", action="store_true")
-    publish.add_argument("--confirm")
-    binding = admin_commands.add_parser("bind-integration-gates")
-    binding.add_argument("--repo", required=True)
-    binding.add_argument("--plan", required=True)
-    binding.add_argument("--run", required=True)
-    binding.add_argument("--integration-task", required=True)
-    binding.add_argument("--gates", required=True)
-    binding.add_argument("--apply", action="store_true")
-    binding.add_argument("--confirm")
-    integration_wave = admin_commands.add_parser("integration-wave")
-    integration_wave.add_argument("--repo", required=True)
-    integration_wave.add_argument("--plan", required=True)
-    integration_wave.add_argument("--run", required=True)
-    integration_wave.add_argument("--integration-task", required=True)
-    integration_wave.add_argument("--action", required=True, choices=("declare", "apply", "gate-finalize", "recover-finalization"))
-    integration_wave.add_argument("--wave")
-    integration_wave.add_argument("--adopt-gate-failed", action="store_true")
-    integration_wave.add_argument("--legacy-provenance-reason")
-    integration_wave.add_argument("--reason")
-    integration_wave.add_argument("--apply", action="store_true")
-    integration_wave.add_argument("--confirm")
-    publish_interface = admin_commands.add_parser("publish-completed-interface")
-    publish_interface.add_argument("--repo", required=True)
-    publish_interface.add_argument("--plan", required=True)
-    publish_interface.add_argument("--interface", required=True)
-    publish_interface.add_argument("--source-worktree", required=True)
-    publish_interface.add_argument("--apply", action="store_true")
-    publish_interface.add_argument("--confirm")
-    selective_replan = admin_commands.add_parser("selective-replan")
-    selective_replan.add_argument("--project", required=True)
-    selective_replan.add_argument("--file", type=Path, required=True)
     return parser
 
 
@@ -460,27 +371,48 @@ def _plan_command(args: argparse.Namespace) -> int:
             "source_files": compiled.source_files,
         }, sort_keys=True, separators=(",", ":")))
         return 0
-
-    from .mutation import apply_proposal, build_mutation_snapshot, validate_native_plan
+    from .native_workflow import invoke_local_mutator
 
     config = load_config()
-    native_plan = _load_native_plan(args.file)
-    if args.plan_command == "validate":
-        result = validate_native_plan(config, args.project, native_plan)
+    try:
+        package_json = args.file.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ValueError("native_plan_file_unavailable") from error
+    arguments: dict[str, object] = {"package_json": package_json}
+    if args.repository:
+        arguments["repository"] = args.repository
+    if args.plan_command == "preview":
+        result = invoke_local_mutator(config, args.project, "todo_preview_plan", arguments)
     else:
-        from .models import ProposalEnvelope
-        from .proposals import observation_preconditions
-
-        snapshot = build_mutation_snapshot(config, args.project)
-        proposal = ProposalEnvelope.create(
-            intent=f"Apply native Todo plan to {args.project}",
-            proposed_change=native_plan,
-            observation_preconditions=observation_preconditions(snapshot),
-            created_at=snapshot.observed_at,
-        )
-        result = apply_proposal(config, args.project, proposal)
+        try:
+            preview_value = json.loads(args.preview.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("native_plan_preview_file_invalid") from error
+        if isinstance(preview_value, dict) and preview_value.get("status") == "ok":
+            preview_value = preview_value.get("data")
+        if not isinstance(preview_value, dict):
+            raise ValueError("native_plan_preview_invalid")
+        arguments.update({"preview": preview_value, "idempotency_key": args.idempotency_key})
+        result = invoke_local_mutator(config, args.project, "todo_commit_plan", arguments)
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-    return 0
+    return 0 if result.get("status") == "ok" else 2
+
+
+def _todo_call_command(args: argparse.Namespace) -> int:
+    from .native_workflow import invoke_local_mutator
+
+    raw = (args.arguments_file.read_text(encoding="utf-8")
+           if args.arguments_file is not None else args.arguments_json)
+    if len(raw.encode("utf-8")) > 256 * 1024:
+        raise ValueError("native_todo_arguments_too_large")
+    arguments = json.loads(raw)
+    if not isinstance(arguments, dict) or "project" in arguments or "repository" in arguments:
+        raise ValueError("native_todo_arguments_must_be_object_without_host_selectors")
+    if args.repository:
+        arguments["repository"] = args.repository
+    result = invoke_local_mutator(load_config(), args.project, args.operation, arguments)
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    return 0 if result.get("status") == "ok" else 2
 
 
 def _assistance_composition(project: str):
@@ -1210,6 +1142,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _assistance_command(args)
         if args.command == "plan":
             return _plan_command(args)
+        if args.command == "todo":
+            return _todo_call_command(args)
         if args.command == "migrate-repository":
             from .migration import migrate
 
@@ -1217,124 +1151,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result, sort_keys=True))
             return 0
         if args.command == "admin":
-            if args.admin_command == "ingest-skill-archive":
-                from .config import configured_observer_skills_root
-                from .skills import SkillRegistry
-                from .skill_ingestion import ingest_skill_archive
+            from .config import configured_observer_skills_root
+            from .skills import SkillRegistry
+            from .skill_ingestion import ingest_skill_archive
 
-                registry = SkillRegistry(configured_observer_skills_root(load_config()))
-                result = ingest_skill_archive(
-                    registry, args.skill, args.resource, args.destination, apply=args.apply,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-                return 0
-            from .admin import (
-                advance_producer_wave,
-                inspect_recovery,
-                mark_run_workspaces_cleanup_eligible,
-                manage_integration_wave,
-                bind_integration_gates,
-                prepare_run_workspaces,
-                publish_producer_wave,
-                publish_completed_interface,
-                reconcile_workspace_base,
-                recover,
-                recover_authorized,
-                prepare_retire_run_batch,
-                retire_run_batch,
-                reconcile_cancelled_run_workspaces,
-                prepare_maintenance_assignment,
-                prepare_supersession_assignment,
+            registry = SkillRegistry(configured_observer_skills_root(load_config()))
+            result = ingest_skill_archive(
+                registry, args.skill, args.resource, args.destination, apply=args.apply,
             )
-
-            if args.admin_command == "selective-replan":
-                from .mutation import apply_selective_replan
-
-                request = _load_native_plan(args.file)
-                result = apply_selective_replan(load_config(), args.project, request)
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "publish-completed-interface":
-                result = publish_completed_interface(
-                    args.repo, args.plan, args.interface, args.source_worktree,
-                    apply=args.apply, confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "prepare-run-workspaces":
-                result = prepare_run_workspaces(
-                    args.repo, args.plan, args.run, lane_id=args.lane,
-                    apply=args.apply, confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "recover" and args.inspect_only:
-                print(json.dumps(inspect_recovery(args.repo, args.task), sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "recover":
-                recover(args.repo, reason=args.reason, task_id=args.task)
-            elif args.admin_command == "recover-authorized":
-                result = recover_authorized(args.repo, authorization_id=args.authorization, reason=args.reason)
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "prepare-maintenance":
-                from .maintenance_host import operator_launch_command
-
-                assignment = prepare_maintenance_assignment(
-                    args.repo, task_id=args.task, run_id=args.run, recipient_principal=args.recipient,
-                    expires_seconds=args.expires,
-                )
-                print(json.dumps({
-                    **assignment,
-                    "operator_launch": operator_launch_command(args.recipient),
-                }, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "prepare-supersession":
-                from .maintenance_host import operator_launch_command
-                assignment = prepare_supersession_assignment(args.repo, args.intent, recipient_principal=args.recipient, expires_seconds=args.expires)
-                print(json.dumps({**assignment, "operator_launch": operator_launch_command(args.recipient)}, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "retire-run-batch":
-                result = retire_run_batch(args.repo, args.request, apply=args.apply, confirmation=args.confirm)
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "reconcile-cancelled-run-workspaces":
-                result = reconcile_cancelled_run_workspaces(
-                    args.repo, args.request, apply=args.apply, confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "prepare-retire-run-batch":
-                result = prepare_retire_run_batch(args.repo, args.intent, args.output)
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "reconcile-workspace-base":
-                result = reconcile_workspace_base(
-                    args.repo, args.run, args.lane, args.base, reason=args.reason,
-                    apply=args.apply, confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "mark-run-workspaces-cleanup-eligible":
-                result = mark_run_workspaces_cleanup_eligible(
-                    args.repo, args.run, apply=args.apply, confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "advance-producer-wave":
-                result = advance_producer_wave(
-                    args.repo, args.plan, args.run, args.lane, args.base, args.integration_task,
-                    reason=args.reason, apply=args.apply, confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "bind-integration-gates":
-                result = bind_integration_gates(args.repo, args.plan, args.run, args.integration_task, args.gates,
-                                               apply=args.apply, confirmation=args.confirm)
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            elif args.admin_command == "integration-wave":
-                result = manage_integration_wave(
-                    args.repo, args.plan, args.run, args.integration_task,
-                    action=args.action, wave_id=args.wave,
-                    adopt_gate_failed=args.adopt_gate_failed, apply=args.apply,
-                    legacy_provenance_reason=args.legacy_provenance_reason,
-                    reason=args.reason,
-                    confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-            else:
-                result = publish_producer_wave(
-                    args.repo, args.plan, args.run, args.lane,
-                    apply=args.apply, confirmation=args.confirm,
-                )
-                print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+            print(json.dumps(result, sort_keys=True, separators=(",", ":")))
             return 0
     except (FileNotFoundError, PermissionError, RegistryError, MigrationError, MutationRejected,
             PreledgerError, ValueError, RuntimeError) as exc:

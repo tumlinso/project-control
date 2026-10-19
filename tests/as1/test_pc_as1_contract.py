@@ -20,8 +20,17 @@ LOC = dict(project="project-control", repository="project-control", path="src/pr
 
 @pytest.mark.as1_case("CON-01")
 def test_role_contract_matches_ledger_and_enforces_roles():
-    expected = json.loads((PACKAGE / "contracts/surface.json").read_text())
-    assert c.SURFACE == expected
+    # The v1 package is preserved as a historical bootstrap artifact. Runtime
+    # registrations follow the live native Todo tool manifest in v2.
+    historical = json.loads((PACKAGE / "contracts/surface.json").read_text())
+    expected = c.SURFACE
+    assert historical["format"] == "pc-adaptive-surface/1"
+    assert expected["format"] == "pc-adaptive-surface/2"
+    assert expected["tool_schema_version"] == 11
+    assert expected["profiles"]["coder"]["tools"] == list(c.CODEX_TOOL_NAMES)
+    assert expected["profiles"]["mutator"]["tools"] == list(c.MUTATOR_TOOL_NAMES)
+    assert expected["workflow_tools"] == list(c.TODO_WORKFLOW_TOOL_NAMES)
+    assert expected["mutator_actions"]["amend_project"]
     assert c.ToolEnvelope is ToolEnvelope and c.ProposalEnvelope is ProposalEnvelope
     for role, policy in expected["profiles"].items():
         assert not policy["automatic_overview"]
@@ -35,10 +44,11 @@ def test_role_contract_matches_ledger_and_enforces_roles():
             for tool, detail in [("read", "compact"), ("skill", "compact"), ("overview", "extended")]:
                 with pytest.raises(ValueError):
                     c.require_tool(role, tool, detail)
-    c.require_tool("codex", "next_task")
+    c.require_tool("coder", "todo_preview_plan")
+    c.require_tool("codex", "todo_preview_plan")
     with pytest.raises(ValueError):
         c.require_tool("observer", "plan")
-    assert "WorkflowProtocol" in c.BACKEND_REUSE["workflow"]
+    assert "TodoSession" in c.BACKEND_REUSE["workflow"]
     assert "Todo" in c.BACKEND_REUSE["semantic_authority"]
 
 
