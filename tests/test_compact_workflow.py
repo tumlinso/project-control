@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import json
 import time
 import threading
 
@@ -21,6 +22,7 @@ class _NativeHost:
         self.stale_workspace_once = False
         self.lose_dispatch_once = False
         self.large_context = False
+        self.omit_work_item = False
         self.context_build_gate: tuple[threading.Event, threading.Event] | None = None
         self._dispatch_intent: tuple[object, object] | None = None
 
@@ -87,22 +89,44 @@ class _NativeHost:
                     "omitted": [], "encoded_bytes": 12000,
                 }
             else:
-                data = {
-                    "manifest": {"fragments": []},
-                    "fragments": [{"payload": {"requirements": [
-                        {"id": "check-1", "kind": "check"},
-                    ]}}],
+                work_ref = {"fragment_id": "work-fragment", "kind": "work_item",
+                            "digest": "d" * 64}
+                work_payload = {"requirements": [{"id": "check-1", "kind": "check"}]}
+                capsule_payload = {
+                    "format": "todo-orchestrator.context-capsule", "version": 1,
+                    "manifest": {"fragments": [work_ref], "digest": "a" * 64,
+                                 "source_digest": "b" * 64},
+                    "fragments": ([] if self.omit_work_item else [{
+                        "reference": work_ref,
+                        "payload_json": json.dumps(work_payload, sort_keys=True,
+                                                    separators=(",", ":")),
+                    }]),
+                    "omitted": [work_ref] if self.omit_work_item else [],
                 }
+                data = {"format": "todo-orchestrator.api-document", "kind": "context_capsule",
+                        "version": 1, "payload": capsule_payload}
         elif tool == "todo_expand_context":
-            reference = {"fragment_id": arguments["fragment_id"],
-                         "kind": "scoped_deltas", "digest": "e" * 64}
-            offset = arguments.get("offset") or 0
-            data = {
-                "status": "ready", "manifest": {"fragments": [reference]},
-                "fragment": None, "chunk_base64": "eA==", "offset": offset,
-                "total_bytes": 9000, "content_digest": "f" * 64,
-                "next_offset": offset + 2048, "reference": reference,
-            }
+            if self.omit_work_item:
+                reference = {"fragment_id": arguments["fragment_id"],
+                             "kind": "work_item", "digest": "d" * 64}
+                data = {"format": "todo-orchestrator.api-document", "kind": "context_expansion",
+                        "version": 1, "payload": {
+                            "status": "ready", "manifest_digest": "a" * 64,
+                            "fragment": {"reference": reference, "payload": {
+                                "authored": {"objective": "Use the accepted task instructions."},
+                                "requirements": [{"id": "check-omitted", "kind": "check"}],
+                            }},
+                        }}
+            else:
+                reference = {"fragment_id": arguments["fragment_id"],
+                             "kind": "scoped_deltas", "digest": "e" * 64}
+                offset = arguments.get("offset") or 0
+                data = {
+                    "status": "ready", "manifest": {"fragments": [reference]},
+                    "fragment": None, "chunk_base64": "eA==", "offset": offset,
+                    "total_bytes": 9000, "content_digest": "f" * 64,
+                    "next_offset": offset + 2048, "reference": reference,
+                }
         elif tool == "todo_verify_attempt":
             data = {"requirement_id": arguments["requirement_id"], "state": "passed"}
         elif tool == "todo_inspect_attempt":
@@ -167,12 +191,38 @@ def test_complete_hands_back_before_report_and_keeps_reported_attempt_for_review
     calls = [tool for tool, _arguments in native.calls]
     assert calls.index("todo_verify_attempt") < calls.index("todo_handback_attempt")
     assert calls.index("todo_handback_attempt") < calls.index("todo_report_outcome")
+    verify_call = next(arguments for tool, arguments in native.calls
+                       if tool == "todo_verify_attempt")
+    assert verify_call["requirement_id"] == "check-1"
     assert "todo_release_attempt" not in calls
 
     replay = facade.finish_task(workflow_handle=handle, action="complete")
     assert replay["status"] == "review_pending"
     assert [tool for tool, _arguments in native.calls].count("todo_report_outcome") == 1
     assert [tool for tool, _arguments in native.calls].count("todo_handback_attempt") == 1
+
+
+def test_nested_context_document_expands_omitted_work_item_before_finish(tmp_path: Path):
+    native = _NativeHost("coder")
+    native.omit_work_item = True
+    facade = _host(tmp_path, native)
+
+    claimed = facade.next_task(project="workspace")
+    assert claimed["status"] == "claimed"
+    assert claimed["task_summary"]["objective"] == "Use the accepted task instructions."
+    handle = claimed["workflow_handle"]
+    cached = facade._store.get("workflow", handle, "workspace", "source")
+    assert cached["requirement_ids"] == ["check-omitted"]
+    assert [tool for tool, _arguments in native.calls].count("todo_expand_context") == 1
+
+    finished = facade.finish_task(workflow_handle=handle, action="complete")
+    assert finished["status"] == "review_pending"
+    verify_call = next(arguments for tool, arguments in native.calls
+                       if tool == "todo_verify_attempt")
+    assert verify_call["requirement_id"] == "check-omitted"
+    calls = [tool for tool, _arguments in native.calls]
+    assert calls.index("todo_expand_context") < calls.index("todo_verify_attempt")
+    assert calls.index("todo_verify_attempt") < calls.index("todo_handback_attempt")
 
 
 def test_reviewer_gets_separate_handle_and_can_accept_then_integrate(tmp_path: Path):

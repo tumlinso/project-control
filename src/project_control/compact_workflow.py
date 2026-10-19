@@ -8,6 +8,7 @@ are resolved against the principal/profile that received the handle.
 from __future__ import annotations
 
 from collections.abc import Mapping
+import base64
 import fcntl
 import hashlib
 import json
@@ -918,6 +919,9 @@ class CompactWorkflowHost:
                 if context.get("status") == "attention_required":
                     return self._native_attention(context, handle)
                 context = _bounded_mapping(context, "task_context", _MAX_CONTEXT_CAPSULE_BYTES)
+                context = self._context_document_payload(context, "context_capsule")
+                context = self._normalize_context_fragments(context)
+                context = self._ensure_work_item_fragment(context, record)
                 # Merge only context fields into the current record. The lease
                 # renewer may have replaced lease_id while native context was
                 # being rendered; writing the stale local record would undo it.
@@ -989,8 +993,8 @@ class CompactWorkflowHost:
         for fragment in fragments:
             if not isinstance(fragment, Mapping):
                 continue
-            payload = fragment.get("payload")
-            requirements = payload.get("requirements") if isinstance(payload, Mapping) else None
+            payload = CompactWorkflowHost._fragment_payload(fragment)
+            requirements = payload.get("requirements") if payload is not None else None
             if not isinstance(requirements, list):
                 continue
             for row in requirements:
@@ -1001,6 +1005,210 @@ class CompactWorkflowHost:
                 if kind in {"check", "RequirementKind.CHECK", None} and isinstance(requirement_id, str):
                     result.add(requirement_id)
         return sorted(result)
+
+    @staticmethod
+    def _context_document_payload(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+        """Unwrap a versioned Todo API document while retaining its payload.
+
+        Native context DTOs are returned as ``api-document`` envelopes.  The
+        workflow helpers operate on the typed capsule or expansion payload,
+        rather than mistaking the document envelope for the capsule itself.
+        Flat capsule mappings remain accepted for older native hosts and tests.
+        """
+        if value.get("kind") == kind and isinstance(value.get("payload"), Mapping):
+            payload = value["payload"]
+            return _bounded_mapping(payload, "task_context_payload", _MAX_CONTEXT_CAPSULE_BYTES)
+        return dict(value)
+
+    @staticmethod
+    def _fragment_payload(fragment: Mapping[str, Any]) -> Mapping[str, Any] | None:
+        payload = fragment.get("payload")
+        if isinstance(payload, Mapping):
+            return payload
+        payload_json = fragment.get("payload_json")
+        if isinstance(payload_json, str):
+            try:
+                decoded = json.loads(payload_json)
+            except (TypeError, ValueError) as error:
+                raise CompactWorkflowError("task_context_fragment_invalid") from error
+            if isinstance(decoded, Mapping):
+                return decoded
+            raise CompactWorkflowError("task_context_fragment_invalid")
+        return None
+
+    @classmethod
+    def _normalize_context_fragments(cls, context: Mapping[str, Any]) -> dict[str, Any]:
+        """Convert canonical JSON text fragments into the capsule mapping form."""
+        result = dict(context)
+        fragments = context.get("fragments")
+        if not isinstance(fragments, list):
+            return result
+        normalized: list[Any] = []
+        for fragment in fragments:
+            if not isinstance(fragment, Mapping) or not isinstance(fragment.get("payload_json"), str):
+                normalized.append(fragment)
+                continue
+            payload = cls._fragment_payload(fragment)
+            if payload is None:
+                raise CompactWorkflowError("task_context_fragment_invalid")
+            converted = dict(fragment)
+            converted.pop("payload_json", None)
+            converted["payload"] = dict(payload)
+            normalized.append(converted)
+        result["fragments"] = normalized
+        return result
+
+    def _ensure_work_item_fragment(
+        self, context: Mapping[str, Any], record: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Ensure task-authored instructions and checks are available locally.
+
+        Context capsules intentionally omit large fragments. The work-item
+        fragment is required to discover its authored checks, so expand that
+        exact manifest reference before returning the task packet. No gate is
+        inferred from agent text and a missing/invalid expansion is an error.
+        """
+        fragments = context.get("fragments")
+        if not isinstance(fragments, list):
+            raise CompactWorkflowError("task_context_fragments_unavailable")
+        manifest = context.get("manifest")
+        references = manifest.get("fragments") if isinstance(manifest, Mapping) else None
+        work_ref = next((item for item in references if isinstance(item, Mapping)
+                         and item.get("kind") == "work_item"), None) if isinstance(references, list) else None
+        if not isinstance(work_ref, Mapping):
+            raise CompactWorkflowError("task_work_item_fragment_unavailable")
+        fragment_id, digest = work_ref.get("fragment_id"), work_ref.get("digest")
+        if not isinstance(fragment_id, str) or not isinstance(digest, str):
+            raise CompactWorkflowError("task_work_item_fragment_invalid")
+        existing = next((fragment for fragment in fragments if isinstance(fragment, Mapping)
+                         and isinstance(fragment.get("reference"), Mapping)
+                         and fragment["reference"].get("kind") == "work_item"), None)
+        if existing is not None:
+            if dict(existing["reference"]) != dict(work_ref):
+                raise CompactWorkflowError("task_work_item_fragment_mismatch")
+            if self._fragment_payload(existing) is None:
+                raise CompactWorkflowError("task_work_item_fragment_invalid")
+            return dict(context)
+
+        expanded = self._expand_context_fragment(
+            record, dict(work_ref), max_bytes=_MAX_CONTEXT_CAPSULE_BYTES,
+        )
+        if expanded.get("status") == "attention_required":
+            reason = expanded.get("reason")
+            raise CompactWorkflowError(reason if isinstance(reason, str) else "task_work_item_fragment_unavailable")
+        fragment = expanded.get("fragment")
+        if isinstance(fragment, Mapping):
+            reference = fragment.get("reference")
+            if not isinstance(reference, Mapping) or reference.get("fragment_id") != fragment_id:
+                raise CompactWorkflowError("task_work_item_fragment_mismatch")
+            # Validate fragment payload now, before gates can be considered.
+            payload = self._fragment_payload(fragment)
+            if payload is None:
+                raise CompactWorkflowError("task_work_item_fragment_invalid")
+            normalized_fragment = dict(fragment)
+            normalized_fragment.pop("payload_json", None)
+            normalized_fragment["payload"] = dict(payload)
+            result = dict(context)
+            result["fragments"] = [*fragments, normalized_fragment]
+            return result
+
+        # Large fragments arrive in authenticated 2 KiB byte chunks. Assemble
+        # the complete bounded fragment before exposing requirements to gates.
+        chunk_bytes = bytearray()
+        offset: int | None = None
+        expected_content_digest: str | None = None
+        expansion = expanded
+        for _ in range(33):
+            chunk = self._expansion_chunk(expansion)
+            if chunk is None:
+                raise CompactWorkflowError("task_work_item_fragment_unavailable")
+            data, chunk_offset, total_bytes, next_offset, content_digest = chunk
+            if total_bytes > _MAX_CONTEXT_CAPSULE_BYTES or chunk_offset != len(chunk_bytes):
+                raise CompactWorkflowError("task_work_item_fragment_invalid")
+            if expected_content_digest is not None and expected_content_digest != content_digest:
+                raise CompactWorkflowError("task_work_item_fragment_changed")
+            expected_content_digest = content_digest
+            chunk_doc = expansion.get("chunk")
+            chunk_ref = chunk_doc.get("reference") if isinstance(chunk_doc, Mapping) else expansion.get("reference")
+            if not isinstance(chunk_ref, Mapping) or dict(chunk_ref) != dict(work_ref):
+                raise CompactWorkflowError("task_work_item_fragment_mismatch")
+            chunk_bytes.extend(data)
+            if len(chunk_bytes) > total_bytes or len(chunk_bytes) > _MAX_CONTEXT_CAPSULE_BYTES:
+                raise CompactWorkflowError("task_work_item_fragment_invalid")
+            if next_offset is None:
+                if len(chunk_bytes) != total_bytes:
+                    raise CompactWorkflowError("task_work_item_fragment_truncated")
+                if hashlib.sha256(chunk_bytes).hexdigest() != content_digest:
+                    raise CompactWorkflowError("task_work_item_fragment_digest_mismatch")
+                try:
+                    payload = json.loads(chunk_bytes.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError) as error:
+                    raise CompactWorkflowError("task_work_item_fragment_invalid") from error
+                if not isinstance(payload, Mapping):
+                    raise CompactWorkflowError("task_work_item_fragment_invalid")
+                result = dict(context)
+                result["fragments"] = [*fragments, {
+                    "reference": dict(work_ref), "payload": dict(payload),
+                }]
+                return result
+            if type(next_offset) is not int or next_offset != len(chunk_bytes):
+                raise CompactWorkflowError("task_work_item_fragment_invalid")
+            offset = next_offset
+            expansion = self._expand_context_fragment(
+                record, dict(work_ref), max_bytes=_MAX_CONTEXT_CAPSULE_BYTES,
+                offset=offset,
+            )
+            if expansion.get("status") == "attention_required":
+                reason = expansion.get("reason")
+                raise CompactWorkflowError(reason if isinstance(reason, str)
+                                           else "task_work_item_fragment_unavailable")
+        raise CompactWorkflowError("task_work_item_fragment_too_large")
+
+    def _expand_context_fragment(
+        self, record: Mapping[str, Any], reference: Mapping[str, Any], *,
+        max_bytes: int, offset: int | None = None,
+    ) -> dict[str, Any]:
+        fragment_id, digest = reference.get("fragment_id"), reference.get("digest")
+        if not isinstance(fragment_id, str) or not isinstance(digest, str):
+            raise CompactWorkflowError("task_context_fragment_invalid")
+        expanded = self._invoke(
+            "todo_expand_context", record,
+            work_item_id=record.get("task_id"), run_id=record.get("run_id"),
+            assignment_id=record.get("assignment_id"), attempt_id=record.get("attempt_id"),
+            fragment_id=fragment_id, expected_digest=digest,
+            max_bytes=max_bytes, offset=offset,
+        )
+        if expanded.get("status") == "attention_required":
+            return expanded
+        return self._context_document_payload(expanded, "context_expansion")
+
+    @staticmethod
+    def _expansion_chunk(
+        expansion: Mapping[str, Any],
+    ) -> tuple[bytes, int, int, int | None, str] | None:
+        chunk = expansion.get("chunk")
+        if isinstance(chunk, Mapping):
+            encoded = chunk.get("data")
+            offset = chunk.get("offset")
+            total = chunk.get("total_bytes")
+            next_offset = chunk.get("next_offset")
+            digest = chunk.get("content_digest")
+        else:
+            encoded = expansion.get("chunk_base64")
+            offset = expansion.get("offset")
+            total = expansion.get("total_bytes")
+            next_offset = expansion.get("next_offset")
+            digest = expansion.get("content_digest")
+        if (not isinstance(encoded, str) or type(offset) is not int or offset < 0
+                or type(total) is not int or total < 1
+                or (next_offset is not None and type(next_offset) is not int)
+                or not isinstance(digest, str)):
+            return None
+        try:
+            decoded = base64.b64decode(encoded, validate=True)
+        except (ValueError, base64.binascii.Error):
+            raise CompactWorkflowError("task_work_item_fragment_invalid")
+        return decoded, offset, total, next_offset, digest
 
     @classmethod
     def _task_packet(cls, handle: str, record: Mapping[str, Any], *, resumed: bool) -> dict[str, Any]:
@@ -1111,7 +1319,7 @@ class CompactWorkflowHost:
         work_item = next((item for item in fragments if isinstance(item, Mapping)
                           and isinstance(item.get("reference"), Mapping)
                           and item["reference"].get("kind") == "work_item"), None)
-        payload = work_item.get("payload") if isinstance(work_item, Mapping) else None
+        payload = cls._fragment_payload(work_item) if isinstance(work_item, Mapping) else None
         if not isinstance(payload, Mapping):
             return summary
         definition = payload.get("definition")
@@ -1296,24 +1504,31 @@ class CompactWorkflowHost:
                                   and item.get("fragment_id") == fragment_id), None) if isinstance(references, list) else None
                 if reference is None:
                     raise CompactWorkflowError("context_fragment_unavailable")
-                expanded = self._invoke("todo_expand_context", record,
-                    work_item_id=record["task_id"], run_id=record.get("run_id"),
-                    assignment_id=record.get("assignment_id"), attempt_id=record.get("attempt_id"),
-                    fragment_id=fragment_id, expected_digest=reference.get("digest"),
-                    max_bytes=min(max(budget_bytes, 4096), 64 * 1024), offset=offset)
+                expanded = self._expand_context_fragment(
+                    record, reference,
+                    max_bytes=min(max(budget_bytes, 4096), 64 * 1024), offset=offset,
+                )
                 if expanded.get("status") == "attention_required":
                     return self._native_attention(expanded, workflow_handle)
                 result = dict(expanded)
-                next_offset = result.get("next_offset")
-                total_bytes = result.get("total_bytes")
-                if (type(next_offset) is int and type(total_bytes) is int
-                        and next_offset < total_bytes):
+                chunk = self._expansion_chunk(result)
+                if chunk is not None:
+                    _data, _chunk_offset, _total_bytes, next_offset, _content_digest = chunk
+                    chunk_doc = result.get("chunk")
+                    ref = chunk_doc.get("reference") if isinstance(chunk_doc, Mapping) else result.get("reference")
+                    continuation_id = (ref.get("fragment_id")
+                                       if isinstance(ref, Mapping) else fragment_id)
+                    if isinstance(next_offset, int) and next_offset > 0:
+                        result["continuation_target"] = f"{continuation_id}#offset={next_offset}"
+                else:
+                    next_offset = result.get("next_offset")
+                    total_bytes = result.get("total_bytes")
                     ref = result.get("reference")
                     continuation_id = (ref.get("fragment_id")
                                        if isinstance(ref, Mapping) else fragment_id)
-                    if isinstance(continuation_id, str):
-                        result["continuation_target"] = (
-                            f"{continuation_id}#offset={next_offset}")
+                    if (type(next_offset) is int and type(total_bytes) is int
+                            and next_offset < total_bytes):
+                        result["continuation_target"] = f"{continuation_id}#offset={next_offset}"
             elif kind == "source":
                 context = record.get("context", {})
                 manifest = context.get("manifest") if isinstance(context, Mapping) else None
