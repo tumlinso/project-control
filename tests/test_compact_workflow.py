@@ -330,6 +330,7 @@ def test_oversized_context_is_cached_privately_and_returned_with_continuation(tm
     first = facade.inspect_task(workflow_handle=handle, kind="context_fragment",
                                 target="delta-fragment")
     assert first["status"] == "ok"
+    assert len(compact_module._canonical(first)) <= 8192
     continuation = first["result"]["continuation_target"]
     assert continuation == "delta-fragment#offset=2048"
     second = facade.inspect_task(workflow_handle=handle, kind="context_fragment",

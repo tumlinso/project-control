@@ -1267,6 +1267,8 @@ class CompactWorkflowHost:
         try:
             if type(budget_bytes) is not int or not 512 <= budget_bytes <= 64 * 1024:
                 raise CompactWorkflowError("budget_bytes_invalid")
+            response_limit = min(budget_bytes + 1024, max(_MAX_RESPONSE_BYTES, budget_bytes))
+            result_limit = min(budget_bytes, max(512, response_limit - 1024))
             if kind not in {
                 "task", "source", "evidence", "run", "lane", "decision", "messages",
                 "rendezvous", "context_fragment", "workspace", "integration", "candidate",
@@ -1387,9 +1389,9 @@ class CompactWorkflowHost:
                               "page": result.get("page")}
             else:
                 raise CompactWorkflowError("inspection_kind_unsupported")
-            bounded = _bounded_mapping(result, "inspection_result", budget_bytes)
+            bounded = _bounded_mapping(result, "inspection_result", result_limit)
             return self._bounded_response({"status": "ok", "kind": kind, "result": bounded,
-                                           "workflow_handle": workflow_handle}, limit=budget_bytes + 1024)
+                                           "workflow_handle": workflow_handle}, limit=response_limit)
         except CompactWorkflowError as error:
             return self._attention(error.code, workflow_handle=workflow_handle,
                                    allowed_actions=["inspect_task", "coordinate_task", "finish_task"])
