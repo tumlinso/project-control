@@ -50,7 +50,9 @@ _NATIVE_INPUT_ERROR_TITLES = frozenset(model.__name__ for model in (
     ArchitectureContextInput, SourceContextInput, CoordinationViewInput))
 _WORKER_EXACT_QUERY = create_model('ObserverExactEntityQuery', __base__=ExactEntityQuery,
     kind=(Literal[(*get_args(InspectInput.model_fields['kind'].annotation),
-                   'packet', 'investigation', 'registration')], ...))
+                   'packet', 'investigation', 'registration', 'candidate', 'effect',
+                   'resource', 'child', 'recovery', 'context_fragment', 'legacy_history',
+                   'legacy_task', 'native_context')], ...))
 
 
 class _AutomaticSelectedReadCommand:
@@ -612,7 +614,9 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
     c.control.workflow = c.workflow
     c.trace = TraceService(config, lambda project: runtime.snapshot(project), c.host, semantic_provider=c.control.project_context)
     c.information = InformationService(config, c.store, lambda project: runtime.snapshot(project), c.host,
-        semantic_provider=c.control.project_context, impact_provider=c.trace, todo_adapter=runtime.todo_adapter)
+        semantic_provider=c.control.project_context, impact_provider=c.trace,
+        native_reader=lambda project, kind, target: c.control.native_read(project, kind, target),
+        todo_adapter=runtime.todo_adapter)
     c.control.information_service = c.information
     root = configured_observer_skills_root(config)
     runtime_root = local_runtime_identity().root
@@ -698,9 +702,14 @@ def compose_surface(runtime, profile, *, host=None, state_directory=None, backen
                     return {k: v for k, v in scope.items() if not k.startswith('_')}
             worker_host = AdmissionHost(scope['profile'], scope['principal'],
                                         frozenset(scope.get('catalog_projects', c.host.projects)))
+            def worker_native_read(selected_project, kind, target):
+                if selected_project not in worker_host.projects:
+                    raise PermissionError('project_not_permitted')
+                return c.control.native_read(selected_project, kind, target)
             info = InformationService(config, c.store, runtime.snapshot, worker_host,
                 semantic_provider=c.control.project_context, impact_provider=c.trace,
-                todo_adapter=runtime.todo_adapter, job_lookup=lambda ident, access: c.jobs.lookup(ident, access_scope=access))
+                native_reader=worker_native_read, todo_adapter=runtime.todo_adapter,
+                job_lookup=lambda ident, access: c.jobs.lookup(ident, access_scope=access))
             try:
                 return info.call(name, project=project, **args)
             except ValidationError as error:
@@ -1017,8 +1026,42 @@ def register_surface(mcp, c):
     for fn in (overview, delta, frontier, search, evidence, impact, history, machine, read, investigate, skill, command, log):
         register(fn, descriptions[fn.__name__], analysis=fn.__name__ in {'investigate', 'skill'})
     if mcp.profile == MCPProfile.MUTATOR:
+        def plan(
+            project: str,
+            action: Literal[
+                'context', 'validate', 'diff', 'apply', 'amend', 'supersede', 'retire',
+                'open_run', 'read_run', 'close_run', 'recover',
+            ],
+            native_plan: dict[str, Any] | None = None,
+            proposal: dict[str, Any] | None = None,
+            replan: dict[str, Any] | None = None,
+            intent: dict[str, Any] | None = None,
+            prepared_request: dict[str, Any] | None = None,
+            authorization_id: str | None = None,
+            repository: str | None = None,
+        ) -> dict[str, Any]:
+            return c.control.plan(
+                project, action, native_plan=native_plan, proposal=proposal, replan=replan,
+                intent=intent, prepared_request=prepared_request,
+                authorization_id=authorization_id, repository=repository,
+            )
+
+        def maintain_execution(request: dict[str, Any]) -> dict[str, Any]:
+            return c.control.maintain_execution(request)
+
         def amend_project(request: dict[str, Any]) -> dict[str, Any]:
             return c.control.amend_project(request)
+
+        register(
+            plan,
+            'Preview or commit native Todo plans, open/read/close runs, retire a run, or prepare/recover an interrupted operation. Preview before commit; only a matching host-issued preview can be applied. Native operations preserve revision, role, and idempotency checks.',
+            mutation=True,
+        )
         register(amend_project,
                  'Preview or apply an append-only Project Control metadata amendment. Supports identity, relation, generation, provider, registration removal, skill-use and orientation declarations. Uses the Project Control metadata revision and operation ID; source anchors must resolve to registered repositories.',
                  mutation=True)
+        register(
+            maintain_execution,
+            'Inspect and recover interrupted native Todo executions through the supported recovery API. Recovery requires an inspected, current native intent and an authorized mutator; physical effects are never replayed from imported completion assertions.',
+            mutation=True,
+        )

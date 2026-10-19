@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
 from project_control.native_workflow import NativeWorkflowHost
-from project_control.profiles import MCPProfile, ProfiledFastMCP, TODO_READ_TOOL_NAMES, TODO_WORKFLOW_TOOL_NAMES
-from project_control.workflow_tools import _TOOL_FIELDS, register_workflow_tools
+from project_control.profiles import MCPProfile, ProfiledFastMCP, WORKFLOW_TOOL_NAMES
+from project_control.workflow_tools import register_workflow_tools
 
 
 class _ReadSession:
@@ -83,35 +83,21 @@ def test_native_paged_migration_reads_use_public_api_and_registered_repository(t
     assert session.closed
 
 
-def test_legacy_read_tools_are_read_only_and_profile_allowlisted():
-    names = {"todo_search_legacy_history", "todo_read_legacy_current_tasks",
-             "todo_read_legacy_project_context"}
-    assert names <= set(TODO_READ_TOOL_NAMES)
-    assert names <= set(TODO_WORKFLOW_TOOL_NAMES)
-    assert "after" in _TOOL_FIELDS["todo_search_legacy_history"]
-    assert "page_token" not in _TOOL_FIELDS["todo_search_legacy_history"]
-    assert "after" in _TOOL_FIELDS["todo_read_legacy_current_tasks"]
-    assert "after" in _TOOL_FIELDS["todo_read_legacy_project_context"]
+class _CompactFacade:
+    def next_task(self, **_kwargs): return {"status": "ok"}
+    def inspect_task(self, **_kwargs): return {"status": "ok"}
+    def coordinate_task(self, **_kwargs): return {"status": "ok"}
+    def finish_task(self, **_kwargs): return {"status": "ok"}
 
 
-def test_observer_registers_native_paged_migration_reads_as_read_only_tools():
-    server = ProfiledFastMCP("native-read-test", profile=MCPProfile.OBSERVER)
-    register_workflow_tools(server, SimpleNamespace(invoke=lambda *_args, **_kwargs: {}))
-    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
-
-    for name in ("todo_search_legacy_history", "todo_read_legacy_current_tasks",
-                 "todo_read_legacy_project_context"):
-        assert name in tools
-        assert tools[name].annotations.readOnlyHint is True
-        assert "repository" in tools[name].inputSchema["properties"]
-    assert "todo_import_legacy_snapshot" not in tools
-
-
-def test_coder_and_mutator_native_workflow_schemas_register():
-    for profile in (MCPProfile.CODER, MCPProfile.MUTATOR):
-        server = ProfiledFastMCP(f"native-{profile.value}-test", profile=profile)
-        register_workflow_tools(server, SimpleNamespace(invoke=lambda *_args, **_kwargs: {}))
+def test_compact_workflow_catalog_is_profile_scoped_and_has_no_raw_todo_tools():
+    for profile in (MCPProfile.OBSERVER, MCPProfile.CODER, MCPProfile.MUTATOR):
+        server = ProfiledFastMCP(f"compact-{profile.value}-test", profile=profile)
+        register_workflow_tools(server, _CompactFacade())
         names = {tool.name for tool in asyncio.run(server.list_tools())}
-        assert "todo_dispatch_attempt" in names
-        assert "todo_read_legacy_current_tasks" in names
-        assert ("todo_import_legacy_snapshot" in names) is (profile == MCPProfile.MUTATOR)
+        assert not any(name.startswith("todo_") for name in names)
+        if profile == MCPProfile.OBSERVER:
+            assert names.isdisjoint(WORKFLOW_TOOL_NAMES)
+        else:
+            assert names == set(WORKFLOW_TOOL_NAMES)
+            assert "next_task" in names

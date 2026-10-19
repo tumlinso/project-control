@@ -411,3 +411,53 @@ def test_history_merge_range_and_retained_selectors(world):
     assert not full(world,'history',subject='T1',from_time='2040-01-01T00:00:00Z')['data']['git_events']
     result = full(world,'history',subject='T1',from_revision=0,to_revision=8)
     assert all(e['revision'] <= 8 for e in result['data']['events'] if e.get('revision') is not None)
+
+
+@pytest.mark.as1_case('CTX-06', 'CTX-08', 'CTX-09')
+def test_native_todo_detail_and_migrated_history_use_exact_read_routes(world):
+    seen = []
+
+    def native_reader(project, kind, target):
+        seen.append((project, kind, target))
+        if kind == 'legacy_history':
+            return {'kind': kind, 'target': target, 'resolution': 'resolved',
+                    'result': {'records': [{'source_revision': 4, 'summary': 'imported event'}],
+                               'next_cursor': None}}
+        if kind == 'related_evidence':
+            return {'kind': kind, 'target': target, 'resolution': 'resolved',
+                    'candidates': [{'candidate_id': 'C1'}], 'effects': [{'operation_id': 'E1'}]}
+        return {'kind': kind, 'target': target, 'resolution': 'resolved',
+                'result': {'native_id': target}}
+
+    world[3].native_reader = native_reader
+    with patch('project_control.as1_context.source_context', side_effect=AssertionError('exact query discovered')):
+        for kind in ('candidate', 'effect', 'resource', 'child', 'recovery', 'native_context', 'legacy_task'):
+            result = full(world, 'search', query={'kind': kind, 'target': 'exact-target'})
+            assert result['data']['resolution'] == 'resolved'
+            assert result['data']['result']['native_id'] == 'exact-target'
+    history = full(world, 'history', subject='T1')
+    assert history['data']['legacy_history']['records'][0]['summary'] == 'imported event'
+    evidence = full(world, 'evidence', subject='T1', kinds=['gates'])
+    assert evidence['data']['native_workflow']['candidates'][0]['candidate_id'] == 'C1'
+    assert evidence['data']['native_workflow']['effects'][0]['operation_id'] == 'E1'
+    assert ('demo', 'legacy_history', 'T1') in seen
+    assert ('demo', 'related_evidence', 'T1') in seen
+
+
+@pytest.mark.as1_case('CTX-01')
+def test_overview_native_authority_is_a_bounded_reference(world):
+    semantic = world[3].semantic_provider
+
+    def with_native_summary(project):
+        value = semantic(project)
+        return {**value, 'native_authority': {
+            'repository': 'source', 'semantic_revision': 19, 'complete': True,
+            'section_counts': {'outcome_candidates': 3, 'external_operations': 2},
+        }}
+
+    world[3].semantic_provider = with_native_summary
+    result = full(world, 'overview')
+    authority = result['data']['native_authority']
+    assert authority['semantic_revision'] == 19
+    assert authority['section_counts'] == {'outcome_candidates': 3, 'external_operations': 2}
+    assert 'candidates' not in authority and 'effects' not in authority

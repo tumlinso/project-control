@@ -58,11 +58,13 @@ class InformationService:
                  semantic_provider: Callable[[str], dict] | None = None,
                  job_lookup: Callable[[str, Mapping[str, Any]], dict] | None = None,
                  impact_provider: Callable[..., dict] | None = None,
+                 native_reader: Callable[[str, str, str], dict] | None = None,
                  todo_adapter: Callable[[str], Any] | None = None,
                  notebook_provider=None):
         self.config, self.store, self.snapshot_provider, self.host = config, store, snapshot_provider, host
         self.registry = WorkspaceRegistry(config)
         self.semantic_provider, self.job_lookup, self.impact_provider = semantic_provider, job_lookup, impact_provider
+        self.native_reader = native_reader
         self.todo_adapter = todo_adapter
         # Imported and constructed on first discovery/evidence request. This
         # keeps the packet producer's import graph independent of its consumer.
@@ -99,7 +101,8 @@ class InformationService:
                         'entry_points': [{'repository': a, 'path': p} for a in self.config.workspaces[project].repositories
                                          for p in GitReadAdapter(self.registry.repository(project, a).root).tracked_files()
                                          if p in {'README.md', 'AGENTS.md', 'pyproject.toml', 'CMakeLists.txt'}],
-                        'skill_uses': context.get('skill_uses', [])}
+                        'skill_uses': context.get('skill_uses', []),
+                        'native_authority': context.get('native_authority', {})}
                 if not data['orientation']:
                     omissions.append({'reason': context_error or 'authored_orientation_missing'})
                 sources.extend(self._anchors(project, context))
@@ -172,6 +175,11 @@ class InformationService:
                 gates.append({**gate, 'evidence_classification': classification})
             data['registered_gates'] = gates
             data['source_mentions_are_proof'] = False
+            if self.native_reader is not None:
+                related = self.native_reader(project, 'related_evidence', params['subject'])
+                data['native_workflow'] = related
+                if related.get('resolution') != 'resolved':
+                    omissions.append({'reason': 'native_workflow_evidence_unavailable'})
         elif tool == 'history':
             data, omissions = self._history(project, snapshot, params)
         elif tool == 'impact':
@@ -507,6 +515,17 @@ class InformationService:
             if result.get('resolution') in {'forbidden', 'not_found', 'expired', 'unavailable'} or result.get('status') in {'forbidden', 'not_found', 'expired', 'unavailable'}:
                 result['_status'] = 'partial'
             return result
+        native_kind = 'context_fragment' if kind == 'native_context' else kind
+        if native_kind in {'candidate', 'effect', 'resource', 'child', 'recovery',
+                           'context_fragment', 'legacy_history', 'legacy_task'}:
+            if self.native_reader is None:
+                return {'kind': kind, 'target': target, 'resolution': 'unavailable',
+                        'reason': 'native_todo_read_unavailable', '_status': 'partial'}
+            result = self.native_reader(project, native_kind, target)
+            result['kind'] = kind
+            if result.get('resolution') != 'resolved':
+                result['_status'] = 'partial'
+            return result
         if not project: raise ValueError('project_required_for_exact_entity')
         if kind == 'registration':
             context, error = self._context(project)
@@ -783,5 +802,12 @@ class InformationService:
         # Exported git records are replaced by real ancestry, not SHA ordering.
         data['events'] = [e for e in data.get('events', []) if e.get('entity_type') != 'git_commit']
         data['git_events'] = git_events
+        if self.native_reader is not None:
+            native = self.native_reader(project, 'legacy_history', request.subject)
+            if native.get('resolution') == 'resolved':
+                data['legacy_history'] = native.get('result', {})
+            else:
+                data['legacy_history'] = {'status': 'unavailable'}
+                omissions.append({'reason': 'legacy_history_unavailable'})
         data['selectors'] = request.model_dump(exclude_none=True)
         return data, omissions

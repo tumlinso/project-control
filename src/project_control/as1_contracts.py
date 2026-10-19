@@ -64,7 +64,14 @@ class SourceLocator(Contract):
 
 
 class ExactEntityQuery(Contract):
-    kind: Nonempty
+    kind: Literal[
+        "task", "interface", "checkpoint", "decision", "dependency", "symbol", "path",
+        "subsystem", "run", "lane", "dispatch", "message", "rendezvous",
+        "context_fragment", "workspace", "worktree", "patch", "integration", "gate",
+        "invariant", "artifact", "commit", "test", "packet", "investigation",
+        "registration", "candidate", "effect", "resource", "child", "recovery",
+        "legacy_history", "legacy_task", "native_context",
+    ]
     target: Nonempty
 
 
@@ -296,12 +303,12 @@ BACKEND_REUSE = {
     "service_state": "one shared service-private durable packet/job store (AS1 implementation pending)",
 }
 
-# pc-adaptive-surface/2 records the live native Todo tool names while preserving
-# Project Control's existing information and registered-source tool surface.
+# pc-adaptive-surface/2 records the live compact workflow tool names while preserving
+# Project Control's existing compact information, workflow and mutation surface.
 _DETAILS = ["compact", "standard"]
 SURFACE = {
     "format": "pc-adaptive-surface/2",
-    "tool_schema_version": 11,
+    "tool_schema_version": 12,
     "profiles": {
         "observer": {"tools": list(OBSERVER_TOOL_NAMES), "details": [*_DETAILS, "extended"],
                      "native_filesystem": False, "automatic_overview": False},
@@ -329,12 +336,17 @@ SURFACE = {
         "extended_profiles": ["observer"], "source_paths": "relative_only",
         "source_locators": ["project", "repository", "path", "identity"],
         "all_information_results_packetized": True, "mutation_authority_from_hints": False},
-    "mutator_actions": {"amend_project": ["register_identity", "register_relation", "register_generation",
+    "mutator_actions": {"plan": ["context", "validate", "diff", "apply", "amend",
+                                      "open_run", "read_run", "close_run", "retire", "supersede", "recover"],
+        "maintain_execution": ["diagnose", "prepare", "execute"],
+        "amend_project": ["register_identity", "register_relation", "register_generation",
         "configure_provider", "remove_registration", "record_skill_use", "update_orientation"]},
     "project_metadata_authority": "Project Control private append-only metadata store",
     "todo_authority": "standalone Todo Orchestrator public application API",
     "search_contract": {"query_forms": ["discovery_query", "exact_typed_entity"],
         "exact_typed_entity": {"kind": "semantic entity type", "target": "exact canonical identifier"},
+        "native_exact_kinds": ["candidate", "effect", "resource", "child", "recovery",
+        "context_fragment", "legacy_history", "legacy_task", "native_context"],
         "exact_routing": "existing canonical lookup directly; cheapest deterministic path; no unnecessary fuzzy or lexical retrieval; no filesystem discovery",
         "discovery_behavior": "unchanged", "native_filesystem_discovery": "native find/rg/Git"},
 }

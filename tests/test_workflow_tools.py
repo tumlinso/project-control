@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 from pathlib import Path
 import sys
 import unittest
@@ -20,9 +18,6 @@ from project_control.workflow_tools import (
     register_maintenance_tool,
     register_workflow_tools,
 )
-
-
-FIXTURE = Path(__file__).parent / "fixtures" / "workflow_tools" / "schema_hashes.json"
 
 
 class FakeProtocol:
@@ -56,32 +51,41 @@ class FakeProtocol:
 
 class WorkflowToolTests(unittest.TestCase):
     def test_exact_names_schemas_annotations_and_instructions(self) -> None:
-        server = create_workflow_mcp(protocol_factory=lambda: FakeProtocol())
+        server = create_workflow_mcp(FakeProtocol())
         tools = asyncio.run(server.list_tools())
         self.assertEqual(tuple(tool.name for tool in tools), WORKFLOW_TOOL_NAMES)
-        expected_hashes = json.loads(FIXTURE.read_text(encoding="utf-8"))
-        actual_hashes = {
-            tool.name: hashlib.sha256(
-                json.dumps(tool.inputSchema, sort_keys=True, separators=(",", ":")).encode()
-            ).hexdigest()
-            for tool in tools
-        }
-        self.assertEqual(actual_hashes, expected_hashes)
+        schemas = {tool.name: tool.inputSchema for tool in tools}
+        self.assertEqual(schemas["next_task"]["required"], ["project"])
+        self.assertEqual(set(schemas["next_task"]["properties"]),
+                         {"project", "repository", "task_id", "run_id"})
+        self.assertEqual(set(schemas["inspect_task"]["required"]), {"workflow_handle", "kind"})
+        self.assertEqual(set(schemas["inspect_task"]["properties"]),
+                         {"workflow_handle", "kind", "target", "budget_bytes"})
+        self.assertEqual(set(schemas["coordinate_task"]["required"]), {"workflow_handle", "action"})
+        self.assertEqual(set(schemas["coordinate_task"]["properties"]),
+                         {"workflow_handle", "action", "payload"})
+        self.assertEqual(set(schemas["finish_task"]["required"]), {"workflow_handle", "action"})
+        self.assertEqual(set(schemas["finish_task"]["properties"]),
+                         {"workflow_handle", "action", "disposition", "note", "reason"})
+        self.assertTrue({"complete", "handoff", "block", "release", "accept", "reject", "integrate"}
+                        <= set(schemas["finish_task"]["properties"]["action"]["enum"]))
+        self.assertIn("reserve_resource", schemas["coordinate_task"]["properties"]["action"]["enum"])
+        self.assertIn("verify", schemas["coordinate_task"]["properties"]["action"]["enum"])
         for tool in tools:
             readonly = tool.name == "inspect_task"
             self.assertEqual(tool.annotations.readOnlyHint, readonly)
             self.assertEqual(tool.annotations.idempotentHint, readonly)
             self.assertFalse(tool.annotations.destructiveHint)
             self.assertFalse(tool.annotations.openWorldHint)
-        self.assertIn("Start with next_task", WORKFLOW_INSTRUCTIONS)
-        self.assertIn("when its context is ready, proceed", WORKFLOW_INSTRUCTIONS)
-        self.assertIn("directly without a task or claim", WORKFLOW_INSTRUCTIONS)
-        self.assertIn("Finish_task runs required gates", WORKFLOW_INSTRUCTIONS)
-        self.assertNotIn("coding-workflow as", WORKFLOW_INSTRUCTIONS)
+        self.assertIn("start with next_task", WORKFLOW_INSTRUCTIONS)
+        self.assertIn("opaque workflow handle", WORKFLOW_INSTRUCTIONS)
+        self.assertIn("required gates", WORKFLOW_INSTRUCTIONS.lower())
+        self.assertIn("accept or reject outcomes", WORKFLOW_INSTRUCTIONS)
+        self.assertIn("do not manage Todo attempt IDs", WORKFLOW_INSTRUCTIONS)
 
     def test_registration_composes_into_an_existing_server(self) -> None:
         server = FastMCP("composition-test")
-        registered = register_workflow_tools(server, protocol=FakeProtocol())
+        registered = register_workflow_tools(server, FakeProtocol())
         self.assertEqual(registered, WORKFLOW_TOOL_NAMES)
         self.assertEqual(tuple(tool.name for tool in asyncio.run(server.list_tools())), WORKFLOW_TOOL_NAMES)
 
@@ -90,20 +94,24 @@ class WorkflowToolTests(unittest.TestCase):
         server = create_workflow_mcp(protocol)
         manager = server._tool_manager
         claimed = asyncio.run(manager.call_tool("next_task", {
-            "repo_root": "/repo", "task_id": "PCU-1", "run_id": "PCU-RUN-1",
+            "project": "workspace", "repository": "source", "task_id": "PCU-1", "run_id": "PCU-RUN-1",
         }))
         handle = claimed["workflow_handle"]
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "task"}))
         asyncio.run(manager.call_tool("inspect_task", {"workflow_handle": handle, "kind": "context_fragment", "target": "NOTE-1"}))
-        asyncio.run(manager.call_tool("coordinate_task", {"workflow_handle": handle, "action": "sync"}))
+        asyncio.run(manager.call_tool("coordinate_task", {"workflow_handle": handle, "action": "reserve_resource",
+                                                               "payload": {"requirement_id": "GPU-1"}}))
         asyncio.run(manager.call_tool("finish_task", {"workflow_handle": handle, "action": "complete"}))
         self.assertEqual([name for name, _ in protocol.calls], [
             "next_task", "inspect_task", "inspect_task", "coordinate_task", "finish_task",
         ])
         self.assertEqual(protocol.calls[1][1]["budget_bytes"], 8192)
+        self.assertEqual(protocol.calls[0][1]["repository"], "source")
         self.assertEqual(protocol.calls[0][1]["run_id"], "PCU-RUN-1")
         self.assertEqual(protocol.calls[2][1]["kind"], "context_fragment")
         self.assertEqual(protocol.calls[2][1]["target"], "NOTE-1")
+        self.assertEqual(protocol.calls[3][1]["action"], "reserve_resource")
+        self.assertEqual(protocol.calls[3][1]["payload"], {"requirement_id": "GPU-1"})
         self.assertIsNone(protocol.calls[4][1]["disposition"])
 
     def test_removed_delegation_names_are_not_registered_or_dispatched(self) -> None:
@@ -117,58 +125,6 @@ class WorkflowToolTests(unittest.TestCase):
                 asyncio.run(manager.call_tool(name, {}))
         self.assertEqual(protocol.calls, [])
 
-    def test_construction_is_lazy_sticky_and_internal_failures_are_bounded(self) -> None:
-        instances: list[FakeProtocol] = []
-
-        def factory() -> FakeProtocol:
-            instance = FakeProtocol()
-            instances.append(instance)
-            return instance
-
-        server = create_workflow_mcp(
-            protocol_factory=factory,
-            diagnostic_factory=lambda: "diag_safe",
-        )
-        self.assertEqual(instances, [])
-        manager = server._tool_manager
-        asyncio.run(manager.call_tool("next_task", {"repo_root": "/one"}))
-        asyncio.run(manager.call_tool("next_task", {"repo_root": "/two"}))
-        self.assertEqual(len(instances), 1)
-
-        failed = create_workflow_mcp(
-            protocol_factory=lambda: (_ for _ in ()).throw(RuntimeError("secret traceback")),
-            diagnostic_factory=lambda: "diag_safe",
-        )
-        result = asyncio.run(failed._tool_manager.call_tool("next_task", {"repo_root": "/repo"}))
-        self.assertEqual(result["reason"], "unexpected_internal_failure")
-        self.assertEqual(result["diagnostic_id"], "diag_safe")
-        self.assertNotIn("secret", json.dumps(result))
-
-    def test_runtime_identity_error_preserves_only_typed_compatibility(self) -> None:
-        class IdentityError(Exception):
-            code = "runtime_identity_mismatch"
-            details = {"project_uuid": "project-1", "remediation": "restart"}
-
-        server = create_workflow_mcp(protocol_factory=lambda: (_ for _ in ()).throw(IdentityError()))
-        result = asyncio.run(server._tool_manager.call_tool("next_task", {"repo_root": "/repo"}))
-        self.assertEqual(result["status"], "attention_required")
-        self.assertEqual(result["compatibility"], IdentityError.details)
-        self.assertNotIn("traceback", json.dumps(result))
-
-    def test_typed_errors_keep_bounded_details_without_a_generic_retry_loop(self) -> None:
-        class GateError(Exception):
-            code = "invalid_required_gate"
-            message = "gate path is required"
-            details = {"gate_id": "G-1", "missing": ["path"], "raw": "x" * 4000}
-
-        server = create_workflow_mcp(protocol_factory=lambda: (_ for _ in ()).throw(GateError()))
-        result = asyncio.run(server._tool_manager.call_tool("next_task", {"repo_root": "/repo"}))
-        self.assertEqual(result["reason"], "invalid_required_gate")
-        self.assertEqual(result["message"], "gate path is required")
-        self.assertEqual(result["details"]["gate_id"], "G-1")
-        self.assertIsNone(result["recommended_next_call"])
-        self.assertLessEqual(len(json.dumps(result).encode()), 2048)
-
     def test_adapter_contains_no_mcp_client_subprocess_or_kernel_logic(self) -> None:
         source = (Path(__file__).parents[1] / "src" / "project_control" / "workflow_tools.py").read_text(
             encoding="utf-8"
@@ -178,34 +134,12 @@ class WorkflowToolTests(unittest.TestCase):
         self.assertNotIn("sqlite3", source)
         self.assertNotIn("WorkflowKernel", source)
 
-    def test_maintenance_tool_uses_startup_bound_principal_only(self) -> None:
-        calls: list[dict[str, object]] = []
-        server = FastMCP("maintenance-test")
-        register_maintenance_tool(
-            server,
-            host=MaintenanceHostContext("trusted-operator"),
-            handler=lambda **arguments: calls.append(arguments) or {"status": "maintained"},
-        )
-        result = asyncio.run(server._tool_manager.call_tool(
-            "maintain_execution", {"repo_root": "/repo", "authorization_id": "rca_opaque"},
-        ))
-        self.assertEqual(result["status"], "maintained")
-        self.assertEqual(calls, [{
-            "repo_root": "/repo", "authorization_id": "rca_opaque", "recipient_principal": "trusted-operator",
-        }])
-        schema = asyncio.run(server.list_tools())[0].inputSchema
-        self.assertNotIn("recipient_principal", schema["properties"])
-
-    def test_unconfigured_maintenance_host_fails_closed_before_handler(self) -> None:
-        server = FastMCP("maintenance-unconfigured")
-        register_maintenance_tool(
-            server, host=None,
-            handler=lambda **_arguments: self.fail("unconfigured host reached maintenance handler"),
-        )
-        result = asyncio.run(server._tool_manager.call_tool(
-            "maintain_execution", {"repo_root": "/repo", "authorization_id": "rca_opaque"},
-        ))
-        self.assertEqual("maintenance_host_unconfigured", result["reason"])
+    def test_standalone_maintenance_tool_is_removed(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "use_plan_recover"):
+            register_maintenance_tool(
+                FastMCP("maintenance-test"), host=MaintenanceHostContext("trusted-operator"),
+                handler=lambda **_arguments: self.fail("removed tool reached handler"),
+            )
 
 
 if __name__ == "__main__":

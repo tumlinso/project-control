@@ -26,7 +26,7 @@ def test_role_contract_matches_ledger_and_enforces_roles():
     expected = c.SURFACE
     assert historical["format"] == "pc-adaptive-surface/1"
     assert expected["format"] == "pc-adaptive-surface/2"
-    assert expected["tool_schema_version"] == 11
+    assert expected["tool_schema_version"] == 12
     assert expected["profiles"]["coder"]["tools"] == list(c.CODEX_TOOL_NAMES)
     assert expected["profiles"]["mutator"]["tools"] == list(c.MUTATOR_TOOL_NAMES)
     assert expected["workflow_tools"] == list(c.TODO_WORKFLOW_TOOL_NAMES)
@@ -44,10 +44,15 @@ def test_role_contract_matches_ledger_and_enforces_roles():
             for tool, detail in [("read", "compact"), ("skill", "compact"), ("overview", "extended")]:
                 with pytest.raises(ValueError):
                     c.require_tool(role, tool, detail)
-    c.require_tool("coder", "todo_preview_plan")
-    c.require_tool("codex", "todo_preview_plan")
+    assert c.CODEX_TOOL_NAMES[-4:] == ("next_task", "inspect_task", "coordinate_task", "finish_task")
+    assert not any(name.startswith("todo_") for names in
+                   (c.OBSERVER_TOOL_NAMES, c.CODEX_TOOL_NAMES, c.MUTATOR_TOOL_NAMES) for name in names)
+    assert {"candidate", "effect", "resource", "child", "recovery", "native_context",
+            "legacy_history"} <= set(c.ExactEntityQuery.model_fields["kind"].annotation.__args__)
     with pytest.raises(ValueError):
         c.require_tool("observer", "plan")
+    with pytest.raises(ValueError):
+        c.require_tool("coder", "todo_preview_plan")
     assert "TodoSession" in c.BACKEND_REUSE["workflow"]
     assert "Todo" in c.BACKEND_REUSE["semantic_authority"]
 

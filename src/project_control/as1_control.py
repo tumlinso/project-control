@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from collections.abc import Callable, Mapping
 from typing import Any
+import secrets
 
 from .as1_context import ContextHost, InformationService
 from .as1_contracts import ProjectAmendment, SourceLocator, relative_path
@@ -23,6 +24,7 @@ from .security import is_denied
 _PAGE_SIZE = 200
 _MAX_AUTHORITY_PAGES = 24
 _MAX_LEGACY_CONTEXT_ROWS = 5000
+_MAX_ADMIN_PLAN_BYTES = 256 * 1024
 
 
 class ControlService:
@@ -39,6 +41,7 @@ class ControlService:
         self.metadata_store = metadata_store or ProjectMetadataStore()
         self._workspace_identity_cache: dict[str, set[str]] = {}
         self.workflow = None
+        self._compact_admin = None
         if information_service is not None and information_service.host != host:
             raise ValueError("information_host_mismatch")
 
@@ -262,6 +265,413 @@ class ControlService:
         if not isinstance(data, Mapping):
             raise RuntimeError(f"{operation}_invalid")
         return data
+
+    def _authority_revision(self, project: str, repository: str) -> int:
+        response = self.workflow.invoke("todo_read_authority", project=project,
+                                        repository=repository, limit=1, page_token=None)
+        data = self._response_data(response, "native_todo_read")
+        revision = data.get("semantic_revision")
+        if type(revision) is not int or revision < 0:
+            raise RuntimeError("native_authority_revision_unavailable")
+        return revision
+
+    def _native_repository(self, project: str, repository: str | None) -> str:
+        workspace = self.registry.workspace(project)
+        selected = repository or workspace.authority_repository
+        if selected is None and len(workspace.repositories) == 1:
+            selected = next(iter(workspace.repositories))
+        if selected is None:
+            raise ValueError("todo_authority_repository_unconfigured")
+        self.registry.repository(project, selected)
+        return selected
+
+    def _admin_store(self):
+        if self._compact_admin is None:
+            if self.workflow is None:
+                raise RuntimeError("native_todo_context_unavailable")
+            from .compact_workflow import CompactWorkflowHost
+
+            self._compact_admin = CompactWorkflowHost(self.workflow)
+        return self._compact_admin
+
+    @staticmethod
+    def _canonical_admin_json(value: object, field: str) -> tuple[str, str]:
+        if not isinstance(value, Mapping) or any(not isinstance(key, str) for key in value):
+            raise ValueError(f"{field}_invalid")
+        try:
+            encoded = json.dumps(value, ensure_ascii=False, allow_nan=False,
+                                 sort_keys=True, separators=(",", ":"))
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"{field}_invalid") from error
+        if len(encoded.encode("utf-8")) > _MAX_ADMIN_PLAN_BYTES:
+            raise ValueError(f"{field}_too_large")
+        return encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _proposal_ref(proposal: object) -> str:
+        if (not isinstance(proposal, Mapping) or set(proposal) != {"proposal_ref"}
+                or not isinstance(proposal.get("proposal_ref"), str)
+                or not proposal["proposal_ref"]):
+            raise ValueError("host_issued_proposal_required")
+        return proposal["proposal_ref"]
+
+    def plan(self, project: str, action: str, *, native_plan: Mapping[str, Any] | None = None,
+             proposal: Mapping[str, Any] | None = None, replan: Mapping[str, Any] | None = None,
+             intent: Mapping[str, Any] | None = None,
+             prepared_request: Mapping[str, Any] | None = None,
+             authorization_id: str | None = None, repository: str | None = None) -> dict[str, Any]:
+        """Compact mutator-only route to the native public plan/run APIs.
+
+        Plan writes always require a host-issued exact preview. Run lifecycle
+        writes accept only a typed, revision-bound prepared request.
+        """
+        if self.host.profile != "mutator":
+            raise PermissionError("mutator_profile_required")
+        self._access(project)
+        if self.workflow is None:
+            raise RuntimeError("native_todo_context_unavailable")
+        selected_repository = self._native_repository(project, repository)
+        if action == "context":
+            if any(value is not None for value in (native_plan, proposal, replan, intent,
+                                                    prepared_request, authorization_id)):
+                raise ValueError("invalid_plan_action_payload")
+            context = self.project_context(project)
+            return {"status": context["status"], "project_uuid": context.get("project_uuid"),
+                    "revision": context.get("project_revision"),
+                    "native_authority": context.get("native_authority"),
+                    "authority_scopes": context.get("authority_scopes", [])}
+
+        if action in {"validate", "diff", "amend", "apply"}:
+            supplied = {name for name, value in (
+                ("native_plan", native_plan), ("proposal", proposal), ("replan", replan),
+                ("intent", intent), ("prepared_request", prepared_request),
+                ("authorization_id", authorization_id),
+            ) if value is not None}
+            expected = {"replan"} if action == "amend" else (
+                {"native_plan", "proposal"} if action == "apply" else {"native_plan"})
+            if supplied != expected:
+                raise ValueError("invalid_plan_action_payload")
+            if action == "amend":
+                candidate = replan
+            else:
+                candidate = native_plan
+            package_json, package_digest = self._canonical_admin_json(candidate, "native_plan")
+            revision = self._authority_revision(project, selected_repository)
+            if action in {"validate", "diff", "amend"}:
+                response = self.workflow.invoke("todo_preview_plan", project=project,
+                                                repository=selected_repository,
+                                                package_json=package_json)
+                preview = self._response_data(response, "native_plan_preview")
+                ref = self._admin_store().record_admin_preview(
+                    project, selected_repository, action="plan", package_digest=package_digest,
+                    authority_revision=revision, preview=preview)
+                return {"status": "preview", "action": action, "authority_revision": revision,
+                        "proposal": {"proposal_ref": ref}, "preview": dict(preview),
+                        "recommended_next_call": {"tool": "plan", "arguments": {
+                            "project": project, "action": "apply", "native_plan": dict(candidate),
+                            "proposal": {"proposal_ref": ref},
+                            **({"repository": selected_repository} if repository else {})}}}
+            ref = self._proposal_ref(proposal)
+            record = self._admin_store().get_admin_preview(
+                project, selected_repository, proposal_ref=ref, action="plan",
+                package_digest=package_digest, authority_revision=None)
+            if record is None:
+                return {"status": "needs_preview", "reason": "matching_current_preview_required",
+                        "recommended_next_call": {"tool": "plan", "arguments": {
+                            "project": project, "action": "validate", "native_plan": dict(candidate),
+                            **({"repository": selected_repository} if repository else {})}}}
+            if record.get("result") is not None:
+                return dict(record["result"])
+            if record.get("authority_revision") != revision:
+                return {"status": "needs_preview", "reason": "authority_revision_changed",
+                        "recommended_next_call": {"tool": "plan", "arguments": {
+                            "project": project, "action": "validate", "native_plan": dict(candidate),
+                            **({"repository": selected_repository} if repository else {})}}}
+            preview = record.get("preview")
+            idempotency_key = record.get("idempotency_key")
+            if not isinstance(preview, Mapping) or not isinstance(idempotency_key, str):
+                raise RuntimeError("stored_native_plan_preview_invalid")
+            response = self.workflow.invoke("todo_commit_plan", project=project,
+                                            repository=selected_repository,
+                                            package_json=package_json, preview=dict(preview),
+                                            idempotency_key=idempotency_key)
+            result = dict(self._response_data(response, "native_plan_commit"))
+            self._admin_store().complete_admin_preview(
+                project, selected_repository, proposal_ref=ref,
+                idempotency_key=idempotency_key, result=result)
+            return result
+
+        if action in {"open_run", "read_run"}:
+            if intent is None or any(value is not None for value in (native_plan, proposal, replan,
+                                                                      prepared_request, authorization_id)):
+                raise ValueError("invalid_run_intent")
+            request = dict(intent)
+            if action == "read_run":
+                if set(request) != {"run_id"}:
+                    raise ValueError("run_id_required")
+                response = self.workflow.invoke("todo_read_run", project=project,
+                                                repository=selected_repository, **request)
+                return {"status": "ok", "run": dict(self._response_data(response, "native_run_read"))}
+            allowed = {"plan_revision_id", "schedule", "idempotency_key", "expected_revision"}
+            if request.keys() - allowed or not {"plan_revision_id", "schedule"} <= request.keys():
+                raise ValueError("run_open_fields_invalid")
+            request.setdefault("idempotency_key", "pc-open-" + secrets.token_urlsafe(24))
+            if "expected_revision" not in request:
+                request["expected_revision"] = self._authority_revision(project, selected_repository)
+            response = self.workflow.invoke("todo_open_run", project=project,
+                                            repository=selected_repository, **request)
+            return self._response_data(response, "native_run_open")
+
+        if action in {"close_run", "retire", "supersede"}:
+            if native_plan is not None or proposal is not None or replan is not None or authorization_id is not None:
+                raise ValueError("invalid_run_lifecycle_payload")
+            if prepared_request is None:
+                if not isinstance(intent, Mapping):
+                    raise ValueError("run_lifecycle_intent_required")
+                allowed_intent = {"run_id", "successor_run_id"}
+                if intent.keys() - allowed_intent or "run_id" not in intent:
+                    raise ValueError("run_lifecycle_intent_fields_invalid")
+                if action == "close_run" and "successor_run_id" in intent:
+                    raise ValueError("close_run_successor_not_permitted")
+                if action == "supersede" and not intent.get("successor_run_id"):
+                    raise ValueError("supersede_successor_required")
+                run_id = intent.get("run_id")
+                if not isinstance(run_id, str) or not run_id:
+                    raise ValueError("run_id_invalid")
+                revision = self._authority_revision(project, selected_repository)
+                # Prove that this is a current native run before issuing the
+                # host-bound prepared request. The lifecycle API rechecks this
+                # revision and computes its schedule digest transactionally.
+                self.workflow.invoke("todo_read_run", project=project,
+                                     repository=selected_repository, run_id=run_id)
+                _encoded_intent, intent_digest = self._canonical_admin_json(intent, "run_lifecycle_intent")
+                request = {
+                    "run_id": run_id, "expected_revision": revision,
+                    "idempotency_key": "pc-run-" + secrets.token_urlsafe(24),
+                    "intent_digest": intent_digest,
+                }
+                if "successor_run_id" in intent:
+                    request["successor_run_id"] = intent["successor_run_id"]
+                record_ref = self._admin_store().record_admin_preview(
+                    project, selected_repository, action=action,
+                    package_digest=intent_digest, authority_revision=revision,
+                    preview={"prepared_request": request})
+                return {"status": "prepared", "action": action,
+                        "authority_revision": revision,
+                        "prepared_request": {**request, "proposal_ref": record_ref}}
+            if intent is not None:
+                raise ValueError("prepared_request_cannot_include_intent")
+            request = dict(prepared_request)
+            allowed = {"run_id", "expected_revision", "idempotency_key", "schedule_digest",
+                       "successor_run_id", "intent_digest", "proposal_ref"}
+            required = {"run_id", "expected_revision", "idempotency_key", "intent_digest", "proposal_ref"}
+            if request.keys() - allowed or not required <= request.keys():
+                raise ValueError("prepared_run_request_fields_invalid")
+            if action == "close_run" and "successor_run_id" in request:
+                raise ValueError("close_run_successor_not_permitted")
+            if action == "supersede" and not request.get("successor_run_id"):
+                raise ValueError("supersede_successor_required")
+            ref = request.pop("proposal_ref")
+            intent_digest = request.get("intent_digest")
+            if not isinstance(intent_digest, str) or len(intent_digest) != 64:
+                raise ValueError("run_lifecycle_intent_digest_invalid")
+            revision = self._authority_revision(project, selected_repository)
+            record = self._admin_store().get_admin_preview(
+                project, selected_repository, proposal_ref=ref, action=action,
+                package_digest=intent_digest, authority_revision=None)
+            if record is None or record.get("preview", {}).get("prepared_request") != request:
+                raise ValueError("host_issued_prepared_request_required")
+            if record.get("result") is not None:
+                return dict(record["result"])
+            if record.get("authority_revision") != revision or request["expected_revision"] != revision:
+                return {"status": "needs_prepare", "reason": "authority_revision_changed"}
+            request.pop("intent_digest")
+            tool = "todo_close_run" if action == "close_run" else "todo_retire_run"
+            response = self.workflow.invoke(tool, project=project,
+                                            repository=selected_repository, **request)
+            result = dict(self._response_data(response, "native_run_lifecycle"))
+            self._admin_store().complete_admin_preview(
+                project, selected_repository, proposal_ref=ref,
+                idempotency_key=record["idempotency_key"], result=result)
+            return result
+
+        if action == "recover":
+            if intent is None or any(value is not None for value in (native_plan, proposal, replan,
+                                                                      prepared_request, authorization_id)):
+                raise ValueError("recovery_intent_required")
+            request = dict(intent)
+            operation = request.pop("operation", None)
+            if operation == "inspect_attempt":
+                if set(request) != {"attempt_id"}:
+                    raise ValueError("attempt_id_required")
+                response = self.workflow.invoke("todo_inspect_attempt", project=project,
+                                                repository=selected_repository, **request)
+            elif operation == "inspect_effect":
+                if set(request) != {"operation_id"}:
+                    raise ValueError("operation_id_required")
+                response = self.workflow.invoke("todo_inspect_effect", project=project,
+                                                repository=selected_repository, **request)
+            elif operation == "apply":
+                if set(request) != {"intent", "idempotency_key", "expected_revision"}:
+                    raise ValueError("recovery_apply_fields_invalid")
+                response = self.workflow.invoke("todo_apply_recovery", project=project,
+                                                repository=selected_repository, **request)
+            else:
+                raise ValueError("unsupported_recovery_operation")
+            return self._response_data(response, "native_recovery")
+
+        raise ValueError("unsupported_plan_action")
+
+    def maintain_execution(self, request: Mapping[str, Any]) -> dict[str, Any]:
+        """Compatibility route for inspected native recovery only."""
+        if self.host.profile != "mutator":
+            raise PermissionError("mutator_profile_required")
+        if not isinstance(request, Mapping) or set(request) - {
+            "project", "repository", "action", "attempt_id", "operation_id", "intent",
+            "idempotency_key", "expected_revision",
+        }:
+            raise ValueError("maintenance_request_fields_invalid")
+        project = request.get("project")
+        if not isinstance(project, str):
+            raise ValueError("maintenance_project_required")
+        action = request.get("action")
+        if action in {"diagnose", "prepare"}:
+            if (request.get("attempt_id") is None) == (request.get("operation_id") is None):
+                raise ValueError("exact_recovery_target_required")
+            intent = ({"operation": "inspect_attempt", "attempt_id": request["attempt_id"]}
+                      if request.get("attempt_id") is not None else
+                      {"operation": "inspect_effect", "operation_id": request["operation_id"]})
+            return self.plan(project, "recover", intent=intent,
+                             repository=request.get("repository"))
+        if action == "execute":
+            required = {"project", "action", "intent", "idempotency_key", "expected_revision"}
+            if set(request) != required:
+                raise ValueError("recovery_execution_requires_exact_inspected_intent")
+            return self.plan(project, "recover", intent={
+                "operation": "apply", "intent": request["intent"],
+                "idempotency_key": request["idempotency_key"],
+                "expected_revision": request["expected_revision"],
+            }, repository=request.get("repository"))
+        raise ValueError("unsupported_maintenance_action")
+
+    def native_read(self, project: str, kind: str, target: str, *, repository: str | None = None) -> dict[str, Any]:
+        """Read one exact Todo entity through its versioned public API."""
+        self._access(project)
+        if self.workflow is None:
+            return {"resolution": "unavailable", "reason": "native_todo_context_unavailable"}
+        alias = self._native_repository(project, repository)
+        max_target_bytes = 4096 if kind in {"legacy_history", "legacy_task"} else 512
+        if not isinstance(target, str) or not target or len(target.encode("utf-8")) > max_target_bytes:
+            raise ValueError("native_target_invalid")
+        mapping: dict[str, tuple[str, dict[str, Any]]] = {}
+        post_filter_task_id = None
+        if kind == "candidate":
+            mapping[kind] = ("todo_read_candidate", {"candidate_id": target})
+        elif kind == "effect":
+            mapping[kind] = ("todo_inspect_effect", {"operation_id": target})
+        elif kind == "resource":
+            mapping[kind] = ("todo_inspect_resource", {"operation_id": target})
+        elif kind == "child":
+            parent_attempt, separator, execution_id = target.partition("/")
+            if not separator or not parent_attempt or not execution_id:
+                raise ValueError("child_target_must_bind_parent_attempt_and_execution")
+            mapping[kind] = ("todo_read_child_execution", {
+                "parent_attempt_id": parent_attempt, "execution_id": execution_id})
+        elif kind == "recovery":
+            prefix, separator, identity = target.partition(":")
+            if not separator or not identity or prefix not in {"attempt", "effect"}:
+                raise ValueError("recovery_target_must_be_attempt_or_effect_reference")
+            mapping[kind] = (("todo_inspect_attempt", {"attempt_id": identity}) if prefix == "attempt"
+                             else ("todo_inspect_effect", {"operation_id": identity}))
+        elif kind == "context_fragment":
+            mapping[kind] = ("todo_build_context", {"work_item_id": target, "max_bytes": 8192})
+        elif kind == "legacy_history":
+            query, import_id, after = self._legacy_page_selector(target)
+            mapping[kind] = ("todo_search_legacy_history", {"query": query, "limit": 100,
+                                                              **({"import_id": import_id} if import_id else {}),
+                                                              **({"after": after} if after else {})})
+        elif kind == "legacy_task":
+            try:
+                selector = json.loads(target)
+            except json.JSONDecodeError:
+                selector = {"source_task_id": target}
+            if not isinstance(selector, Mapping) or set(selector) - {
+                    "source_task_id", "import_id", "after"}:
+                raise ValueError("legacy_task_selector_invalid")
+            post_filter_task_id = selector.get("source_task_id")
+            import_id, after = selector.get("import_id"), selector.get("after")
+            if (not isinstance(post_filter_task_id, str) or not post_filter_task_id
+                    or len(post_filter_task_id.encode("utf-8")) > 128):
+                raise ValueError("legacy_source_task_id_required")
+            if import_id is not None and (not isinstance(import_id, str) or not import_id
+                                          or len(import_id.encode("utf-8")) > 128):
+                raise ValueError("legacy_import_id_invalid")
+            if after is not None and not isinstance(after, Mapping):
+                raise ValueError("legacy_cursor_invalid")
+            mapping[kind] = ("todo_read_legacy_current_tasks", {"limit": 100,
+                                                                 **({"import_id": import_id} if import_id else {}),
+                                                                 **({"after": after} if after else {})})
+        elif kind == "related_evidence":
+            return self._native_related(project, alias, target)
+        else:
+            raise ValueError("unsupported_native_read_kind")
+        operation, arguments = mapping[kind]
+        response = self.workflow.invoke(operation, project=project, repository=alias, **arguments)
+        data = self._response_data(response, "native_" + kind + "_read")
+        if post_filter_task_id is not None:
+            records = data.get("records", [])
+            if not isinstance(records, list):
+                raise RuntimeError("legacy_current_task_page_invalid")
+            data = {**data, "records": [row for row in records if isinstance(row, Mapping)
+                                         and row.get("source_task_id") == post_filter_task_id]}
+        return {"kind": kind, "target": target, "resolution": "resolved", "result": dict(data)}
+
+    @staticmethod
+    def _legacy_page_selector(
+        target: str,
+    ) -> tuple[str | None, str | None, Mapping[str, Any] | None]:
+        """Decode a bounded exact legacy query and its typed public cursor."""
+        try:
+            selector = json.loads(target)
+        except json.JSONDecodeError:
+            return target, None, None
+        if not isinstance(selector, Mapping) or set(selector) - {"query", "import_id", "after"}:
+            raise ValueError("legacy_page_selector_invalid")
+        query = selector.get("query")
+        import_id = selector.get("import_id")
+        after = selector.get("after")
+        if query is not None and (not isinstance(query, str) or len(query.encode("utf-8")) > 512):
+            raise ValueError("legacy_query_invalid")
+        if import_id is not None and (not isinstance(import_id, str) or not import_id
+                                      or len(import_id.encode("utf-8")) > 128):
+            raise ValueError("legacy_import_id_invalid")
+        if after is not None and not isinstance(after, Mapping):
+            raise ValueError("legacy_cursor_invalid")
+        return query, import_id, after
+
+    def _native_related(self, project: str, repository: str, target: str) -> dict[str, Any]:
+        native, scope = self._native_authority(project, repository)
+        if native is None:
+            return {"kind": "related_evidence", "target": target, "resolution": "unavailable",
+                    "scope": scope, "candidates": [], "effects": []}
+        sections = native.get("sections", {})
+        candidates = []
+        for name in ("outcome_candidates", "child_candidates"):
+            rows = sections.get(name, []) if isinstance(sections, Mapping) else []
+            candidates.extend({"section": name, **dict(row)} for row in rows
+                              if isinstance(row, Mapping) and target in {
+                                  str(row.get("work_item_id")), str(row.get("attempt_id")),
+                                  str(row.get("execution_id")), str(row.get("candidate_id"))})
+        effects = []
+        for name in ("external_operations", "git_effect_operations"):
+            rows = sections.get(name, []) if isinstance(sections, Mapping) else []
+            effects.extend({"section": name, **dict(row)} for row in rows
+                           if isinstance(row, Mapping) and target in {
+                               str(row.get("attempt_id")), str(row.get("operation_id"))})
+        return {"kind": "related_evidence", "target": target, "resolution": "resolved",
+                "authority_revision": native.get("semantic_revision"),
+                "candidates": candidates[:100], "effects": effects[:100],
+                "scope": scope}
 
     def _native_authority(self, project: str, repository: str) -> tuple[dict[str, Any] | None, dict[str, Any]]:
         sections: dict[str, list[dict[str, Any]]] = {}
@@ -636,6 +1046,20 @@ class ControlService:
             revision = max((int(row.get("provenance", {}).get("source_authority_revision") or 0)
                             for row in legacy_declarations), default=0)
         status = "partial" if failures or (native_context and not native_context.get("page", {}).get("complete")) else "ok"
+        native_counts = native_context.get("page", {}).get("section_counts", {})
+        native_summary = {
+            "repository": authority_alias,
+            "project_id": native_context.get("project_id"),
+            "authority_id": native_context.get("authority_id"),
+            "semantic_revision": native_context.get("semantic_revision"),
+            "complete": native_context.get("page", {}).get("complete", False),
+            "section_counts": dict(native_counts) if isinstance(native_counts, Mapping) else {},
+            "available_detail_routes": ["search(candidate)", "search(effect)", "search(resource)",
+                                        "search(child)", "search(recovery)",
+                                        "search(native_context)", "search(context_fragment)",
+                                        "search(legacy_task)", "history(legacy)",
+                                        "evidence(native_workflow)"],
+        }
         return {
             "status": status,
             "reason": ";".join(dict.fromkeys(str(value) for value in failures)) if failures else None,
@@ -647,6 +1071,7 @@ class ControlService:
             "project_revision": revision,
             "metadata_revision": metadata["revision"],
             "authority_scopes": authority_scopes,
+            "native_authority": native_summary,
             "declarations": declarations,
             "declaration_facts": list(facts) if isinstance(facts, list) else [],
             "plan_revisions": list(native_context.get("sections", {}).get("plan_revisions", [])),

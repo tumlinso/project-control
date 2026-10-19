@@ -55,12 +55,16 @@ def _server(profile: MCPProfile) -> ProfiledFastMCP:
 class ProfilePolicyTests(unittest.TestCase):
     def test_contract_tool_sets_are_exact_and_distinct(self) -> None:
         self.assertTrue(set(RICH_READ_TOOL_NAMES) <= set(OBSERVER_TOOL_NAMES))
-        self.assertTrue({"read", "investigate", "skill", "todo_read_authority"} <= set(OBSERVER_TOOL_NAMES))
+        self.assertTrue({"read", "investigate", "skill"} <= set(OBSERVER_TOOL_NAMES))
         self.assertEqual(set(CODEX_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES))
         self.assertEqual(set(MUTATOR_TOOL_NAMES), set(RICH_READ_TOOL_NAMES) | set(WORKFLOW_TOOL_NAMES)
                          | set(TODO_ADMIN_TOOL_NAMES) | {"investigate", "amend_project"})
-        self.assertNotIn("plan", MUTATOR_TOOL_NAMES)
-        self.assertNotIn("maintain_execution", MUTATOR_TOOL_NAMES)
+        self.assertEqual(len(OBSERVER_TOOL_NAMES), 11)
+        self.assertEqual(len(CODEX_TOOL_NAMES), 12)
+        self.assertEqual(len(MUTATOR_TOOL_NAMES), 16)
+        self.assertEqual(len(INTERNAL_TOOL_NAMES), 10)
+        self.assertIn("plan", MUTATOR_TOOL_NAMES)
+        self.assertIn("maintain_execution", MUTATOR_TOOL_NAMES)
         self.assertNotIn("terminal_capture", MUTATOR_TOOL_NAMES)
 
     def test_profile_and_transport_are_explicit_startup_configuration(self) -> None:
@@ -93,7 +97,7 @@ class ProfileRegistrationTests(unittest.TestCase):
         self.assertEqual(set(OBSERVER_TOOL_NAMES), {tool.name for tool in tools})
         asyncio.run(validate_profile_registration(server))
 
-    def test_codex_registers_native_workflow_and_secondary_reads(self) -> None:
+    def test_codex_registers_compact_workflow_and_secondary_reads(self) -> None:
         server = _server(MCPProfile.CODEX)
         tools = asyncio.run(server.list_tools())
         self.assertEqual(set(CODEX_TOOL_NAMES), {tool.name for tool in tools})
@@ -105,7 +109,7 @@ class ProfileRegistrationTests(unittest.TestCase):
         self.assertNotIn("amend_project", descriptions)
         asyncio.run(validate_profile_registration(server))
 
-    def test_mutator_registers_exact_native_surface_plus_metadata_amendment(self) -> None:
+    def test_mutator_registers_compact_surface_and_admin_routes(self) -> None:
         server = _server(MCPProfile.MUTATOR)
         tools = asyncio.run(server.list_tools())
         self.assertEqual(set(MUTATOR_TOOL_NAMES), {tool.name for tool in tools})
@@ -114,13 +118,14 @@ class ProfileRegistrationTests(unittest.TestCase):
             self.assertTrue(descriptions[name].startswith(CODEX_RICH_READ_DESCRIPTION_PREFIX))
         asyncio.run(validate_profile_registration(server))
 
-    def test_legacy_import_is_mutator_only(self) -> None:
-        for profile in (MCPProfile.OBSERVER, MCPProfile.CODEX):
+    def test_raw_native_todo_tools_are_not_registered_in_any_profile(self) -> None:
+        for profile in MCPProfile:
             with self.subTest(profile=profile):
-                with self.assertRaisesRegex(ToolError, f"unavailable in the {profile.value} profile"):
-                    asyncio.run(_server(profile).call_tool("todo_import_legacy_snapshot", {"value": "ok"}))
-        result = asyncio.run(_server(MCPProfile.MUTATOR).call_tool("todo_import_legacy_snapshot", {"value": "ok"}))
-        self.assertTrue(result)
+                server = _server(profile)
+                self.assertFalse(any(name.startswith("todo_") for name in
+                                     (tool.name for tool in asyncio.run(server.list_tools()))))
+                with self.assertRaises(ToolError):
+                    asyncio.run(server.call_tool("todo_import_legacy_snapshot", {"value": "ok"}))
 
     def test_hidden_invocation_is_denied_before_handler(self) -> None:
         called = False
@@ -130,7 +135,8 @@ class ProfileRegistrationTests(unittest.TestCase):
             called = True
 
         server = ProfiledFastMCP("project-control", profile="observer")
-        server.add_tool(workflow_handler, name="todo_preview_plan")
+        with self.assertRaises(ProfileRegistrationError):
+            server.add_tool(workflow_handler, name="todo_preview_plan")
         with self.assertRaisesRegex(ToolError, "unavailable in the observer profile"):
             asyncio.run(server.call_tool("todo_preview_plan", {}))
         self.assertFalse(called)
