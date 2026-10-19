@@ -327,7 +327,7 @@ def test_zero_ttl_command_history_is_delivered_as_partial_without_mutating_cache
         assert retry['status']=='partial'
         assert retry['job']['answer']=='answer supported by the command output'
         assert retry['job']['status']=='partial'
-        assert any('freshness is not verified' in note and 'new question or add context' in note
+        assert any('freshness is not verified' in note and 'Historical analysis from' in note
                    for note in retry['job']['unresolved_questions'])
         assert retry['observations'][0]['stdout']=='historical command output'
         with s._db() as db:
@@ -363,6 +363,104 @@ def test_historical_zero_ttl_delivery_rejects_source_and_selection_failures(tmp_
              'dependencies':[{'reason':'volatile_observation_expired'}]}]}
         assert not s._historical_zero_ttl_delivery(source_read_only,SimpleNamespace(mode='investigate'),SCOPE)
     finally:s.shutdown()
+
+
+@pytest.mark.parametrize('payload', [
+    {'status': 'completed', 'exit_code': 0, 'stdout': 'directory listing', 'truncated': False},
+    {'status': 'failed', 'exit_code': 1, 'stdout': '', 'truncated': False},
+    {'status': 'failed', 'exit_code': -9, 'stdout': '', 'timed_out': True},
+], ids=['listing_with_inherited_source', 'no_match', 'timed_out_search'])
+def test_historical_inquiry_reuses_incomplete_command_evidence_without_inference(tmp_path, payload):
+    calls = []
+    source = {'project': 'pc', 'repository': 'pc', 'path': 'source.py', 'content_sha256': 'a'*64}
+    def factory(service, job):
+        class Worker:
+            def run(self, request):
+                calls.append(request)
+                observation = service.observe(job.job_id, job.attempt, {**payload, 'sources': [source]})
+                return {'status': 'completed', 'answer': 'Recorded investigation answer',
+                        'findings': [{'text': 'A historical observation', 'evidence_packets': [observation]}]}
+        return Worker()
+    def freshness(job):
+        return {'fresh': False, 'changed_sources': [
+            {'reference': job['evidence_packets'][0], 'reason': 'stale',
+             'dependencies': [{'reason': 'volatile_observation_expired'}]}]}
+    service = make(tmp_path, worker_factory=factory, freshness_provider=freshness).start()
+    try:
+        first = service.inquire('saved search', SCOPE, foreground_timeout=2)
+        assert first['status'] == 'completed'
+        with service._db() as db:
+            before = [tuple(row) for row in db.execute('SELECT record,observations,updated FROM jobs')]
+        for _ in range(2):
+            retained = service.inquire('saved search', SCOPE, foreground_timeout=0)
+            assert retained['status'] == 'partial'
+            assert retained['job']['answer'] == first['job']['answer']
+            assert retained['job']['evidence_packets'] == first['job']['evidence_packets']
+            assert any(first['job']['created_at'] in note and 'freshness is not verified' in note
+                       for note in retained['job']['unresolved_questions'])
+        with service._db() as db:
+            assert [tuple(row) for row in db.execute('SELECT record,observations,updated FROM jobs')] == before
+        assert len(calls) == 1
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize('changed', [
+    {'reason': 'stale', 'dependencies': [{'reason': 'dependency_manifest_missing'}]},
+    {'reason': 'stale', 'dependencies': [{'reason': 'negative_discovery_scope_missing'}]},
+    {'reason': 'stale', 'dependencies': [{'reason': 'unverified', 'dependency': 'semantic_revision:pc'}]},
+    {'reason': 'producer_omission', 'detail': {'reason': 'semantic_context_unavailable:RuntimeIdentityError'}},
+])
+def test_historical_discovery_and_semantic_context_are_caveatable(tmp_path, changed):
+    service = make(tmp_path)
+    packet = service.packets.create(tool='search', access_scope=SCOPE,
+                                   payload={'status': 'partial'}, freshness={})
+    freshness = {'fresh': False, 'changed_sources': [{**changed, 'reference': packet.packet_id}]}
+    try:
+        assert service._historical_zero_ttl_delivery(freshness, SimpleNamespace(mode='investigate'), SCOPE)
+        assert not service._historical_zero_ttl_delivery(freshness, SimpleNamespace(mode='skill'), SCOPE)
+    finally:
+        service.shutdown()
+
+
+@pytest.mark.parametrize('failure', ['missing', 'forbidden', 'changed_file', 'unverified_file'])
+def test_historical_delivery_keeps_packet_and_file_boundaries(tmp_path, failure):
+    service = make(tmp_path)
+    packet = service.packets.create(tool='command', access_scope=SCOPE,
+        payload={'status': 'completed', 'exit_code': 0}, freshness={'volatile': True, 'max_age_seconds': 0})
+    reference = 'pkt_missing' if failure == 'missing' else packet.packet_id
+    scope = {**SCOPE, 'project': 'other'} if failure == 'forbidden' else SCOPE
+    changes = [{'reference': reference, 'reason': 'stale',
+                'dependencies': [{'reason': 'volatile_observation_expired'}]}]
+    if failure in {'changed_file', 'unverified_file'}:
+        changes[0]['dependencies'].append({'reason': 'changed' if failure == 'changed_file' else 'unverified',
+                                          'dependency': 'file:pc/source.py'})
+    try:
+        assert not service._historical_zero_ttl_delivery(
+            {'fresh': False, 'changed_sources': changes}, SimpleNamespace(mode='investigate'), scope)
+    finally:
+        service.shutdown()
+
+
+def test_skill_broker_projection_retains_oldest_registered_entry(monkeypatch, tmp_path):
+    import project_control.as1_jobs as jobs_module
+    root = tmp_path / 'cuda'
+    entry = {'packet_id': 'entry', 'status': 'completed', 'exit_code': 0, 'stdout': 'entry'*50,
+             'source_reads': [{'method': 'direct_cat', 'path': str(root / 'SKILL.md'),
+                               'content_sha256': 'a'*64}]}
+    observations = [entry, {'packet_id': 'other-one', 'stdout': 'x'*1000},
+                    {'packet_id': 'other-two', 'stdout': 'y'*1000}]
+    original = json.dumps(observations, sort_keys=True)
+    request = {'mode': 'skill', 'skill': {'name': 'cuda', 'root': str(root)},
+               'observations': observations}
+    monkeypatch.setattr(jobs_module, 'WORKER_JOB_INPUT_MAX_BYTES', 1500)
+    projected = JobService._project_worker_request(request, {})
+    assert projected is not None
+    assert projected['observations'] == [entry]
+    assert projected['omitted_observation_packet_ids'] == ['other-one', 'other-two']
+    assert json.dumps(observations, sort_keys=True) == original
+    monkeypatch.setattr(jobs_module, 'WORKER_JOB_INPUT_MAX_BYTES', 200)
+    assert JobService._project_worker_request(request, {}) is None
 
 
 @pytest.mark.parametrize("cleanup", ["exception", "unreleased"])

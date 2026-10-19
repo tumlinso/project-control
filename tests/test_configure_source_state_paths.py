@@ -57,9 +57,23 @@ class ConfigureSourceStatePathsTests(unittest.TestCase):
         self.assertEqual([], skipped_directories)
         self.assertEqual(["project_not_bootstrapped"], [report.reason for report in skipped_reports])
         content = render_drop_in(directories)
-        self.assertIn(f'ReadWritePaths="{expected}"', content)
+        self.assertIn(f'ReadWritePaths="-{expected}"', content)
         self.assertNotIn(".cache/project-control", content)
         self.assertNotIn(".local/state/project-control", content)
+
+    def test_rendered_grant_is_optional_if_state_directory_disappears(self) -> None:
+        state_dir = self.temp_path / "selected" / ".todo-orchestrator"
+        state_dir.mkdir(parents=True)
+
+        content = render_drop_in([state_dir])
+        state_dir.rmdir()
+
+        self.assertFalse(state_dir.exists())
+        self.assertIn(f'ReadWritePaths="-{state_dir.resolve()}"', content)
+        self.assertNotIn(f'ReadWritePaths="-{state_dir.parent.resolve()}"', content)
+        self.assertNotIn("ProtectHome=", content)
+        source_unit = Path(__file__).resolve().parents[1] / "scripts" / "services" / "project-control.service"
+        self.assertIn("ProtectHome=read-only", source_unit.read_text(encoding="utf-8"))
 
     def test_bootstrapped_repository_without_existing_database_is_skipped(self) -> None:
         missing = self.temp_path / "missing-ledger"

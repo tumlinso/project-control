@@ -34,7 +34,9 @@ class TurnPolicyTests(unittest.TestCase):
 
     def test_registry_is_versioned_bounded_and_behaviorally_distinct(self):
         gather = policy_for("gather-v1")
+        fast_gather = policy_for("fast-gather-v1")
         synthesis = policy_for("synthesis-v1")
+        fast_synthesis = policy_for("fast-synthesis-v1")
         plan = policy_for("experiment-plan-v1")
 
         self.assertEqual((gather.version, gather.behavior, gather.logical_context_tokens,
@@ -43,9 +45,18 @@ class TurnPolicyTests(unittest.TestCase):
         self.assertEqual((synthesis.behavior, synthesis.logical_context_tokens,
                           synthesis.reasoning_tokens, synthesis.visible_tokens),
                          ("synthesis", 16384, 2048, 2048))
+        self.assertEqual((fast_gather.behavior, fast_gather.logical_context_tokens,
+                          fast_gather.reasoning_tokens, fast_gather.visible_tokens,
+                          fast_gather.reasoning_mode),
+                         ("gather", 8192, 0, 1024, "off"))
+        self.assertEqual((fast_synthesis.behavior, fast_synthesis.logical_context_tokens,
+                          fast_synthesis.reasoning_tokens, fast_synthesis.visible_tokens,
+                          fast_synthesis.reasoning_mode),
+                         ("synthesis", 16384, 0, 2048, "off"))
         self.assertEqual(plan.behavior, "experiment_plan")
-        instructions = {gather.instruction, synthesis.instruction, plan.instruction}
-        self.assertEqual(len(instructions), 3)
+        instructions = {gather.instruction, fast_gather.instruction, synthesis.instruction,
+                        fast_synthesis.instruction, plan.instruction}
+        self.assertEqual(len(instructions), 5)
         self.assertIn("facts", gather.instruction)
         self.assertIn("Synthesize", synthesis.instruction)
         self.assertIn("experiment plan", plan.instruction)
@@ -59,10 +70,95 @@ class TurnPolicyTests(unittest.TestCase):
     def test_generation_settings_are_fresh_request_local_values(self):
         first = generation_settings("gather-v1")
         second = generation_settings("synthesis-v1")
+        fast = generation_settings("fast-gather-v1")
+        fast_synthesis = generation_settings("fast-synthesis-v1")
         first["reasoning_tokens"] = 16384
+        fast["reasoning_tokens"] = 4096
 
         self.assertEqual(second["reasoning_tokens"], 2048)
         self.assertEqual(generation_settings("gather-v1")["reasoning_tokens"], 512)
+        self.assertTrue(generation_settings("gather-v1")["preserve_reasoning"])
+        self.assertTrue(generation_settings("synthesis-v1")["preserve_reasoning"])
+        self.assertEqual(generation_settings("fast-gather-v1")["reasoning_tokens"], 0)
+        self.assertFalse(generation_settings("fast-gather-v1")["preserve_reasoning"])
+        self.assertEqual(fast_synthesis["reasoning_tokens"], 0)
+        self.assertEqual(fast_synthesis["preserve_reasoning"], False)
+
+    def test_fast_adapter_turns_disable_thinking_and_do_not_reuse_reasoning(self):
+        template_modes = []
+        template_prompts = []
+        completion_calls = []
+
+        def transport(_method, url, payload, _timeout):
+            if url.endswith("/apply-template"):
+                template_modes.append(payload.get("chat_template_kwargs", {}).get("enable_thinking"))
+                template_prompts.append("\n".join(message["content"] for message in payload["messages"]))
+                return 200, {"prompt": "\n".join(message["content"] for message in payload["messages"])}
+            if url.endswith("/tokenize"):
+                return 200, {
+                    "tokens": list(range(len(payload["content"]))),
+                }
+            if url.endswith("/completion"):
+                completion_calls.append(payload)
+                return 200, {
+                    "content": "fast answer",
+                    "tokens": [11, 12],
+                    "timings": {"predicted_n": 2, "predicted_ms": 1.0},
+                }
+            raise AssertionError(f"unexpected fake adapter path: {url}")
+
+        adapter = self.adapter_module.LlamaCppServerAdapter(transport=transport)
+        prior_reasoning = {
+            "fast-session-gather": [{"answer": "old", "reasoning": "stale hidden reasoning"}],
+            "fast-session-synthesis": [{"answer": "old", "reasoning": "stale hidden reasoning"}],
+        }
+        adapter._servers["fake"] = {
+            "base_url": "http://fake",
+            "accepting": True,
+            "evicted": False,
+            "canceled": set(),
+            "active_requests": set(),
+            "profile": {"context_size": 32768},
+            "effective_context_size": 7000,
+            "conservative_tokens_per_second": 100.0,
+            "conservative_prompt_tokens_per_second": 1000.0,
+            "reasoning_state": json.loads(json.dumps(prior_reasoning)),
+            "last_completion_tokens": None,
+            "usage": {"runs": 0, "prompt_tokens": 0, "completion_tokens": 0, "duration_ms": 0.0},
+        }
+
+        results = {}
+        for policy_id, session_id in (("fast-gather-v1", "fast-session-gather"),
+                                      ("fast-synthesis-v1", "fast-session-synthesis")):
+            selected = policy_for(policy_id)
+            internal = {
+                "messages": [{"role": "user", "content": "Answer from the supplied evidence."}],
+                "max_tokens": selected.visible_tokens,
+                "timeout_seconds": 30,
+                "reasoning_mode": selected.reasoning_mode,
+                "reasoning_state_key": session_id,
+                "observer_generation": generation_settings(policy_id),
+                "turn_policy_id": policy_id,
+                "turn_policy_instruction": selected.instruction,
+                "logical_context_tokens": selected.logical_context_tokens,
+            }
+            results[policy_id] = adapter._run_observer_generation(
+                "fake", internal, internal["observer_generation"])
+
+        self.assertEqual(template_modes, [False, False])
+        self.assertEqual(len(completion_calls), 2)
+        self.assertTrue(all("stale hidden reasoning" not in prompt for prompt in template_prompts))
+        self.assertEqual(adapter._servers["fake"]["reasoning_state"], prior_reasoning)
+        for policy_id, result in results.items():
+            self.assertEqual(result["status"], "succeeded")
+            self.assertEqual(result["text"], "fast answer")
+            self.assertEqual(result["usage"]["reasoning_tokens"], 0)
+            self.assertEqual(result["usage"]["budget"]["requested"]["reasoning_tokens"], 0)
+            self.assertEqual(result["usage"]["budget"]["effective"]["reasoning_tokens"], 0)
+            self.assertFalse(result["response_metadata"]["reasoning_preserved"])
+        # Fast request dictionaries must not mutate the deeper caller policy.
+        self.assertEqual(generation_settings("gather-v1")["reasoning_tokens"], 512)
+        self.assertTrue(generation_settings("gather-v1")["preserve_reasoning"])
 
     @classmethod
     def _supervisor_fixture(cls):

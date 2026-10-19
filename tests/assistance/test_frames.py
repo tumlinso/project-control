@@ -103,6 +103,32 @@ def _response(request, status, **fields):
 
 
 class TestFrameBroker(unittest.TestCase):
+    def test_cached_observer_uses_fast_policies_and_direct_assistance_keeps_reasoning(self):
+        requests = []
+        def factory(service, job):
+            class Worker:
+                def run_slice(self, request, *, max_model_turns):
+                    requests.append((job.question, request['trusted_turn_policy_id']))
+                    if not request['observations']:
+                        service.observe(job.job_id, job.attempt, {'status': 'completed', 'exit_code': 0,
+                                        'stdout': 'source context'})
+                        return _response(request, 'yielding', reason='slice_complete')
+                    return _response(request, 'completed', answer='source-backed answer')
+            return Worker()
+        harness = Harness(factory=factory)
+        scope = {**_scope('project-a'), 'profile': 'observer'}
+        try:
+            harness.service.inquire('cached scout', scope, foreground_timeout=0)
+            direct = harness.submit('direct assistance', scope)
+            harness.wait_for(lambda: len(harness.service.log(access_scope=scope)) == 2)
+            self.assertEqual([policy for question, policy in requests if question == 'cached scout'],
+                             ['fast-gather-v1', 'fast-synthesis-v1'])
+            self.assertEqual([policy for question, policy in requests if question == 'direct assistance'],
+                             ['gather-v1', 'synthesis-v1'])
+            self.assertEqual(harness.record(direct['job_id'])['status'], 'completed')
+        finally:
+            harness.close()
+
     def setUp(self):
         self._release_environment = {
             key: os.environ.get(key)

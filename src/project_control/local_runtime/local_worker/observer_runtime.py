@@ -34,7 +34,7 @@ _PRIVATE_CHILD_RESULT_KEYS = frozenset({
 })
 _PROTOCOL_FEEDBACK_ERRORS = frozenset({
     "invalid_json_object", "final_response_not_object", "invalid_private_wait_proposal",
-    "malformed_tool_envelope", "invalid_command_arguments",
+    "malformed_tool_envelope", "invalid_command_arguments", "final_phase_requires_answer",
 })
 
 
@@ -451,7 +451,7 @@ class ObserverWorkerPort:
             validate_policy_id(turn_policy_id)
         protocol_feedback = request.get("protocol_feedback", [])
         protocol_errors = {"invalid_json_object", "final_response_not_object", "invalid_private_wait_proposal",
-                           "malformed_tool_envelope", "invalid_command_arguments"}
+                           "malformed_tool_envelope", "invalid_command_arguments", "final_phase_requires_answer"}
         if (not isinstance(protocol_feedback, list) or len(protocol_feedback) > 4
                 or any(not isinstance(message, dict) or set(message) != {"role", "content"}
                     or message.get("role") != "user" or not isinstance(message.get("content"), str)
@@ -562,6 +562,22 @@ class ObserverWorkerPort:
             check()
             remaining_seconds(deadline_epoch)
             skill = request.get("skill")
+            initial_entries = set()
+            registered_entry_paths = set()
+            def successful_registered_entry_observation(observation, paths):
+                return (isinstance(observation, dict)
+                    and observation.get("status") == "completed"
+                    and observation.get("exit_code") == 0
+                    and not observation.get("truncated")
+                    and not observation.get("timed_out")
+                    and any(read.get("path") in paths
+                        and read.get("method") == "direct_cat"
+                        and isinstance(read.get("content_sha256"), str)
+                        and re.fullmatch(r"[0-9a-fA-F]{64}", read["content_sha256"]) is not None
+                        for read in observation.get("source_reads", []) if isinstance(read, dict)))
+            def is_mandatory_skill_entry_observation(observation):
+                return (request["mode"] == "skill"
+                    and successful_registered_entry_observation(observation, registered_entry_paths))
             if request["mode"] == "skill":
                 if not self.skills or len(self.skills) > 128:
                     raise ValueError("skill_registrations_unavailable")
@@ -577,6 +593,7 @@ class ObserverWorkerPort:
                     if not self.command.allows(registered_root) or not self.command.allows(registered_entry):
                         raise ValueError("skill_root_outside_trusted_mounts")
                     entries[name] = (registered_root, str(registered_entry))
+                registered_entry_paths.update(entry_path for _, entry_path in entries.values())
                 if skill is not None:
                     if (not isinstance(skill, dict) or set(skill) != {"name", "root"}
                             or skill.get("name") not in entries
@@ -593,11 +610,7 @@ class ObserverWorkerPort:
                             for read in observation.get("source_reads", [])
                             if isinstance(read, dict) and isinstance(read.get("path"), str)}
                 def entry_observed(source_observations=observations):
-                    return any(observation.get("status") == "completed"
-                               and observation.get("exit_code") == 0 and not observation.get("truncated")
-                               and any(read.get("path") in initial_entries and isinstance(read.get("content_sha256"), str)
-                                       and len(read["content_sha256"]) == 64
-                                       for read in observation.get("source_reads", []) if isinstance(read, dict))
+                    return any(successful_registered_entry_observation(observation, initial_entries)
                                for observation in source_observations)
                 def proposes_entry(tool, arguments):
                     argv, cwd = arguments.get("argv"), arguments.get("cwd")
@@ -637,7 +650,9 @@ class ObserverWorkerPort:
                 "You are a read-only investigator. Answer the supplied question using observed evidence. "
                 f"You have {max_steps - cumulative_turns} model rounds remaining out of {max_steps} total for this attempt. Reserve the final round for "
                 "final JSON synthesis of the evidence gathered so far, with unresolved work explicitly reported; "
-                "no further command or tool calls are permitted on that final round. "
+                "no further command or tool calls are permitted on that final round. When at least three rounds are available, "
+                "use the penultimate round for synthesis and the final round only for one correction if needed; stop gathering "
+                "before the penultimate round. No model-requested tools may be dispatched in either reserved round. "
                 "Answer promptly once gathered evidence suffices; the round budget is a maximum. "
                 "Runtime source roles: the active worker implementation is " + json.dumps(str(worker_source)) +
                 "; its paired production profile is " + json.dumps(str(production_profile)) +
@@ -728,6 +743,8 @@ class ObserverWorkerPort:
                 if slice_model_turns is not None and slice_turns_used >= slice_model_turns:
                     return snapshot("yielding", reason="slice_complete")
                 final_round = step == max_steps - 1
+                synthesis_round = max_steps >= 3 and step == max_steps - 2
+                final_answer_phase = final_round or synthesis_round
                 check()
                 remaining_seconds(deadline_epoch)
                 session = request.get("session_id")
@@ -742,6 +759,37 @@ class ObserverWorkerPort:
                             "remaining_steps": max_steps - step}
                 visible_observations = list(observations)
                 omitted_packet_ids = []
+                def mandatory_skill_entry_packet_ids():
+                    if request["mode"] != "skill":
+                        return []
+                    return [observation["packet_id"] for observation in visible_observations
+                        if is_mandatory_skill_entry_observation(observation)]
+                def evict_oldest_nonmandatory_observation():
+                    index = next((index for index, observation in enumerate(visible_observations)
+                        if not is_mandatory_skill_entry_observation(observation)), None)
+                    if index is None:
+                        return False
+                    removed = visible_observations.pop(index)
+                    packet_id = removed.get("packet_id")
+                    if isinstance(packet_id, str):
+                        omitted_packet_ids.append(packet_id)
+                    return True
+                def context_budget_partial(*, context_bytes=None, context_messages=None,
+                                           unresolved=None):
+                    required_entry_ids = mandatory_skill_entry_packet_ids()
+                    details = {"reason": "context_budget", "failure_classification": "context_budget",
+                        "context_message_limit": MODEL_TURN_MAX_MESSAGES}
+                    if context_bytes is not None:
+                        details.update(context_bytes=context_bytes, context_limit_bytes=MODEL_TURN_MAX_BYTES)
+                    if context_messages is not None:
+                        details["context_messages"] = context_messages
+                    if required_entry_ids:
+                        details.update(context_budget_cause="required_skill_entry_evidence",
+                            required_skill_entry_packet_ids=required_entry_ids)
+                        default_unresolved = ("The required registered SKILL.md entry evidence cannot fit within the model context budget.")
+                    else:
+                        default_unresolved = "The trusted request context exceeds the model turn limit."
+                    return snapshot("partial", **details, unresolved_questions=[unresolved or default_unresolved])
                 def eligible_packet_ids(items):
                     return {o["packet_id"] for o in items
                         if isinstance(o.get("packet_id"), str)
@@ -795,19 +843,24 @@ class ObserverWorkerPort:
                             "Review the visible retained public observations before acting; "
                             "this is a continuation of the supplied question, not a new investigation. "
                             "Decide whether their evidence is sufficient. If sufficient, return final JSON now with "
-                            "evidence-backed findings and any unresolved questions. Use additional commands/tools "
-                            "only to obtain missing evidence; do not restart initial reads or reread retained sources "
-                            "unless their evidence is incomplete, stale, or otherwise needs verification. "
-                            "For findings, use only allowed outer observation packet IDs; IDs nested inside source or "
+                            "evidence-backed findings and any unresolved questions. "
+                            + ("This is a reserved synthesis or correction phase; request no additional commands or tools, "
+                               "and report missing evidence as unresolved. " if final_answer_phase else
+                               "Use additional commands/tools only to obtain missing evidence; do not restart initial reads "
+                               "or reread retained sources unless their evidence is incomplete, stale, or otherwise needs verification. ")
+                            + "For findings, use only allowed outer observation packet IDs; IDs nested inside source or "
                             "tool payloads are not broker observation IDs."
                         )
                         if request["mode"] == "skill" and not entry_observed(visible_observations):
                             continuation += (" No registered installed entry has been successfully read in the "
-                                "visible observations. Read a relevant registered SKILL.md with direct cat before other commands/tools "
-                                "or final selection. Failed, truncated or omitted entry observations do not satisfy this prerequisite.")
+                                "visible observations. "
+                                + ("That prerequisite cannot be established in this reserved phase; report it as unresolved "
+                                   "and do not claim the entry was read. " if final_answer_phase else
+                                   "Read a relevant registered SKILL.md with direct cat before other commands/tools or final selection. ")
+                                + "Failed, truncated or omitted entry observations do not satisfy this prerequisite.")
                         messages.append({"role": "user", "content": json.dumps(
                             {"progress": turn_progress, "continuation": continuation}, ensure_ascii=False)})
-                    if final_round:
+                    if final_answer_phase:
                         synthesis_limits = (
                             "Keep the complete visible JSON within the configured 2,048-token completion budget. "
                             "Keep answer to at most 1,200 characters and findings to at most three concise items; "
@@ -819,10 +872,17 @@ class ObserverWorkerPort:
                                 " In skill_selection, include only the minimum necessary valid resources, at most three; "
                                 "keep synthesis concise and do not copy source excerpts into it."
                             )
+                        phase_instruction = ("This is the final permitted correction round. Return final JSON only; "
+                            if final_round and max_steps >= 3 else
+                            "This is the synthesis round. Return final JSON only; "
+                            if synthesis_round else
+                            "This is the final permitted model round. Return final JSON only; ")
                         messages.append({"role": "user", "content": json.dumps({
-                            "final_round": True,
-                            "instruction": "This is the final permitted model round. Return final JSON only; "
-                                "no further command or tool calls will be dispatched. Synthesize the visible source "
+                            "final_round": final_round,
+                            "synthesis_round": synthesis_round,
+                            "repair_round": final_round and max_steps >= 3,
+                            "instruction": phase_instruction +
+                                "No further command or tool calls will be dispatched. Synthesize the visible source "
                                 "evidence with allowed observed packet citations. Include the complete skill_selection "
                                 "when in skill mode. State incomplete or unverified work in unresolved_questions "
                                 "so the answer is explicitly partial; do not invent missing evidence or resources. "
@@ -836,7 +896,7 @@ class ObserverWorkerPort:
                         has_protocol_feedback=bool(protocol_feedback),
                         remaining=timeout_seconds)
                     response_schema = {"type": "object"}
-                    if final_round:
+                    if final_answer_phase:
                         references = sorted(eligible_packet_ids(visible_observations))
                         findings = {"type": "array", "maxItems": 3, "items": {
                             "type": "object", "additionalProperties": False,
@@ -896,19 +956,13 @@ class ObserverWorkerPort:
                         candidate["session_id"] = session
                     return candidate
                 while ((len(json.dumps(model_turn(), ensure_ascii=False).encode()) > MODEL_TURN_MAX_BYTES
-                        or len(messages) > MODEL_TURN_MAX_MESSAGES) and visible_observations):
-                    removed = visible_observations.pop(0)
-                    packet_id = removed.get("packet_id")
-                    if isinstance(packet_id, str):
-                        omitted_packet_ids.append(packet_id)
+                        or len(messages) > MODEL_TURN_MAX_MESSAGES)
+                        and evict_oldest_nonmandatory_observation()):
                     messages = build_messages()
                 turn = model_turn()
                 turn_size = len(json.dumps(turn, ensure_ascii=False).encode())
                 if turn_size > MODEL_TURN_MAX_BYTES or len(messages) > MODEL_TURN_MAX_MESSAGES:
-                    return snapshot("partial", reason="context_budget", failure_classification="context_budget",
-                        context_bytes=turn_size, context_limit_bytes=MODEL_TURN_MAX_BYTES,
-                        context_messages=len(messages), context_message_limit=MODEL_TURN_MAX_MESSAGES,
-                        unresolved_questions=["The trusted request context exceeds the model turn limit."])
+                    return context_budget_partial(context_bytes=turn_size, context_messages=len(messages))
                 while True:
                     response = self.backend.run_observer_turn(turn)
                     check()
@@ -923,33 +977,21 @@ class ObserverWorkerPort:
                     # The adapter's context preflight returns this before any
                     # completion. Drop the oldest visible observation and retry
                     # inside this semantic round, keeping its packet ID explicit.
-                    if reason in {"context_budget", "observer_context_budget"} and visible_observations:
-                        removed = visible_observations.pop(0)
-                        packet_id = removed.get("packet_id")
-                        if isinstance(packet_id, str) and packet_id not in omitted_packet_ids:
-                            omitted_packet_ids.append(packet_id)
+                    if reason in {"context_budget", "observer_context_budget"} and evict_oldest_nonmandatory_observation():
                         messages = build_messages()
-                        while (visible_observations and
-                               (len(messages) > MODEL_TURN_MAX_MESSAGES or
-                                len(json.dumps(model_turn(), ensure_ascii=False).encode()) > MODEL_TURN_MAX_BYTES)):
-                            removed = visible_observations.pop(0)
-                            packet_id = removed.get("packet_id")
-                            if isinstance(packet_id, str) and packet_id not in omitted_packet_ids:
-                                omitted_packet_ids.append(packet_id)
+                        while ((len(messages) > MODEL_TURN_MAX_MESSAGES or
+                                len(json.dumps(model_turn(), ensure_ascii=False).encode()) > MODEL_TURN_MAX_BYTES)
+                               and evict_oldest_nonmandatory_observation()):
                             messages = build_messages()
                         if (len(messages) > MODEL_TURN_MAX_MESSAGES or
                                 len(json.dumps(model_turn(), ensure_ascii=False).encode()) > MODEL_TURN_MAX_BYTES):
-                            return snapshot("partial", reason="context_budget",
-                                failure_classification="context_budget",
-                                context_messages=len(messages), context_message_limit=MODEL_TURN_MAX_MESSAGES,
-                                unresolved_questions=["The trusted request and required prompt exceed the model context budget."])
+                            return context_budget_partial(context_messages=len(messages),
+                                unresolved="The trusted request and required skill entry evidence exceed the model context budget.")
                         turn = model_turn()
                         continue
                     if reason in {"context_budget", "observer_context_budget"}:
-                        return snapshot("partial", reason="context_budget",
-                            failure_classification="context_budget",
-                            context_messages=len(messages), context_message_limit=MODEL_TURN_MAX_MESSAGES,
-                            unresolved_questions=["The trusted request and required prompt exceed the model context budget."])
+                        return context_budget_partial(context_messages=len(messages),
+                            unresolved="The trusted request context exceeds the model context budget.")
                     state = "queued_after_eviction" if "session_unavailable" in reason or "preempt" in reason else "yielding"
                     return snapshot(state, reason=reason)
                 text = response.get("text")
@@ -989,9 +1031,14 @@ class ObserverWorkerPort:
                         and isinstance(proposal.get("max_turns"), int)
                         and not isinstance(proposal.get("max_turns"), bool)
                         and 1 <= proposal["max_turns"] <= 2)
-                    if final_round:
+                    if final_answer_phase and final_round:
                         return snapshot("partial", reason="final_round_requires_answer",
                             unresolved_questions=["The final permitted model round cannot request a private child; no child was dispatched."])
+                    if final_answer_phase:
+                        protocol_feedback = [{"role": "user", "content": json.dumps({
+                            "protocol_error": "final_phase_requires_answer",
+                            "instruction": "No child or tool was dispatched. This is a reserved synthesis or repair round; return a valid final-answer object using only the retained observations."})}]
+                        continue
                     if valid_proposal and slice_model_turns is not None:
                         return snapshot("yielding", reason="private_wait_proposed", private_wait=proposal)
                     protocol_feedback = [{"role": "user", "content": json.dumps({
@@ -999,10 +1046,15 @@ class ObserverWorkerPort:
                         "instruction": "No child was dispatched. A private wait requires exactly one private_wait object with kind child, a nonempty question of at most 512 characters, and integer max_turns 1 or 2. Continue using the retained evidence or return a final answer."})}]
                     continue
                 if "tool" in value:
-                    if final_round:
+                    if final_answer_phase and final_round:
                         return snapshot("partial", reason="final_round_requires_answer",
                             unresolved_questions=["The final model round proposed another tool instead of "
                                 "synthesizing retained evidence; no additional tool was dispatched."])
+                    if final_answer_phase:
+                        protocol_feedback = [{"role": "user", "content": json.dumps({
+                            "protocol_error": "final_phase_requires_answer",
+                            "instruction": "No tool was dispatched. This is a reserved synthesis or repair round; return a valid final-answer object using only the retained observations."})}]
+                        continue
                     tool, arguments = value.get("tool"), value.get("arguments")
                     if (not isinstance(tool, str) or tool not in TOOLS or not isinstance(arguments, dict)
                             or set(value) != {"tool", "arguments"}):
@@ -1078,6 +1130,11 @@ class ObserverWorkerPort:
                                 "validation feedback packets. Allowed outer observation packet IDs: " + json.dumps(allowed_ids)}, guard)
                         observe(feedback)
                         continue
+                    if final_round:
+                        classification = str(error)[:80]
+                        return snapshot("partial", reason=classification,
+                            failure_classification=classification,
+                            unresolved_questions=["The final skill answer failed validation: " + str(error)[:200]])
                     check()
                     feedback = self.command._packet({"status": "denied", "reason": "skill_final_validation_failed",
                         "validation_error": str(error)[:500], "accepted": False,

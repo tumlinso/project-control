@@ -97,8 +97,8 @@ def discover_state_directories(
     return sorted(directories, key=lambda path: str(path)), reports
 
 
-def _systemd_quote(path: Path) -> str:
-    value = str(path)
+def _systemd_quote(path: Path, *, optional: bool = False) -> str:
+    value = ("-" if optional else "") + str(path)
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
@@ -108,10 +108,10 @@ def render_drop_in(directories: Iterable[Path]) -> str:
         return ""
     lines = [
         "# Managed by project-control/scripts/configure_source_state_paths.py",
-        "# Grants SQLite WAL bookkeeping only in existing canonical Todo state directories.",
+        "# Optional SQLite WAL bookkeeping grants for selected canonical Todo state directories.",
         "[Service]",
     ]
-    lines.extend(f"ReadWritePaths={_systemd_quote(path)}" for path in paths)
+    lines.extend(f"ReadWritePaths={_systemd_quote(path, optional=True)}" for path in paths)
     return "\n".join(lines) + "\n"
 
 

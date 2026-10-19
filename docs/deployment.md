@@ -103,6 +103,13 @@ For one workspace, use its configured workspace ID instead:
 scripts/pc-dev python scripts/configure_source_state_paths.py --project project-control
 ```
 
+Each rendered `ReadWritePaths` entry is optional (`-` prefixes the exact quoted
+path). If a selected repository or its Todo state directory is removed after
+the drop-in is rendered, systemd ignores that missing grant, so absent
+repository state does not block core HTTP startup. The helper continues to
+emit only exact canonical Todo state directories, and the unit's
+`ProtectHome=read-only` policy remains in force outside those narrow grants.
+
 After reviewing the rendered paths, apply either an explicitly selected
 workspace or the reviewed all-workspaces set:
 

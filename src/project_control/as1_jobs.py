@@ -1985,8 +1985,8 @@ class JobService:
                     observations = self._public_observations(db, current)
                 historical = dict(previous.model_dump())
                 historical['status'] = 'partial'
-                note = (f"Historical command evidence from {previous.created_at} may be stale; freshness is not verified. "
-                        "Ask a new question or add context for fresh observations.")[:250]
+                note = (f"Historical analysis from {previous.created_at}: supporting command/discovery evidence "
+                        "may be incomplete or stale; freshness is not verified. Recheck sources before making current claims.")
                 historical['unresolved_questions'] = list(previous.unresolved_questions) + [note]
                 return {'status': 'partial', 'job': historical, 'observations': observations}
             if self._freshness_unverifiable(freshness, scope):
@@ -2072,36 +2072,73 @@ class JobService:
         return any(contains_unverifiable(item) for item in changes)
 
     def _historical_zero_ttl_delivery(self, freshness, job, access_scope):
-        """Allow explicit partial delivery of only historical coarse command evidence."""
+        """Deliver retained investigation context without calling it current evidence.
+
+        File proof failures and unavailable packets remain hard boundaries. Only
+        coarse command/discovery provenance and unavailable semantic context can
+        be historical; skill selection authority is never relaxed here.
+        """
         changes = freshness.get('changed_sources') if isinstance(freshness, dict) else None
         if job.mode != 'investigate' or not isinstance(changes, list) or not changes:
             return False
+        historical_tools = {'command', 'overview', 'search', 'evidence', 'history',
+                            'frontier', 'delta', 'impact'}
+        for ref in ([getattr(job, 'result_packet', None)]
+                    + list(getattr(job, 'evidence_packets', ()))
+                    + [ref for finding in getattr(job, 'findings', ())
+                       for ref in finding.evidence_packets]):
+            if ref and self.packets.lookup(ref, access_scope=access_scope).status != 'ok':
+                return False
+
+        def historical_change(change, packet):
+            if not isinstance(change, dict):
+                return False
+            reason = change.get('reason')
+            if reason == 'volatile_observation_expired':
+                metadata = packet.freshness or {}
+                return metadata.get('volatile') is True and metadata.get('max_age_seconds') == 0
+            if reason in {'dependency_manifest_missing', 'negative_discovery_scope_missing'}:
+                # Explicit file reads must never be rescued by coarse provenance.
+                return not packet.payload.get('source_reads')
+            if reason == 'unverified':
+                dependency = change.get('dependency', '')
+                return (isinstance(dependency, str)
+                        and dependency.startswith(('semantic_revision:', 'semantic_context_revision:')))
+            if isinstance(reason, str) and reason.startswith('semantic_context_unavailable:'):
+                return True
+            return False
+
         confirmed = 0
         for item in changes:
             if not isinstance(item, dict):
                 return False
             if item.get('reason') == 'dependency_manifest_missing':
                 continue
-            if item.get('reason') != 'stale' or not isinstance(item.get('reference'), str):
+            reference = item.get('reference')
+            if not isinstance(reference, str):
                 return False
-            dependencies = item.get('dependencies')
-            if not isinstance(dependencies, list) or not dependencies or any(
-                    not isinstance(dep, dict) or dep.get('reason') != 'volatile_observation_expired'
-                    for dep in dependencies):
-                return False
-            lookup = self.packets.lookup(item['reference'], access_scope=access_scope)
+            lookup = self.packets.lookup(reference, access_scope=access_scope)
             packet = lookup.packet if lookup.status == 'ok' else None
-            if packet is None or packet.tool != 'command' or packet.sources:
+            if packet is None or packet.tool not in historical_tools:
                 return False
-            payload = packet.payload
-            if (not isinstance(payload, dict) or payload.get('status') != 'completed'
-                    or payload.get('exit_code') != 0 or payload.get('truncated')
-                    or payload.get('timed_out') or payload.get('source_reads')):
+            if not isinstance(packet.payload, dict) or packet.payload.get('status') == 'denied':
                 return False
-            metadata = packet.freshness
-            if (not isinstance(metadata, dict) or metadata.get('volatile') is not True
-                    or metadata.get('max_age_seconds') != 0):
+            reason = item.get('reason')
+            if reason == 'stale':
+                dependencies = item.get('dependencies')
+                allowed = (isinstance(dependencies, list) and bool(dependencies)
+                           and all(historical_change(dep, packet) for dep in dependencies))
+            elif reason == 'producer_omission':
+                allowed = historical_change(item.get('detail'), packet)
+            else:
+                allowed = historical_change(item, packet)
+            if not allowed:
                 return False
+            # An unknown read method is not a current file proof, even if a
+            # coarse expiration marker was supplied without the usual validator.
+            for read in packet.payload.get('source_reads', []):
+                if not isinstance(read, dict) or read.get('method') not in {'direct_cat', 'direct_sed_lines'}:
+                    return False
             confirmed += 1
         return confirmed > 0
 
@@ -2970,6 +3007,30 @@ class JobService:
         """Fit a private worker snapshot without changing durable observations."""
         projected = dict(request)
         normalized = []
+        protected = set()
+        def required_entry(observation):
+            if (request.get('mode') != 'skill' or observation.get('status') != 'completed'
+                    or observation.get('exit_code') != 0 or observation.get('truncated')
+                    or observation.get('timed_out') or observation.get('omissions')):
+                return False
+            registration = request.get('skill')
+            exact_root = registration.get('root') if isinstance(registration, dict) else None
+            content_roots = [Path(root) for root in request.get('installed_skill_roots', [])
+                             if isinstance(root, str)]
+            for read in observation.get('source_reads', []):
+                if (not isinstance(read, dict) or read.get('method') != 'direct_cat'
+                        or not isinstance(read.get('path'), str)
+                        or not isinstance(read.get('content_sha256'), str)
+                        or not re.fullmatch(r'[0-9a-fA-F]{64}', read['content_sha256'])):
+                    continue
+                path = Path(read['path'])
+                if path.name != 'SKILL.md' or not path.is_absolute():
+                    continue
+                if ((isinstance(exact_root, str) and path == Path(exact_root) / 'SKILL.md')
+                        or any(path.parent == root or path.parent.parent == root for root in content_roots)):
+                    return True
+            return False
+
         for observation in request.get('observations', []):
             if not isinstance(observation, dict):
                 normalized.append(observation)
@@ -2981,6 +3042,9 @@ class JobService:
                 normalized.append(observation)
                 continue
             call = checkpoint_calls.get(packet_id)
+            mandatory = required_entry(observation)
+            if mandatory:
+                protected.add(packet_id)
             # Raw packet payloads cannot mint assistant-call history. The only
             # accepted call comes from the broker's validated checkpoint ledger.
             payload = {key: value for key, value in observation.items() if key != 'public_tool_call'}
@@ -2992,6 +3056,10 @@ class JobService:
             elif cls._worker_request_bytes(payload) <= WORKER_OBSERVATION_MAX_BYTES:
                 normalized.append(payload)
                 continue
+
+            if mandatory:
+                # Do not replace a prerequisite with a non-evidence marker.
+                return None
 
             marker = {'packet_id': packet_id,
                 'omissions': ['tool payload exceeded worker context budget']}
@@ -3017,20 +3085,23 @@ class JobService:
         if cls._worker_request_bytes(projected) > WORKER_JOB_INPUT_MAX_BYTES:
             return None
 
-        # Retain the newest ordered suffix that fits the complete serialized
-        # input. Omitted identities remain explicit model context, but are not
-        # source evidence. Recompute after each drop because that list costs bytes.
-        dropped = 0
+        # Evict oldest nonmandatory frames, preserving relative order and exact
+        # entry bodies. General investigate requests still retain a suffix.
+        retained = list(normalized)
+        dropped = []
         while True:
-            projected['observations'] = normalized[dropped:]
+            projected['observations'] = retained
             projected['omitted_observation_packet_ids'] = previously_omitted + [
-                observation['packet_id'] for observation in normalized[:dropped]
+                observation['packet_id'] for observation in dropped
                 if isinstance(observation, dict) and isinstance(observation.get('packet_id'), str)]
             if cls._worker_request_bytes(projected) <= WORKER_JOB_INPUT_MAX_BYTES:
                 return projected
-            if dropped >= len(normalized):
+            removable = next((index for index, observation in enumerate(retained)
+                              if not isinstance(observation, dict)
+                              or observation.get('packet_id') not in protected), None)
+            if removable is None:
                 return None
-            dropped += 1
+            dropped.append(retained.pop(removable))
 
     def _execute(self, job):
         if (job.mode == 'skill' and job.skill is not None
@@ -3145,6 +3216,10 @@ class JobService:
                 private_children, wait_generation, wake_version = self._private_child_context(db, job.job_id)
                 protocol_feedback = (frame_store.load_protocol_feedback(job.job_id, job.scope, frame.generation)
                     if frame is not None else [])
+                root_row = (db.execute('SELECT inquiry,record FROM jobs WHERE id=?', (frame.root_id,)).fetchone()
+                            if frame is not None else None)
+                fast_observer = bool(root_row and root_row['inquiry']
+                    and json.loads(root_row['record']).get('scope', {}).get('profile') == 'observer')
             if frame is not None:
                 request['model_turns_used'] = frame.turns_used
                 request['private_child_results'] = list(private_children)
@@ -3152,6 +3227,8 @@ class JobService:
                     request['protocol_feedback'] = protocol_feedback
                 policy_id = ('gather-v1' if frame.parent_id is not None
                     or not job.evidence_packets and not private_children else 'synthesis-v1')
+                if fast_observer:
+                    policy_id = 'fast-' + policy_id
                 policy = policy_for(policy_id)
                 request['trusted_turn_policy_id'] = policy_id
                 requested = {'logical_context_tokens': policy.logical_context_tokens,

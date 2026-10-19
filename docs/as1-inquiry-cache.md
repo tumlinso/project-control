@@ -45,7 +45,18 @@ Missing, expired, unverifiable, changed or conflicting required material cannot
 be called fresh. Coarse arbitrary command provenance and volatile machine facts
 retain their conservative freshness behavior.
 
-An exact repeat of a stale supported answer schedules a new generation preseeded with the previous
+For settled investigations, retained answers can instead be returned as
+historical `partial` results when the remaining limitations are zero-TTL
+command/discovery observations, missing command/discovery provenance, or
+unavailable semantic context. The original analysis timestamp and an explicit
+freshness caveat appear in `unresolved_questions`; stored jobs and evidence
+are not rewritten. Failed or incomplete commands remain historical observations,
+not current proof. Unavailable packets and changed or unverifiable file hashes
+remain blocking conditions. This exception never applies to skill authority.
+Skill manifests retain only validated selections; rejected resources are listed
+in their existing unresolved information.
+
+An exact repeat of a refreshable stale supported answer schedules a new generation preseeded with the previous
 answer, visible evidence and changed-source information. The agent checks what
 changed, preserves still-valid work and obtains missing evidence. This is visible
 context reuse, without cached hidden reasoning or opaque model state. Old
@@ -84,6 +95,16 @@ mechanics. The cache retains the 50 most recently answered inquiries globally.
 Internal log retrieval filters that global window by trusted source access and
 returns at most five lexical matches; it does not create a private window per
 caller or profile. Legacy answered jobs join the same global retrieval window.
+
+Public cached observer inquiries and their private child slices use request-local
+`fast-gather-v1` and `fast-synthesis-v1` policies with thinking off. Their context
+and visible-output budgets match the corresponding existing policies; direct
+assistance retains its deeper policies and global model configuration is unchanged.
+Skill context trimming retains successfully read registered entry bodies before
+other observations. The six-turn worker reserves the last two turns for synthesis
+and one correction, without dispatching model-requested tools in either turn.
+Final skill validation failures retain their specific cause. One- and two-turn
+compatibility callers retain their final-only answer phase.
 
 Inquiry adapters run their foreground wait outside the HTTP event loop, so
 other inquiries and health checks remain responsive. Malformed model JSON is

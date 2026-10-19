@@ -16,6 +16,7 @@ import pytest
 from project_control.as1_contracts import SourceLocator
 from project_control.as1_jobs import JobService, TrustedObserverFactory
 from project_control.as1_packets import SQLitePacketStore
+from project_control.as1_surface import InquiryFreshness
 from project_control.as1_skill import SkillObserverFactory, SkillService
 import project_control.as1_skill as skill_module
 import project_control.skills as skills_module
@@ -486,18 +487,44 @@ def test_cancel_during_real_model_turn_fences_selection_and_checkpoint(tmp_path)
 
 
 @pytest.mark.as1_case('SKL-03')
-def test_real_port_mixed_selection_keeps_valid_source_with_unverified_hash_omission(tmp_path):
+@pytest.mark.parametrize('rejected_resource', ['bad_hash', 'root_prefixed'])
+def test_skill_inquiry_persists_valid_subset_and_reuses_mixed_selection_result(tmp_path, rejected_resource):
     root = fixture_root(tmp_path)
     choices = [item(root, 'fixture', 'resource.md', 1, 2), item(root, 'fixture', 'resource.md', 3, 6)]
-    choices[1]['content_sha256'] = '0'*64
+    if rejected_resource == 'bad_hash':
+        choices[1]['content_sha256'] = '0'*64
+    else:
+        choices[1]['resource'] = 'fixture/resource.md'
     backend = Turns([command(root/'fixture/SKILL.md'), command(root/'fixture/resource.md'), final(choices)])
-    service, jobs = make(tmp_path, root, backend); jobs.start()
+    service, jobs = make(tmp_path, root, backend)
+    composition = SimpleNamespace(store=jobs.packets, jobs=jobs, skills=service,
+                                  host=SimpleNamespace(projects=set()))
+    jobs.freshness_provider = InquiryFreshness(composition)
+    jobs.start()
     try:
-        admitted = service.submit(query='Keep valid selection when a second selection is stale', skill='fixture', access_scope=SCOPE)
-        assert finish(service, admitted)['job']['status'] == 'completed'
-        result = service.poll(admitted['job_id'], access_scope=SCOPE, detail='extended')
-        assert len(result['excerpts']) == 1 and result['excerpts'][0]['line_start'] == 1
-        assert result['status'] == 'partial' and result['omissions'][0]['reason'] == 'unverified_reader_hash'
+        query = 'Keep valid selection when a second selection is stale'
+        result = service.inquire(query=query, skill='fixture', access_scope=SCOPE)
+        assert result['status'] == 'partial' and len(result['excerpts']) == 1
+        assert result['excerpts'][0]['line_start'] == 1
+        assert not result['omissions']
+        rejected_label = f"Rejected selection fixture/{choices[1]['resource']}:"
+        assert any(rejected_label in note and
+                   'skill_selected_resource_not_read_agentically' in note for note in result['unresolved'])
+
+        cached_job = jobs.inquire(query, SCOPE, mode='skill', skill='fixture')
+        assert cached_job['status'] == 'completed'
+        result_packet = jobs.packets.lookup(cached_job['job']['result_packet'], access_scope=SCOPE)
+        assert result_packet.status == 'ok'
+        manifest = result_packet.packet.payload['skill_selection']
+        assert manifest['selections'] == [choices[0]]
+        assert manifest['unresolved'] == result['unresolved']
+
+        turns = len(backend.requests)
+        repeated = service.inquire(query=query, skill='fixture', access_scope=SCOPE)
+        assert len(backend.requests) == turns
+        assert repeated['status'] == result['status']
+        assert repeated['excerpts'] == result['excerpts']
+        assert repeated['unresolved'] == result['unresolved']
     finally:
         jobs.shutdown()
 
@@ -553,7 +580,7 @@ def test_cross_skill_entry_precedes_first_resource_read_in_durable_provenance(tm
         elif order == 'reversed':
             assert completed['job']['status'] == 'partial'
             assert not result.get('excerpts')
-            assert result['reason'] == 'step_budget_exhausted'
+            assert result['reason'] == 'selected_skill_entry_must_precede_resource'
             feedback = [observation for observation in completed['observations']
                         if observation.get('reason') == 'skill_final_validation_failed']
             assert feedback
@@ -579,7 +606,9 @@ def test_mixed_ordered_and_reversed_cross_skill_selections_keep_valid_excerpt(tm
         result = service.poll(admitted['job_id'], access_scope=SCOPE, detail='extended')
         assert result['status'] == 'partial' and len(result['excerpts']) == 1
         assert result['excerpts'][0]['skill'] == 'fixture'
-        assert result['omissions'][0]['reason'] == 'skill_entry_read_after_resource'
+        assert not result['omissions']
+        assert any('Rejected selection prerequisite/resource.md:' in note and
+                   'selected_skill_entry_must_precede_resource' in note for note in result['unresolved'])
     finally:
         jobs.shutdown()
 

@@ -106,7 +106,7 @@ class SkillObserverFactory:
                 raise ValueError('invalid_skill_selection')
             stored = service.lookup(job.job_id, access_scope=job.scope)
             reads = _verified_reads(service.packets, stored['job'], stored['observations'], job.scope)
-            valid, errors = 0, []
+            valid, rejected, errors = [], [], []
             for item in manifest.selections:
                 if not guard():
                     raise RuntimeError('stale_attempt')
@@ -128,15 +128,23 @@ class SkillObserverFactory:
                         raise ValueError('selected_skill_entry_hash_mismatch')
                     validate({'format': manifest.format, 'selections': [item.model_dump(exclude_none=True)],
                               'synthesis': manifest.synthesis}, entry, observe, guard, reads, deadline_epoch=deadline_epoch)
-                    valid += 1
+                    valid.append(item.model_dump(exclude_none=True))
                 except (ValueError, OSError) as error:
                     if not guard():
                         raise RuntimeError('stale_attempt') from error
-                    errors.append(str(error))
+                    reason = str(error)[:200]
+                    errors.append(reason)
+                    rejected.append((f'Rejected selection {item.skill}/{item.resource}: {reason}')[:500])
             if not valid:
                 raise ValueError(errors[0] if errors else 'invalid_skill_selection')
-            # Preserve the original model manifest unchanged. The broker rejects
-            # each failed selection independently and retains valid excerpts.
+            if rejected:
+                # The manifest is the durable handoff to broker freshness and
+                # excerpt assembly. Persist exactly the subset validated above
+                # so those later stages cannot reconsider rejected resources.
+                if not isinstance(selection, dict):
+                    raise ValueError('invalid_skill_selection')
+                selection['selections'] = valid
+                selection['unresolved'] = list(manifest.unresolved or []) + rejected
 
         worker._validate_selection = validate_registered
         original_backend = worker.backend

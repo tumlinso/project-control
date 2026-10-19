@@ -21,7 +21,8 @@ DEFAULT_MODEL_TURN_LIMIT = 6
 _TERMINAL = frozenset({"completed", "failed", "cancelled", "expired", "partial"})
 _ORIGIN_CLASSES = frozenset({"public_demand", "automatic"})
 _PROTOCOL_ERRORS = frozenset({"invalid_json_object", "final_response_not_object",
-    "invalid_private_wait_proposal", "malformed_tool_envelope", "invalid_command_arguments"})
+    "invalid_private_wait_proposal", "malformed_tool_envelope", "invalid_command_arguments",
+    "final_phase_requires_answer"})
 
 
 class FrameError(ValueError):
