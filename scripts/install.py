@@ -17,7 +17,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build an isolated Project Control candidate")
     parser.add_argument("--project-control-root", type=Path, required=True)
     parser.add_argument("--todo-wheel", type=Path, required=True,
-                        help="explicit standalone todo-orchestrator==0.2.0 wheel to install")
+                        help="explicit standalone todo-orchestrator==0.2.1 wheel to install")
     parser.add_argument(
         "--skills-root",
         type=Path,

@@ -1,10 +1,10 @@
 # Project Control
 
 Project Control provides registered-workspace inspection, source navigation,
-project metadata, observer jobs and demand-driven local assistance. Workflow
-state is owned by the independently installed **Todo Orchestrator 0.2.0**.
-Project Control 0.4.0 binds its public API to trusted profiles and real Git,
-command and host-observation providers. The MCP surface schema is **11**.
+project metadata, observer jobs, and demand-driven local assistance. Todo state
+is owned by the independently installed Todo Orchestrator engine. Project
+Control presents the compact agent workflow over that engine; use the active
+runtime metadata and MCP manifest for deployed versions and exact schemas.
 
 ## Development
 
@@ -31,42 +31,39 @@ not included in this distribution. Setup verifies the pinned wheel hash and
 installed Python-source fingerprint. Source and frozen-release deployments
 retain separate identities.
 
-## Native Todo workflow
+## Todo workflow
 
-Use the generated MCP `tools/list` response for the authoritative profile
-surface and argument schemas. Registered workspace operations use a project
-ID and optional repository alias; credentials and filesystem roots are supplied
-by the host.
+Project Control keeps its compact, agent-facing workflow: call
+`next_task(project, repository?, task_id?, run_id?)` to prepare or resume work,
+then use its returned handle with `inspect_task`, `coordinate_task`, and
+`finish_task`. Those tools supply bounded context, typed coordination, and
+complete, hand off, block, or release work. The calls hide native authority
+IDs, leases, credentials, and retry bookkeeping from ordinary agents. The live
+MCP manifest is authoritative for exact argument schemas.
 
-1. Read bounded state with `todo_read_authority` and inspect the relevant work.
-2. Review `todo_preview_plan`, then commit that exact preview using
-   `todo_commit_plan` from the mutator profile.
-3. Open a run if needed, create an isolated workspace and dispatch an attempt
-   with the corresponding `todo_*` tools.
-4. Execute authorized work, verify declared checks and report its candidate.
-   Outcome acceptance and integration remain explicit operations.
-5. Inspect uncertainty before recovery; preserve unknown effects and source.
+The observer retains its existing 11 read-only tools. The current compact
+profile catalogs are observer 11, coder 12, and mutator 16 tools. Use its
+established `overview`, `search`, `delta`, `frontier`, `history`, `evidence`,
+and `impact` entry points for workspace context and migrated Todo status/history.
+An observer does not need a task claim and cannot mutate workflow state.
 
-Coder/Codex profiles can execute the granted workflow; plan commitment,
-acceptance and administrative recovery belong to the mutator. Observer profiles
-cannot mutate Todo. Native child coordination uses host-issued identity and
-private bearer delivery. It does not launch an engineering worker. Physical
-resource permits require a separately configured trusted adapter; Project
-Control retains its existing host-resource and GPU control tools.
+Privileged profiles retain `plan`, `maintain_execution`, and `amend_project`
+for reviewed plan changes, operational recovery, and project metadata. Native
+Todo capabilities belong behind these established routes or the four workflow
+calls; they should be implemented fully where available, not represented by
+placeholder actions. The standalone Todo package still exposes its granular
+public API and CLI to clients operating a separately managed authority.
 
-Imported task IDs and statuses are available through
-`todo_read_legacy_current_tasks`; immutable history and declarations are exposed
-through `todo_search_legacy_history` and `todo_read_legacy_project_context`.
-Imported completion assertions preserve legacy completion without inventing
-native verification receipts. Unsupported contracts and uncertain old effects
-remain visible for attention. Legacy Markdown projections are archival.
+The host owns authorization, workspace selection, identifiers, and provider
+bindings. Imported completion assertions preserve their legacy provenance and
+do not invent native verification. Unknown prior effects remain visible for
+attention and are never replayed automatically. Project Control's existing
+source, observer, and host-resource tools retain their own purposes.
 
-The previous `next_task`, `inspect_task`, `coordinate_task`, `finish_task` and
-legacy Todo administration shapes have been replaced by native operations.
-Existing client sessions must reconnect to receive the schema-11 tool manifest.
-Project Control's non-Todo read tools and mutator-only `amend_project` remain;
-the latter owns project identity, relations, generation/provider metadata,
-orientation and skill-use declarations.
+After a deployment changes the MCP manifest, reconnect the client to load the
+active tool list. Source documentation describes the intended compact contract;
+use `tools/list` and the current readiness endpoint to verify what a running
+service actually exposes.
 
 ## Service operation
 

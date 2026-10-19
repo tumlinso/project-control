@@ -113,10 +113,10 @@ PERFORMANCE_PROBE = ToolAnnotations(
 )
 
 MUTATOR_INSTRUCTIONS = (
-    "Use todo_preview_plan and todo_commit_plan for explicit native plan transactions. "
-    "Use the todo_* operations for runs, attempts, declarations, outcomes and recovery. "
-    "Project Control binds project roots, host principals, profiles and providers at startup; "
-    "tool arguments cannot select credentials, repositories or another identity."
+    "Use plan to inspect, preview and apply reviewed plan changes. Use the compact workflow "
+    "tools for execution, review and integration, and maintain_execution for recovery. "
+    "Project Control binds registered repositories, host principals, credentials and providers; "
+    "workflow handles carry the current scope and permitted next steps."
 )
 
 OverviewDetail = Literal["compact", "standard", "expanded"]
@@ -322,7 +322,7 @@ def create_mcp(
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request):
-        return JSONResponse({"name": "project-control", "version": "0.4.0", "tool_schema_version": 11,
+        return JSONResponse({"name": "project-control", "version": "0.4.1", "tool_schema_version": 12,
                              "features": mcp.feature_metadata})
 
     setattr(mcp, "_project_control_runtime", runtime)

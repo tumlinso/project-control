@@ -107,8 +107,8 @@ def _wheel_version(wheel: Path) -> str:
             if key in fields:
                 raise InstallError("standalone Todo wheel metadata has duplicate identity fields")
             fields[key] = value
-    if fields != {"Name": "todo-orchestrator", "Version": "0.2.0"}:
-        raise InstallError("standalone Todo wheel must be todo-orchestrator==0.2.0")
+    if fields != {"Name": "todo-orchestrator", "Version": "0.2.1"}:
+        raise InstallError("standalone Todo wheel must be todo-orchestrator==0.2.1")
     return fields["Version"]
 
 
@@ -123,7 +123,7 @@ def _todo_runtime_lock(project_root: Path, todo_wheel: Path) -> dict:
     if (not isinstance(value, dict) or set(value) != expected
             or value.get("format") != "project-control.todo-runtime-lock"
             or value.get("version") != 1 or value.get("distribution") != "todo-orchestrator"
-            or value.get("distribution_version") != "0.2.0"
+            or value.get("distribution_version") != "0.2.1"
             or type(value.get("provisional")) is not bool):
         raise InstallError("Project Control Todo pairing lock has an unsupported shape or package version")
     if value["provisional"] and os.environ.get("PROJECT_CONTROL_ALLOW_PROVISIONAL_TODO") != "1":
@@ -270,7 +270,7 @@ def _bind_todo_package(temporary: Path, destination: Path, release: dict, todo_w
     if todo_lock["package_fingerprint"] is not None and todo_lock["package_fingerprint"] != fingerprint:
         raise InstallError("installed Todo source differs from the paired runtime lock")
     release["todo_distribution"] = {
-        "name": "todo-orchestrator", "version": "0.2.0",
+        "name": "todo-orchestrator", "version": "0.2.1",
         "package_path": str((destination / relative).resolve()),
         "fingerprint": fingerprint,
         "wheel_sha256": _sha256_file(todo_wheel),

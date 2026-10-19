@@ -1,7 +1,8 @@
-> Current runtime: Project Control 0.4.0 / MCP schema 11 uses the independently
-> installed Todo Orchestrator 0.2.0 and native `todo_*` tools. Follow the
-> [current README](../README.md) for setup, paired-wheel verification and
-> workflow operations. Legacy Todo commands below are historical context.
+> Project Control is the agent-facing workflow front door for the independently
+> installed Todo engine. Use `next_task`, `inspect_task`, `coordinate_task`,
+> and `finish_task` for routine workflow work. The live MCP manifest is the
+> source of truth until the compact-surface integration is deployed and
+> qualified.
 
 # Codex setup
 
@@ -22,19 +23,28 @@ scripts/pc-dev run codex
 ```
 
 The first command creates or synchronizes the normal repository environment.
-The source launcher imports Project Control and bundled Todo directly from
-`src/`, clears inherited release and interpreter pins, and does not build a
-wheel. Configure Codex to invoke the absolute checkout path to `scripts/pc-dev`
-with arguments `run`, `codex`. Restart the Project Control service after source
-edits; reconnect the stdio MCP client after changing its registration or the
-tools it has cached. See [development](development.md) for tests and
-[deployment](deployment.md) for restart and readiness checks.
+Configure Codex to invoke the absolute checkout path to `scripts/pc-dev` with
+arguments `run`, `codex`. Begin workflow work with
+`next_task(project, repository?, task_id?, run_id?)`; pass the returned handle
+to `inspect_task`, `coordinate_task`, and `finish_task`. Use the permitted
+actions instead of managing native leases, credentials, or operation IDs.
+Plan and execution-maintenance tools remain privileged according to the
+configured profile. The host's current `tools/list` response remains the
+authority for exact schemas and permissions.
 
-Read-only questions and investigations do not need a task claim. For substantial
-workflow work, use the current Project Control workflow tools and task context
-when available. A temporarily unavailable service does not prevent authorized
-direct checkout work or source tests. Semantic workflow mutations still go
-through Todo's transaction and authorization guards.
+Restart the Project Control service after source edits and reconnect the stdio
+MCP client after a deployed tool-manifest change. See [development](development.md)
+for tests and [deployment](deployment.md) for restart and readiness checks.
+
+Read-only questions and investigations do not need a task claim. Project
+Control's observer keeps its existing 11 read-only tools. The current compact
+profile catalogs are observer 11, coder 12, and mutator 16 tools. Observer
+reads include `overview`,
+`search`, `delta`, `frontier`, `history`, `evidence`, and `impact` for project
+and migrated workflow context. Observer access does not grant mutation rights.
+A temporarily unavailable service does not prevent authorized direct checkout
+work or source tests. Semantic workflow changes still pass through Todo's
+transaction and authorization guards behind the compact interface.
 
 ## Delegation
 

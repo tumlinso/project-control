@@ -13,7 +13,7 @@ from pathlib import Path
 
 LOCK_FORMAT = "project-control.todo-runtime-lock"
 LOCK_NAME = "todo-orchestrator"
-LOCK_VERSION = "0.2.0"
+LOCK_VERSION = "0.2.1"
 
 
 def fingerprint(root: Path) -> str:

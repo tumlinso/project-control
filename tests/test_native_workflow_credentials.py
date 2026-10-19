@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -133,7 +134,7 @@ def test_host_review_and_integration_use_host_session_but_worker_effects_use_att
                                      "plan_revision_id": "plan-1", "idempotency_key": "key-heartbeat"},
                                     "attempt", "heartbeat_attempt", "attempt-42"),
         "todo_release_attempt": ({"attempt_id": "attempt-42", "lease_id": "lease-1",
-                                   "idempotency_key": "key-release"}, "attempt", "release_attempt", "attempt-42"),
+                                   "idempotency_key": "key-release"}, "host", "release_attempt", "attempt-42"),
         "todo_reserve_resource": ({"attempt_id": "attempt-42", "resource_class": "cpu", "units": 1,
                                     "idempotency_key": "key-resource-reserve"},
                                    "attempt", "reserve_resource", "attempt-42"),
@@ -150,3 +151,169 @@ def test_host_review_and_integration_use_host_session_but_worker_effects_use_att
             assert session.calls[-1][2] == "lease-1"
         assert session.closed
     assert forgotten_attempts == [("trusted-mutator", "mutator", "attempt-42")]
+
+
+def test_internal_handback_uses_host_role_and_returns_the_native_receipt(tmp_path: Path):
+    from todo_orchestrator.contracts import StableId
+    from todo_orchestrator.api.serialization import ApiReceiptV1
+
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    api_receipt = ApiReceiptV1(
+        "todo.attempt.authoring_handoff", 5, True, StableId("receipt-1"), StableId("event-1"),
+        datetime.now(timezone.utc), {
+            "attempt_id": "attempt-42", "state": "active",
+            "source_commit": "c" * 40, "source_digest": "a" * 64,
+        },
+    )
+
+    class _HandoffSession(_Session):
+        def handback_attempt(self, attempt_id, lease_id, **kwargs):
+            self.calls.append(("handback_attempt", (attempt_id, lease_id), kwargs))
+            return api_receipt
+
+    host_sessions: list[_HandoffSession] = []
+    attempt_sessions: list[_Session] = []
+
+    def open_host(*_args, **_kwargs):
+        session = _HandoffSession("host")
+        host_sessions.append(session)
+        return session
+
+    def open_attempt(*_args, **_kwargs):
+        session = _Session("attempt")
+        attempt_sessions.append(session)
+        return session
+
+    host = SimpleNamespace(profile="mutator", principal="trusted-mutator",
+                           projects=frozenset({"workspace"}))
+    config = ProjectControlConfig(workspaces={"workspace": WorkspaceConfig(
+        authority_repository="source",
+        repositories={"source": RepositoryConfig(root=repository)},
+    )})
+    workflow = NativeWorkflowHost(
+        config, host, session_for_host=open_host, session_for_attempt=open_attempt,
+        providers_for_project=lambda *_args, **_kwargs: None,
+        binding_validator=lambda: None,
+    )
+
+    result = workflow.invoke(
+        "todo_handback_attempt", project="workspace", repository="source",
+        attempt_id="attempt-42", lease_id="lease-1", idempotency_key="handback-key",
+    )
+
+    assert result["status"] == "ok", result
+    assert result["data"]["attempt_id"] == "attempt-42"
+    assert result["data"]["lease_id"] == "lease-1"
+    assert result["data"]["state"] == "active"
+    assert result["data"]["source_commit"] == "c" * 40
+    assert result["data"]["source_digest"] == "a" * 64
+    assert result["data"]["receipt"]["receipt_id"] == "receipt-1"
+    assert host_sessions[0].calls == [("handback_attempt", ("attempt-42", "lease-1"), {
+        "idempotency_key": StableId("handback-key"), "expected_revision": None,
+    })]
+    assert host_sessions[0].closed
+    assert attempt_sessions == []
+
+
+def test_stale_revision_is_stable_only_for_safe_transaction_operations(tmp_path: Path):
+    from todo_orchestrator.authority.commands import StaleAuthorityRevisionError
+
+    repository = tmp_path / "repo"
+    repository.mkdir()
+
+    class _StaleSession(_Session):
+        def heartbeat_attempt(self, attempt_id, lease_id, **kwargs):
+            raise StaleAuthorityRevisionError("authority revision changed")
+
+        def verify(self, attempt_id, requirement_id, **kwargs):
+            error = StaleAuthorityRevisionError("provider completed before late revision check")
+            error.code = "stale_authority_revision"
+            raise error
+
+    host = SimpleNamespace(profile="mutator", principal="trusted-mutator",
+                           projects=frozenset({"workspace"}))
+    config = ProjectControlConfig(workspaces={"workspace": WorkspaceConfig(
+        authority_repository="source",
+        repositories={"source": RepositoryConfig(root=repository)},
+    )})
+    workflow = NativeWorkflowHost(
+        config, host,
+        session_for_host=lambda *_args, **_kwargs: _StaleSession("host"),
+        session_for_attempt=lambda *_args, **_kwargs: _StaleSession("attempt"),
+        providers_for_project=lambda *_args, **_kwargs: None,
+        binding_validator=lambda: None,
+    )
+
+    safe = workflow.invoke(
+        "todo_heartbeat_attempt", project="workspace", attempt_id="attempt-1",
+        lease_id="lease-1", plan_revision_id="plan-1", idempotency_key="heartbeat-1",
+    )
+    unsafe = workflow.invoke(
+        "todo_verify_attempt", project="workspace", attempt_id="attempt-1",
+        requirement_id="requirement-1", idempotency_key="verify-1",
+    )
+
+    assert safe == {"status": "attention_required", "reason": "stale_authority_revision"}
+    assert unsafe == {"status": "attention_required", "reason": "native_operation_rejected"}
+
+
+def test_internal_selection_uses_host_session_and_returns_scoped_candidate(tmp_path: Path):
+    from todo_orchestrator.contracts import StableId
+
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    expected = {
+        "work_item_id": "work-1", "definition_revision_id": "definition-1",
+        "run_id": "run-1", "assignment_id": "assignment-1",
+        "plan_revision_id": "plan-1", "authority_revision": 12,
+        "status": "eligible", "reasons": [], "workspace_qualification_required": False,
+    }
+
+    class _Selection:
+        def to_dict(self):
+            return expected
+
+    class _SelectionSession(_Session):
+        def select_next_work(self, **kwargs):
+            self.calls.append(("select_next_work", (), kwargs))
+            return _Selection()
+
+    host_sessions: list[_SelectionSession] = []
+    attempt_sessions: list[_Session] = []
+
+    def open_host(*_args, **_kwargs):
+        session = _SelectionSession("host")
+        host_sessions.append(session)
+        return session
+
+    def open_attempt(*_args, **_kwargs):
+        session = _Session("attempt")
+        attempt_sessions.append(session)
+        return session
+
+    host = SimpleNamespace(profile="mutator", principal="trusted-mutator",
+                           projects=frozenset({"workspace"}))
+    config = ProjectControlConfig(workspaces={"workspace": WorkspaceConfig(
+        authority_repository="source",
+        repositories={"source": RepositoryConfig(root=repository)},
+    )})
+    workflow = NativeWorkflowHost(
+        config, host, session_for_host=open_host, session_for_attempt=open_attempt,
+        providers_for_project=lambda *_args, **_kwargs: None,
+        binding_validator=lambda: None,
+    )
+
+    result = workflow.invoke(
+        "todo_select_next_work", project="workspace", repository="source",
+        run_id="run-1", work_item_id="work-1", assignment_id="assignment-1",
+        plan_revision_id="plan-1",
+    )
+
+    assert result == {"status": "ok", "data": expected}
+    assert host_sessions[0].calls == [("select_next_work", (), {
+        "run_id": "run-1", "target": "work-1", "assignment": "assignment-1",
+        "plan_revision_id": StableId("plan-1"),
+    })]
+    assert host_sessions[0].closed
+    assert attempt_sessions == []

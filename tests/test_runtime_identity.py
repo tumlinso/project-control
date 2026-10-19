@@ -13,7 +13,7 @@ from project_control import runtime_identity as ri
 
 
 class _Distribution:
-    version = "0.2.0"
+    version = "0.2.1"
     files = (Path("todo_orchestrator/__init__.py"),)
 
     def __init__(self, root: Path):
@@ -44,7 +44,7 @@ class RuntimeIdentityTests(unittest.TestCase):
         with patch.object(ri, "_source_todo_lock", return_value=None):
             identity = ri.bind_runtime({})
         self.assertEqual(identity.package_root, self.root)
-        self.assertEqual(identity.distribution_version, "0.2.0")
+        self.assertEqual(identity.distribution_version, "0.2.1")
         self.assertEqual(identity.fingerprint, ri.package_fingerprint(self.root))
 
     def test_rejects_an_import_from_a_different_package_root(self):
@@ -69,7 +69,7 @@ class RuntimeIdentityTests(unittest.TestCase):
         document = {
             "schema_version": 4,
             "project_control_fingerprint": ri.package_fingerprint(pc_root),
-            "todo_distribution": {"name": "todo-orchestrator", "version": "0.2.0",
+            "todo_distribution": {"name": "todo-orchestrator", "version": "0.2.1",
                                   "package_path": str(self.root),
                                   "fingerprint": ri.package_fingerprint(self.root)},
             "skills_root": str(Path(self.temp.name) / "optional-skills"),

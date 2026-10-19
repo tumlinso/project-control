@@ -25,18 +25,26 @@ not the ordinary AS1 frontend. They are retained as historical implementation
 references, not current routing instructions.
 
 
-Project Control exposes three exact profile-specific tool sets. No profile
-publishes resources, prompts, sampling, elicitation, UI, arbitrary file access,
-or a generic shell.
+The compact agent workflow is the public front door to Todo: `next_task`
+prepares or resumes work, `inspect_task` returns bounded context,
+`coordinate_task` handles typed coordination, and `finish_task` completes,
+hands off, blocks, or releases work. Project Control carries the native engine's
+identifiers, credentials, leases, and retry bookkeeping internally. The
+observer retains its existing 11 read-only tools and uses established project
+reads for migrated Todo status and history. Privileged plan changes,
+execution maintenance, and project metadata remain on their established tools.
+The current compact profile catalogs are observer 11, coder 12, and mutator 16
+tools. Use the active runtime's `tools/list` response for exact profile-specific
+names, schemas, and permissions; checked-in historical receipts do not qualify
+a live deployment.
 
-The **observer** profile exposes exactly 11 tools over loopback Streamable HTTP:
-eight shared information tools plus `read`, `investigate`, and `skill`. The
-**codex** profile exposes exactly 12 tools over stdio: the eight shared tools
-plus four workflow tools (`next_task`, `inspect_task`, `coordinate_task`,
-`finish_task`). The **mutator** profile exposes exactly 16 tools over stdio:
-the eight shared tools, `investigate`, four workflow tools, and the three
-mutation tools. Investigator and skill-assembler profiles each expose ten
-internal tools.
+Start with `next_task(project, repository?, task_id?, run_id?)`, using a
+registered workspace ID and optional registered repository alias. Pass the
+returned handle to `inspect_task`, `coordinate_task`, and `finish_task`;
+ordinary agents do not pass raw repository paths or manage native operation
+identifiers. Keep extensions additive and focused. The standalone Todo API and
+CLI remain available to separately managed authorities without exposing the
+engine's complete operation list as the normal Project Control agent surface.
 
 Both registration and invocation are allowlisted. A name hidden from a profile
 cannot be invoked directly. Trusted startup configuration selects the profile;

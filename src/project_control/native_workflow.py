@@ -39,6 +39,8 @@ _HOST_SESSION_OPERATIONS = frozenset({
     "todo_accept_outcome",
     "todo_reject_outcome",
     "todo_finish_attempt",
+    "todo_handback_attempt",
+    "todo_release_attempt",
     "todo_inspect_attempt",
     "todo_inspect_resource",
     "todo_reconcile_resource",
@@ -50,6 +52,35 @@ _RESOURCE_OPERATION_ID_ONLY = frozenset({
     "todo_reconcile_resource",
     "todo_retry_resource",
     "todo_release_resource",
+})
+# These operations either have no external write effect (read-only source or
+# physical observations are allowed) or use only a recoverable credential
+# prewrite before the authority transaction. The native
+# dispatcher can raise StaleAuthorityRevisionError both before a handler and
+# after a handler's semantic compare-and-swap; for this set, the latter is in
+# the same SQLite transaction and rolls back, so callers may safely refresh a
+# snapshot while retaining the same idempotency intent. Keep provider-effect
+# operations (workspace creation, integration, handback, resource and
+# verification operations) out of this set.
+_STALE_REVISION_SAFE_OPERATIONS = frozenset({
+    "todo_commit_plan",
+    "todo_open_run",
+    "todo_dispatch_attempt",
+    "todo_report_outcome",
+    "todo_accept_outcome",
+    "todo_reject_outcome",
+    "todo_heartbeat_attempt",
+    "todo_resume_attempt",
+    "todo_release_attempt",
+    "todo_close_run",
+    "todo_retire_run",
+    "todo_resolve_decision",
+    "todo_publish_interface",
+    "todo_accept_checkpoint",
+    "todo_release_barrier",
+    "todo_arrive_rendezvous",
+    "todo_open_blocker",
+    "todo_clear_blocker",
 })
 
 
@@ -335,7 +366,8 @@ class NativeWorkflowHost:
 
     def _guarded(self, project: str, operation: Callable[[Path, Any], dict[str, object]],
                  *, attempt_id: str | None = None,
-                 repository: str | None = None) -> dict[str, object]:
+                 repository: str | None = None,
+                 stale_revision_safe: bool = False) -> dict[str, object]:
         root, session = self._session(project, attempt_id=attempt_id,
                                       repository=repository)
         try:
@@ -345,6 +377,17 @@ class NativeWorkflowHost:
             raise
         except Exception as error:
             self._binding_validator()
+            try:
+                from todo_orchestrator.authority import StaleAuthorityRevisionError
+            except ImportError:
+                StaleAuthorityRevisionError = ()
+            if isinstance(error, StaleAuthorityRevisionError):
+                if stale_revision_safe:
+                    raise NativeWorkflowError("stale_authority_revision") from error
+                # An external-effect operation can fail with this class after
+                # a provider has already acted. Never let its class or a
+                # provider-supplied `.code` imply a safe pre-handler CAS miss.
+                raise NativeWorkflowError("native_operation_rejected") from error
             code = getattr(error, "code", None)
             if isinstance(code, str) and code:
                 raise NativeWorkflowError(code) from error
@@ -414,7 +457,7 @@ class NativeWorkflowHost:
         )
 
     def invoke(self, tool: str, **arguments: object) -> dict[str, object]:
-        """Dispatch a typed MCP operation; tool names map 1:1 to public APIs."""
+        """Dispatch a typed Todo API operation or a private host adapter route."""
         try:
             # Resolve and validate executable identity before importing the
             # colliding ``todo_orchestrator`` namespace or constructing a DTO.
@@ -422,6 +465,7 @@ class NativeWorkflowHost:
             project = _required_text(arguments.get("project"), "project", max_bytes=128)
             repository = _optional_repository(arguments.get("repository"))
             def guarded(operation, **kwargs):
+                kwargs.setdefault("stale_revision_safe", tool in _STALE_REVISION_SAFE_OPERATIONS)
                 return self._guarded(project, operation, repository=repository, **kwargs)
             if tool == "todo_preview_plan":
                 package_json = _required_text(arguments.get("package_json"), "package_json", max_bytes=_MAX_PLAN_BYTES)
@@ -461,6 +505,43 @@ class NativeWorkflowHost:
             if tool == "todo_read_run":
                 run_id = _required_text(arguments.get("run_id"), "run_id", max_bytes=128)
                 return guarded(lambda _root, session: _public(session, "run_schedule", session.read_run(run_id)))
+            if tool == "todo_select_next_work":
+                from todo_orchestrator.contracts import StableId
+
+                selectors = {}
+                for name in ("run_id", "work_item_id", "assignment_id", "plan_revision_id"):
+                    value = arguments.get(name)
+                    if value is not None:
+                        selectors[name] = _required_text(value, name, max_bytes=128)
+
+                def select_next(_root, session):
+                    selection = session.select_next_work(
+                        run_id=selectors.get("run_id"),
+                        target=selectors.get("work_item_id"),
+                        assignment=selectors.get("assignment_id"),
+                        plan_revision_id=(None if selectors.get("plan_revision_id") is None
+                                          else StableId(selectors["plan_revision_id"])),
+                    )
+                    if selection is None:
+                        return {"selection": None}
+                    result = selection.to_dict()
+                    if not isinstance(result, dict):
+                        raise NativeWorkflowError("native_selection_invalid")
+                    if (selectors.get("work_item_id") is not None
+                            and result.get("work_item_id") != selectors["work_item_id"]):
+                        raise NativeWorkflowError("native_selection_scope_mismatch")
+                    if (selectors.get("run_id") is not None
+                            and result.get("run_id") != selectors["run_id"]):
+                        raise NativeWorkflowError("native_selection_scope_mismatch")
+                    if (selectors.get("assignment_id") is not None
+                            and result.get("assignment_id") != selectors["assignment_id"]):
+                        raise NativeWorkflowError("native_selection_scope_mismatch")
+                    if (selectors.get("plan_revision_id") is not None
+                            and result.get("plan_revision_id") != selectors["plan_revision_id"]):
+                        raise NativeWorkflowError("native_selection_scope_mismatch")
+                    return result
+
+                return guarded(select_next)
             if tool == "todo_create_workspace":
                 from todo_orchestrator.contracts import StableId
 
@@ -479,7 +560,21 @@ class NativeWorkflowHost:
                         plan_revision_id=None if plan_revision_id is None else StableId(_required_text(plan_revision_id, "plan_revision_id", max_bytes=128)),
                         expected_revision=revision,
                     )
-                    return _public(session, "git_effect", result)
+                    packet = _public(session, "git_effect", result)
+                    # The host resolves this locator; callers never select a
+                    # filesystem root or infer a provider's private layout.
+                    _bound_root, selected_repository = self._project_root(project, repository)
+                    composition = self._providers(project, _bound_root, selected_repository)
+                    git_provider = getattr(composition, "git_provider", None)
+                    locate = getattr(git_provider, "workspace_path_for", None)
+                    created_id = getattr(getattr(result, "request", None), "workspace_id", None)
+                    if callable(locate) and created_id is not None:
+                        packet["workspace"] = {
+                            "workspace_id": str(created_id),
+                            "path": str(locate(created_id)),
+                            "repository": selected_repository,
+                        }
+                    return packet
                 return guarded(create_workspace)
             if tool == "todo_dispatch_attempt":
                 from todo_orchestrator.contracts import StableId
@@ -516,6 +611,7 @@ class NativeWorkflowHost:
                                      _public(session, "recovery_inspection", session.inspect_effect(operation_id)))
             if tool in {"todo_integrate_attempt", "todo_verify_attempt", "todo_report_outcome",
                         "todo_accept_outcome", "todo_reject_outcome", "todo_finish_attempt",
+                        "todo_handback_attempt",
                         "todo_heartbeat_attempt", "todo_resume_attempt", "todo_release_attempt",
                         "todo_reserve_resource", "todo_inspect_resource", "todo_reconcile_resource",
                         "todo_retry_resource", "todo_release_resource", "todo_inspect_attempt",
@@ -725,6 +821,30 @@ class NativeWorkflowHost:
                     # host obligation instead of misreporting the commit.
                     cleanup = "pending"
                 return {"receipt": value.to_dict(), "attempt_credential_cleanup": cleanup}
+            if tool == "todo_handback_attempt":
+                lease_id = _required_text(args.get("lease_id"), "lease_id", max_bytes=128)
+                value = session.handback_attempt(attempt_id, lease_id, idempotency_key=key,
+                                                 expected_revision=revision)
+                receipt = value.to_dict()
+                if (receipt.get("command_kind") != "todo.attempt.authoring_handoff"
+                        or not isinstance(receipt.get("result"), Mapping)):
+                    raise NativeWorkflowError("authoring_handoff_receipt_invalid")
+                result = receipt["result"]
+                source_commit = _required_text(result.get("source_commit"), "source_commit", max_bytes=128)
+                source_digest = _required_text(result.get("source_digest"), "source_digest", max_bytes=64)
+                if (result.get("attempt_id") != attempt_id
+                        or result.get("state") not in {"admitted", "active"}
+                        or len(source_digest) != 64
+                        or any(character not in "0123456789abcdef" for character in source_digest)):
+                    raise NativeWorkflowError("authoring_handoff_scope_mismatch")
+                return {
+                    "attempt_id": attempt_id,
+                    "lease_id": lease_id,
+                    "state": result["state"],
+                    "source_commit": source_commit,
+                    "source_digest": source_digest,
+                    "receipt": receipt,
+                }
             if tool == "todo_reserve_resource":
                 resource_class = _required_text(args.get("resource_class"), "resource_class", max_bytes=128)
                 units = args.get("units")
@@ -760,7 +880,10 @@ class NativeWorkflowHost:
         # ID as the native API selector; only change which trusted session
         # supplies the authorization context.
         session_attempt_id = None if tool in _HOST_SESSION_OPERATIONS else attempt_id
-        return self._guarded(project, action, attempt_id=session_attempt_id, repository=repository)
+        return self._guarded(
+            project, action, attempt_id=session_attempt_id, repository=repository,
+            stale_revision_safe=tool in _STALE_REVISION_SAFE_OPERATIONS,
+        )
 
     def _lifecycle_operation(self, tool: str, project: str, args: Mapping[str, object],
                              repository: str | None) -> dict[str, object]:
@@ -783,7 +906,10 @@ class NativeWorkflowHost:
                     successor_run=None if successor is None else StableId(_required_text(successor, "successor_run_id", max_bytes=128)),
                 )
             return value.to_dict()
-        return self._guarded(project, action, repository=repository)
+        return self._guarded(
+            project, action, repository=repository,
+            stale_revision_safe=tool in _STALE_REVISION_SAFE_OPERATIONS,
+        )
 
     def _declaration_operation(self, tool: str, project: str,
                                args: Mapping[str, object], repository: str | None) -> dict[str, object]:
@@ -826,7 +952,8 @@ class NativeWorkflowHost:
                             attempt=context["attempt_id"])
             return result.to_dict()
         return self._guarded(project, action, attempt_id=context["attempt_id"],
-                             repository=repository)
+                             repository=repository,
+                             stale_revision_safe=tool in _STALE_REVISION_SAFE_OPERATIONS)
 
     def _finding_operation(self, tool: str, project: str,
                            args: Mapping[str, object], repository: str | None) -> dict[str, object]:

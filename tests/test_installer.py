@@ -26,13 +26,13 @@ candidate_manifest_digest = MODULE.candidate_manifest_digest
 
 
 def _test_todo_wheel(project: Path) -> Path:
-    wheel = project.parent / "todo_orchestrator-0.2.0-py3-none-any.whl"
+    wheel = project.parent / "todo_orchestrator-0.2.1-py3-none-any.whl"
     if not wheel.exists():
         with zipfile.ZipFile(wheel, "w") as archive:
             archive.writestr("todo_orchestrator/__init__.py", "API_VERSION = 1\n")
-            archive.writestr("todo_orchestrator-0.2.0.dist-info/METADATA",
-                             "Metadata-Version: 2.1\nName: todo-orchestrator\nVersion: 0.2.0\n\n")
-            archive.writestr("todo_orchestrator-0.2.0.dist-info/WHEEL",
+            archive.writestr("todo_orchestrator-0.2.1.dist-info/METADATA",
+                             "Metadata-Version: 2.1\nName: todo-orchestrator\nVersion: 0.2.1\n\n")
+            archive.writestr("todo_orchestrator-0.2.1.dist-info/WHEEL",
                              "Wheel-Version: 1.0\nGenerator: fixture\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
     return wheel
 
@@ -44,7 +44,7 @@ def build_candidate(*, project_control_root, todo_wheel=None, **kwargs):
     config.parent.mkdir(parents=True, exist_ok=True)
     if not config.exists():
         config.write_text(json.dumps({"format": "project-control.todo-runtime-lock", "version": 1,
-                                      "distribution": "todo-orchestrator", "distribution_version": "0.2.0",
+                                      "distribution": "todo-orchestrator", "distribution_version": "0.2.1",
                                       "source_commit": None, "wheel_sha256": None,
                                       "package_fingerprint": None, "provisional": True}), encoding="utf-8")
     runner = kwargs.get("runner")
@@ -60,9 +60,9 @@ def build_candidate(*, project_control_root, todo_wheel=None, **kwargs):
                 package = venv / "lib/python3.13/site-packages/todo_orchestrator"
                 package.mkdir(parents=True, exist_ok=True)
                 (package / "__init__.py").write_text("API_VERSION = 1\n", encoding="utf-8")
-                dist = venv / "lib/python3.13/site-packages/todo_orchestrator-0.2.0.dist-info"
+                dist = venv / "lib/python3.13/site-packages/todo_orchestrator-0.2.1.dist-info"
                 dist.mkdir(parents=True, exist_ok=True)
-                (dist / "METADATA").write_text("Name: todo-orchestrator\nVersion: 0.2.0\n", encoding="utf-8")
+                (dist / "METADATA").write_text("Name: todo-orchestrator\nVersion: 0.2.1\n", encoding="utf-8")
             return result
         kwargs["runner"] = install_fixture
     with mock.patch.dict(os.environ, {"PROJECT_CONTROL_ALLOW_PROVISIONAL_TODO": "1"}):
@@ -157,7 +157,7 @@ class InstallerTests(unittest.TestCase):
             data = json.loads(inventory.read_text())
             self.assertEqual(data["project_control"]["files"]["current.py"]["sha256"],
                              hashlib.sha256(b"# current working tree\n").hexdigest())
-            self.assertEqual(data["todo_distribution"]["version"], "0.2.0")
+            self.assertEqual(data["todo_distribution"]["version"], "0.2.1")
             self.assertEqual(data["todo_distribution"]["wheel_sha256"],
                              MODULE._sha256_file(_test_todo_wheel(project)))
 

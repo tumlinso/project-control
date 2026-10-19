@@ -1,7 +1,6 @@
-> Current runtime: Project Control 0.4.0 / MCP schema 11 uses the independently
-> installed Todo Orchestrator 0.2.0 and native `todo_*` tools. Follow the
-> [current README](../README.md) for setup, paired-wheel verification and
-> workflow operations. Legacy Todo commands below are historical context.
+> The observer is the read-only Project Control front door. It retains its
+> existing 11-tool catalog; use the live MCP manifest to verify the active
+> names and schemas after deployment.
 
 # ChatGPT observer setup
 
@@ -30,10 +29,10 @@ curl --fail http://127.0.0.1:8768/readyz
 ```
 
 The MCP endpoint is `http://127.0.0.1:8768/mcp`. Readiness covers valid core
-configuration and the bundled workflow engine. Inference and optional domain
-content have separate status and are not prerequisites for core reads. To verify
-the real surface, reconnect the MCP client, list tools, and make one read-only
-call for a registered project.
+configuration and the workflow engine. Inference and optional domain content
+have separate status and are not prerequisites for core reads. To verify the
+real surface, reconnect the MCP client, list tools, and make one read-only call
+for a registered project.
 
 ## Connect ChatGPT
 
@@ -57,15 +56,20 @@ tunnel credentials. Codex uses a separate stdio registration described in
 
 ## Observer use
 
-Use `overview`, `frontier`, `search`, `evidence`, and the other currently
-advertised read tools to ground questions in registered projects. Use
-`investigate` for bounded read-only questions and poll its durable job ID when
-the result is pending. Use `skill` for optional domain guidance when available.
-Project Control verifies bundled executable code independently of optional
-domain content. A missing skill catalog can limit that guidance without
-preventing core project reads.
+Use `overview`, `search`, `delta`, `frontier`, `history`, `evidence`, and
+`impact` to ground questions in registered projects and migrated Todo
+information. The observer remains read-only and does not need a task claim.
+Use `investigate` for bounded read-only questions and poll its durable job ID
+when the result is pending. Use `skill` for optional domain guidance when
+available. Project Control verifies executable code independently of optional
+domain content; a missing skill catalog does not prevent core project reads.
 
-Observer findings do not grant mutation authority. Preserve project and Todo
-state; semantic mutations use the authorized workflow path. See
+Observer findings do not grant mutation authority. Agents working through a
+separate authorized profile begin with
+`next_task(project, repository?, task_id?, run_id?)`, then pass its returned
+handle to `inspect_task`, `coordinate_task`, and `finish_task`. The current
+compact profile catalogs are observer 11, coder 12, and mutator 16 tools.
+Preserve project and Todo state; semantic mutations go through that authorized
+path. See
 [the current surface guide](as1-surface.md) for supported requests and response
 semantics.

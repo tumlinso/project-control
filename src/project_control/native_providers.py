@@ -435,12 +435,14 @@ class JournaledCommandExecutor:
 
     def __init__(self, *, project_id: object, identity: object, git_provider: object,
                  journal_root: Path, attestation_root: Path | None = None,
+                 handoff_provider: object | None = None,
                  clock: Callable[[], datetime] | None = None) -> None:
         self.project_id = project_id
         self.identity = identity
         self.git_provider = git_provider
         self.journal_root = journal_root
         self.attestation_root = attestation_root
+        self.handoff_provider = handoff_provider
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _paths(self, operation_id: object) -> tuple[Path, Path]:
@@ -643,6 +645,9 @@ class JournaledCommandExecutor:
                         )
                         if attestation is not None:
                             return self._unavailable(request, "external_producer_completion_attested")
+                    handed_off = getattr(self.handoff_provider, "has_handoff_marker", None)
+                    if callable(handed_off) and handed_off(request.attempt.entity_id):
+                        return self._unavailable(request, "attempt_authoring_handed_off")
                     try:
                         workspace, cwd = self._workspace(request)
                     except Exception:
@@ -1060,6 +1065,8 @@ def provision_native_project(config: object, project: str, project_root: Path,
         state_root / "git-journal",
         state_root / "command-journal",
         state_root / "external-producer-attestations",
+        state_root / "attempt-credentials",
+        state_root / "authoring-handoffs",
     ):
         _ensure_private_directory(path)
     return {
@@ -1122,7 +1129,9 @@ def providers_for_project(config: object, project: str, project_root: Path, *,
     journal_root = state_root / "git-journal"
     command_root = state_root / "command-journal"
     attestation_root = state_root / "external-producer-attestations"
-    for path in (workspace_root, journal_root, command_root):
+    credential_root = state_root / "attempt-credentials"
+    handoff_root = state_root / "authoring-handoffs"
+    for path in (workspace_root, journal_root, command_root, credential_root, handoff_root):
         if path.is_symlink():
             raise NativeProviderUnavailable("native Todo provider path must not be a symlink")
         if path.exists():
@@ -1166,10 +1175,79 @@ def providers_for_project(config: object, project: str, project_root: Path, *,
     git = GitRepositoryProvider(config_value, process_observer=process_observer,
                                 child_observer=children)
     process_observer.git_provider = git
+    from .native_authoring_handoff import (
+        NativeAttemptCredentialProvider,
+        NativeAuthoringHandoffProvider,
+    )
+
+    credential_provider = NativeAttemptCredentialProvider(
+        str(project_id), str(metadata.authority_id), credential_root,
+    )
+    handoff_provider = NativeAuthoringHandoffProvider(
+        git, project_id=str(project_id), authority_id=str(metadata.authority_id),
+        project_root=root, record_root=handoff_root, host_resources=host,
+        command_journal_root=command_root,
+        credential_principal=principal, credential_profile=profile,
+    )
+    # The native engine discovers these typed host hooks on its trusted
+    # AttemptHost. They are private Python provider methods, never MCP tools.
+    git.handoff_authoring = handoff_provider.handoff_authoring
+    git.authoring_handoff_for = handoff_provider.authoring_handoff_for
+    git.has_authoring_handoff = handoff_provider.has_handoff_marker
+    original_inspect_attempt = git.inspect_attempt
+
+    def inspect_attempt_with_handoff(attempt: object, workspace: object):
+        observation = original_inspect_attempt(attempt, workspace)
+        proof = handoff_provider.authoring_handoff_for(attempt)
+        if proof is None:
+            return observation
+        from dataclasses import fields, is_dataclass, replace
+
+        if is_dataclass(observation) and "authoring_handoff" in {item.name for item in fields(observation)}:
+            if (proof.lease_id == observation.lease_id
+                    and proof.workspace_id == observation.workspace.workspace_id
+                    and proof.source_digest == observation.source_digest
+                    and observation.source.value == "clean"):
+                return replace(observation, authoring_handoff=proof)
+        return observation
+
+    git.inspect_attempt = inspect_attempt_with_handoff
+
+    original_perform = git.perform
+    original_retry = git.retry_not_applied
+
+    def fence_authoring_effect(operation: Callable[[object], object], request: object):
+        from todo_orchestrator.contracts import StableId
+        from todo_orchestrator.contracts.providers import (
+            GitOperationKind, ProviderResult, ProviderStatus,
+        )
+
+        attempt = getattr(request, "attempt", None)
+        kind = getattr(request, "operation", None)
+        if (attempt is not None and kind in {
+            GitOperationKind.APPLY_CHANGE, GitOperationKind.COMMIT,
+            GitOperationKind.PUBLISH, GitOperationKind.CREATE_WORKSPACE,
+        }):
+            # Serialize the marker check and effect against handoff_authoring,
+            # which takes this same lock before checking that no effect is
+            # unresolved and publishing its durable authoring fence.
+            lock_path = _attempt_lock_path(command_root, attempt.entity_id)
+            with _locked_path(lock_path):
+                if handoff_provider.has_handoff_marker(attempt.entity_id):
+                    return ProviderResult(
+                        ProviderStatus.UNAVAILABLE, request.operation_id, git.identity,
+                        reason_code=StableId("attempt_authoring_handed_off"),
+                    )
+                return operation(request)
+        return operation(request)
+
+    git.perform = lambda request: fence_authoring_effect(original_perform, request)
+    git.retry_not_applied = lambda request: fence_authoring_effect(original_retry, request)
     command_identity = ProviderIdentity(StableId("project-control.command.local"), "1")
     commands = JournaledCommandExecutor(
         project_id=project_id, identity=command_identity, git_provider=git,
         journal_root=command_root, attestation_root=attestation_root,
+        handoff_provider=handoff_provider,
     )
     verifier = CommandExecutionVerifier(
         commands, execution_identity=command_identity, adapter_identity=COMMAND_VERIFIER_IDENTITY,
@@ -1181,6 +1259,7 @@ def providers_for_project(config: object, project: str, project_root: Path, *,
         command_execution_provider=commands, command_execution_identity=command_identity,
         declaration_observer=git, declaration_identity=git.identity,
         git_provider=git, principal_authenticator=principal_authenticator,
+        attempt_credential_provider=credential_provider,
     )
 
 

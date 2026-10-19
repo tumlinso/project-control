@@ -9,8 +9,19 @@
 - Read the current task sheet and its prerequisite contracts for an assigned
   workflow task. Retrieve only the context needed for that task; do not load an
   entire program when a bounded task view is available.
-- Registration does not initialize Todo state. Use supported workflow and
-  reconciliation operations for semantic workflow changes.
+- Project Control is the agent-facing workflow front door to the standalone
+  Todo engine. Routine agents use `next_task`, `inspect_task`,
+  `coordinate_task`, and `finish_task`; use the live MCP manifest for exact
+  schemas. Do not route routine agents through the engine's granular `todo_*`
+  MCP surface or expose its IDs, leases, credentials, and retry bookkeeping.
+- Preserve the observer's existing 11 read-only tools and use its established
+  project reads for migrated Todo status and history. Privileged `plan`,
+  `maintain_execution`, and `amend_project` retain their distinct roles.
+- Implement available engine capabilities fully behind these established
+  routes. Preserve verification, acceptance, effect uncertainty, and physical
+  evidence guarantees; do not create approval requirements or placeholder
+  actions. The standalone Todo API and CLI remain available to separately
+  managed authorities.
 
 ## Develop and test
 
@@ -68,8 +79,8 @@
   studies, and frozen-release qualification do not gate this delivery. Complete
   native PA1 only against its revised charter and actual required evidence.
 
-- Project Control and bundled Todo executable code are verified independently
-  of optional domain documentation. `PROJECT_CONTROL_OBSERVER_SKILLS_ROOT` is
+- Project Control and the standalone Todo executable code are verified
+  independently of optional domain documentation. `PROJECT_CONTROL_OBSERVER_SKILLS_ROOT` is
   the preferred content root; `PROJECT_CONTROL_SKILLS_ROOT` is a content-only
   compatibility alias.
 - Preserve strict packaged-code checks for frozen candidates. Source-mode

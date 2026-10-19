@@ -94,7 +94,7 @@ class MCPServerTests(unittest.TestCase):
             self.assertEqual(ready.json()['core']['status'], 'available')
             self.assertEqual(ready.json()['central_inference']['reason'], 'central_supervisor_unavailable')
             version = client.get('/version').json()
-            self.assertEqual(version['tool_schema_version'], 11)
+            self.assertEqual(version['tool_schema_version'], 12)
             self.assertFalse(version['features']['automatic_overview'])
         from project_control.config import ServerConfig
         with self.assertRaises(ValueError):

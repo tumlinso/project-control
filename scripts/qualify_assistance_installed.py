@@ -362,7 +362,7 @@ def _selected_release() -> tuple[Path, Path, str]:
         raise QualificationError("selected release manifest schema mismatch")
     todo = document.get("todo_distribution")
     if (not isinstance(todo, dict) or todo.get("name") != "todo-orchestrator"
-            or todo.get("version") != "0.2.0"
+            or todo.get("version") != "0.2.1"
             or not isinstance(todo.get("fingerprint"), str)):
         raise QualificationError("selected release standalone Todo identity is invalid")
     root = manifest.parent
