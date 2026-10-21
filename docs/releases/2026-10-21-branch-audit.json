@@ -1,0 +1,108 @@
+{
+  "schema": "project-control-divergent-content-audit/v1",
+  "repository": "/home/tumlinson/project-control",
+  "main_oid_at_observation": "0811a3a55298fe9617ed9e9f6266e4cf4f66fbe5",
+  "read_only": true,
+  "source_reports": [
+    "/tmp/project-control-branch-worktree-audit.json",
+    "/tmp/project-control-unique-commit-content.json"
+  ],
+  "integrated_groups": [
+    {
+      "refs": [
+        "codex/pc-as1-l-context",
+        "codex/pc-as1-l-observer"
+      ],
+      "marker": "250a21f961af2631c40624b184d3d0a05e634a6d",
+      "basis": "AS1 integration; observer branch tip blobs 6/6 match marker, context 11/12 match (as1_control later evolved); current main has successor code and tests."
+    },
+    {
+      "refs": [
+        "codex/pc-wf2-l-a",
+        "codex/pc-wf2-l-c",
+        "codex/pc-wf2-l-v"
+      ],
+      "marker": "432550b58271760f1797b7cccf00c89fd32e9547",
+      "basis": "WF2 integration; branch tip blobs match marker 6/6, 15/15, 3/3."
+    },
+    {
+      "refs": [
+        "codex/pc-wf2a-l-core",
+        "codex/pc-wf2a-l-mcp"
+      ],
+      "marker": "e92c4d31539192123cbf1be72da3f2efaab9c4b7",
+      "basis": "WF2A integration; branch tip blobs match marker 8/8 and 11/11."
+    },
+    {
+      "refs": [
+        "pcu-v1/pcu-pc-10",
+        "pcu-v1/pcu-pc-11",
+        "pcu-v1/pcu-pc-12",
+        "pcu-v1/pcu-pc-13",
+        "pcu-v1/pcu-pc-14",
+        "pcu-v1/pcu-pc-15",
+        "pcu-v1/pcu-pc-16"
+      ],
+      "marker": "531204f80e5fb6598097b805c7e7444cfce37818",
+      "basis": "PCU integration; tip blobs exact for 10-15; 16 has only docs/FUTURE_WRITE_PROFILE.md differing, with later current successor docs."
+    },
+    {
+      "refs": [
+        "pcu-v1/pcu-pc-21"
+      ],
+      "basis": "Unique commit 3499e2b83d has patch-id equivalent main commit e687ca (see detailed report)."
+    },
+    {
+      "refs": [
+        "project-control-v2-managed-10",
+        "project-control-v2-managed-11",
+        "project-control-v2-managed-12",
+        "project-control-v2-managed-13",
+        "project-control-v2-managed-14"
+      ],
+      "basis": "Feature commits have patch-id equivalents in main: 6e1694f->34e8f32; 1db6757->cd795ab; fbc91c7->1152f89; 64640d5->6c60ee8; 9dc5795->992cafa."
+    }
+  ],
+  "unique_or_unresolved": [
+    {
+      "ref": "codex/pc-wf2-l-d",
+      "commits": [
+        "ae6b09cfdca09187edab01401185731c545c70c4",
+        "a637d7ac8f324dc356a2dda1bc6b9c9f9b269e90"
+      ],
+      "paths": [
+        "docs/workflow_foundation_v2/agents/research-routing.md",
+        "docs/CODEX_SETUP.md",
+        "docs/MIGRATION.md"
+      ],
+      "finding": "94-line research-routing doc absent from main; 2 commits add observer-only allowlist, exclusion of workflow mutators, observed-vs-requested child model/tool/sandbox recording, and fail-closed dispatch guidance. Current delegation guidance covers role ownership but not all these security controls. Carry forward selectively or explicitly archive/accept omission."
+    },
+    {
+      "ref": "project-control-v2-managed-11",
+      "commits": [
+        "d4830e5",
+        "5652e45"
+      ],
+      "paths": [
+        "sitecustomize.py",
+        "project_control/__init__.py"
+      ],
+      "finding": "Unique staged-source gate test harness shims only; no production implementation. Archive; no need to merge as product code unless a current test explicitly needs them."
+    }
+  ],
+  "backup_ref_disposition": {
+    "branch_names": 68,
+    "unique_target_oids": 62,
+    "wt0_oid": "68621d6f4e4e2285424528da8b37781965f6cef2",
+    "wt0_subject": "backup: preserve workspace before Todo cutover (20261019T114102Z)",
+    "wt0_tree_changes": 14,
+    "wt0_is_ancestor_of_main": true,
+    "recommendation": "Before deleting backup branch refs, preserve exact ref-name-to-OID mapping using annotated archival tags and an external git bundle; retain duplicate-name mappings and the wt-0 overlay object. No tags/bundle/refs were created."
+  },
+  "coverage_limits": [
+    "No source/config/Git mutation, no fetch; origin refs are local tracking snapshots.",
+    "Ancestry and patch-id alone do not establish semantic equivalence; integration markers and current path presence were checked for listed groups.",
+    "Main moved during audit; recorded OID is observation-time only.",
+    "Worktree dirt/missing-path evidence is in the inventory JSON, not re-collected in this content pass."
+  ]
+}
