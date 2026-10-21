@@ -322,7 +322,7 @@ def create_mcp(
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request):
-        return JSONResponse({"name": "project-control", "version": "0.4.1", "tool_schema_version": 12,
+        return JSONResponse({"name": "project-control", "version": "0.4.2", "tool_schema_version": 12,
                              "features": mcp.feature_metadata})
 
     setattr(mcp, "_project_control_runtime", runtime)

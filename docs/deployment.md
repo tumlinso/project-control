@@ -1,9 +1,60 @@
-# Source deployment and release candidates
+# Sealed deployment and source development
 
-The normal local deployment runs Project Control from this checkout. A source
-edit takes effect when the relevant process restarts; it does not require
-building a wheel or refreshing a receiver manifest. Use a frozen candidate only
-when deployment specifically requires one.
+The standard local deployment uses the sealed release selected by
+`~/.local/state/project-control/current`. The stable command
+`~/.local/bin/project-control`, the HTTP service, and Codex resolve through the
+selected release. Keep each release immutable and retain the previous pointer
+target and launch configuration for rollback.
+
+Use this checkout's `scripts/pc-dev` only for explicit source development and
+source checks. Its launcher selects this checkout and its pinned standalone
+Todo wheel; it does not follow or modify the sealed-release pointer. A source
+deployment therefore has a different identity from the sealed runtime.
+
+## Sealed runtime
+
+The Project Control executable and standalone Todo Orchestrator are installed
+as a verified pair. The release manifest binds their versions and source
+fingerprints; Todo is an independently installed package, not code bundled
+inside Project Control. The current release pointer is
+`~/.local/state/project-control/current`; preserve the previous release and
+rollback record when changing it. Do not modify a release in place.
+
+For the current Project Control 0.4.2 release, the paired standalone Todo
+version is 0.2.1. Confirm the live runtime with the standard CLI's doctor/version
+output and the service's `/readyz` and `/version` endpoints. A checkout doctor
+or source test describes only source mode.
+
+The selected release provides
+`~/.local/state/project-control/current/bin/project-control-release` and
+`~/.local/state/project-control/current/bin/project-control-inference`. The
+HTTP service `ExecStart` uses the release launcher; its working directory is
+the configured Project Control state directory. The optional inference unit
+uses the inference launcher. The stable `~/.local/bin/project-control` wrapper
+carries the established durable-state and GPU environment into the selected
+release, and Codex invokes that wrapper with the `codex` argument. Inference
+remains demand-only: release selection and ordinary HTTP service operation do
+not enable the unit or load a model.
+
+Check the selected release and service launch configuration with:
+
+```sh
+readlink -f ~/.local/state/project-control/current
+~/.local/bin/project-control doctor --json
+systemctl --user show project-control.service -p MainPID -p ExecStart -p WorkingDirectory -p ActiveEnterTimestamp
+systemctl --user show project-control-inference.service -p MainPID -p ExecStart -p WorkingDirectory -p ActiveEnterTimestamp
+curl --fail http://127.0.0.1:8768/readyz
+curl --fail http://127.0.0.1:8768/version
+```
+
+The inference service is expected to remain inactive until explicit assistance
+is requested. Do not enable or start it as part of a routine release switch.
+
+## Explicit source development
+
+The following source workflow is for development from this checkout. Source
+edits take effect when the relevant process restarts; they do not require a
+release build or pointer update.
 
 ## Prepare and inspect the source
 
@@ -26,7 +77,7 @@ unset. Set that variable explicitly to use another analysis-state directory;
 the launcher preserves the override. Pytest and test-helper modes clear this
 variable so source tests remain isolated from operator analysis state.
 
-## Restart the source services
+### Restart source services for development only
 
 The checked-in user service templates are in `scripts/services/`. Before
 installing or editing units, retain the configured profile, principal binding,
@@ -155,14 +206,14 @@ systemctl --user show project-control.service -p MainPID -p ExecStart -p ActiveE
 systemctl --user show project-control-inference.service -p MainPID -p ExecStart -p ActiveEnterTimestamp
 ```
 
-`doctor --json` reports the current checkout's verified bundled Todo package
-path and fingerprint. Unit PID/start time and `ExecStart` identify the restarted
-process launch; `/readyz` confirms the live HTTP process serves core readiness.
+`doctor --json` reports the current checkout and verified standalone Todo
+package path and fingerprint. Unit PID/start time and `ExecStart` identify the
+restarted process launch; `/readyz` confirms the live HTTP process serves core readiness.
 Source mode does not require a wheel build or release-manifest refresh.
 
 `/healthz` reports process liveness. `/readyz` reports core configuration and
-the bundled workflow engine; inference and optional content are reported
-separately and do not disable core reads. Reconnect the configured MCP client,
+the installed standalone workflow engine; inference and optional content are
+reported separately and do not disable core reads. Reconnect the configured MCP client,
 list its tools, and make a real read-only workflow request. For rescue mutation,
 verify the advertised inputs and exercise authorization against temporary state
 before relying on it against live state.
@@ -184,16 +235,14 @@ does not load a model. `already_stopped_no_owned_resources` combines an inactive
 service census with settled durable ownership; it does not fabricate physical
 release proof for an empty target set. Unresolved ownership stays pending.
 
-If the source process fails, inspect that unit's status and journal, correct the
-source/configuration problem, then restart the affected process. Do not alter
-semantic project state as part of service recovery. Preserve the prior service
-configuration and previously installed candidate for rollback. Rollback means
-restoring the recorded configuration and selecting that known candidate; it
-does not mean deleting or reinitializing ledgers, claims, queued work,
-snapshots, or project identities. Reconnect stdio clients after changing their
-registration; an already-connected client can retain old tool definitions.
+If a source-development process fails, inspect that unit's status and journal,
+correct the source/configuration problem, then restart the affected process.
+Do not alter semantic project state as part of source recovery. For sealed
+release rollback, follow the state-preserving procedure below. Reconnect stdio
+clients after changing their registration; an already-connected client can
+retain old tool definitions.
 
-## Test before and after a change
+### Test source changes
 
 Use [the development guide](development.md) to choose a focused source test or
 the default smoke. Run `scripts/pc-dev test tests --collect-only` when you need
@@ -204,22 +253,35 @@ inference, GPU workloads, CUDA LAB, model quality, recovery, or a frozen
 candidate. Match the verification to the change and report the exact selection,
 outcome, and untested layers.
 
-## Optional frozen release
+## Sealed release build and deployment
 
-Candidate construction is a separate release activity. It records PC checkout
-provenance and strictly verifies bundled executable code. Optional domain
-content can be supplied independently:
+The standard deployment is the sealed release, built from a candidate that
+records Project Control checkout provenance and strictly verifies the
+standalone Todo package. Optional domain content can be supplied independently:
 
 ```sh
 python scripts/install.py \
   --project-control-root "$PWD" \
+  --todo-wheel /absolute/path/to/todo_orchestrator-0.2.1-py3-none-any.whl \
   --destination /absolute/path/to/candidate \
   --skills-root /absolute/path/to/optional-content
 ```
 
-Omit `--skills-root` when no external content snapshot is needed. The installer
-builds a candidate; it does not switch a `current` pointer, edit service units,
-restart processes, or migrate state. Validate the candidate and preserve the
-previous one before performing a separately controlled activation. Source-mode
-identity and frozen-release identity have different checks; do not copy release
-pins into the source launcher environment.
+`--todo-wheel` is required and must name the exact standalone Todo 0.2.1 wheel
+paired with Project Control 0.4.2. Omit `--skills-root` when no external content
+snapshot is needed. The installer builds a candidate; it does not change the
+`~/.local/state/project-control/current` pointer, edit launch configuration,
+restart processes, or migrate state. Deployment selects the immutable
+candidate through `current` and configures the HTTP service and Codex to use the
+stable current launchers. Verify the selected release and reconnect Codex after
+activation. The inference service remains demand-only and inactive until
+explicit assistance is requested.
+
+For rollback, restore the captured service and Codex launch configuration and
+the prior `current` pointer, then restart the HTTP observer and reconnect Codex.
+This restores executable selection only: preserve all Todo authorities,
+project identities, claims, queued work, snapshots, and any writes made since
+activation. Never restore an older database over current authority state or
+replay imported effects. Keep inference demand-only during rollback as well.
+Source-mode identity and sealed-release identity have different checks; do not
+copy release pins into the source launcher environment.

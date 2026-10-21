@@ -8,7 +8,7 @@ Environment=PROJECT_CONTROL_PROFILE=observer
 Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/observer-analysis
 Environment=PROJECT_CONTROL_PERFORMANCE_PROBE_STATE_DIR=%h/.cache/project-control/performance-probe
 Environment=TODO_BACKGROUND_HOST_RUNTIME_DIR=%t/codex-todo-orchestrator
-ExecStart=@CANDIDATE_ROOT@/bin/project-control observer --host 127.0.0.1 --port @CANDIDATE_PORT@
+ExecStart=@CANDIDATE_ROOT@/bin/project-control-release serve observer --host 127.0.0.1 --port @CANDIDATE_PORT@
 RuntimeDirectory=codex-todo-orchestrator
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes

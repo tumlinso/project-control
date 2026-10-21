@@ -70,7 +70,13 @@ def _verify_read_port(port: TodoReadPort) -> tuple[str | None, str | None, tuple
 
 def _bundled_read_port_factory(environment=None) -> TodoReadPortFactory:
     from .workflow_binding import todo_read_port_factory
-    return todo_read_port_factory(environment or {})
+    # Preserve the distinction between the process environment and an
+    # explicitly supplied mapping.  In a sealed candidate, the default
+    # process environment carries the release manifest and digest that bind
+    # Todo to the paired package.  Replacing that environment with ``{}``
+    # would initialize the binding without those pins and make its later
+    # validation fail when the native read port observes the sealed runtime.
+    return todo_read_port_factory() if environment is None else todo_read_port_factory(environment)
 
 
 def resolve_todo_provider(config: ProjectControlConfig, workspace_id: str, *,

@@ -1056,8 +1056,10 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
         providers: dict[str, object] = {}
         builder = SnapshotBuilder(config)
         for workspace_id in config.workspaces:
-            registry.workspace(workspace_id)
-            provider = resolve_todo_provider(config, workspace_id)
+            workspace = registry.workspace(workspace_id)
+            authority_root = (registry.repository(workspace_id, workspace.authority_repository).root
+                              if workspace.authority_repository else None)
+            provider = resolve_todo_provider(config, workspace_id, project_root=authority_root)
             snapshot = builder.build(workspace_id)
             todo_warnings = snapshot.warnings_for("todo")
             content_root = resolve_skills_root(config, workspace_id)

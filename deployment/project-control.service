@@ -1,14 +1,14 @@
 [Unit]
-Description=Project Control unified HTTP observer
+Description=Project Control sealed-release HTTP observer
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/project-control
+WorkingDirectory=%h/.local/state/project-control
 Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 Environment=PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=%h/.cache/project-control/as1-observer-analysis
 Environment=TODO_BACKGROUND_HOST_RUNTIME_DIR=/tmp/codex-todo-orchestrator-1000
-ExecStart=%h/.local/bin/project-control serve observer --host 127.0.0.1 --port 8768
+ExecStart=%h/.local/state/project-control/current/bin/project-control-release serve observer --host 127.0.0.1 --port 8768
 Restart=on-failure
 RestartSec=2
 UMask=0077
@@ -17,7 +17,7 @@ NoNewPrivileges=true
 PrivateTmp=false
 ProtectSystem=full
 ProtectHome=read-only
-ReadWritePaths=%h/.cache/project-control %h/.local/state/project-control %h/.config/project-control
+ReadWritePaths=%h/.cache/project-control %h/.local/state/project-control %h/.config/project-control -/tmp/codex-todo-orchestrator-1000
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]

@@ -21,6 +21,7 @@ from project_control.snapshot import SnapshotBuilder
 from project_control.todo_authority import (
     REQUIRED_TODO_READ_CAPABILITIES,
     TODO_READ_PORT_CONTRACT,
+    _bundled_read_port_factory,
     resolve_todo_provider,
 )
 
@@ -111,6 +112,17 @@ class TodoAuthorityTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.environment.stop()
         self.temporary.cleanup()
+
+    def test_bundled_read_port_factory_preserves_default_and_explicit_environments(self) -> None:
+        factory = Mock()
+        with patch("project_control.workflow_binding.todo_read_port_factory", return_value=factory) as create:
+            self.assertIs(_bundled_read_port_factory(), factory)
+        create.assert_called_once_with()
+
+        explicit_environment: dict[str, str] = {}
+        with patch("project_control.workflow_binding.todo_read_port_factory", return_value=factory) as create:
+            self.assertIs(_bundled_read_port_factory(explicit_environment), factory)
+        create.assert_called_once_with(explicit_environment)
 
     def test_verified_in_process_port_is_preferred_and_drives_snapshot(self) -> None:
         port = FakeReadPort(self.skills_root)

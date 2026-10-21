@@ -8,6 +8,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from project_control.cli import _serve_profile, main
@@ -50,6 +51,54 @@ class ProfileCliTests(unittest.TestCase):
         self.assertEqual(
             result["executor_capabilities"]["local_worker_observation_adapter"]["status"], "observation_only",
         )
+
+    def test_doctor_binds_todo_provider_to_registered_authority_root(self) -> None:
+        from project_control.cli import _doctor
+        from project_control.config import RepositoryConfig, WorkspaceConfig
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            repository = base / "repository"
+            repository.mkdir()
+            skills = base / "skills"
+            skills.mkdir()
+            config = ProjectControlConfig(
+                observer_skills_root=skills,
+                workspaces={
+                    "fixture": WorkspaceConfig(
+                        authority_repository="source",
+                        repositories={"source": RepositoryConfig(root=repository)},
+                    ),
+                },
+            )
+            snapshot = SimpleNamespace(
+                warnings_for=lambda _component: [],
+                todo_revision=1,
+                todo_status={"component_authority": {}},
+                cuda={"status": "unavailable"},
+                local_worker={"status": "unavailable"},
+            )
+            provider = SimpleNamespace(
+                compatible=True,
+                selection_source="standalone_distribution",
+                package_root=None,
+                error_code=None,
+                local_diagnostics=lambda: {"status": "available"},
+            )
+            with patch("project_control.cli.load_config", return_value=config), \
+                 patch("project_control.cli.runtime_diagnostics", return_value={"status": "verified"}), \
+                 patch("project_control.cli.BubblewrapSandbox.probe_diagnostics",
+                       return_value={"installed": False, "ready": False}), \
+                 patch("project_control.cli._terminal_service_constraints", return_value={"compatible": None}), \
+                 patch("project_control.cli.SnapshotBuilder") as builder_type, \
+                 patch("project_control.cli.resolve_todo_provider", return_value=provider) as resolve:
+                builder_type.return_value.build.return_value = snapshot
+                ok, result = _doctor(tunnel=False)
+
+            self.assertTrue(ok)
+            self.assertEqual(result["providers"]["fixture"]["todo_kernel"]["status"], "ok")
+            self.assertEqual(resolve.call_args.kwargs["project_root"], repository.resolve())
+
     def test_plan_compile_writes_native_plan_and_bounded_summary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

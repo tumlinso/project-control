@@ -362,7 +362,20 @@ class InstallerTests(unittest.TestCase):
                     bin_dir.mkdir(parents=True)
                     python = bin_dir / "python"
                     python.write_text(
-                        f"#!{sys.executable}\nimport sys\nraise SystemExit(0)\n",
+                        f"#!{sys.executable}\n"
+                        "import json, os, sys\n"
+                        "capture = os.environ.get('PCU_LAUNCH_CAPTURE')\n"
+                        "if capture:\n"
+                        "    keys = ('PROJECT_CONTROL_SKILLS_ROOT', 'PROJECT_CONTROL_OBSERVER_SKILLS_ROOT', "
+                        "'PROJECT_CONTROL_RELEASE_MANIFEST', 'PROJECT_CONTROL_RELEASE_DIGEST', "
+                        "'PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR', 'TODO_BACKGROUND_HOST_RUNTIME_DIR', "
+                        "'PROJECT_CONTROL_OBSERVER_GPU_UUIDS', 'CUDA_VISIBLE_DEVICES', 'PYTHONPATH', "
+                        "'PYTHONHOME', 'PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT', "
+                        "'PROJECT_CONTROL_RUNTIME_PYTHON', 'CODING_WORKFLOW_RUNTIME_PYTHON', "
+                        "'CORE4_SUPERVISOR_RUNTIME_DIR')\n"
+                        "    with open(capture, 'w', encoding='utf-8') as stream:\n"
+                        "        json.dump({'argv': sys.argv[1:], 'environment': {key: os.environ.get(key) for key in keys}}, stream)\n"
+                        "raise SystemExit(0)\n",
                         encoding="utf-8",
                     )
                     python.chmod(0o755)
@@ -396,9 +409,15 @@ class InstallerTests(unittest.TestCase):
                     runner=runner,
                 )
                 launcher = (destination / "bin" / "project-control-release").read_text(encoding="utf-8")
+                inference_launcher = destination / "bin" / "project-control-inference"
+                inference_text = inference_launcher.read_text(encoding="utf-8")
                 frozen_root = str(destination / "runtime-skills")
                 self.assertIn(f"export PROJECT_CONTROL_SKILLS_ROOT='{frozen_root}'", launcher)
-                self.assertIn(f"export PROJECT_CONTROL_OBSERVER_SKILLS_ROOT='{frozen_root}'", launcher)
+                self.assertNotIn("export PROJECT_CONTROL_OBSERVER_SKILLS_ROOT=", launcher)
+                for release_line in MODULE._candidate_release_environment(
+                    destination, hashlib.sha256((destination / "release-manifest.json").read_bytes()).hexdigest()
+                ).splitlines():
+                    self.assertIn(release_line, inference_text)
                 self.assertEqual(os.environ["PROJECT_CONTROL_SKILLS_ROOT"], "/unsealed/custom-skills")
                 self.assertEqual(os.environ["PROJECT_CONTROL_OBSERVER_SKILLS_ROOT"], "/unsealed/custom-observer-skills")
 
@@ -407,12 +426,98 @@ class InstallerTests(unittest.TestCase):
                 [
                     (str(destination / "bin" / "project-control"), "--help"),
                     (str(destination / "bin" / "python"), "-m", "project_control", "--help"),
+                    ("/bin/sh", "-n", str(destination / "bin" / "project-control-release")),
+                    ("/bin/sh", "-n", str(destination / "bin" / "project-control-inference")),
                 ],
             )
+            state_root = root / "operator state"
+            host_runtime = root / "host runtime"
+            gpu_uuids = '["GPU-preserved-operator-uuid"]'
+            capture = root / "inference-launch.json"
+            launch_environment = {
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": str(root / "home"),
+                "PCU_LAUNCH_CAPTURE": str(capture),
+                "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(state_root),
+                "TODO_BACKGROUND_HOST_RUNTIME_DIR": str(host_runtime),
+                "PROJECT_CONTROL_OBSERVER_GPU_UUIDS": gpu_uuids,
+                "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT": str(root / "operator-domain-skills"),
+                "CUDA_VISIBLE_DEVICES": "2,4",
+                "PYTHONPATH": "/unsealed/pythonpath",
+                "PYTHONHOME": "/unsealed/pythonhome",
+                "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT": "stale-fingerprint",
+                "PROJECT_CONTROL_RUNTIME_PYTHON": "/unsealed/python",
+                "CODING_WORKFLOW_RUNTIME_PYTHON": "/unsealed/coding-workflow-python",
+                "CORE4_SUPERVISOR_RUNTIME_DIR": "/unsealed/supervisor-runtime",
+                "PROJECT_CONTROL_RELEASE_MANIFEST": "/unsealed/release-manifest.json",
+                "PROJECT_CONTROL_RELEASE_DIGEST": "0" * 64,
+            }
+            launched = subprocess.run(
+                [str(destination / "bin" / "project-control-inference")],
+                env=launch_environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual((launched.returncode, launched.stderr), (0, ""))
+            captured = json.loads(capture.read_text(encoding="utf-8"))
+            release_digest = hashlib.sha256((destination / "release-manifest.json").read_bytes()).hexdigest()
+            self.assertEqual(captured["argv"], [
+                "-m", "project_control.runtime_binding", "local_worker.supervisor", "--serve",
+                "--repo-root", str(state_root), "--service-state-root", str(state_root),
+                "--runtime-root", str(state_root / "runtime"), "--observer-only",
+            ])
+            self.assertEqual(captured["environment"], {
+                "PROJECT_CONTROL_SKILLS_ROOT": str(destination / "runtime-skills"),
+                "PROJECT_CONTROL_OBSERVER_SKILLS_ROOT": str(root / "operator-domain-skills"),
+                "PROJECT_CONTROL_RELEASE_MANIFEST": str(destination / "release-manifest.json"),
+                "PROJECT_CONTROL_RELEASE_DIGEST": release_digest,
+                "PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR": str(state_root),
+                "TODO_BACKGROUND_HOST_RUNTIME_DIR": str(host_runtime),
+                "PROJECT_CONTROL_OBSERVER_GPU_UUIDS": gpu_uuids,
+                "CUDA_VISIBLE_DEVICES": "2,4",
+                "PYTHONPATH": None,
+                "PYTHONHOME": None,
+                "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT": None,
+                "PROJECT_CONTROL_RUNTIME_PYTHON": None,
+                "CODING_WORKFLOW_RUNTIME_PYTHON": None,
+                "CORE4_SUPERVISOR_RUNTIME_DIR": None,
+            })
+            source_gpu_line = next(
+                line for line in (ROOT / "scripts" / "pc-inference").read_text(encoding="utf-8").splitlines()
+                if line.startswith("export PROJECT_CONTROL_OBSERVER_GPU_UUIDS=")
+            )
+            self.assertEqual(source_gpu_line.split("=", 1)[1].strip("'"), MODULE.DEFAULT_OBSERVER_GPU_UUIDS)
+            fallback_capture = root / "inference-launch-default-gpus.json"
+            fallback_environment = dict(launch_environment)
+            fallback_environment.pop("PROJECT_CONTROL_OBSERVER_GPU_UUIDS")
+            fallback_environment["PCU_LAUNCH_CAPTURE"] = str(fallback_capture)
+            fallback_launch = subprocess.run(
+                [str(destination / "bin" / "project-control-inference")],
+                env=fallback_environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual((fallback_launch.returncode, fallback_launch.stderr), (0, ""))
+            fallback_captured = json.loads(fallback_capture.read_text(encoding="utf-8"))
+            self.assertEqual(
+                fallback_captured["environment"]["PROJECT_CONTROL_OBSERVER_GPU_UUIDS"],
+                MODULE.DEFAULT_OBSERVER_GPU_UUIDS,
+            )
+            capture.unlink()
+            fallback_capture.unlink()
+            rejected = subprocess.run(
+                [str(destination / "bin" / "project-control-inference"), "--repo-root", "/other"],
+                env=launch_environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(rejected.returncode, 2)
+            self.assertIn("operator arguments are not accepted", rejected.stderr)
+            self.assertFalse(capture.exists())
             console = (destination / "bin" / "project-control").read_bytes()
+            inference_bytes = (destination / "bin" / "project-control-inference").read_bytes()
             for staging in staging_paths:
                 self.assertNotIn(os.fsencode(staging), console)
+                self.assertNotIn(os.fsencode(staging), inference_bytes)
             self.assertIn(os.fsencode(destination / "bin" / "python"), console)
+            self.assertIn(os.fsencode(destination / "bin" / "python"), inference_bytes)
             expected_digest = hashlib.sha256(
                 (destination / "pcu-candidate.json").read_bytes()
             ).hexdigest()

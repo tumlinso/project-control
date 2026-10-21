@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import shutil
 import sys
@@ -14,7 +15,22 @@ from project_control import runtime_identity
 
 
 PROJECT_CONTROL_SOURCE = Path(runtime_identity.__file__).resolve().parent
-TODO_SOURCE = PROJECT_CONTROL_SOURCE.parent / "todo_orchestrator"
+
+
+class _TemporaryTodoDistribution:
+    """Expose a temporary source copy as the distribution-owned package."""
+
+    version = runtime_identity.TODO_VERSION
+    files = (Path("todo_orchestrator/__init__.py"),)
+
+    def __init__(self, package_root: Path):
+        self.package_root = package_root
+
+    def locate_file(self, path: str | Path) -> Path:
+        relative = Path(path)
+        if relative == Path("todo_orchestrator"):
+            return self.package_root
+        return self.package_root.parent / relative
 
 
 class ReleaseIdentityTests(unittest.TestCase):
@@ -25,12 +41,22 @@ class ReleaseIdentityTests(unittest.TestCase):
         site_packages = root / "lib" / "python3" / "site-packages"
         self.project_package = site_packages / "project_control"
         self.todo_package = site_packages / "todo_orchestrator"
+        installed_todo = importlib.metadata.distribution(runtime_identity.TODO_DISTRIBUTION)
+        self.assertEqual(installed_todo.version, runtime_identity.TODO_VERSION)
+        todo_source = Path(installed_todo.locate_file("todo_orchestrator")).resolve(strict=True)
+        self.assertTrue((todo_source / "__init__.py").is_file())
         shutil.copytree(PROJECT_CONTROL_SOURCE, self.project_package,
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-        shutil.copytree(TODO_SOURCE, self.todo_package,
+        shutil.copytree(todo_source, self.todo_package,
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         self.module = types.ModuleType("todo_orchestrator")
         self.module.__file__ = str(self.todo_package / "__init__.py")
+        distribution = _TemporaryTodoDistribution(self.todo_package)
+        self.distribution_patch = patch.object(
+            runtime_identity.importlib.metadata, "distribution", return_value=distribution,
+        )
+        self.distribution_patch.start()
+        self.addCleanup(self.distribution_patch.stop)
         self.file_patch = patch.object(runtime_identity, "__file__",
                                        str(self.project_package / "runtime_identity.py"))
         self.file_patch.start()
@@ -42,10 +68,14 @@ class ReleaseIdentityTests(unittest.TestCase):
 
     def _write_release(self, **updates: object) -> dict[str, str]:
         data: dict[str, object] = {
-            "schema_version": 3,
+            "schema_version": 4,
             "project_control_fingerprint": runtime_identity.package_fingerprint(self.project_package),
-            "todo_package_root": str(self.todo_package),
-            "todo_runtime_fingerprint": runtime_identity.package_fingerprint(self.todo_package),
+            "todo_distribution": {
+                "name": runtime_identity.TODO_DISTRIBUTION,
+                "version": runtime_identity.TODO_VERSION,
+                "package_path": str(self.todo_package),
+                "fingerprint": runtime_identity.package_fingerprint(self.todo_package),
+            },
             "skills_root": None,
         }
         data.update(updates)
@@ -82,7 +112,7 @@ class ReleaseIdentityTests(unittest.TestCase):
         (self.todo_package / "__init__.py").symlink_to(target)
 
         with self.assertRaisesRegex(runtime_identity.RuntimeIdentityError,
-                                    "runtime package contains a symlink"):
+                                    "Todo package contains a symlink"):
             runtime_identity.bind_runtime(environment)
 
     def test_release_manifest_digest_is_required(self) -> None:
@@ -91,7 +121,7 @@ class ReleaseIdentityTests(unittest.TestCase):
         with self.assertRaises(runtime_identity.RuntimeIdentityError):
             runtime_identity.bind_runtime(environment)
 
-    def test_schema3_requires_project_control_package_fingerprint(self) -> None:
+    def test_schema4_requires_project_control_package_fingerprint(self) -> None:
         environment = self._write_release()
         data = json.loads(self.manifest.read_text(encoding="utf-8"))
         del data["project_control_fingerprint"]

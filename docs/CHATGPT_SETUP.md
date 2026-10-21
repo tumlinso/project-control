@@ -8,18 +8,12 @@ This connects ChatGPT to the read-only Project Control observer over the
 loopback HTTP endpoint. Keep the listener bound to `127.0.0.1`; expose it to a
 remote client only through an explicitly configured, authenticated tunnel.
 
-## Start the local source service
+## Use the local observer
 
-Set up the checkout when first installing dependencies or when they change:
-
-```sh
-scripts/pc-dev setup
-```
-
-The source service unit in `scripts/services/project-control.service` runs
-`scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768`. Preserve its
-existing profile, principal binding, workspace configuration, ports, and state
-locations when installing or editing a unit. Then:
+The standard `project-control.service` serves the release selected by
+`~/.local/state/project-control/current`. Preserve its profile, principal
+binding, workspace configuration, port, and state locations when operating the
+service. Check the active service and endpoints with:
 
 ```sh
 systemctl --user daemon-reload
@@ -33,6 +27,11 @@ configuration and the workflow engine. Inference and optional domain content
 have separate status and are not prerequisites for core reads. To verify the
 real surface, reconnect the MCP client, list tools, and make one read-only call
 for a registered project.
+
+For explicit source development, use `scripts/pc-dev setup` and its source
+commands from the checkout. This does not change the sealed release selected by
+the service or its `current` pointer. Do not point the production observer at a
+development checkout as part of routine source testing.
 
 ## Connect ChatGPT
 

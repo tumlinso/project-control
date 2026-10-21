@@ -6,12 +6,19 @@ is owned by the independently installed Todo Orchestrator engine. Project
 Control presents the compact agent workflow over that engine; use the active
 runtime metadata and MCP manifest for deployed versions and exact schemas.
 
-## Development
+The standard local runtime is the sealed Project Control 0.4.2 release paired
+with standalone Todo Orchestrator 0.2.1. The standard CLI and service use the
+release selected by `~/.local/state/project-control/current`. See
+[deployment](docs/deployment.md) for release selection, source development,
+and rollback.
 
-Use the exact Todo wheel pinned in `config/todo-orchestrator-runtime.json`:
+## Source development
+
+Use the exact Todo wheel pinned in `config/todo-orchestrator-runtime.json` for
+source setup and checks:
 
 ```sh
-scripts/pc-dev setup --todo-wheel /path/to/todo_orchestrator-0.2.0-py3-none-any.whl
+scripts/pc-dev setup --todo-wheel /path/to/todo_orchestrator-0.2.1-py3-none-any.whl
 scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768
 scripts/pc-dev run codex
 scripts/pc-dev run mutator

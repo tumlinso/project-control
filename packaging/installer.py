@@ -20,6 +20,12 @@ class InstallError(RuntimeError):
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]
 TODO_LOCK = Path("config/todo-orchestrator-runtime.json")
+DEFAULT_OBSERVER_GPU_UUIDS = (
+    '["GPU-21131915-1488-23af-38dd-1743ae1f5cc8",'
+    '"GPU-cf22c41f-5b58-77b1-3535-8fadd1ca6505",'
+    '"GPU-d745da9c-7649-8334-41f1-483afa6f3206",'
+    '"GPU-6c1cac7f-a360-0aef-ba98-2828bfd1db1a"]'
+)
 
 
 def _run(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
@@ -203,6 +209,8 @@ def _verify_promoted_entrypoints(destination: Path, *, runner: Runner) -> None:
     commands = (
         (str(destination / "bin" / "project-control"), "--help"),
         (str(destination / "bin" / "python"), "-m", "project_control", "--help"),
+        ("/bin/sh", "-n", str(destination / "bin" / "project-control-release")),
+        ("/bin/sh", "-n", str(destination / "bin" / "project-control-inference")),
     )
     for command in commands:
         completed = runner(command)
@@ -374,6 +382,59 @@ def _bind_project_control_runtime(temporary: Path, *, allow_missing_stub: bool =
             "fingerprint": fingerprint}
 
 
+def _candidate_release_environment(destination: Path, release_digest: str) -> str:
+    """Return the shared fail-closed environment used by candidate launchers."""
+    frozen_root = destination / "runtime-skills"
+    manifest = destination / "release-manifest.json"
+    return (
+        "unset PYTHONPATH PYTHONHOME CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT "
+        "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256 "
+        "PROJECT_CONTROL_RELEASE_MANIFEST PROJECT_CONTROL_RELEASE_DIGEST\n"
+        f"export PROJECT_CONTROL_SKILLS_ROOT={shlex.quote(str(frozen_root))}\n"
+        f"export PROJECT_CONTROL_RELEASE_MANIFEST={shlex.quote(str(manifest))}\n"
+        f"export PROJECT_CONTROL_RELEASE_DIGEST={shlex.quote(release_digest)}\n"
+    )
+
+
+def _candidate_inference_launcher(destination: Path, release_digest: str) -> str:
+    """Build the source-independent demand-only inference entrypoint.
+
+    The operator's state, host-runtime, and GPU allowlist environment is kept
+    intact. The state and host-runtime defaults match the existing source
+    launcher, while the Python interpreter and release pins are candidate-owned.
+    """
+    return (
+        "#!/bin/sh\n"
+        "# Start the one operator-owned, demand-only observer inference supervisor.\n"
+        "# This sealed launcher has no command-line authority or policy overrides.\n"
+        "set -eu\n"
+        "if [ \"$#\" -ne 0 ]; then\n"
+        "    printf '%s\\n' \"project-control-inference: operator arguments are not accepted\" >&2\n"
+        "    exit 2\n"
+        "fi\n\n"
+        + _candidate_release_environment(destination, release_digest)
+        + "unset PYTHONUSERBASE PROJECT_CONTROL_RUNTIME_PYTHON CODING_WORKFLOW_RUNTIME_PYTHON "
+        "CORE4_SUPERVISOR_RUNTIME_DIR\n"
+        + "if [ -z \"${PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR:-}\" ]; then\n"
+        "    PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR=\"${HOME}/.cache/project-control/as1-observer-analysis\"\n"
+        "fi\n"
+        "export PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR\n"
+        "if [ -z \"${TODO_BACKGROUND_HOST_RUNTIME_DIR:-}\" ]; then\n"
+        "    TODO_BACKGROUND_HOST_RUNTIME_DIR=/tmp/codex-todo-orchestrator-1000\n"
+        "fi\n"
+        "export TODO_BACKGROUND_HOST_RUNTIME_DIR\n"
+        "if [ -z \"${PROJECT_CONTROL_OBSERVER_GPU_UUIDS:-}\" ]; then\n"
+        f"    PROJECT_CONTROL_OBSERVER_GPU_UUIDS={shlex.quote(DEFAULT_OBSERVER_GPU_UUIDS)}\n"
+        "fi\n"
+        "export PROJECT_CONTROL_OBSERVER_GPU_UUIDS\n"
+        f"exec {shlex.quote(str(destination / 'bin' / 'python'))} -m project_control.runtime_binding "
+        "local_worker.supervisor --serve \\\n"
+        '    --repo-root "$PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR" \\\n'
+        '    --service-state-root "$PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR" \\\n'
+        '    --runtime-root "$PROJECT_CONTROL_OBSERVER_ANALYSIS_STATE_DIR/runtime" --observer-only\n'
+    )
+
+
 def build_candidate(
     *,
     project_control_root: Path,
@@ -463,15 +524,14 @@ def build_candidate(
         launcher = temporary / "bin" / "project-control-release"
         launcher.parent.mkdir(parents=True, exist_ok=True)
         launcher.write_text("#!/bin/sh\n" +
-            "unset PYTHONPATH PYTHONHOME CODING_WORKFLOW_SKILLS_ROOT CODING_WORKFLOW_RUNTIME_FINGERPRINT "
-            "PROJECT_CONTROL_TODO_RUNTIME_FINGERPRINT PROJECT_CONTROL_OBSERVER_SUPERVISOR_SHA256 "
-            "PROJECT_CONTROL_RELEASE_MANIFEST PROJECT_CONTROL_RELEASE_DIGEST\n" +
-            "export PROJECT_CONTROL_SKILLS_ROOT=" + shlex.quote(str(destination / "runtime-skills")) + "\n" +
-            "export PROJECT_CONTROL_OBSERVER_SKILLS_ROOT=" + shlex.quote(str(destination / "runtime-skills")) + "\n" +
-            "export PROJECT_CONTROL_RELEASE_MANIFEST=" + shlex.quote(str(destination / "release-manifest.json")) + "\n" +
-            "export PROJECT_CONTROL_RELEASE_DIGEST=" + shlex.quote(release_digest) + "\n" +
+            _candidate_release_environment(destination, release_digest) +
             "exec " + shlex.quote(str(destination / "bin" / "project-control")) + ' "$@"\n')
         launcher.chmod(0o755)
+        inference_launcher = temporary / "bin" / "project-control-inference"
+        inference_launcher.write_text(
+            _candidate_inference_launcher(destination, release_digest), encoding="utf-8"
+        )
+        inference_launcher.chmod(0o755)
         (temporary / "pcu-candidate.json").write_text(
             json.dumps(asdict(identity), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
