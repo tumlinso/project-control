@@ -66,6 +66,11 @@ workers do not recursively delegate. The root controller retains cross-cutting
 decisions, integration, and final acceptance. Preserve unrelated edits, state,
 and unknown work.
 
+For bounded research routing and evidence-digest guidance, see
+[research routing](workflow_foundation_v2/agents/research-routing.md); the
+current repository [AGENTS.md](../AGENTS.md) remains authoritative for
+workforce and permission rules.
+
 ## Candidate construction
 
 When preparing a release candidate, pass the exact standalone Todo wheel along
