@@ -14,6 +14,10 @@ This candidate makes Project Control a deterministic source and evidence instrum
 
 Peer candidate commits are foundations `ca0f6787e6fcbe2cb66c593b0ed56a82734278ad`, Project-Lab `2fbaa0e66309c79c2e6ba68a14f7b8f30a3c87a3`, scheduler `73e4d8188a826287b0c67757f38f9229157c5de3` and skills `fcb0302f6dde83e66abcbc158da9d2e517cc7136`. The Project Control review branch identifies the enclosing delivery commit.
 
+Project Control's implementation commit is `483ffed8a180a576ed814ee5c074e8cb66c2b033`; later report-only changes do not alter its tested code.
+
+Publication: [Project Control PR #2](https://github.com/tumlinso/project-control/pull/2), [scheduler PR #1](https://github.com/tumlinso/device-scheduler/pull/1), and [skills PR #1](https://github.com/tumlinso/skills/pull/1). Initial wheels are attached to the [Foundations 0.1.0 prerelease](https://github.com/tumlinso/project-foundations/releases/tag/v0.1.0) and [Project-Lab 0.1.0 prerelease](https://github.com/tumlinso/project-lab/releases/tag/v0.1.0). These are GitHub candidate distributions; nothing was published to PyPI or deployed.
+
 All candidates were developed in separate worktrees or new repositories under `.overhaul-workspaces`. Original uncommitted scheduler and skills changes were recorded separately and excluded. A final byte-hash, status and HEAD comparison confirmed their preservation, along with the original Project Control checkout and sealed release pointer. See [the preservation check](validation/preservation-verification.json). No active service, launcher, installed skill, credential or authoritative workflow database was changed. The only server started for acceptance was a private candidate on port 18768, which was stopped afterward.
 
 ## Delivered behavior
@@ -49,6 +53,8 @@ The selections below overlap; their counts must not be added into a total qualif
 | HTTP transport | installed Observer candidate initialized over MCP, listed ten tools and read a fixture file successfully |
 
 The installed checks are recorded in [package acceptance](validation/installed-acceptance.json) and [HTTP acceptance](validation/http-acceptance.json). Package dependencies came from the isolated wheelhouse; ordinary third-party dependencies were installed into a fresh private environment. No installed production package was replaced.
+
+Separate fresh application environments were also installed offline from that wheelhouse: Project Control passed profile/context checks with neither Project-Lab, scheduler nor Todo installed; Project-Lab passed preview/discovery with neither Project Control nor Todo installed. This verifies application independence beyond checking import declarations.
 
 One broader provider selection had 38 passes and four sandbox-limited failures: three descendant-quiescence results were unknown and one Unix-socket bind was denied. A legacy scheduler ASGI test timed out after 15 seconds without reaching a reported assertion; its HTTP fixture remains unqualified here. Scheduler stdio/schema and application contracts passed. No live scheduler, Codex turn, GPU effect, comprehensive benchmark or packaged production release was qualified.
 
