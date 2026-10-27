@@ -1,112 +1,54 @@
 # Project Control
 
-Project Control provides registered-workspace inspection, source navigation,
-project metadata, observer jobs, and demand-driven local assistance. Todo state
-is owned by the independently installed Todo Orchestrator engine. Project
-Control presents the compact agent workflow over that engine; use the active
-runtime metadata and MCP manifest for deployed versions and exact schemas.
+Project Control gives coding agents useful, source-grounded context about software. It helps them find implementations, understand relationships, inspect changes, locate tests and guidance, and retrieve recorded evidence.
 
-The standard local runtime is the sealed Project Control 0.4.2 release paired
-with standalone Todo Orchestrator 0.2.1. The standard CLI and service use the
-release selected by `~/.local/state/project-control/current`. See
-[deployment](docs/deployment.md) for release selection, source development,
-and rollback.
+An agent can request a symbol's implementation, callers, associated tests and recent changes together. Results identify their sources and explain missing or uncertain coverage. Retrieval and inspection need no intermediary model.
 
-## Source development
+## Choose a tool
 
-Use the exact Todo wheel pinned in `config/todo-orchestrator-runtime.json` for
-source setup and checks:
+| You want to... | Use |
+| --- | --- |
+| Find a project and its entry points | `overview` |
+| Understand current work and blockers | `frontier` |
+| Inspect changes or recorded history | `delta` |
+| Find text or resolve an exact entity | `search` |
+| Gather implementation, tests, callers and guidance | `context` |
+| Follow dependencies or affected dependents | `trace` |
+| Retrieve outcomes and provenance | `evidence` |
+| Check the development environment | `machine` |
+| Read exact files and ranges remotely | Observer `read` |
+| Explore files, Git state and build metadata remotely | Observer `inspect` |
 
-```sh
-scripts/pc-dev setup --todo-wheel /path/to/todo_orchestrator-0.2.1-py3-none-any.whl
-scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768
-scripts/pc-dev run codex
-scripts/pc-dev run mutator
-scripts/pc-dev test -q
-```
+Start with `overview()` to discover registered project IDs. Use literal text search for discovery or an exact typed target for lookup. Select the relationships you need with `context`. A partial result explains what is missing and how to continue; it does not necessarily mean access was denied.
 
-Legacy-contract tests are retained as reference while their request shapes are
-retired; they are not part of the native source smoke selection.
-The default source checks cover launcher sanitation, independent package
-identity, host binding, readiness and native Todo reads. Select focused tests
-for changed behavior. Tests do not qualify a live service or GPU workload.
-Authored command checks require Linux and Bubblewrap (`bwrap`). They run in
-an isolated filesystem/process/network namespace with access to the selected
-workspace and trusted toolchain. Missing containment leaves the check unavailable.
-The standalone Todo source has its own repository, test suite and wheel; it is
-not included in this distribution. Setup verifies the pinned wheel hash and
-installed Python-source fingerprint. Source and frozen-release deployments
-retain separate identities.
+## Context for each caller
 
-## Todo workflow
+**Observer / ChatGPT** receives coherent bundles with relevant source included. Its ten tools support remote exploration without shell access.
 
-Project Control keeps its compact, agent-facing workflow: call
-`next_task(project, repository?, task_id?, run_id?)` to prepare or resume work,
-then use its returned handle with `inspect_task`, `coordinate_task`, and
-`finish_task`. Those tools supply bounded context, typed coordination, and
-complete, hand off, block, or release work. The calls hide native authority
-IDs, leases, credentials, and retry bookkeeping from ordinary agents. The live
-MCP manifest is authoritative for exact argument schemas.
+**Local / Codex** receives dense guidance, precise source locations and useful associations. Native filesystem and Git tools handle routine local inspection. Its twelve tools include Todo's `next_task`, `inspect_task`, `coordinate_task` and `finish_task`.
 
-The observer retains its existing 11 read-only tools. The current compact
-profile catalogs are observer 11, coder 12, and mutator 16 tools. Use its
-established `overview`, `search`, `delta`, `frontier`, `history`, `evidence`,
-and `impact` entry points for workspace context and migrated Todo status/history.
-An observer does not need a task claim and cannot mutate workflow state.
+The **operator / mutator** profile adds `plan`, `amend_project` and `maintain_execution`, for fifteen tools. There is no compact/extended parameter: choose targets, relationships, revisions, ranges and limits; the profile handles presentation. Source retrieval works without Todo.
 
-Privileged profiles retain `plan`, `maintain_execution`, and `amend_project`
-for reviewed plan changes, operational recovery, and project metadata. Native
-Todo capabilities belong behind these established routes or the four workflow
-calls; they should be implemented fully where available, not represented by
-placeholder actions. The standalone Todo package still exposes its granular
-public API and CLI to clients operating a separately managed authority.
+## Try the source
 
-The host owns authorization, workspace selection, identifiers, and provider
-bindings. Imported completion assertions preserve their legacy provenance and
-do not invent native verification. Unknown prior effects remain visible for
-attention and are never replayed automatically. Project Control's existing
-source, observer, and host-resource tools retain their own purposes.
-
-After a deployment changes the MCP manifest, reconnect the client to load the
-active tool list. Source documentation describes the intended compact contract;
-use `tools/list` and the current readiness endpoint to verify what a running
-service actually exposes.
-
-## Service operation
-
-Before changing executable source, stop active assistance while its original
-identity can still release owned work. Keep a source and authority backup.
-After installing the paired runtime and updating narrow Todo state grants,
-restart the inference supervisor and HTTP service together. Restore an explicit
-stop veto only after checking the selected runtime:
+Use Python 3.11+ and `uv`, with a sibling checkout of [Project Foundations](https://github.com/tumlinso/project-foundations):
 
 ```sh
-scripts/pc-dev run assistance stop
-# Install and qualify the paired source/artifacts, then update state paths.
-scripts/pc-dev python scripts/configure_source_state_paths.py --all-projects --apply
-systemctl --user daemon-reload
-systemctl --user restart project-control-inference.service project-control.service
-scripts/pc-dev run assistance resume --release
+scripts/pc-dev setup --foundation-repo ../project-foundations
+scripts/pc-dev run --help
 ```
 
-`resume --release` does not load a model. Inference remains demand-driven.
-`/healthz`, `/readyz` and `/version` distinguish core readiness, optional
-inference/domain availability and the active package/tool schema.
+Follow [development](docs/development.md) to register a disposable project and run a candidate on its own port and private state. Workflow profiles additionally need the verified standalone Todo package, supplied with `--todo-wheel` during setup. Ordinary retrieval needs no inference service.
 
-## Preservation and cutover
+## Applications and packages
 
-`legacy/todo_orchestrator-reference/` retains the original engine as source
-reference and is excluded from imports and builds. Original authorities and
-worktrees are preserved. `scripts/migrate_todo_authorities.py` imports frozen
-sanitized snapshots into fresh authorities; activation requires verified backup
-and source bindings, a stopped-writer gate, and explicit apply. It supports a
-pilot followed by the remaining authorities without replacing new pilot writes.
-Host credentials, authority databases and migration receipts remain private.
+- **Project Control** provides development context and inspection.
+- **[Project-Lab](https://github.com/tumlinso/project-lab)** conducts scheduled experiments and preserves results.
+- **[Project Foundations](https://github.com/tumlinso/project-foundations)** contains the independent source and evidence packages used by both applications.
+- **[Device Scheduler](https://github.com/tumlinso/device-scheduler)** allocates resources and supervises physical execution.
+- **Todo Orchestrator** owns plans, tasks, workflow, verification and acceptance.
+- **cpp-context-compiler** supplies specialized C++ analysis and context.
 
-After native writes exist, rollback must preserve them before restoring an old
-runtime; never overwrite or downgrade an authority or replay unknown effects.
-The standalone repository's `planning/cutover-v1/` and
-`docs/operations/cutover-operator-notes.md` record the operator scope and actual
-deployment evidence. Older documents under `docs/` retain historical design and
-qualification context; use this README and the live manifest for current Todo
-setup and tool names.
+Python structural retrieval and configured C++ exports supplement file, lexical and Git retrieval. Dynamic or ambiguous relationships stay labelled. Guidance declarations, dependencies, explicit links and incidental mentions remain distinct.
+
+See [retrieval recipes](docs/retrieval.md) for context, guidance, C++ exports and peer evidence, [architecture](docs/architecture.md) for ownership, and [deployment](docs/deployment.md) for the candidate/live-service boundary. The [assistance archive](archive/assistance-v0/README.md) preserves the former investigation and inference implementation outside the installed application. Existing evidence and notes retain their original identities and attribution.

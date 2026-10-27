@@ -1,0 +1,60 @@
+{
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+  "todo_installed": false,
+  "profiles": {
+    "observer": [
+      "context",
+      "delta",
+      "evidence",
+      "frontier",
+      "inspect",
+      "machine",
+      "overview",
+      "read",
+      "search",
+      "trace"
+    ],
+    "codex": [
+      "context",
+      "coordinate_task",
+      "delta",
+      "evidence",
+      "finish_task",
+      "frontier",
+      "inspect_task",
+      "machine",
+      "next_task",
+      "overview",
+      "search",
+      "trace"
+    ],
+    "mutator": [
+      "amend_project",
+      "context",
+      "coordinate_task",
+      "delta",
+      "evidence",
+      "finish_task",
+      "frontier",
+      "inspect_task",
+      "machine",
+      "maintain_execution",
+      "next_task",
+      "overview",
+      "plan",
+      "search",
+      "trace"
+    ]
+  },
+  "lab_tools": [
+    "compare",
+    "control",
+    "preview",
+    "results",
+    "run",
+    "schedule",
+    "status"
+  ],
+  "fixture": "/tmp/pc-installed-acceptance-wmbo0n3o",
+  "package_file": "/home/tumlinson/project-control/.overhaul-workspaces/.install-venv/lib/python3.12/site-packages/project_control/__init__.py"
+}

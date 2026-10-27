@@ -16,7 +16,6 @@ from starlette.testclient import TestClient
 from project_control import call_audit
 from project_control.app import AuditCallerMiddleware, create_asgi_app, serve
 from project_control.config import ServerConfig
-from project_control.observer_analysis import SkillsObserverAnalysisProvider
 from project_control.profiles import ProfiledFastMCP
 
 
@@ -113,19 +112,19 @@ class CallAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, patch.object(call_audit, "AUDIT_DIR", Path(temporary) / "audit"):
             server = ProfiledFastMCP("audit-test", profile="observer")
 
-            def project_overview(project: str) -> dict[str, str]:
+            def overview(project: str) -> dict[str, str]:
                 self.assertIsNotNone(call_audit.call_id_var.get())
-                call_audit.write_event({"event": "model_request", "call_id": call_audit.call_id_var.get()})
+                call_audit.write_event({"event": "backend_request", "call_id": call_audit.call_id_var.get()})
                 return {"project": project}
 
-            server.add_tool(project_overview)
-            asyncio.run(server.call_tool("project_overview", {"project": "demo"}))
+            server.add_tool(overview)
+            asyncio.run(server.call_tool("overview", {"project": "demo"}))
             with self.assertRaises(Exception):
                 asyncio.run(server.call_tool("unregistered_tool", {"project": "demo"}))
             with self.assertRaises(Exception):
-                asyncio.run(server.call_tool("project_overview", None))
+                asyncio.run(server.call_tool("overview", None))
             events = [json.loads(line) for line in (call_audit.AUDIT_DIR / "calls.jsonl").read_text().splitlines()]
-            model = next(item for item in events if item["event"] == "model_request")
+            model = next(item for item in events if item["event"] == "backend_request")
             started = next(item for item in events if item["event"] == "tool_call" and item["phase"] == "started")
             self.assertEqual(model["call_id"], started["call_id"])
             self.assertEqual(started["caller"]["transport"], "stdio")
@@ -160,17 +159,17 @@ class CallAuditTests(unittest.TestCase):
             server = ProfiledFastMCP("audit-test", profile="observer", host="127.0.0.1", port=8767,
                                       stateless_http=True, json_response=True)
 
-            def project_overview(project: str) -> dict[str, str]:
-                call_audit.write_event({"event": "model_request", "call_id": call_audit.call_id_var.get()})
+            def overview(project: str) -> dict[str, str]:
+                call_audit.write_event({"event": "backend_request", "call_id": call_audit.call_id_var.get()})
                 return {"project": project}
 
-            server.add_tool(project_overview)
+            server.add_tool(overview)
             server._project_control_runtime = SimpleNamespace(terminals=SimpleNamespace(shutdown=lambda: None))
-            server._project_control_observer_analysis_registry = SimpleNamespace(close=lambda: None)
+            server._project_control_surface = SimpleNamespace(start=lambda: None, close=lambda: True)
             with patch("project_control.app.create_mcp", return_value=server):
                 with TestClient(create_asgi_app(), base_url="http://127.0.0.1:8767") as client:
                     response = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1,
-                        "method": "tools/call", "params": {"name": "project_overview",
+                        "method": "tools/call", "params": {"name": "overview",
                         "arguments": {"project": "demo"}}},
                         headers={"accept": "application/json, text/event-stream",
                                  "x-forwarded-for": "203.0.113.7"})
@@ -180,37 +179,9 @@ class CallAuditTests(unittest.TestCase):
             self.assertEqual(started["caller"]["transport"], "http")
             self.assertEqual(started["caller"]["peer_ip"], "testclient")
             self.assertEqual(started["caller"]["upstream_identity"], "unknown")
-            model = next(item for item in events if item["event"] == "model_request")
+            model = next(item for item in events if item["event"] == "backend_request")
             self.assertEqual(model["call_id"], started["call_id"])
             self.assertNotIn("203.0.113.7", str(events))
-
-    def test_model_request_records_summary_and_shared_call_id(self) -> None:
-        class Backend:
-            def run_observer_turn(self, request):
-                return {"status": "available", "text": "private response"}
-
-            def analyze_observer_packet(self, packet):
-                return {"status": "available"}
-
-        with tempfile.TemporaryDirectory() as temporary, patch.object(call_audit, "AUDIT_DIR", Path(temporary) / "audit"):
-            provider = SkillsObserverAnalysisProvider(temporary)
-            token = call_audit.call_id_var.set("test-call-id")
-            try:
-                with patch.object(provider, "_get_backend", return_value=Backend()):
-                    provider.investigate_turn({"messages": [
-                        {"role": "user", "content": "Inspect sk_abcdefghijklmnopqrstuvwx"}]})
-                    provider.analyze({"evidence": [{"private": "do not log"}]})
-            finally:
-                call_audit.call_id_var.reset(token)
-            raw = (call_audit.AUDIT_DIR / "calls.jsonl").read_text()
-            events = [json.loads(line) for line in raw.splitlines()]
-            self.assertEqual(len(events), 4)
-            self.assertTrue(all(item["call_id"] == "test-call-id" for item in events))
-            self.assertEqual({item["operation"] for item in events}, {"investigate_turn", "observer_analyze"})
-            self.assertNotIn("sk_abcdefghijklmnopqrstuvwx", raw)
-            self.assertNotIn("do not log", raw)
-            self.assertNotIn("private response", raw)
-
 
 if __name__ == "__main__":
     unittest.main()

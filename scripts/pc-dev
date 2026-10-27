@@ -8,13 +8,13 @@ python="$venv_path/bin/python"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  scripts/pc-dev setup --todo-wheel PATH
+  scripts/pc-dev setup --foundation-repo PATH [--todo-wheel PATH]
   scripts/pc-dev run <project-control arguments...>
   scripts/pc-dev test [pytest selectors and options...]
   scripts/pc-dev python <Python arguments...>  # internal source passthrough
 
 Examples:
-  scripts/pc-dev setup
+  scripts/pc-dev setup --foundation-repo ../project-foundations
   scripts/pc-dev run serve observer --host 127.0.0.1 --port 8768
   scripts/pc-dev run serve mutator
   scripts/pc-dev test tests/test_workflow_binding.py -q
@@ -66,29 +66,30 @@ source_environment() {
   fi
   export PYTHONNOUSERSITE=1
   export PYTHONDONTWRITEBYTECODE=1
+  export PROJECT_CONTROL_AS1_STATE_DIR="$repo_root/.state/as1"
+  export PROJECT_CONTROL_SOURCE_STATE_DIR="$repo_root/.cache/source"
 }
 
 case "$action" in
   setup)
     todo_wheel="${PROJECT_CONTROL_TODO_WHEEL:-}"
+    foundation_repo="${PROJECT_FOUNDATIONS_REPO:-}"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --todo-wheel) [[ $# -ge 2 ]] || { echo "--todo-wheel needs a path" >&2; exit 2; }; todo_wheel="$2"; shift 2 ;;
+        --foundation-repo) [[ $# -ge 2 ]] || { echo "--foundation-repo needs a path" >&2; exit 2; }; foundation_repo="$2"; shift 2 ;;
         *) echo "unknown setup argument: $1" >&2; exit 2 ;;
       esac
     done
-    if [[ -z "$todo_wheel" ]]; then
-      echo "standalone Todo wheel required; pass --todo-wheel PATH or set PROJECT_CONTROL_TODO_WHEEL" >&2
+    if [[ -z "$foundation_repo" || ! -d "$foundation_repo/packages/project-source" || ! -d "$foundation_repo/packages/project-evidence" ]]; then
+      echo "Project Foundations checkout required; pass --foundation-repo PATH" >&2
       exit 2
     fi
-    if [[ -L "$todo_wheel" ]]; then
-      echo "standalone Todo wheel path must not be a symlink" >&2
-      exit 2
-    fi
-    todo_wheel="$(readlink -f "$todo_wheel" 2>/dev/null || true)"
-    if [[ -z "$todo_wheel" || ! -f "$todo_wheel" ]]; then
-      echo "standalone Todo wheel is missing or unreadable: ${todo_wheel:-unset}" >&2
-      exit 2
+    foundation_repo="$(cd "$foundation_repo" && pwd -P)"
+    if [[ -n "$todo_wheel" ]]; then
+      if [[ -L "$todo_wheel" ]]; then echo "standalone Todo wheel path must not be a symlink" >&2; exit 2; fi
+      todo_wheel="$(readlink -f "$todo_wheel" 2>/dev/null || true)"
+      if [[ -z "$todo_wheel" || ! -f "$todo_wheel" ]]; then echo "standalone Todo wheel is missing or unreadable: ${todo_wheel:-unset}" >&2; exit 2; fi
     fi
     if ! command -v uv >/dev/null 2>&1; then
       echo "uv is unavailable; install uv, then run scripts/pc-dev setup" >&2
@@ -100,10 +101,24 @@ case "$action" in
     mkdir -p "$cache_dir"
     export UV_CACHE_DIR="$cache_dir"
     export UV_PROJECT_ENVIRONMENT="$venv_path"
-    uv sync --no-install-project --frozen --group dev
-    "$python" "$repo_root/scripts/verify_todo_runtime.py" --wheel "$todo_wheel"
-    uv pip install --python "$python" --no-deps --force-reinstall "$todo_wheel"
-    "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed
+    wheel_dir="$cache_dir/project-foundation-wheels"
+    mkdir -p "$wheel_dir"
+    uv build --wheel --out-dir "$wheel_dir" "$foundation_repo/packages/project-source"
+    uv build --wheel --out-dir "$wheel_dir" "$foundation_repo/packages/project-evidence"
+    # Foundations are built from the caller-selected peer checkout. uv records
+    # flat-index wheel paths in its lockfile, so resolve the development
+    # environment in a private scratch project instead of writing machine-local
+    # wheelhouse paths into this repository's lock state.
+    setup_project="$repo_root/.cache/pc-dev-environment"
+    mkdir -p "$setup_project"
+    cp "$repo_root/pyproject.toml" "$setup_project/pyproject.toml"
+    cp "$repo_root/README.md" "$setup_project/README.md"
+    uv sync --project "$setup_project" --no-install-project --group dev --find-links "$wheel_dir"
+    if [[ -n "$todo_wheel" ]]; then
+      "$python" "$repo_root/scripts/verify_todo_runtime.py" --wheel "$todo_wheel"
+      uv pip install --python "$python" --no-deps --force-reinstall "$todo_wheel"
+      "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed
+    fi
     ;;
   run)
     check_venv_target
@@ -116,9 +131,10 @@ case "$action" in
       echo "Project Control source tree is incomplete under $repo_root/src" >&2
       exit 2
     fi
-    if ! "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed >/dev/null 2>&1; then
-      echo "standalone Todo runtime does not match config/todo-orchestrator-runtime.json; run scripts/pc-dev setup --todo-wheel PATH" >&2
-      exit 2
+    needs_todo=0
+    for argument in "$@"; do case "$argument" in codex|mutator|plan|todo-*) needs_todo=1 ;; esac; done
+    if (( needs_todo )) && ! "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed >/dev/null 2>&1; then
+      echo "this operation needs the standalone Todo runtime; run scripts/pc-dev setup --foundation-repo PATH --todo-wheel PATH" >&2; exit 2
     fi
     exec "$python" -m project_control.cli "$@"
     ;;
@@ -136,10 +152,6 @@ case "$action" in
     fi
     if [[ ! -f "$repo_root/src/project_control/cli.py" ]]; then
       echo "Project Control source tree is incomplete under $repo_root/src" >&2
-      exit 2
-    fi
-    if ! "$python" "$repo_root/scripts/verify_todo_runtime.py" --installed >/dev/null 2>&1; then
-      echo "standalone Todo runtime does not match config/todo-orchestrator-runtime.json; run scripts/pc-dev setup --todo-wheel PATH" >&2
       exit 2
     fi
     # Flags alone still mean "run the quick source smoke selection". Treat
@@ -166,11 +178,11 @@ case "$action" in
     done
     if (( ! has_selector )); then
       set -- "$@" \
-        tests/test_dev_tests_runner.py \
-        tests/test_runtime_identity.py \
-        tests/test_workflow_binding.py \
-        tests/test_readiness.py \
-        tests/test_native_todo_read.py
+        tests/test_overhaul_acceptance.py \
+        tests/test_project_resolution.py \
+        tests/test_source_retrieval.py \
+        tests/test_profiles.py \
+        tests/test_machine_inspection.py
     fi
     exec "$python" -m pytest "$@"
     ;;
