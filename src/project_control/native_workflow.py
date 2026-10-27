@@ -894,16 +894,83 @@ class NativeWorkflowHost:
         revision = _optional_revision(args.get("expected_revision"))
         if revision is None:
             raise ValueError("expected_revision_required")
+
+        handoff_rows: tuple[tuple[str, str], ...] = ()
+        unresolved_rows: tuple[tuple[str, str], ...] = ()
+        if tool == "todo_retire_run":
+            allowed = {
+                "project", "repository", "run_id", "successor_run_id", "schedule_digest", "idempotency_key",
+                "expected_revision", "disposition_schema_version", "handoffs", "unresolved",
+            }
+            if set(args) - allowed:
+                raise ValueError("retire_run_fields_invalid")
+            has_version = "disposition_schema_version" in args
+            has_dispositions = "handoffs" in args or "unresolved" in args
+            if has_version != has_dispositions:
+                raise ValueError("retirement_dispositions_require_version")
+            if has_version:
+                version = args.get("disposition_schema_version")
+                if type(version) is not int or version != 1:
+                    raise ValueError("disposition_schema_version_unsupported")
+                if "handoffs" not in args or "unresolved" not in args:
+                    raise ValueError("retirement_disposition_arrays_required")
+                raw_handoffs, raw_unresolved = args["handoffs"], args["unresolved"]
+                if not isinstance(raw_handoffs, list) or not isinstance(raw_unresolved, list):
+                    raise ValueError("retirement_disposition_arrays_invalid")
+                if len(raw_handoffs) + len(raw_unresolved) > _MAX_COLLECTION:
+                    raise ValueError("retirement_dispositions_too_large")
+                parsed_handoffs: list[tuple[str, str]] = []
+                for raw in raw_handoffs:
+                    row = _json_mapping(raw, "handoff")
+                    if set(row) != {"source_assignment_id", "successor_assignment_id"}:
+                        raise ValueError("handoff_fields_invalid")
+                    parsed_handoffs.append((
+                        _required_text(row["source_assignment_id"], "source_assignment_id", max_bytes=128),
+                        _required_text(row["successor_assignment_id"], "successor_assignment_id", max_bytes=128),
+                    ))
+                parsed_unresolved: list[tuple[str, str]] = []
+                for raw in raw_unresolved:
+                    row = _json_mapping(raw, "unresolved")
+                    if set(row) != {"assignment_id", "reason"}:
+                        raise ValueError("unresolved_fields_invalid")
+                    parsed_unresolved.append((
+                        _required_text(row["assignment_id"], "assignment_id", max_bytes=128),
+                        _required_text(row["reason"], "reason", max_bytes=512),
+                    ))
+                handoff_sources = [source for source, _target in parsed_handoffs]
+                unresolved_ids = [assignment for assignment, _reason in parsed_unresolved]
+                if len(set(handoff_sources)) != len(handoff_sources) or len(set(unresolved_ids)) != len(unresolved_ids):
+                    raise ValueError("retirement_assignment_disposition_duplicate")
+                if set(handoff_sources) & set(unresolved_ids):
+                    raise ValueError("retirement_assignment_disposition_conflict")
+                if parsed_handoffs and args.get("successor_run_id") is None:
+                    raise ValueError("retirement_handoffs_require_successor")
+                handoff_rows = tuple(parsed_handoffs)
+                unresolved_rows = tuple(parsed_unresolved)
+
         def action(_root, session):
             digest_value = args.get("schedule_digest")
             digest = Sha256Digest(_required_text(digest_value, "schedule_digest", max_bytes=64)) if digest_value else session.run_schedule_digest(run_id)
             if tool == "todo_close_run":
                 value = session.close_run(run_id, digest, idempotency_key=key, expected_revision=revision)
             else:
+                from todo_orchestrator.operations import RunAssignmentHandoff, UnresolvedRunAssignment
+
                 successor = args.get("successor_run_id")
+                successor_id = None if successor is None else StableId(
+                    _required_text(successor, "successor_run_id", max_bytes=128)
+                )
+                handoffs = tuple(
+                    RunAssignmentHandoff(session.assignment_ref(source), session.assignment_ref(target))
+                    for source, target in handoff_rows
+                )
+                unresolved = tuple(
+                    UnresolvedRunAssignment(session.assignment_ref(assignment), reason)
+                    for assignment, reason in unresolved_rows
+                )
                 value = session.retire_run(
                     run_id, digest, idempotency_key=key, expected_revision=revision,
-                    successor_run=None if successor is None else StableId(_required_text(successor, "successor_run_id", max_bytes=128)),
+                    successor_run=successor_id, handoffs=handoffs, unresolved=unresolved,
                 )
             return value.to_dict()
         return self._guarded(

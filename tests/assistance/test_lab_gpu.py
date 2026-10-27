@@ -74,6 +74,17 @@ def test_gpu_scope_requires_explicit_unique_uuid_and_cuda_tool():
             lab_gpu._approved_uuids(invalid)
 
 
+def test_direct_gpu_lab_executor_obeys_selected_device_scheduler_authority(monkeypatch):
+    monkeypatch.setattr("project_control.device_scheduler.read_resource_authority",
+                        lambda: types.SimpleNamespace(mode="device_scheduler"))
+    monkeypatch.setattr(lab_gpu, "_approved_uuids",
+                        lambda _scope: pytest.fail("must refuse before reading or staging the proposal"))
+    executor = object.__new__(lab_gpu.GpuLabExecutor)
+    with pytest.raises(lab_gpu.GpuLabUnavailable, match="legacy CUDA controller is disabled"):
+        executor.execute(None, None, Path("/unused"), Path("/unused"), session_id="s", effect_id="e",
+                         deadline=0.0)
+
+
 def test_gpu_argv_must_name_cuda_tool_and_contains_only_program_arguments():
     assert lab_gpu._runtime_arguments(Proposal()) == ("--case", "tail")
     with pytest.raises(lab_gpu.GpuLabError, match="cuda tool"):

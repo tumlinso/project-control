@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,7 +35,10 @@ class NativeTodoReadPort:
         self.runtime_identity = runtime_identity()
         self.session = open_session_for_host(self.root, principal=principal, profile=profile,
                                              providers=providers)
-        self._model = None
+        # A port is resolved once per workspace, while each TodoObservation
+        # gets its own consistent authority export. Keep the in-flight model
+        # thread-local so concurrent snapshots cannot share revisions.
+        self._observation = threading.local()
 
     def identity(self) -> dict[str, Any]:
         from ..runtime_identity import bind_runtime
@@ -44,27 +48,45 @@ class NativeTodoReadPort:
                 "project_id": str(self.session.metadata.project_id),
                 "authority_id": str(self.session.metadata.authority_id)}
 
-    def _read(self) -> dict[str, Any]:
+    def begin_observation(self) -> None:
+        self._observation.model = None
+        self._observation.active = True
+
+    def end_observation(self) -> None:
+        self._observation.active = False
+        self._observation.model = None
+
+    def _read_consistent_model(self) -> dict[str, Any]:
         from ..runtime_identity import validate_runtime
         validate_runtime(self.runtime_identity)
-        if self._model is None:
-            initial = self.session.read_model()
-            model = initial.to_dict()
-            records = []
-            page = self.session.read_legacy_current_tasks(limit=500)
-            while True:
-                records.extend(page.records)
-                if len(records) > self.MAX_LEGACY_CURRENT_TASKS:
-                    raise RuntimeError("legacy current-task read exceeds the Project Control projection limit")
-                if page.next_cursor is None:
-                    break
-                page = self.session.read_legacy_current_tasks(limit=500, after=page.next_cursor)
-            # Detect an import or native authority change that raced the
-            # separately paged public reads, without opening or mutating state.
-            self.session.read_model(expected_revision=initial.semantic_revision)
-            model["_project_control_current_tasks"] = self._legacy_projection(model, records)["tasks"]
-            self._model = model
-        return self._model
+        initial = self.session.read_model()
+        model = initial.to_dict()
+        records = []
+        page = self.session.read_legacy_current_tasks(limit=500)
+        while True:
+            records.extend(page.records)
+            if len(records) > self.MAX_LEGACY_CURRENT_TASKS:
+                raise RuntimeError("legacy current-task read exceeds the Project Control projection limit")
+            if page.next_cursor is None:
+                break
+            page = self.session.read_legacy_current_tasks(limit=500, after=page.next_cursor)
+        # Detect an import or native authority change that raced the separately
+        # paged reads, without opening or mutating state. A raced packet fails
+        # closed; the next observation starts a fresh consistent read.
+        self.session.read_model(expected_revision=initial.semantic_revision)
+        model["_project_control_current_tasks"] = self._legacy_projection(model, records)["tasks"]
+        return model
+
+    def _read(self) -> dict[str, Any]:
+        if getattr(self._observation, "active", False):
+            model = getattr(self._observation, "model", None)
+            if model is None:
+                model = self._read_consistent_model()
+                self._observation.model = model
+            return model
+        # Direct single-operation reads must be fresh too; only the scoped
+        # observation above may reuse a model across component operations.
+        return self._read_consistent_model()
 
     @staticmethod
     def _legacy_projection(model: dict[str, Any], current_tasks=()) -> dict[str, Any]:
@@ -641,6 +663,17 @@ class TodoReadAdapter:
         )
 
     def observe(self) -> TodoObservation:
+        begin_observation = getattr(self.read_port, "begin_observation", None)
+        end_observation = getattr(self.read_port, "end_observation", None)
+        if callable(begin_observation):
+            begin_observation()
+        try:
+            return self._observe()
+        finally:
+            if callable(end_observation):
+                end_observation()
+
+    def _observe(self) -> TodoObservation:
         authority = self._authority_root()
         project_uuid = self._project_uuid(authority)
         candidates = self.authority_candidates()

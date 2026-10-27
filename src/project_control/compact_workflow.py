@@ -709,6 +709,87 @@ class CompactWorkflowHost:
         return CompactWorkflowHost._attention(reason, workflow_handle=workflow_handle,
                                               allowed_actions=["inspect_task"] if workflow_handle else [])
 
+    @staticmethod
+    def _bounded_task_context_summary(value: Mapping[str, Any], limit: int) -> dict[str, Any]:
+        context: Mapping[str, Any] = value
+        payload = value.get("payload")
+        if isinstance(payload, Mapping):
+            context = payload
+        manifest = context.get("manifest")
+        manifest = manifest if isinstance(manifest, Mapping) else {}
+        raw_refs = manifest.get("fragments")
+        if not isinstance(raw_refs, list):
+            raw_fragments = context.get("fragments")
+            raw_refs = [row.get("reference") for row in raw_fragments
+                        if isinstance(row, Mapping) and isinstance(row.get("reference"), Mapping)] \
+                if isinstance(raw_fragments, list) else []
+        refs = []
+        for row in raw_refs:
+            if not isinstance(row, Mapping):
+                continue
+            reference = {key: row[key] for key in ("fragment_id", "kind", "digest")
+                         if isinstance(row.get(key), str)}
+            if reference:
+                refs.append(reference)
+        summary: dict[str, Any] = {
+            "status": "partial", "reason": "task_context_exceeds_budget",
+            "manifest_digest": manifest.get("digest"),
+            "source_digest": manifest.get("source_digest"),
+            "semantic_revision": context.get("semantic_revision"),
+            "fragment_count": len(refs), "fragment_refs": refs[:16],
+            "continuation": "inspect_task(kind=context_fragment, target=<fragment_id>)",
+        }
+        if len(refs) > 16:
+            summary["fragment_refs_truncated"] = True
+        while len(_canonical(summary)) > limit and summary["fragment_refs"]:
+            summary["fragment_refs"].pop()
+            summary["fragment_refs_truncated"] = True
+        if len(_canonical(summary)) > limit:
+            summary = {"status": "partial", "reason": "task_context_exceeds_budget",
+                       "fragment_count": len(refs), "continuation": "inspect_task(kind=source)"}
+        return _bounded_mapping(summary, "inspection_result", limit)
+
+    @staticmethod
+    def _bounded_recovery_summary(value: Mapping[str, Any], limit: int) -> dict[str, Any]:
+        scalar_keys = (
+            "status", "attempt_id", "run_id", "assignment_id", "lease_id", "state",
+            "recovery_state", "phase", "reason", "semantic_revision", "source_commit",
+            "source_digest", "updated_at",
+        )
+        summary = {key: value[key] for key in scalar_keys
+                   if key in value and (value[key] is None or isinstance(value[key], (str, int, bool)))}
+        operations = []
+        for field in ("operations", "effects", "pending_operations"):
+            rows = value.get(field)
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    continue
+                item = {key: row[key] for key in (
+                    "operation_id", "operation", "effect_id", "kind", "state", "status", "reason",
+                ) if key in row and (row[key] is None or isinstance(row[key], (str, int, bool)))}
+                operation = row.get("operation")
+                if isinstance(operation, Mapping) and isinstance(operation.get("entity_id"), str):
+                    item["operation_id"] = operation["entity_id"]
+                    item.pop("operation", None)
+                if item:
+                    operations.append(item)
+        summary.update({
+            "status": "partial", "reason": "recovery_inspection_exceeds_budget",
+            "operation_refs": operations[:24],
+            "continuation": "inspect_task(kind=effect, target=<operation_id>)",
+        })
+        if len(operations) > 24:
+            summary["operation_refs_truncated"] = True
+        while len(_canonical(summary)) > limit and summary["operation_refs"]:
+            summary["operation_refs"].pop()
+            summary["operation_refs_truncated"] = True
+        if len(_canonical(summary)) > limit:
+            summary = {"status": "partial", "reason": "recovery_inspection_exceeds_budget",
+                       "continuation": "inspect_task(kind=effect, target=<operation_id>)"}
+        return _bounded_mapping(summary, "inspection_result", limit)
+
     def record_admin_preview(
         self, project: str, repository: str, *, action: str, package_digest: str,
         authority_revision: int, preview: Mapping[str, Any],
@@ -1604,7 +1685,17 @@ class CompactWorkflowHost:
                               "page": result.get("page")}
             else:
                 raise CompactWorkflowError("inspection_kind_unsupported")
-            bounded = _bounded_mapping(result, "inspection_result", result_limit)
+            try:
+                bounded = _bounded_mapping(result, "inspection_result", result_limit)
+            except CompactWorkflowError as error:
+                if error.code != "inspection_result_too_large" or not isinstance(result, Mapping):
+                    raise
+                if kind == "task":
+                    bounded = self._bounded_task_context_summary(result, result_limit)
+                elif kind == "recovery":
+                    bounded = self._bounded_recovery_summary(result, result_limit)
+                else:
+                    raise
             return self._bounded_response({"status": "ok", "kind": kind, "result": bounded,
                                            "workflow_handle": workflow_handle}, limit=response_limit)
         except CompactWorkflowError as error:
@@ -1720,8 +1811,23 @@ class CompactWorkflowHost:
                 operations = {}
             prior = operations.get(action_id)
             if isinstance(prior, Mapping) and prior.get("state") == "complete":
+                completed_result = prior.get("result")
+                if (action == "recover" and isinstance(completed_result, Mapping)
+                        and self._recovery_confirms_attempt_release(completed_result, record)):
+                    self._update(handle, project, repository, {
+                        "phase": "released", "release_receipt": completed_result,
+                    })
+                if action == "integrate":
+                    integration = self._git_integration_result(completed_result)
+                    if integration["applied"]:
+                        self._update(handle, project, repository, {
+                            "phase": "integrated", "integration_receipt": completed_result,
+                            "integration_operation_id": integration["operation_id"],
+                        })
+                    else:
+                        return self._integration_attention(handle, integration)
                 return self._bounded_response({"status": "ok", "action": action,
-                                               "result": prior.get("result"),
+                                               "result": completed_result,
                                                "workflow_handle": handle})
             result = self._invoke_phase(
                 handle, project, repository, dict(record), name=intent_name,
@@ -1744,26 +1850,211 @@ class CompactWorkflowHost:
             updated_operations[action_id] = {"action": action, "key": key,
                                              "state": "complete", "result": bounded_result}
             changes: dict[str, Any] = {"operations": updated_operations}
+            recovery_release_requested = (
+                action == "recover"
+                and self._recovery_payload(bounded_result).get("disposition") in {
+                    "release_expired_attempt", "handoff_dirty_workspace",
+                }
+            )
+            recovery_release_confirmed = (
+                recovery_release_requested
+                and self._recovery_confirms_attempt_release(bounded_result, record)
+            )
+            if recovery_release_confirmed:
+                # The authority has durably released this exact attempt. Keep
+                # the original receipt and operation history with its opaque
+                # handle, and stop treating it as an active assignment.
+                changes.update(phase="released", release_receipt=bounded_result)
             if action in {"publish_finding", "publish_context"}:
                 finding_id = self._nested_text(bounded_result, "finding_ref", "entity_id")
                 if finding_id:
                     changes["finding_id"] = finding_id
             if action == "integrate":
                 changes["integration_receipt"] = bounded_result
-                changes["phase"] = "integrated"
+                integration = self._git_integration_result(bounded_result)
+                if integration["operation_id"] is not None:
+                    changes["integration_operation_id"] = integration["operation_id"]
+                if integration["applied"]:
+                    changes["phase"] = "integrated"
             elif action == "accept_outcome":
                 changes["phase"] = "review_accepted"
             elif action == "reject_outcome":
                 changes["phase"] = "review_rejected"
             self._update(handle, project, repository, changes)
+            if action == "integrate" and not integration["applied"]:
+                return self._integration_attention(handle, integration)
+            if recovery_release_requested and not recovery_release_confirmed:
+                return self._attention(
+                    "recovery_result_does_not_confirm_attempt_release",
+                    workflow_handle=handle, allowed_actions=["inspect_task"],
+                    recommended_next_call="inspect_task(recovery)",
+                )
             return self._bounded_response({"status": "ok", "action": action,
                                            "result": bounded_result,
                                            "workflow_handle": handle})
+
+    @staticmethod
+    def _git_integration_result(result: object) -> dict[str, Any]:
+        """Validate the public, versioned Git effect result before terminalizing."""
+        empty: dict[str, Any] = {
+            "applied": False, "operation_id": None, "state": "unknown",
+            "disposition": None, "reason": "integration_receipt_invalid",
+        }
+        if not isinstance(result, Mapping):
+            return empty
+        if (result.get("format") != "todo-orchestrator.api-document"
+                or result.get("version") != 1 or result.get("kind") != "git_effect"):
+            return empty
+        payload = result.get("payload")
+        if not isinstance(payload, Mapping):
+            return empty
+        operation_id = payload.get("operation_id")
+        state = payload.get("state")
+        request = payload.get("request")
+        observation = payload.get("observation")
+        disposition = observation.get("disposition") if isinstance(observation, Mapping) else None
+        result_fields = {
+            "applied": False,
+            "operation_id": operation_id if isinstance(operation_id, str) else None,
+            "state": state if isinstance(state, str) else "unknown",
+            "disposition": disposition if isinstance(disposition, str) else None,
+            "reason": "integration_not_confirmed_applied",
+        }
+        if state in {"dirty", "conflict", "unknown", "not_applied", "rejected"}:
+            result_fields["reason"] = "integration_" + state
+        if (not isinstance(operation_id, str) or not operation_id
+                or not isinstance(request, Mapping)
+                or request.get("operation") != "integrate"
+                or not isinstance(observation, Mapping)
+                or observation.get("operation_id") != operation_id):
+            return result_fields
+        resulting_source = observation.get("resulting_source")
+        source_valid = (isinstance(resulting_source, str) and len(resulting_source) == 64
+                        and all(character in "0123456789abcdef" for character in resulting_source))
+        if state == "finalized" and disposition == "applied" and source_valid:
+            result_fields.update(applied=True, reason="integration_applied")
+        return result_fields
+
+    @staticmethod
+    def _integration_attention(handle: str, integration: Mapping[str, Any]) -> dict[str, Any]:
+        operation_id = integration.get("operation_id")
+        has_operation = isinstance(operation_id, str) and bool(operation_id)
+        result = {
+            "status": "attention_required",
+            "reason": integration.get("reason", "integration_not_confirmed_applied"),
+            "workflow_handle": handle,
+            "integration_state": integration.get("state", "unknown"),
+            "disposition": integration.get("disposition"),
+            "operation_id": operation_id,
+            "allowed_actions": ["inspect_task"],
+            "recommended_next_call": ("inspect_task(kind=effect, target=<operation_id>)"
+                                       if has_operation else "inspect_task(kind=integration)"),
+        }
+        if has_operation:
+            result["recovery_route"] = (
+                "Inspect this exact external operation and use only its current native recovery intent."
+            )
+        return CompactWorkflowHost._bounded_response(result)
+
+    @staticmethod
+    def _recovery_payload(result: Mapping[str, Any]) -> Mapping[str, Any]:
+        if result.get("format") == "todo-orchestrator.api-document":
+            payload = result.get("payload")
+            if (result.get("kind") != "recovery" or result.get("version") != 1
+                    or not isinstance(payload, Mapping)):
+                return {}
+            return payload
+        return result
+
+    @staticmethod
+    def _recovery_confirms_attempt_release(result: Mapping[str, Any],
+                                           record: Mapping[str, Any]) -> bool:
+        """Recognize only an exact native recovery receipt proving release."""
+        result = CompactWorkflowHost._recovery_payload(result)
+        if result.get("disposition") not in {"release_expired_attempt", "handoff_dirty_workspace"}:
+            return False
+        attempt_id = record.get("attempt_id")
+        lease_id = record.get("lease_id")
+        intent = result.get("intent")
+        if (not isinstance(attempt_id, str) or not isinstance(lease_id, str)
+                or not isinstance(intent, Mapping)):
+            return False
+        intent_attempt = intent.get("attempt")
+        receipt_envelope = result.get("result")
+        receipt = receipt_envelope.get("receipt") if isinstance(receipt_envelope, Mapping) else None
+        command_result = receipt.get("result") if isinstance(receipt, Mapping) else None
+        return bool(
+            intent.get("kind") == result.get("disposition")
+            and isinstance(intent_attempt, Mapping)
+            and intent_attempt.get("entity_id") == attempt_id
+            and intent.get("expected_lease_id") == lease_id
+            and isinstance(receipt, Mapping)
+            and receipt.get("command_kind") == "todo.attempt.reconcile_expired"
+            and isinstance(command_result, Mapping)
+            and command_result.get("attempt_id") == attempt_id
+            and command_result.get("state") == "released"
+        )
 
     def _run_gates(self, handle: str, project: str, repository: str,
                    record: Mapping[str, Any], payload: Mapping[str, Any]) -> dict[str, Any]:
         with self._renewal_lock:
             return self._run_gates_locked(handle, project, repository, record, payload)
+
+    @staticmethod
+    def _verification_summary(requirement_id: str, result: Mapping[str, Any],
+                              intent: object) -> dict[str, Any]:
+        """Keep gate replies small while preserving links to authoritative evidence."""
+        def reference_id(value: object) -> str | None:
+            if not isinstance(value, Mapping):
+                return None
+            identity = value.get("entity_id")
+            return identity if isinstance(identity, str) else None
+
+        # These fields identify the durable verification and let callers follow
+        # it through inspect_task(evidence/effect). Provider observations and
+        # receipts remain in Todo authority and can be arbitrarily large.
+        summary: dict[str, Any] = {
+            "requirement_id": requirement_id,
+            "state": result.get("state", "unknown"),
+            "operation_id": reference_id(result.get("operation")),
+            "attempt_id": reference_id(result.get("attempt")),
+            "target_id": reference_id(result.get("target")),
+            "requirement_ref_id": reference_id(result.get("requirement")),
+            "plan_revision_id": result.get("plan_revision_id"),
+            "verifier": result.get("verifier"),
+            "contract_digest": result.get("contract_digest"),
+            "source_digest": result.get("source_digest"),
+            "request_digest": result.get("request_digest"),
+            "evidence_id": result.get("evidence_id"),
+            "stale_reason": result.get("stale_reason"),
+            "created_at": result.get("created_at"),
+            "updated_at": result.get("updated_at"),
+        }
+        # A short verdict is useful in the common case, but never infer one
+        # from the lifecycle state (for example, finalized is not passed).
+        observation = result.get("observation")
+        receipt = result.get("provider_receipt")
+        verdict: dict[str, Any] = {}
+        for source in (observation, receipt):
+            if not isinstance(source, Mapping):
+                continue
+            for key in ("status", "verdict", "passed", "exit_code", "returncode", "reason"):
+                value = source.get(key)
+                if isinstance(value, (str, int, float, bool)) or value is None:
+                    if key not in verdict and (value is not None or key in source):
+                        verdict[key] = value
+        if verdict:
+            summary["verdict"] = verdict
+
+        if isinstance(intent, Mapping):
+            native_request = {"tool": "todo_verify_attempt"}
+            native_request.update({
+                key: intent[key]
+                for key in ("idempotency_key", "expected_revision", "payload_digest", "generation")
+                if key in intent
+            })
+            summary["native_request"] = native_request
+        return summary
 
     def _run_gates_locked(self, handle: str, project: str, repository: str,
                           record: Mapping[str, Any], payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -1774,6 +2065,9 @@ class CompactWorkflowHost:
         if any(item not in declared for item in requested):
             raise CompactWorkflowError("requirement_not_declared_in_plan")
         results = []
+        phase_intents = record.get("phase_intents", {})
+        if not isinstance(phase_intents, Mapping):
+            raise CompactWorkflowError("workflow_phase_intents_invalid")
         for requirement_id in requested:
             verify_args = {"attempt_id": record.get("attempt_id"),
                            "requirement_id": requirement_id}
@@ -1784,7 +2078,9 @@ class CompactWorkflowHost:
             )
             if result.get("status") == "attention_required":
                 return self._native_attention(result, handle)
-            results.append(result)
+            results.append(self._verification_summary(
+                requirement_id, result, phase_intents.get("verify:" + requirement_id),
+            ))
         return self._bounded_response({"status": "ok", "verified": results,
                                        "workflow_handle": handle})
 

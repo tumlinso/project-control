@@ -14,6 +14,7 @@ from project_control.native_providers import (
     AuthenticatedChildObserver,
     JournaledCommandExecutor,
     TrackedProcessObserver,
+    _default_host_resources,
     _process_start,
     ensure_native_integration_ref,
     provision_native_project,
@@ -73,6 +74,51 @@ def _command_request(operation_id: str, marker: Path, *, workspace_id: str = "wo
 
 
 class NativeProviderTests(unittest.TestCase):
+    def test_default_owner_observation_keeps_missing_local_registry_unknown(self):
+        from todo_orchestrator.model import ProcessLiveness
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "project"
+            project.mkdir()
+            runtime = root / "resource-runtime"
+            attempt = SimpleNamespace(ref=SimpleNamespace(entity_id="attempt-one"))
+            with patch.dict(os.environ, {
+                "PROJECT_CONTROL_HOST_RESOURCES_RUNTIME_DIR": str(runtime),
+                "XDG_CONFIG_HOME": str(root / "config"),
+            }, clear=False):
+                resources = _default_host_resources()
+                self.assertFalse((runtime / "physical-resources.sqlite3").exists())
+                observer = TrackedProcessObserver(project, resources)
+                self.assertIs(observer.inspect(attempt), ProcessLiveness.UNKNOWN)
+                self.assertFalse((runtime / "physical-resources.sqlite3").exists())
+
+    def test_default_owner_observation_preserves_device_scheduler_selection(self):
+        from project_control.device_scheduler import (
+            DeviceSchedulerHostResourceFacade,
+            ResourceAuthority,
+            write_resource_authority,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            token = root / "token"
+            token.write_text("fixture-token\n", encoding="utf-8")
+            token.chmod(0o600)
+            config = root / "config"
+            write_resource_authority(ResourceAuthority(
+                mode="device_scheduler", base_url="http://127.0.0.1:8787",
+                token_file=str(token),
+            ), config / "project-control" / "resource-authority.json")
+            runtime = root / "resource-runtime"
+            with patch.dict(os.environ, {
+                "PROJECT_CONTROL_HOST_RESOURCES_RUNTIME_DIR": str(runtime),
+                "XDG_CONFIG_HOME": str(config),
+            }, clear=False):
+                resources = _default_host_resources()
+                self.assertIsInstance(resources, DeviceSchedulerHostResourceFacade)
+                self.assertFalse((runtime / "physical-resources.sqlite3").exists())
+
     def test_process_observer_requires_registered_pid_and_matches_generation(self):
         from todo_orchestrator.model import ProcessLiveness
 

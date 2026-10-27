@@ -3,12 +3,12 @@
 from .coordinator import HostCoordinator
 from .contracts import ContractError, normalize_command_spec, normalize_source_identity
 from .facade import HostResourceFacade
-from .runtime import LocalWorkerRuntime
+from .runtime import LocalWorkerRuntime, host_resource_facade
 from .source import capture_source_identity
 from .topology import classify_local_worker_host_topology, discover_gpu_topology
 
 __all__ = [
-    "ContractError", "HostCoordinator", "HostResourceFacade", "LocalWorkerRuntime",
+    "ContractError", "HostCoordinator", "HostResourceFacade", "LocalWorkerRuntime", "host_resource_facade",
     "capture_source_identity", "classify_local_worker_host_topology",
     "discover_gpu_topology", "normalize_command_spec", "normalize_source_identity",
 ]

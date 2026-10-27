@@ -144,6 +144,14 @@ def performance_probe(
     # binding. The resolver is a narrow direct-service fallback for tests and
     # offline callers, never an MCP-supplied location.
     bound_skills_root = skills_root or resolve_skills_root(config, request.project)
+    from ..device_scheduler import read_resource_authority
+    if read_resource_authority().mode == "device_scheduler":
+        result = envelope("performance_probe", snapshot, {
+            "status": "unavailable", "code": "probe_requires_a_registered_device_scheduler_execution_profile",
+            "campaign": request.campaign, "mode": request.mode,
+        }, warnings=["probe_requires_a_registered_device_scheduler_execution_profile"], compact_identity=True)
+        result.status = ToolStatus.UNAVAILABLE
+        return result
     controller = bound_skills_root / "cuda" / "scripts" / "cuda_controller.py" if bound_skills_root else None
     if controller is None or not controller.is_file():
         result = envelope("performance_probe", snapshot, {

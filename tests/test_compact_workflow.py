@@ -23,6 +23,16 @@ class _NativeHost:
         self.lose_dispatch_once = False
         self.large_context = False
         self.omit_work_item = False
+        self.recovery_result: dict[str, object] | None = None
+        self.integration_result: dict[str, object] = {
+            "format": "todo-orchestrator.api-document", "version": 1, "kind": "git_effect",
+            "payload": {
+                "operation_id": "git-operation-1", "state": "finalized",
+                "request": {"operation": "integrate"},
+                "observation": {"operation_id": "git-operation-1", "disposition": "applied",
+                                "resulting_source": "a" * 64},
+            },
+        }
         self.context_build_gate: tuple[threading.Event, threading.Event] | None = None
         self._dispatch_intent: tuple[object, object] | None = None
 
@@ -129,6 +139,13 @@ class _NativeHost:
                 }
         elif tool == "todo_verify_attempt":
             data = {"requirement_id": arguments["requirement_id"], "state": "passed"}
+        elif tool == "todo_apply_recovery":
+            assert self.recovery_result is not None
+            data = self.recovery_result
+        elif tool == "todo_integrate_attempt":
+            data = self.integration_result
+        elif tool == "todo_inspect_effect":
+            data = {"operation_id": arguments["operation_id"], "state": "inspected"}
         elif tool == "todo_inspect_attempt":
             data = {"attempt_id": arguments["attempt_id"], "state": "active"}
         elif tool == "todo_resume_attempt":
@@ -166,7 +183,7 @@ class _NativeHost:
         elif tool == "todo_read_candidate":
             data = {"candidate_id": arguments["candidate_id"], "state": "pending",
                     "source_digest": "a" * 64}
-        elif tool in {"todo_accept_outcome", "todo_reject_outcome", "todo_integrate_attempt"}:
+        elif tool in {"todo_accept_outcome", "todo_reject_outcome"}:
             data = {"state": tool.removeprefix("todo_")}
         else:
             raise AssertionError(f"unexpected native tool {tool}")
@@ -200,6 +217,239 @@ def test_complete_hands_back_before_report_and_keeps_reported_attempt_for_review
     assert replay["status"] == "review_pending"
     assert [tool for tool, _arguments in native.calls].count("todo_report_outcome") == 1
     assert [tool for tool, _arguments in native.calls].count("todo_handback_attempt") == 1
+
+
+def test_run_gates_compacts_large_verification_but_keeps_authoritative_links(tmp_path: Path):
+    native = _NativeHost("coder")
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    handle = claimed["workflow_handle"]
+    record = facade._store.get("workflow", handle, "workspace", "source")
+    record["phase_intents"] = {
+        "verify:check-1": {
+            "idempotency_key": "verify-key-1", "expected_revision": 17,
+            "payload_digest": "d" * 64,
+        },
+    }
+    large_result = {
+        "state": "finalized",
+        "operation": {"entity_id": "verification-op-1"},
+        "attempt": {"entity_id": "attempt-1"},
+        "target": {"entity_id": "task-1"},
+        "requirement": {"entity_id": "check-1"},
+        "plan_revision_id": "plan-revision-3",
+        "verifier": {"id": "verifier-1", "version": "1"},
+        "contract_digest": "c" * 64,
+        "source_digest": "s" * 64,
+        "request_digest": "r" * 64,
+        "evidence_id": "evidence-1",
+        "observation": {"status": "inconclusive", "output": "details " * 5000},
+        "provider_receipt": {"verdict": "inconclusive", "receipt": "receipt " * 5000},
+    }
+    facade._invoke_phase = lambda *_args, **_kwargs: large_result
+
+    response = facade._run_gates_locked(
+        handle, "workspace", "source", record, {"requirement_ids": ["check-1"]},
+    )
+
+    assert response["status"] == "ok"
+    verified = response["verified"][0]
+    assert verified["state"] == "finalized"
+    assert verified["verdict"] == {"status": "inconclusive", "verdict": "inconclusive"}
+    assert verified["operation_id"] == "verification-op-1"
+    assert verified["evidence_id"] == "evidence-1"
+    assert verified["source_digest"] == "s" * 64
+    assert verified["native_request"] == {
+        "tool": "todo_verify_attempt",
+        "idempotency_key": "verify-key-1", "expected_revision": 17,
+        "payload_digest": "d" * 64,
+    }
+    assert len(json.dumps(response, separators=(",", ":")).encode()) <= compact_module._MAX_RESPONSE_BYTES
+
+
+def test_verification_summary_preserves_pass_fail_and_inconclusive_verdicts():
+    for verdict in ("passed", "failed", "inconclusive"):
+        summary = CompactWorkflowHost._verification_summary(
+            "check-1", {"state": "finalized", "observation": {"status": verdict}}, None,
+        )
+        assert summary["verdict"]["status"] == verdict
+
+
+def test_complete_reaches_handback_after_compacting_large_gate_document(tmp_path: Path):
+    native = _NativeHost("coder")
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    original_invoke_phase = facade._invoke_phase
+
+    def invoke_phase(*args, **kwargs):
+        if kwargs.get("name") == "verify:check-1":
+            original = original_invoke_phase(*args, **kwargs)
+            original.update({
+                "state": "finalized", "operation": {"entity_id": "verification-op-1"},
+                "attempt": {"entity_id": "attempt-1"}, "target": {"entity_id": "task-1"},
+                "requirement": {"entity_id": "check-1"}, "evidence_id": "evidence-1",
+                "observation": {"status": "passed", "output": "large detail " * 5000},
+            })
+            return original
+        return original_invoke_phase(*args, **kwargs)
+
+    facade._invoke_phase = invoke_phase
+    finished = facade.finish_task(workflow_handle=claimed["workflow_handle"], action="complete")
+
+    assert finished["status"] == "review_pending"
+    calls = [tool for tool, _arguments in native.calls]
+    assert calls.index("todo_verify_attempt") < calls.index("todo_handback_attempt")
+    assert calls.index("todo_handback_attempt") < calls.index("todo_report_outcome")
+
+
+def test_recovery_release_marks_only_matching_handle_terminal_and_keeps_receipt(tmp_path: Path):
+    native = _NativeHost("coder")
+    native.recovery_result = {
+        "disposition": "release_expired_attempt",
+        "intent": {
+            "kind": "release_expired_attempt",
+            "attempt": {"entity_id": "attempt-1"},
+            "expected_lease_id": "lease-1",
+        },
+        "result": {
+            "receipt": {
+                "command_kind": "todo.attempt.reconcile_expired",
+                "result": {"attempt_id": "attempt-1", "state": "released"},
+                "receipt_id": "release-receipt-1",
+            },
+        },
+    }
+    native.recovery_result = {"format": "todo-orchestrator.api-document", "kind": "recovery",
+                              "version": 1, "payload": native.recovery_result}
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    handle = claimed["workflow_handle"]
+
+    recovered = facade.coordinate_task(
+        workflow_handle=handle, action="recover", payload={"intent": "approved-intent"},
+    )
+    record = facade._store.get("workflow", handle, "workspace", "source")
+
+    assert recovered["status"] == "ok"
+    assert record["phase"] == "released"
+    assert record["release_receipt"] == native.recovery_result
+    operation = next(iter(record["operations"].values()))
+    assert operation["state"] == "complete"
+    assert operation["result"] == native.recovery_result
+
+    # Recover a handle left active by the older envelope-blind implementation.
+    facade._store.update("workflow", handle, "workspace", "source", {"phase": "active"})
+    calls_before = len(native.calls)
+    replay = facade.coordinate_task(
+        workflow_handle=handle, action="recover", payload={"intent": "approved-intent"},
+    )
+    assert replay["status"] == "ok"
+    assert facade._store.get("workflow", handle, "workspace", "source")["phase"] == "released"
+    assert len(native.calls) == calls_before
+
+
+def test_ambiguous_recovery_release_stays_nonterminal_and_requires_inspection(tmp_path: Path):
+    native = _NativeHost("coder")
+    native.recovery_result = {
+        "disposition": "release_expired_attempt",
+        "intent": {
+            "kind": "release_expired_attempt",
+            "attempt": {"entity_id": "attempt-1"},
+            "expected_lease_id": "lease-1",
+        },
+        "result": {
+            "receipt": {
+                "command_kind": "todo.attempt.reconcile_expired",
+                "result": {"attempt_id": "attempt-1", "state": "unknown"},
+                "receipt_id": "uncertain-receipt-1",
+            },
+        },
+    }
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    handle = claimed["workflow_handle"]
+
+    recovered = facade.coordinate_task(
+        workflow_handle=handle, action="recover", payload={"intent": "approved-intent"},
+    )
+    record = facade._store.get("workflow", handle, "workspace", "source")
+
+    assert recovered["status"] == "attention_required"
+    assert recovered["reason"] == "recovery_result_does_not_confirm_attempt_release"
+    assert record["phase"] == "active"
+    assert "release_receipt" not in record
+    assert next(iter(record["operations"].values()))["result"] == native.recovery_result
+
+
+def test_inspect_task_evidence_returns_full_verification_record(tmp_path: Path):
+    native = _NativeHost("coder")
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    handle = claimed["workflow_handle"]
+    full_evidence = {"evidence_id": "evidence-1", "result": "inconclusive",
+                     "observation": {"full_details": "evidence " * 400}}
+    calls = []
+
+    def invoke(tool, _record, **arguments):
+        calls.append((tool, arguments))
+        return {"sections": {"evidence": [full_evidence], "artifacts": [], "outcomes": []},
+                "page": {"next_page_token": None}}
+
+    facade._invoke = invoke
+    inspected = facade.inspect_task(workflow_handle=handle, kind="evidence", budget_bytes=8192)
+
+    assert inspected["status"] == "ok"
+    assert inspected["result"]["sections"]["evidence"] == [full_evidence]
+    assert calls == [("todo_read_authority", {"limit": 50})]
+
+
+def test_oversized_task_context_returns_fragment_directory(tmp_path: Path):
+    native = _NativeHost("coder")
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    handle = claimed["workflow_handle"]
+    context = {
+        "format": "todo-orchestrator.context-capsule", "version": 1,
+        "manifest": {"digest": "m" * 64, "source_digest": "s" * 64,
+                     "fragments": [{"fragment_id": "work-fragment", "kind": "work_item",
+                                    "digest": "d" * 64}]},
+        "semantic_revision": 9, "large_payload": "context " * 3000,
+    }
+    facade._store.update("workflow", handle, "workspace", "source", {"context": context})
+
+    inspected = facade.inspect_task(workflow_handle=handle, kind="task", budget_bytes=512)
+
+    assert inspected["status"] == "ok"
+    assert inspected["result"]["status"] == "partial"
+    assert inspected["result"]["fragment_refs"] == [
+        {"fragment_id": "work-fragment", "kind": "work_item", "digest": "d" * 64}
+    ]
+    assert "context_fragment" in inspected["result"]["continuation"]
+    assert len(json.dumps(inspected, separators=(",", ":")).encode()) <= 1536
+
+
+def test_oversized_recovery_inspection_returns_operation_refs(tmp_path: Path):
+    native = _NativeHost("coder")
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    handle = claimed["workflow_handle"]
+    recovery = {
+        "attempt_id": "attempt-1", "state": "recovery_needed",
+        "operations": [{"operation_id": "effect-1", "kind": "git", "state": "unknown",
+                         "receipt": "large receipt " * 3000}],
+        "full_inspection": "recovery " * 3000,
+    }
+    facade._invoke = lambda *_args, **_kwargs: recovery
+
+    inspected = facade.inspect_task(workflow_handle=handle, kind="recovery", budget_bytes=512)
+
+    assert inspected["status"] == "ok"
+    assert inspected["result"]["status"] == "partial"
+    assert inspected["result"]["state"] == "recovery_needed"
+    assert inspected["result"]["operation_refs"] == [
+        {"operation_id": "effect-1", "kind": "git", "state": "unknown"}
+    ]
+    assert "effect" in inspected["result"]["continuation"]
 
 
 def test_nested_context_document_expands_omitted_work_item_before_finish(tmp_path: Path):
@@ -248,8 +498,57 @@ def test_reviewer_gets_separate_handle_and_can_accept_then_integrate(tmp_path: P
     assert reviewer.finish_task(workflow_handle=handle, action="accept")["status"] == "review_accepted"
     integrated = reviewer.finish_task(workflow_handle=handle, action="integrate")
     assert integrated["status"] == "integrated"
+    assert reviewer._store.get("workflow", handle, "workspace", "source")["phase"] == "integrated"
+    assert integrated["result"]["payload"]["state"] == "finalized"
     assert [tool for tool, _arguments in reviewer_native.calls].count("todo_accept_outcome") == 1
     assert [tool for tool, _arguments in reviewer_native.calls].count("todo_integrate_attempt") == 1
+
+
+def test_non_applied_git_integrations_require_inspection_and_do_not_replay(tmp_path: Path):
+    for state, disposition, expected_reason in (
+        ("dirty", "dirty", "integration_dirty"),
+        ("conflict", "conflict", "integration_conflict"),
+        ("unknown", None, "integration_unknown"),
+    ):
+        native = _NativeHost("coder")
+        author = _host(tmp_path / state / "author", native)
+        author_task = author.next_task(project="workspace")
+        assert author.finish_task(workflow_handle=author_task["workflow_handle"],
+                                  action="handoff")["status"] == "review_pending"
+
+        reviewer_native = _NativeHost("mutator")
+        reviewer_native.candidates = list(native.candidates)
+        reviewer_native.attempts = list(native.attempts)
+        operation_id = f"git-{state}-operation"
+        observation = None if disposition is None else {
+            "operation_id": operation_id, "disposition": disposition,
+            "resulting_source": None,
+        }
+        reviewer_native.integration_result = {
+            "format": "todo-orchestrator.api-document", "version": 1, "kind": "git_effect",
+            "payload": {"operation_id": operation_id, "state": state,
+                        "request": {"operation": "integrate"}, "observation": observation},
+        }
+        reviewer = _host(tmp_path / state / "reviewer", reviewer_native)
+        review_task = reviewer.next_task(project="workspace", task_id="task-1")
+        handle = review_task["workflow_handle"]
+        assert reviewer.finish_task(workflow_handle=handle, action="accept")["status"] == "review_accepted"
+
+        result = reviewer.finish_task(workflow_handle=handle, action="integrate")
+        assert result["status"] == "attention_required"
+        assert result["reason"] == expected_reason
+        assert result["operation_id"] == operation_id
+        assert result["recommended_next_call"] == "inspect_task(kind=effect, target=<operation_id>)"
+        record = reviewer._store.get("workflow", handle, "workspace", "source")
+        assert record["phase"] == "review_accepted"
+        assert record["integration_receipt"] == reviewer_native.integration_result
+
+        replay = reviewer.finish_task(workflow_handle=handle, action="integrate")
+        assert replay["status"] == "attention_required"
+        assert [tool for tool, _args in reviewer_native.calls].count("todo_integrate_attempt") == 1
+        inspected = reviewer.inspect_task(workflow_handle=handle, kind="effect", target=operation_id)
+        assert inspected["status"] == "ok"
+        assert inspected["result"]["operation_id"] == operation_id
 
 
 def test_release_hands_back_then_releases_without_reporting(tmp_path: Path):

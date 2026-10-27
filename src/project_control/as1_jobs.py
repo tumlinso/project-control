@@ -107,6 +107,14 @@ def _host_admission_fence(*, max_seconds: float = 45.0):
     reconciliation finishes.
     """
     connection = None
+    from .device_scheduler import read_resource_authority
+
+    authority = read_resource_authority()
+    if authority.mode == "device_scheduler":
+        # DS currently exposes no transaction that atomically fences new lease
+        # admission while the Todo orphan-recovery ACK commits. A point-in-time
+        # leases.list response cannot safely substitute for that fence.
+        raise RuntimeError("source_recovery_device_scheduler_admission_fence_unsupported")
     try:
         from .host_resources import HostCoordinator
 

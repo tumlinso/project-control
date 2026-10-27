@@ -217,8 +217,8 @@ def _fresh_gpu_release_observation(allowed_gpu_uuids: tuple[str, ...]) -> dict[s
 def _fresh_host_release_observation() -> dict[str, int]:
     """Require no host reservation or pending owner intent before recovery."""
     try:
-        from .host_resources import HostCoordinator
-        host = HostCoordinator(create=False)
+        from .host_resources.runtime import host_resource_facade
+        host = host_resource_facade()
         active_owners, active_reservations, active_foreground_intents = host.release_observation_counts()
     except Exception as error:
         raise RuntimeError("physical_release_fresh_host_observation_unavailable") from error
@@ -774,8 +774,8 @@ class SkillsObserverAnalysisProvider:
             if len(row) >= 2 and row[1].strip() in seen_gpus:
                 raise RuntimeError("physical_release_gpu_process_reappeared")
         try:
-            from .host_resources import HostCoordinator
-            host = HostCoordinator(create=False)
+            from .host_resources.runtime import host_resource_facade
+            host = host_resource_facade()
             owner_ids = sorted(item["owner_id"] for item in cleanup)
             active_owners, active_reservations = host.owner_activity(owner_ids)
         except Exception:

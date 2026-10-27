@@ -40,6 +40,9 @@ class FakeReadPort:
         self.contract = contract
         self.large_export_bytes = large_export_bytes
         self.calls: list[tuple[str, Path, tuple[str, ...]]] = []
+        self.revision = 7
+        self.tasks: list[dict[str, object]] = []
+        self.assignments: list[dict[str, object]] = []
 
     def identity(self):
         return {
@@ -57,18 +60,18 @@ class FakeReadPort:
         )["project_uuid"]
         payloads = {
             "semantic.workflow": {
-                "available": True, "revision": 7, "project_uuid": project_uuid,
+                "available": True, "revision": self.revision, "project_uuid": project_uuid,
                 "read_authority_fingerprint": "f" * 64, "active_run_id": None,
-                "first_class_agents": [], "local_children": [],
+                "first_class_agents": [], "local_children": [], "assignments": self.assignments,
             },
             "semantic.state": {
-                "revision": 7, "project_uuid": project_uuid,
-                "read_authority_fingerprint": "f" * 64, "tasks": [],
+                "revision": self.revision, "project_uuid": project_uuid,
+                "read_authority_fingerprint": "f" * 64, "tasks": self.tasks,
             },
-            "status": {"project_revision": 7, "project_uuid": project_uuid},
+            "status": {"project_revision": self.revision, "project_uuid": project_uuid},
             "export": {
-                "project_revision": 7, "project": {"project_uuid": project_uuid},
-                "tables": {"tasks": []}, "large_fixture": "x" * self.large_export_bytes,
+                "project_revision": self.revision, "project": {"project_uuid": project_uuid},
+                "tables": {"tasks": self.tasks}, "large_fixture": "x" * self.large_export_bytes,
             },
             "ready": {"tasks": []},
         }
@@ -145,19 +148,32 @@ class TodoAuthorityTests(unittest.TestCase):
         self.assertIn("semantic.workflow", [item[0] for item in port.calls])
         self.assertEqual(factory_calls, [BUNDLED_TODO_PACKAGE.resolve(), BUNDLED_TODO_PACKAGE.resolve()])
 
-    def test_snapshot_builder_freezes_provider_after_first_resolution(self) -> None:
+    def test_snapshot_builder_reuses_provider_but_refreshes_authority_each_build(self) -> None:
         port = FakeReadPort(self.skills_root)
         calls = 0
 
-        def factory(_root: Path):
+        def factory(_root: Path, **_kwargs):
             nonlocal calls
             calls += 1
             return port
 
         builder = SnapshotBuilder(self.config, todo_read_port_factory=factory)
-        builder.build("fixture")
-        builder.build("fixture")
+        port.tasks = [{"task_id": "task-old", "status": "planned"}]
+        port.assignments = [{"assignment_id": "assignment-old"}]
+        with patch("project_control.adapters.todo.TodoReadAdapter._authority_root",
+                   lambda adapter, _start=None: adapter.root):
+            first = builder.build("fixture")
+            port.revision = 8
+            port.tasks = [{"task_id": "task-new", "status": "active"}]
+            port.assignments = [{"assignment_id": "assignment-new"}]
+            second = builder.build("fixture")
         self.assertEqual(calls, 1)
+        self.assertEqual(first.todo_revision, 7)
+        self.assertEqual(first.todo_tables["tasks"], [{"task_id": "task-old", "status": "planned"}])
+        self.assertEqual(first.todo_workflow["assignments"], [{"assignment_id": "assignment-old"}])
+        self.assertEqual(second.todo_revision, 8)
+        self.assertEqual(second.todo_tables["tasks"], [{"task_id": "task-new", "status": "active"}])
+        self.assertEqual(second.todo_workflow["assignments"], [{"assignment_id": "assignment-new"}])
 
     def test_optional_content_root_does_not_select_bundled_todo_package(self) -> None:
         content = Path(self.temporary.name) / "other-content"

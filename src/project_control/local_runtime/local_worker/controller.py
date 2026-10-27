@@ -818,6 +818,18 @@ class IntegrationController:
         registry = request.get("cuda_registry")
         if not registry or not acceptance or acceptance.get("accepted") is not True:
             return {"state": "silent", "campaign_ids": []}
+        from project_control.device_scheduler import read_resource_authority
+
+        try:
+            authority = read_resource_authority()
+        except Exception:
+            # An invalid or unavailable selector must never reopen the retired
+            # CUDA controller entrypoint as a fallback.
+            return {"state": "unavailable", "code": "resource_authority_unavailable",
+                    "campaign_ids": [], "auto_queued": False}
+        if authority.mode == "device_scheduler":
+            return {"state": "unavailable", "code": "cuda_controller_retired_under_device_scheduler_authority",
+                    "campaign_ids": [], "auto_queued": False}
         packets = []
         for changed in acceptance.get("changed_paths", []):
             if Path(str(changed)).suffix.lower() not in {".c", ".cc", ".cpp", ".cxx", ".cu", ".cuh", ".h", ".hpp"}:

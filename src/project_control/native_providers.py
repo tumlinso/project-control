@@ -1077,16 +1077,17 @@ def provision_native_project(config: object, project: str, project_root: Path,
 
 
 def _default_host_resources():
-    """Open the host physical registry read-only on first observation.
+    """Open the selected physical authority through the central factory.
 
-    ``HostCoordinator(create=False)`` computes the same configured authority
-    path as Project Control's resource runtime but never initializes it. A
-    missing or unreadable registry is handled by ``TrackedProcessObserver`` as
-    UNKNOWN, rather than creating an empty database and claiming STOPPED.
+    A missing local registry remains UNKNOWN to the process observer; once
+    Device Scheduler is selected, ownership reads use its authenticated lease
+    records and never fall back to the retired local database.
     """
-    from .host_resources import HostCoordinator, HostResourceFacade
+    from .host_resources.runtime import host_resource_facade
 
-    return HostResourceFacade(HostCoordinator(create=False))
+    # Provider construction is observational. Do not initialize the optional
+    # local registry just to check whether an attempt has a registered owner.
+    return host_resource_facade(create_local=False)
 
 
 def providers_for_project(config: object, project: str, project_root: Path, *,

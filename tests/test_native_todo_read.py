@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -75,28 +76,66 @@ def test_public_current_task_reads_are_paged_and_revision_checked(monkeypatch):
         def __init__(self):
             self.models = []
             self.pages = []
+            self.revision = 7
+            self.records = tuple(records)
 
         def read_model(self, *, expected_revision=None):
             self.models.append(expected_revision)
-            if expected_revision not in (None, 7):
+            if expected_revision not in (None, self.revision):
                 raise AssertionError("unexpected revision")
-            model = {"project_id": "p", "authority_id": "a", "semantic_revision": 7,
+            model = {"project_id": "p", "authority_id": "a", "semantic_revision": self.revision,
                      "sections": {"work_definitions": [], "plan_revisions": [], "plan_membership": []}}
-            return SimpleNamespace(semantic_revision=7, to_dict=lambda: dict(model))
+            return SimpleNamespace(semantic_revision=self.revision, to_dict=lambda: dict(model))
 
         def read_legacy_current_tasks(self, *, limit, after=None):
             self.pages.append(after)
             if after is None:
                 return SimpleNamespace(records=(), next_cursor=cursor)
-            return SimpleNamespace(records=tuple(records), next_cursor=None)
+            return SimpleNamespace(records=self.records, next_cursor=None)
 
     port = object.__new__(NativeTodoReadPort)
     port.runtime_identity = object()
     port.session = Session()
-    port._model = None
+    port._observation = threading.local()
     monkeypatch.setattr(runtime_identity, "validate_runtime", lambda _identity: None)
 
     model = port._read()
     assert [item["id"] for item in model["_project_control_current_tasks"]] == ["old-a"]
     assert port.session.models == [None, 7]
     assert port.session.pages == [None, cursor]
+
+    port.session.revision = 8
+    port.session.records = (_record("old-b", "planned", "work_item", "native-b"),)
+    refreshed = port._read()
+    assert [item["id"] for item in refreshed["_project_control_current_tasks"]] == ["old-b"]
+    assert port.session.models == [None, 7, None, 8]
+    assert port.session.pages == [None, cursor, None, cursor]
+
+
+def test_one_observation_reuses_one_consistent_authority_model(monkeypatch):
+    class Session:
+        def __init__(self):
+            self.model_reads = []
+
+        def read_model(self, *, expected_revision=None):
+            self.model_reads.append(expected_revision)
+            model = {"semantic_revision": 11, "project_id": "p", "authority_id": "a",
+                     "sections": {"work_definitions": [], "plan_revisions": [], "plan_membership": []}}
+            return SimpleNamespace(semantic_revision=11, to_dict=lambda: dict(model))
+
+        def read_legacy_current_tasks(self, *, limit, after=None):
+            return SimpleNamespace(records=(), next_cursor=None)
+
+    port = object.__new__(NativeTodoReadPort)
+    port.runtime_identity = object()
+    port.session = Session()
+    port._observation = threading.local()
+    monkeypatch.setattr(runtime_identity, "validate_runtime", lambda _identity: None)
+
+    port.begin_observation()
+    first = port._read()
+    second = port._read()
+    port.end_observation()
+
+    assert first["semantic_revision"] == second["semantic_revision"] == 11
+    assert port.session.model_reads == [None, 11]

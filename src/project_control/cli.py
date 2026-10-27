@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import importlib.util
 import json
@@ -189,6 +190,15 @@ def _parser() -> argparse.ArgumentParser:
     remove = workspace_commands.add_parser("remove")
     remove.add_argument("workspace")
     workspace_commands.add_parser("list")
+
+    resource_authority = commands.add_parser("resource-authority", help="inspect or select the host resource authority")
+    resource_authority_commands = resource_authority.add_subparsers(dest="resource_authority_command", required=True)
+    resource_authority_commands.add_parser("status", help="show the persistent resource-authority selection")
+    select_ds = resource_authority_commands.add_parser("select-device-scheduler", help="validate and select Device Scheduler MCP")
+    select_ds.add_argument("--base-url", required=True)
+    select_ds.add_argument("--token-file", type=Path, required=True)
+    select_ds.add_argument("--model-backend-id", help="operator-registered managed model backend for local inference")
+    resource_authority_commands.add_parser("select-local", help="explicitly restore the local host resource authority")
 
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--json", action="store_true", dest="as_json")
@@ -731,10 +741,14 @@ def _assistance_scoped_lab_command(args) -> int:
             deadline_epoch=time.time() + 120.0, provider=get_provider())
 
     def gpu_executor(*effect_args, **effect_kwargs):
-        # The LAB service calls this only for an already-authorized GPU scope.
-        # Build no CUDA/supervisor adapter for previews, CPU runs, or controls.
-        from .assistance.lab_gpu import GpuLabExecutor, native_owner_reader
+        # Project Control's GPU LAB still enters through cuda_controller and
+        # has no verified DS job profile yet. Keep the old path unavailable
+        # after DS selection rather than bypassing the selected allocator.
+        from .assistance.lab_gpu import GpuLabExecutor, GpuLabUnavailable, native_owner_reader
+        from .device_scheduler import read_resource_authority
 
+        if read_resource_authority().mode == "device_scheduler":
+            raise GpuLabUnavailable("gpu_lab_requires_a_registered_device_scheduler_execution_profile")
         config = load_config()
         roots = {}
         for project_id in sorted(config.workspaces):
@@ -1099,6 +1113,75 @@ def _doctor(*, tunnel: bool) -> tuple[bool, dict[str, object]]:
     return bool(checks.get("config") == "ok"), checks
 
 
+def _resource_authority_command(args) -> int:
+    from .device_scheduler import (
+        DeviceSchedulerMcpClient,
+        ResourceAuthority,
+        read_resource_authority,
+        resource_authority_path,
+        write_resource_authority,
+    )
+
+    if args.resource_authority_command == "status":
+        authority = read_resource_authority()
+        print(json.dumps({**authority.to_dict(), "config_path": str(resource_authority_path())}, sort_keys=True))
+        return 0
+
+    terminal_lease_states = {"released", "cancelled", "canceled"}
+
+    def require_no_scheduler_leases(client):
+        listing = asyncio.run(client.call("leases.list", {}))
+        leases = listing.get("leases")
+        if not isinstance(leases, list):
+            raise RuntimeError("device_scheduler_lease_inventory_unavailable")
+        active = [lease for lease in leases if not isinstance(lease, dict) or
+                  lease.get("state") not in terminal_lease_states]
+        if active:
+            raise RuntimeError("device_scheduler_leases_must_be_reclaimed_before_authority_switch")
+
+    if args.resource_authority_command == "select-local":
+        current = read_resource_authority()
+        if current.mode == "device_scheduler":
+            require_no_scheduler_leases(DeviceSchedulerMcpClient(current, timeout_seconds=5.0))
+        authority = ResourceAuthority()
+        write_resource_authority(authority)
+        print(json.dumps({**authority.to_dict(), "selected": True}, sort_keys=True))
+        return 0
+
+    authority = ResourceAuthority(
+        mode="device_scheduler", base_url=args.base_url.rstrip("/"),
+        token_file=str(args.token_file.expanduser().resolve()), model_backend_id=args.model_backend_id,
+    )
+    current = read_resource_authority()
+    if current.mode == "local":
+        from .host_resources.coordinator import HostCoordinator
+        coordinator = HostCoordinator(create=False)
+        if coordinator.database.is_dir():
+            marker = coordinator.database / "RETIRED"
+            if (coordinator.database.is_symlink() or not marker.is_file()
+                    or f"canonical_path={coordinator.database}\n" not in marker.read_text(encoding="utf-8")):
+                raise RuntimeError("local_host_resource_registry_retirement_unverified")
+        elif coordinator.database.exists():
+            active = coordinator.release_observation_counts()
+            if active != (0, 0, 0):
+                raise RuntimeError("local_host_resource_owners_must_be_released_before_authority_switch")
+    elif current != authority:
+        require_no_scheduler_leases(DeviceSchedulerMcpClient(current, timeout_seconds=5.0))
+
+    client = DeviceSchedulerMcpClient(authority, timeout_seconds=30.0)
+    resources = asyncio.run(client.call("resources.list", {}))
+    if not isinstance(resources.get("resources"), list):
+        raise RuntimeError("device_scheduler_resources_unavailable")
+    if authority.model_backend_id:
+        backend = asyncio.run(client.call("backends.get", {"backend_id": authority.model_backend_id}))
+        record = backend.get("backend", backend)
+        if not isinstance(record, dict) or record.get("backend_id", record.get("id")) != authority.model_backend_id:
+            raise RuntimeError("device_scheduler_model_backend_not_found")
+    write_resource_authority(authority)
+    print(json.dumps({**authority.to_dict(), "selected": True}, sort_keys=True))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -1130,6 +1213,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 print(json.dumps(config_summary(config), sort_keys=True))
             return 0
+        if args.command == "resource-authority":
+            return _resource_authority_command(args)
         if args.command == "doctor":
             ok, result = _doctor(tunnel=args.tunnel)
             print(json.dumps(result, sort_keys=True) if args.as_json else result)

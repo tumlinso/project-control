@@ -212,6 +212,12 @@ class HostResourceFacade:
             live_owner_ids={str(item) for item in live_owner_ids},
         )
 
+    def release_observation_counts(self) -> tuple[int, int, int]:
+        return self._coordinator.release_observation_counts()
+
+    def owner_activity(self, owner_ids: list[str]) -> tuple[int, int]:
+        return self._coordinator.owner_activity(owner_ids)
+
     def heartbeat(self, owner_id: str, *, pid: int | None = None) -> None:
         self._coordinator.heartbeat(owner_id, pid)
 

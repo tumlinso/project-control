@@ -765,6 +765,16 @@ class GpuLabExecutor:
                 proposal_root: Path, *, session_id: str, effect_id: str, deadline: float,
                 cancelled: Callable[[], bool] = lambda: False,
                 checkpoint: Callable[[str, Mapping[str, object]], None] | None = None) -> Mapping[str, Any]:
+        from ..device_scheduler import read_resource_authority
+
+        try:
+            selected_authority = read_resource_authority()
+        except Exception as error:
+            raise GpuLabUnavailable("physical resource authority is unavailable") from error
+        if selected_authority.mode == "device_scheduler":
+            raise GpuLabUnavailable(
+                "GPU LAB requires a registered Device Scheduler execution profile; the legacy CUDA controller is disabled"
+            )
         uuids = _approved_uuids(scope)
         project_key = getattr(scope, "project", None)
         project = self.project_roots.get(project_key) if isinstance(project_key, str) else None
@@ -1082,10 +1092,10 @@ def _negative_cuda_probe(ungranted_nodes: Sequence[int]) -> str:
 
 
 def native_owner_reader(owner_id: str) -> Mapping[str, object] | None:
-    """Read an exact physical host owner from Project Control's host registry."""
-    from project_control.host_resources import HostCoordinator, HostResourceFacade
+    """Read one owner through Project Control's selected resource authority."""
+    from project_control.host_resources.runtime import host_resource_facade
 
-    return HostResourceFacade(HostCoordinator(create=False)).owner(owner_id)
+    return host_resource_facade().owner(owner_id)
 
 
 def build_main(request_path: str) -> int:

@@ -92,6 +92,15 @@ def background_owner_id(project_root: str | Path, job_id: str, attempt_id: str) 
     return f"background:{project}:{job_id}:{attempt_id}"
 
 
+def _assert_local_resource_authority() -> None:
+    """Fence all direct legacy coordinator access after an operator cutover."""
+    from ..device_scheduler import read_resource_authority
+
+    selected = read_resource_authority(validate_credentials=False)
+    if selected.mode == "device_scheduler":
+        raise RuntimeError("local_host_resource_authority_disabled_device_scheduler_selected")
+
+
 class HostCoordinator:
     def __init__(self, *, create: bool = True, busy_timeout_ms: int = 2500):
         self.root = host_runtime_root()
@@ -101,6 +110,7 @@ class HostCoordinator:
             self.initialize()
 
     def connect(self, *, readonly: bool = False) -> sqlite3.Connection:
+        _assert_local_resource_authority()
         if readonly:
             connection = sqlite3.connect(f"file:{self.database}?mode=ro", uri=True, timeout=self.busy_timeout_ms / 1000)
         else:

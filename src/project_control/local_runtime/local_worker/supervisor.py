@@ -1859,6 +1859,470 @@ class ProductionBackend:
         self.evict()
 
 
+class _NoRedirect(urllib_request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        return None
+
+
+def _managed_loopback_transport(method: str, url: str, payload: dict[str, Any] | None,
+                               timeout: float) -> tuple[int, dict[str, Any]]:
+    """HTTP transport restricted to a no-redirect loopback backend endpoint."""
+    from urllib.parse import urlsplit
+    import ipaddress
+
+    parsed = urlsplit(url)
+    host = parsed.hostname
+    try:
+        loopback = bool(host and (ipaddress.ip_address(host).is_loopback or host.casefold() == "localhost"))
+        port = parsed.port
+    except ValueError:
+        loopback, port = False, None
+    if (parsed.scheme not in {"http", "https"} or not loopback or parsed.username or parsed.password
+            or parsed.query or parsed.fragment or (port is not None and not 1 <= port <= 65535)):
+        raise AdapterError("device_scheduler_backend_endpoint_invalid")
+    body = None if payload is None else json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    request = urllib_request.Request(url, data=body, method=method,
+                                    headers={"Content-Type": "application/json"})
+    opener = urllib_request.build_opener(_NoRedirect())
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            value = json.loads(response.read().decode("utf-8"))
+            return int(response.status), value if isinstance(value, dict) else {}
+    except urllib_error.HTTPError as error:
+        try:
+            value = json.loads(error.read().decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            value = {}
+        return int(error.code), value if isinstance(value, dict) else {}
+
+
+class _ManagedLlamaCppServerAdapter(LlamaCppServerAdapter):
+    """Use PC's llama.cpp inference policy against a DS-owned endpoint only."""
+
+    adapter_name = "device-scheduler-managed-llama.cpp"
+
+    def __init__(self, *, transport=None, health_probe=None):
+        super().__init__(binary="device-scheduler-managed-backend",
+                         transport=transport or _managed_loopback_transport)
+        self._generation_lock = threading.Lock()
+        self._health_probe = health_probe
+
+    def run(self, handle: str, request: dict[str, Any]) -> dict[str, Any]:
+        server = self._server(handle)
+        if server.get("evicted") or not server.get("accepting"):
+            raise AdapterError("device_scheduler_backend_not_accepting")
+        policy = request.get("observer_generation") or server.get("observer_generation")
+        if not isinstance(policy, dict) or not policy:
+            raise AdapterError("device_scheduler_observer_generation_policy_unavailable")
+        # The llama.cpp adapter uses one cache slot and mutable reasoning
+        # accounting. Serialize turns so a backend restart or another PC
+        # request cannot splice two turns across different endpoint epochs.
+        if not self._generation_lock.acquire(blocking=False):
+            raise AdapterError("observer_provider_busy")
+        try:
+            return self._run_observer_generation(handle, request, policy)
+        finally:
+            self._generation_lock.release()
+
+    def health(self, handle: str) -> dict[str, Any]:
+        self._server(handle)
+        if self._health_probe is None:
+            return {"healthy": False, "state": "unknown"}
+        return self._health_probe()
+
+    def cancel(self, handle: str, request_id: str | None = None) -> dict[str, Any]:
+        self._server(handle)
+        # llama.cpp cancellation in the local adapter evicts its owned process.
+        # This PC client does not own the DS backend and cannot cancel a single
+        # request through the configured backend contract.
+        return {"canceled": False, "reason": "managed_backend_request_cancellation_unsupported",
+                **({"request_id": request_id} if request_id else {})}
+
+    def drain(self, handle: str) -> dict[str, Any]:
+        self._server(handle)
+        raise AdapterError("device_scheduler_backend_is_non_evictable_from_project_control")
+
+    def evict(self, handle: str) -> dict[str, Any]:
+        self._server(handle)
+        raise AdapterError("device_scheduler_backend_is_non_evictable_from_project_control")
+
+    def quiescent(self, handle: str) -> bool:
+        self._server(handle)
+        return False
+
+
+class DeviceSchedulerManagedModelBackend(ProductionBackend):
+    """PC inference facade over one operator-registered DS llama.cpp backend.
+
+    Device Scheduler owns backend startup, GPU residency, and physical recovery.
+    Project Control retains the bounded observer request validation and its
+    llama.cpp template/token/context accounting, but can only release its own
+    in-memory borrower lease. This backend has no local GPU/process owner.
+    """
+
+    managed_non_evictable = True
+    resource_authority_mode = "device_scheduler"
+
+    def __init__(self, repo_root: str | Path, *, service_state_root: str | Path | None,
+                 profile: dict[str, Any], client: Any, backend_id: str,
+                 transport=None):
+        if not isinstance(backend_id, str) or not backend_id:
+            raise SupervisorError("device_scheduler_model_backend_id_required")
+        if client is None or not callable(getattr(client, "call", None)):
+            raise SupervisorError("device_scheduler_mcp_client_unavailable")
+        self._device_scheduler_client = client
+        self._device_scheduler_backend_id = backend_id
+        self._device_scheduler_model_id: str | None = None
+        self._device_scheduler_endpoint: dict[str, Any] | None = None
+        self._device_scheduler_endpoint_lock = threading.RLock()
+        self._device_scheduler_handle = "ds-managed-" + hashlib.sha256(backend_id.encode()).hexdigest()[:16]
+        managed_adapter = _ManagedLlamaCppServerAdapter(transport=transport,
+            health_probe=self._managed_health_probe)
+
+        class _NoPhysicalAuthority:
+            def __getattr__(self, name):
+                raise SupervisorError(f"local_resource_operation_forbidden_under_device_scheduler_authority:{name}")
+
+        class _ManagedRuntime:
+            host = _NoPhysicalAuthority()
+
+        class _NoLocalModelCache:
+            lease_root = None
+
+        super().__init__(repo_root, service_state_root=service_state_root, profile=profile,
+                         cache=_NoLocalModelCache(), runtime=_ManagedRuntime(),
+                         adapter=managed_adapter, service=AdapterService(),
+                         topology_classifier=lambda _runtime: {})
+        # An explicit empty list prevents observer-status from presenting a PC
+        # GPU allowlist as though it controlled the DS-owned backend.
+        self.profile.setdefault("deployment_policy", {})["allowed_gpu_uuids"] = []
+        self.service.register("llama", managed_adapter)
+        self.max_slots = 1
+        self.idle_eviction_enabled = False
+        self.ttl = 0
+        self.draining = False
+        # The selected backend is already registered by an operator. Starting
+        # it is an explicit DS lifecycle operation; no PC process is launched.
+        self._refresh_managed_backend(allow_start=True)
+        self._managed_slot()
+
+    def _ds_call(self, operation: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        try:
+            value = self._device_scheduler_client.call(operation, arguments)
+            if hasattr(value, "__await__"):
+                from project_control.device_scheduler import _run_awaitable
+                value = _run_awaitable(value)
+        except Exception as error:
+            raise SupervisorError(f"device_scheduler_{operation.replace('.', '_')}_failed:{error}") from error
+        if not isinstance(value, dict):
+            raise SupervisorError(f"device_scheduler_{operation.replace('.', '_')}_invalid_response")
+        if isinstance(value.get("error"), dict):
+            code = str(value["error"].get("code", "operation_failed"))
+            raise SupervisorError(f"device_scheduler_{operation.replace('.', '_')}_failed:{code}")
+        return value
+
+    def _backend_record(self, operation: str, *, action: str | None = None) -> dict[str, Any]:
+        arguments: dict[str, Any] = {"backend_id": self._device_scheduler_backend_id}
+        if action is not None:
+            arguments["action"] = action
+        return self._ds_call(operation, arguments)
+
+    @staticmethod
+    def _loopback_endpoint(endpoint: Any) -> tuple[str, str, str]:
+        from urllib.parse import urlsplit, urlunsplit
+        import ipaddress
+
+        if not isinstance(endpoint, dict) or endpoint.get("protocol") != "openai-compatible" or endpoint.get("server_kind") != "llama.cpp":
+            raise SupervisorError("device_scheduler_backend_endpoint_contract_mismatch")
+        model_id = endpoint.get("model_id")
+        base_url = endpoint.get("base_url")
+        if (not isinstance(model_id, str) or not model_id or len(model_id) > 256
+                or any(ord(char) < 32 for char in model_id) or not isinstance(base_url, str)):
+            raise SupervisorError("device_scheduler_backend_endpoint_invalid")
+        parsed = urlsplit(base_url)
+        host = parsed.hostname
+        try:
+            loopback = bool(host and (ipaddress.ip_address(host).is_loopback or host.casefold() == "localhost"))
+            port = parsed.port
+        except ValueError:
+            loopback, port = False, None
+        if (parsed.scheme not in {"http", "https"} or not loopback or parsed.username or parsed.password
+                or parsed.query or parsed.fragment or parsed.path.rstrip("/") != "/v1"
+                or (port is not None and not 1 <= port <= 65535)):
+            raise SupervisorError("device_scheduler_backend_endpoint_not_loopback")
+        netloc = f"[{host}]" if ":" in host else host
+        if port is not None:
+            netloc += f":{port}"
+        origin = urlunsplit((parsed.scheme, netloc, "", "", ""))
+        return origin, origin + "/v1", model_id
+
+    def _fresh_endpoint(self, endpoint: dict[str, Any]) -> dict[str, Any]:
+        origin, base_url, model_id = self._loopback_endpoint(endpoint)
+        transport = self.adapter.transport
+        try:
+            health_status, _ = transport("GET", origin + "/health", None, 2.0)
+            models_status, models = transport("GET", base_url + "/models", None, 2.0)
+            props_status, props = transport("GET", origin + "/props", None, 2.0)
+        except Exception as error:
+            raise SupervisorError("device_scheduler_backend_readiness_probe_failed") from error
+        entries = models.get("data") if isinstance(models, dict) else None
+        model_ids = {item.get("id") for item in entries if isinstance(item, dict) and isinstance(item.get("id"), str)} if isinstance(entries, list) else set()
+        settings = props.get("default_generation_settings") if isinstance(props, dict) else None
+        context_size = settings.get("n_ctx") if isinstance(settings, dict) else None
+        if health_status != 200 or models_status != 200 or model_id not in model_ids:
+            raise SupervisorError("device_scheduler_backend_model_identity_mismatch")
+        if props_status != 200 or isinstance(context_size, bool) or not isinstance(context_size, int) or context_size < 1:
+            raise SupervisorError("device_scheduler_backend_context_unavailable")
+        return {"format": "CORE4-MODEL-ENDPOINT/1", "base_url": base_url,
+                "model_id": model_id, "compute_profile": "narrow", "parallelism": "managed",
+                "backend_id": self._device_scheduler_backend_id,
+                "server_kind": "llama.cpp", "allocation_authority": "device-scheduler",
+                "context_size": context_size}
+
+    def _refresh_managed_backend(self, *, allow_start: bool) -> dict[str, Any]:
+        with self._device_scheduler_endpoint_lock:
+            current = self._backend_record("backends.get")
+            if current.get("backend_id", current.get("id")) != self._device_scheduler_backend_id:
+                raise SupervisorError("device_scheduler_backend_identity_mismatch")
+            state = current.get("state")
+            if state == "stopped" and allow_start:
+                self._backend_record("backends.control", action="start")
+            elif state != "ready":
+                raise SupervisorError(f"device_scheduler_backend_not_ready:{state or 'unknown'}")
+            record = self._backend_record("backends.control", action="inspect")
+            if (record.get("backend_id", record.get("id")) != self._device_scheduler_backend_id
+                    or record.get("state") != "ready" or record.get("observed_state") != "ready"):
+                raise SupervisorError("device_scheduler_backend_fresh_readiness_unverified")
+            observation = record.get("observation")
+            readiness = observation.get("readiness") if isinstance(observation, dict) else None
+            if (not isinstance(readiness, dict) or readiness.get("ready") is not True
+                    or readiness.get("identity_verified") is not True):
+                raise SupervisorError("device_scheduler_backend_model_identity_unverified")
+            endpoint = readiness.get("endpoint")
+            descriptor = self._fresh_endpoint(endpoint)
+            if self._device_scheduler_model_id is not None and descriptor["model_id"] != self._device_scheduler_model_id:
+                raise SupervisorError("device_scheduler_backend_pinned_model_changed")
+            self._device_scheduler_model_id = descriptor["model_id"]
+            self._device_scheduler_endpoint = descriptor
+            observer_generation = self.profile.get("observer_generation", {})
+            if not isinstance(observer_generation, dict) or not observer_generation:
+                raise SupervisorError("device_scheduler_observer_generation_profile_unavailable")
+            # A running turn must retain one endpoint epoch across template,
+            # tokenize, and completion calls. Endpoint refresh waits for that
+            # turn to leave the shared llama.cpp accounting state.
+            with self.adapter._generation_lock:
+                server = self.adapter._servers.get(self._device_scheduler_handle)
+                if server is None:
+                    server = {"base_url": descriptor["base_url"].removesuffix("/v1"),
+                        "accepting": True, "evicted": False, "profile": {"context_size": descriptor["context_size"]},
+                        "effective_context_size": descriptor["context_size"],
+                        "observer_generation": self.adapter._generation_policy(observer_generation),
+                        "reasoning_state": {}, "last_completion_tokens": None,
+                        "active_requests": set(), "canceled": set(),
+                        "usage": {"runs": 0, "prompt_tokens": 0, "completion_tokens": 0, "duration_ms": 0.0}}
+                    self.adapter._servers[self._device_scheduler_handle] = server
+                else:
+                    server["base_url"] = descriptor["base_url"].removesuffix("/v1")
+                    server["profile"] = {"context_size": descriptor["context_size"]}
+                    server["effective_context_size"] = descriptor["context_size"]
+                    server["accepting"] = True
+                    server["evicted"] = False
+            return descriptor
+
+    def _managed_health_probe(self) -> dict[str, Any]:
+        try:
+            self._refresh_managed_backend(allow_start=False)
+        except SupervisorError as error:
+            return {"healthy": False, "state": "unknown", "reason": str(error)}
+        return {"healthy": True, "state": "ready"}
+
+    def _managed_slot(self) -> _ServiceSlot:
+        if not self._slots:
+            if self._device_scheduler_endpoint is None:
+                self._refresh_managed_backend(allow_start=False)
+            endpoint = dict(self._device_scheduler_endpoint or {})
+            slot_id = "ds-slot-" + hashlib.sha256(self._device_scheduler_backend_id.encode()).hexdigest()[:12]
+            slot = _ServiceSlot(slot_id=slot_id, handle=self._device_scheduler_handle,
+                endpoint_descriptor={key: value for key, value in endpoint.items() if key != "context_size"},
+                owner_id="", cache_lease=None, gpu_uuids=(), compatibility_key=hashlib.sha256(
+                    json.dumps(endpoint, sort_keys=True).encode()).hexdigest(),
+                state="idle", compute_profile="narrow", parallelism="managed")
+            self._slots[slot_id] = slot
+        return next(iter(self._slots.values()))
+
+    def _resolved_parallelism(self, compute_profile: str, parallelism: str) -> str:
+        if compute_profile != "narrow" or parallelism not in {"default", "layer", "tensor"}:
+            raise SupervisorError("compute_profile_invalid_for_managed_backend")
+        return "managed"
+
+    @_pool_synchronized
+    def admit(self, compute_profile: str = "narrow", parallelism: str = "default") -> dict[str, Any]:
+        self._check_assistance_release_veto()
+        self._resolved_parallelism(compute_profile, parallelism)
+        self._refresh_managed_backend(allow_start=True)
+        if self.draining:
+            raise SupervisorError("resource_unavailable: model supervisor is draining")
+        if len(self._leases) + len(self._admissions) >= 1:
+            raise SupervisorError("resource_unavailable: managed model client capacity is occupied")
+        admission_id = str(uuid.uuid4())
+        slot_id = next(iter(self._slots), None)
+        self._admissions[admission_id] = _Admission(admission_id, time.monotonic() + self.admission_ttl,
+            slot_id, "", (), "narrow", "managed")
+        return {"status": "admitted", "admission_id": admission_id,
+                "capacity": 1, "active_admissions": len(self._admissions),
+                "allocation_authority": "device-scheduler", "physical_admission": "backend-residency"}
+
+    @_pool_synchronized
+    def cancel_admission(self, admission_id: str) -> dict[str, Any]:
+        if self._admissions.pop(admission_id, None) is None:
+            raise SupervisorError("unknown or already consumed admission")
+        return {"cancelled": True, "admission_id": admission_id,
+                "active_admissions": len(self._admissions), "scope": "pc_logical_admission_only"}
+
+    @_pool_synchronized
+    def warm(self, admission_id: str | None = None, compute_profile: str = "narrow",
+             parallelism: str = "default", *, deadline_epoch=None) -> dict[str, Any]:
+        if deadline_epoch is not None:
+            remaining_seconds(deadline_epoch)
+        self._check_assistance_release_veto()
+        self._resolved_parallelism(compute_profile, parallelism)
+        self._refresh_managed_backend(allow_start=True)
+        if self.draining:
+            raise SupervisorError("model supervisor is draining")
+        admission = None
+        if admission_id is not None:
+            admission = self._admissions.pop(admission_id, None)
+            if admission is None or admission.expires_at <= time.monotonic():
+                raise SupervisorError("unknown or expired managed model admission")
+        elif self._leases:
+            raise SupervisorError("resource_unavailable: managed model client capacity is occupied")
+        slot = self._managed_slot()
+        if slot.service_lease_id is not None:
+            raise SupervisorError("resource_unavailable: managed model client capacity is occupied")
+        lease_id = str(uuid.uuid4())
+        slot.service_lease_id = lease_id
+        slot.state = "active"
+        slot.idle_since = None
+        self._leases[lease_id] = slot.slot_id
+        return {**slot.endpoint_descriptor, "slot_id": slot.slot_id,
+                "service_lease_id": lease_id, "reused": True,
+                "allocation_authority": "device-scheduler", "physical_lifecycle": "managed_backend"}
+
+    @_pool_synchronized
+    def release(self, service_lease_id: str | None = None) -> dict[str, Any]:
+        if service_lease_id is None:
+            if len(self._leases) != 1:
+                raise SupervisorError("unqualified release is ambiguous unless exactly one PC session exists")
+            service_lease_id = next(iter(self._leases))
+        slot_id = self._leases.get(service_lease_id)
+        slot = self._slots.get(str(slot_id)) if slot_id is not None else None
+        if slot is None or slot.service_lease_id != service_lease_id:
+            raise SupervisorError("unknown or already released PC logical session")
+        if slot.active_turns:
+            raise SupervisorError("observer_session_cleanup_pending: model turn is still active")
+        self.adapter.clear_reasoning(slot.handle, service_lease_id)
+        self._leases.pop(service_lease_id, None)
+        slot.service_lease_id = None
+        slot.state = "idle"
+        slot.idle_since = time.monotonic()
+        return {"released": True, "slot_id": slot.slot_id,
+                "service_lease_id": service_lease_id, "clients": len(self._leases),
+                "scope": "pc_logical_session_only", "backend_running": True}
+
+    def _run_slot(self, slot: _ServiceSlot, request: dict[str, Any], *,
+                  on_slot_use: Callable[[str], None] | None = None) -> dict[str, Any]:
+        with self._pool_lock:
+            if slot.state == "draining" or slot.slot_id not in self._slots:
+                raise SupervisorError("managed_model_session_unavailable")
+            slot.active_turns += 1
+        try:
+            # Refresh before a session turn so a stale URL or changed model
+            # identity can never be inferred from old PC memory.
+            descriptor = self._refresh_managed_backend(allow_start=False)
+            slot.endpoint_descriptor = {key: value for key, value in descriptor.items() if key != "context_size"}
+            if on_slot_use is not None:
+                on_slot_use(slot.slot_id)
+            return self.service.run("llama", slot.handle, request)
+        finally:
+            with self._pool_lock:
+                slot.active_turns -= 1
+
+    @_pool_synchronized
+    def status(self) -> dict[str, Any]:
+        try:
+            self._refresh_managed_backend(allow_start=False)
+            healthy, reason = True, None
+        except SupervisorError as error:
+            healthy, reason = False, str(error)
+        if self._device_scheduler_endpoint is not None:
+            for slot in self._slots.values():
+                slot.endpoint_descriptor = {key: value for key, value in self._device_scheduler_endpoint.items()
+                                            if key != "context_size"}
+        summaries = [{**slot.endpoint_descriptor, "slot_id": slot.slot_id,
+                      "state": slot.state, "leased": slot.service_lease_id is not None,
+                      "healthy": healthy}
+                     for slot in sorted(self._slots.values(), key=lambda item: item.slot_id)]
+        return {"format": "CORE4-MODEL-SUPERVISOR/1", "running": healthy,
+                "healthy": healthy, "draining": self.draining,
+                "clients": len(self._leases), "active_leases": len(self._leases),
+                "active_admissions": len(self._admissions), "capacity": 1,
+                "endpoint": summaries[0] if len(summaries) == 1 else None,
+                "slots": summaries, "resource_authority": "device-scheduler",
+                "backend_id": self._device_scheduler_backend_id,
+                "eviction_supported": False, "readiness_error": reason}
+
+    def observer_status(self) -> dict[str, Any]:
+        summaries = [{"slot_id": slot.slot_id, "state": slot.state,
+                      "leased": slot.service_lease_id is not None,
+                      "compute_profile": slot.compute_profile,
+                      "parallelism": slot.parallelism,
+                      "backend_id": self._device_scheduler_backend_id,
+                      "resource_authority": "device-scheduler",
+                      "eviction_supported": False}
+                     for slot in sorted(self._slots.values(), key=lambda item: item.slot_id)]
+        return {"format": "CORE4-OBSERVER-STATUS/1", "running": bool(summaries),
+                "healthy": bool(summaries) and not self.draining,
+                "draining": self.draining, "clients": len(self._leases),
+                "active_leases": len(self._leases), "active_admissions": len(self._admissions),
+                "capacity": 1, "slots": summaries,
+                "resource_authority": "device-scheduler", "backend_id": self._device_scheduler_backend_id,
+                "eviction_supported": False}
+
+    def preemption_status(self, service_lease_id: str | None = None) -> dict[str, Any]:
+        raise SupervisorError("device_scheduler_backend_preemption_requires_a_supported_handoff_contract")
+
+    def quiesce_for_foreground(self, **_: Any) -> dict[str, Any]:
+        raise SupervisorError("device_scheduler_backend_is_non_evictable_from_project_control")
+
+    def resume_after_foreground(self, **_: Any) -> dict[str, Any]:
+        raise SupervisorError("device_scheduler_backend_handoff_is_unsupported")
+
+    def drain(self) -> dict[str, Any]:
+        raise SupervisorError("device_scheduler_backend_is_non_evictable_from_project_control")
+
+    def evict(self) -> dict[str, Any]:
+        raise SupervisorError("device_scheduler_backend_is_non_evictable_from_project_control")
+
+    def poll(self) -> None:
+        # Device Scheduler owns lease renewal/recovery and the backend monitor.
+        return None
+
+    def shutdown_local(self) -> None:
+        # Stop accepting PC RPCs only; do not stop, drain, or reclaim the DS
+        # backend. The service manager is not an eviction authority.
+        self.draining = True
+
+    def shutdown(self) -> dict[str, Any]:
+        active = any(slot.active_turns for slot in self._slots.values())
+        return {"quiescent": not active, "pc_supervisor_stopped": True,
+                "backend_preserved": True, "physical_quiescence": None,
+                "evicted": False}
+
+    def close(self) -> None:
+        # Intentionally no remote backend action. Device Scheduler retains it.
+        return None
+
+
 class SupervisorServer:
     def __init__(self, backend: Backend, *, root: Path | None = None, observer_only: bool = False,
                  shutdown_timeout_seconds: float = 330):
@@ -1914,10 +2378,20 @@ class SupervisorServer:
         summaries = []
         for summary in status.get("slots", []):
             slot = known.get(summary["slot_id"])
-            details = ({"server_pid": slot.endpoint_descriptor.get("server_pid"), "owner_id": slot.owner_id,
-                        "gpu_uuids": list(slot.gpu_uuids), "service_lease_id": slot.service_lease_id,
-                        "model_id": slot.endpoint_descriptor.get("model_id"),
-                        "model_sha256": slot.endpoint_descriptor.get("model_sha256")} if slot is not None else {})
+            details = {}
+            if slot is not None:
+                details = {"service_lease_id": slot.service_lease_id,
+                           "model_id": slot.endpoint_descriptor.get("model_id"),
+                           "model_sha256": slot.endpoint_descriptor.get("model_sha256")}
+                if slot.endpoint_descriptor.get("server_pid") is not None:
+                    details["server_pid"] = slot.endpoint_descriptor["server_pid"]
+                if slot.owner_id and slot.endpoint_descriptor.get("server_pid") is not None:
+                    details["owner_id"] = slot.owner_id
+                if slot.gpu_uuids:
+                    details["gpu_uuids"] = list(slot.gpu_uuids)
+                for name in ("backend_id", "resource_authority", "eviction_supported"):
+                    if name in slot.endpoint_descriptor:
+                        details[name] = slot.endpoint_descriptor[name]
             summaries.append({**summary, **details})
         return {**status, "slots": summaries, "idle_ttl_seconds": getattr(self.backend, "ttl", 900),
                 "idle_eviction_enabled": getattr(self.backend, "idle_eviction_enabled", True),
@@ -1945,6 +2419,10 @@ class SupervisorServer:
             peer_process_start = getattr(getattr(self, "_dispatch_peer", None), "process_start", None)
         validate_canonical_runtime(self.runtime_identity)
         operation = request.get("operation")
+        if getattr(self.backend, "managed_non_evictable", False) and operation in {
+                "observer-reclaim-closed", "observer-quiesce", "observer-resume",
+                "observer-release-owned", "preemption-status", "drain", "evict", "stop"}:
+            raise SupervisorError("device_scheduler_backend_is_non_evictable_from_project_control")
         observer_parameters = {
             "observer-status": {"deadline_epoch"}, "observer-analyze": {"packet"},
             "observer-turn": {"request"},
@@ -2542,15 +3020,23 @@ class SupervisorServer:
         finally:
             self._stop_event.set()
             shutdown_deadline = time.monotonic() + self.shutdown_timeout_seconds
-            self.backend.drain()
+            local_shutdown = getattr(self.backend, "shutdown_local", None)
+            if callable(local_shutdown):
+                local_shutdown()
+            else:
+                self.backend.drain()
             with self._threads_lock:
                 workers = list(self._threads)
             for worker in workers:
                 worker.join(timeout=max(0, shutdown_deadline - time.monotonic()))
             if "housekeeping" in locals():
                 housekeeping.join(timeout=1)
-            cleanup = self.backend.evict()
-            self.backend.close()
+            shutdown = getattr(self.backend, "shutdown", None)
+            if callable(shutdown):
+                cleanup = shutdown()
+            else:
+                cleanup = self.backend.evict()
+                self.backend.close()
             server.close()
             self.socket_path.unlink(missing_ok=True)
             self.pid_path.unlink(missing_ok=True)
@@ -2917,29 +3403,41 @@ def main(argv: list[str] | None = None) -> int:
     if args.runtime_root and configured_runtime and root.resolve() != Path(configured_runtime).expanduser().resolve():
         raise SupervisorError("central_supervisor_runtime_root_mismatch")
     profile = tomllib.loads((Path(__file__).resolve().parents[1] / "config/production-profile.toml").read_text())
-    configured_gpus = os.environ.get("PROJECT_CONTROL_OBSERVER_GPU_UUIDS")
-    allowed = json.loads(configured_gpus) if configured_gpus else None
-    if allowed is not None and (not isinstance(allowed, list) or not allowed or
-            any(not isinstance(gpu, str) or not gpu.startswith("GPU-") or len(gpu) > 128 for gpu in allowed) or
-            len(set(allowed)) != len(allowed)):
-        raise SupervisorError("central_supervisor_gpu_allowlist_invalid")
-    if args.allowed_gpu_uuid and allowed is not None and not set(args.allowed_gpu_uuid) <= set(allowed):
-        raise SupervisorError("central_supervisor_gpu_allowlist_mismatch")
-    allowed = args.allowed_gpu_uuid or allowed
-    if args.observer_only and not allowed:
-        raise SupervisorError("central_supervisor_gpu_allowlist_required")
-    if allowed is not None:
-        if (any(not isinstance(gpu, str) or not gpu.startswith("GPU-") or len(gpu) > 128 for gpu in allowed) or
-                len(set(allowed)) != len(allowed)):
-            raise SupervisorError("central_supervisor_gpu_allowlist_invalid")
-        policy_allowed = profile["deployment_policy"].get("allowed_gpu_uuids")
-        if policy_allowed is not None and not set(allowed) <= set(policy_allowed):
-            raise SupervisorError("central_supervisor_gpu_allowlist_mismatch")
-        profile["deployment_policy"]["allowed_gpu_uuids"] = allowed
     if not math.isfinite(args.shutdown_timeout_seconds) or not 0 < args.shutdown_timeout_seconds <= 330:
         raise SupervisorError("central_supervisor_shutdown_timeout_invalid")
-    owner = SupervisorServer(ProductionBackend(args.repo_root, service_state_root=service_state, profile=profile),
-        root=root, observer_only=args.observer_only, shutdown_timeout_seconds=args.shutdown_timeout_seconds)
+    from project_control.device_scheduler import DeviceSchedulerMcpClient, read_resource_authority
+    authority = read_resource_authority()
+    if authority.mode == "device_scheduler":
+        if args.allowed_gpu_uuid or os.environ.get("PROJECT_CONTROL_OBSERVER_GPU_UUIDS") is not None:
+            raise SupervisorError("local_gpu_allowlist_conflicts_with_device_scheduler_authority")
+        if not authority.model_backend_id:
+            raise SupervisorError("device_scheduler_model_backend_id_required")
+        backend = DeviceSchedulerManagedModelBackend(
+            args.repo_root, service_state_root=service_state, profile=profile,
+            client=DeviceSchedulerMcpClient(authority), backend_id=authority.model_backend_id)
+    else:
+        configured_gpus = os.environ.get("PROJECT_CONTROL_OBSERVER_GPU_UUIDS")
+        allowed = json.loads(configured_gpus) if configured_gpus else None
+        if allowed is not None and (not isinstance(allowed, list) or not allowed or
+                any(not isinstance(gpu, str) or not gpu.startswith("GPU-") or len(gpu) > 128 for gpu in allowed) or
+                len(set(allowed)) != len(allowed)):
+            raise SupervisorError("central_supervisor_gpu_allowlist_invalid")
+        if args.allowed_gpu_uuid and allowed is not None and not set(args.allowed_gpu_uuid) <= set(allowed):
+            raise SupervisorError("central_supervisor_gpu_allowlist_mismatch")
+        allowed = args.allowed_gpu_uuid or allowed
+        if args.observer_only and not allowed:
+            raise SupervisorError("central_supervisor_gpu_allowlist_required")
+        if allowed is not None:
+            if (any(not isinstance(gpu, str) or not gpu.startswith("GPU-") or len(gpu) > 128 for gpu in allowed) or
+                    len(set(allowed)) != len(allowed)):
+                raise SupervisorError("central_supervisor_gpu_allowlist_invalid")
+            policy_allowed = profile["deployment_policy"].get("allowed_gpu_uuids")
+            if policy_allowed is not None and not set(allowed) <= set(policy_allowed):
+                raise SupervisorError("central_supervisor_gpu_allowlist_mismatch")
+            profile["deployment_policy"]["allowed_gpu_uuids"] = allowed
+        backend = ProductionBackend(args.repo_root, service_state_root=service_state, profile=profile)
+    owner = SupervisorServer(backend, root=root, observer_only=args.observer_only,
+        shutdown_timeout_seconds=args.shutdown_timeout_seconds)
     handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGINT)}
     try:
         for sig in handlers:
