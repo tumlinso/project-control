@@ -16,6 +16,12 @@ HTTP serves Observer's ten tools. Codex launches twelve through `project-control
 
 Registration stays in `~/.config/project-control/config.toml`. Response packets and neutral evidence are under `~/.local/state/project-control/as1`; indexes use `~/.cache/project-control/source`. Peer evidence registrations are in `~/.config/project-control/evidence-stores.json`. An optional `cpp-exports.json` in that directory supplies the map described in [retrieval](retrieval.md). These are private local files, not package contents.
 
+### Workflow client lifetime
+
+Keep the official Codex or Mutator stdio connection open from `next_task` through authoring and `finish_task`. With the Python MCP SDK, keep both the outer `stdio_client(...)` context and the nested `ClientSession(...)` context alive while doing the work; initialize once and serialize foreground tool calls through that session. An idle client can wait for work or control messages without closing either context.
+
+The stdio server owns automatic attempt renewal. The Observer HTTP service does not renew that session's work, and a helper that launches a fresh server for each tool call stops renewal when it exits. Handles stay bound to the same identity, profile, credentials and providers across reconnects. Use supported inspection and resumption after a disconnect; an expired lease grants no permission for further computation. Source-fenced handoff and reporting preserve an exact committed result for review without renewing that lease or claiming the producer process stopped.
+
 ## Project-Lab
 
 `project-lab` and `project-lab-worker` select `~/.local/state/project-lab/current`. Private configuration is `~/.config/project-lab/config.toml`; state is `~/.local/state/project-lab/data`. The application has a scoped scheduler caller and a separate Codex MCP entry. It needs no resident Lab daemon: the scheduler runs explicitly submitted controllers and effects.
