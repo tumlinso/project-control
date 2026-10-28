@@ -38,6 +38,7 @@ _HOST_SESSION_OPERATIONS = frozenset({
     "todo_integrate_attempt",
     "todo_accept_outcome",
     "todo_reject_outcome",
+    "todo_report_outcome",
     "todo_finish_attempt",
     "todo_handback_attempt",
     "todo_release_attempt",
@@ -874,11 +875,11 @@ class NativeWorkflowHost:
             if tool == "todo_inspect_attempt":
                 return _public(session, "recovery_inspection", session.inspect_attempt(attempt_id))
             raise NativeWorkflowError("native_todo_operation_unknown")
-        # These decisions use the profile's project-level host grant. An
-        # attempt bearer belongs to the worker and intentionally lacks Git
-        # integration and independent outcome-review rights. Keep the attempt
-        # ID as the native API selector; only change which trusted session
-        # supplies the authorization context.
+        # These lifecycle and review operations use the profile's project-level
+        # host grant. An attempt bearer belongs to the worker and intentionally
+        # lacks Git integration, candidate reporting, and independent review
+        # rights. Keep the attempt ID as the native API selector; only change
+        # which trusted session supplies the authorization context.
         session_attempt_id = None if tool in _HOST_SESSION_OPERATIONS else attempt_id
         return self._guarded(
             project, action, attempt_id=session_attempt_id, repository=repository,

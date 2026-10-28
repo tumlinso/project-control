@@ -129,7 +129,7 @@ def test_host_review_and_integration_use_host_session_but_worker_effects_use_att
         "todo_verify_attempt": ({"attempt_id": "attempt-42", "requirement_id": "req-1",
                                   "idempotency_key": "key-verify"}, "attempt", "verify", "attempt-42"),
         "todo_report_outcome": ({"attempt_id": "attempt-42", "disposition": "completed",
-                                 "idempotency_key": "key-report"}, "attempt", "report", "attempt-42"),
+                                 "idempotency_key": "key-report"}, "host", "report", "attempt-42"),
         "todo_heartbeat_attempt": ({"attempt_id": "attempt-42", "lease_id": "lease-1",
                                      "plan_revision_id": "plan-1", "idempotency_key": "key-heartbeat"},
                                     "attempt", "heartbeat_attempt", "attempt-42"),
@@ -151,6 +151,72 @@ def test_host_review_and_integration_use_host_session_but_worker_effects_use_att
             assert session.calls[-1][2] == "lease-1"
         assert session.closed
     assert forgotten_attempts == [("trusted-mutator", "mutator", "attempt-42")]
+
+
+def test_outcome_report_uses_host_session_when_attempt_session_is_expired(tmp_path: Path):
+    from todo_orchestrator.api import TodoAuthenticationError
+    from todo_orchestrator.contracts import StableId
+
+    repository = tmp_path / "repo"
+    repository.mkdir()
+
+    class _ReportSession(_Session):
+        def report(self, attempt_id, disposition, **kwargs):
+            if self.source == "denied-host":
+                raise TodoAuthenticationError("host report capability is denied")
+            return self._call("report", attempt_id, disposition, **kwargs)
+
+    host_sources = ["host"]
+    host_sessions: list[_ReportSession] = []
+    attempt_opens: list[str] = []
+
+    def open_host(*_args, **_kwargs):
+        session = _ReportSession(host_sources[-1])
+        host_sessions.append(session)
+        return session
+
+    def open_expired_attempt(*_args, **_kwargs):
+        attempt_opens.append("attempt session requested")
+        raise TodoAuthenticationError("attempt session capability has expired")
+
+    host = SimpleNamespace(profile="mutator", principal="trusted-mutator",
+                           projects=frozenset({"workspace"}))
+    config = ProjectControlConfig(workspaces={"workspace": WorkspaceConfig(
+        authority_repository="source",
+        repositories={"source": RepositoryConfig(root=repository)},
+    )})
+    workflow = NativeWorkflowHost(
+        config, host, session_for_host=open_host, session_for_attempt=open_expired_attempt,
+        providers_for_project=lambda *_args, **_kwargs: None,
+        binding_validator=lambda: None,
+    )
+
+    arguments = {
+        "attempt_id": "attempt-42", "disposition": "completed",
+        "idempotency_key": "expired-session-report",
+    }
+    reported = workflow.invoke(
+        "todo_report_outcome", project="workspace", repository="source", **arguments,
+    )
+    assert reported == {"status": "ok", "data": {"operation": "report"}}
+    assert host_sessions[0].calls == [("report", "attempt-42", "completed", {
+        "idempotency_key": StableId("expired-session-report"), "expected_revision": None,
+        "note": None,
+    })]
+    assert host_sessions[0].closed
+    assert attempt_opens == []
+
+    # A denial from the authorized host context remains a denial; it must not
+    # fall back to the expired worker session or mint/recover another grant.
+    host_sources.append("denied-host")
+    denied = workflow.invoke(
+        "todo_report_outcome", project="workspace", repository="source",
+        attempt_id="attempt-42", disposition="completed",
+        idempotency_key="denied-host-report",
+    )
+    assert denied == {"status": "attention_required", "reason": "native_operation_rejected"}
+    assert host_sessions[1].closed
+    assert attempt_opens == []
 
 
 def test_internal_handback_uses_host_role_and_returns_the_native_receipt(tmp_path: Path):
