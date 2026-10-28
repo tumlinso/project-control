@@ -804,6 +804,7 @@ class InformationService:
             state_root = Path(os.environ.get("PROJECT_CONTROL_SOURCE_STATE_DIR",
                 Path.home() / ".cache/project-control/source"))
             state = state_root / project / alias
+            deny_patterns = (*DEFAULT_DENY_PATTERNS, *self.config.workspaces[project].deny_patterns)
             providers = []
             raw_exports = os.environ.get("PROJECT_CONTROL_CPP_EXPORTS")
             if raw_exports:
@@ -818,7 +819,8 @@ class InformationService:
                 if export_path:
                     providers.append(CppContextCompilerProvider(export_path))
             self._source_indices[key] = SourceIndex(Repository(repo.root,
-                f"{project}/{alias}", state, revision=revision), providers=providers)
+                f"{project}/{alias}", state, revision=revision,
+                deny_patterns=tuple(deny_patterns)), providers=providers)
         return self._source_indices[key]
 
     def _repository_alias(self, project, repository):

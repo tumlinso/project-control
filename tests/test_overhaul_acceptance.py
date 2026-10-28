@@ -11,6 +11,8 @@ import json
 import subprocess
 from types import SimpleNamespace
 
+import pytest
+
 from project_control.as1_context import ContextHost, InformationService
 from project_control.as1_packets import SQLitePacketStore
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
@@ -117,6 +119,39 @@ def test_source_only_surface_returns_hashes_and_context_without_todo(tmp_path, m
     assert read["sources"][0]["repository"] == "implementation"
     by_registered_root = service.call("read", project="demo", repository=str(repo), paths=["app.py"])
     assert by_registered_root["sources"][0]["repository"] == "implementation"
+
+
+def test_source_foundations_inherit_project_deny_policy_and_filter_cached_rows(tmp_path, monkeypatch):
+    repo = _repo(tmp_path / "repo", {
+        ".env": "API_TOKEN=tracked-secret\n",
+        "hidden.py": "def hidden(): return 'workspace-private-marker'\n",
+        "public.py": "def public(): return hidden()\n",
+    })
+    # Seed the shared source cache as if an earlier consumer indexed without
+    # policy. Project Control must pass its existing policy into the new source
+    # boundary and cannot reuse those rows in public retrieval.
+    monkeypatch.setenv("PROJECT_CONTROL_SOURCE_STATE_DIR", str(tmp_path / "private-cache"))
+    config = ProjectControlConfig(workspaces={"demo": WorkspaceConfig(
+        repositories={"source": RepositoryConfig(root=repo)},
+        deny_patterns=["hidden.py"],
+    )})
+    from project_source import Repository as SourceRepository, SourceIndex
+    SourceIndex(SourceRepository(repo, "demo/source", tmp_path / "private-cache" / "demo" / "source")).update()
+    service = InformationService(config, SQLitePacketStore(tmp_path / "private-packets"),
+        lambda _project: (_ for _ in ()).throw(AssertionError("source retrieval consulted Todo")),
+        ContextHost("observer", "acceptance", frozenset({"demo"})))
+
+    index = service._source_index("demo", "source")
+    assert ".env" in index.repository.deny_patterns
+    assert "hidden.py" in index.repository.deny_patterns
+    assert index.tree()["paths"] == ["public.py"]
+    assert "tracked-secret" not in str(index.search("API_TOKEN"))
+    assert "workspace-private-marker" not in str(index.context(["public.py"],
+        include=("implementation", "callers", "tests")))
+    with pytest.raises(FileNotFoundError):
+        index.read(".env")
+    with pytest.raises(FileNotFoundError):
+        index.read("hidden.py")
 
 
 def test_observer_bundle_local_guidance_and_budget_continuation(tmp_path, monkeypatch):

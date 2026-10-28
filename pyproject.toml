@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "project-control"
-version = "0.5.0"
+version = "0.5.1"
 description = "Deterministic development source and evidence retrieval for coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,7 +16,7 @@ dependencies = [
   "pyte>=0.8.2,<1",
   "starlette>=0.41,<1",
   "uvicorn>=0.32,<1",
-  "project-source>=0.1.0,<0.2",
+  "project-source>=0.1.1,<0.2",
   "project-evidence>=0.1.0,<0.2",
 ]
 
