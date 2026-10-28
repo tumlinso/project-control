@@ -45,7 +45,9 @@ class SurfaceComposition:
             semantic_provider=self.control.project_context if self.control else None)
         self.information = InformationService(runtime.config, self.store, runtime.snapshot, host,
             semantic_provider=self.control.project_context if self.control else None,
-            impact_provider=self.trace, todo_adapter=runtime.todo_adapter)
+            impact_provider=self.trace,
+            native_reader=self.control.native_read if self.control else None,
+            todo_adapter=runtime.todo_adapter)
 
     def scope(self, project):
         if project is not None and project not in self.host.projects:
