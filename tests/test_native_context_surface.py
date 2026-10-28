@@ -82,6 +82,7 @@ def test_mutator_native_context_search_uses_guarded_native_reader(tmp_path: Path
         assert response["data"]["target"] == "WI-CURRENT-41"
         assert response["data"]["resolution"] == "resolved"
         assert response["data"]["result"]["work_item_id"] == "WI-CURRENT-41"
+        assert response["data"]["result"]["semantic_revision"] == 41
         assert session.calls == [("WI-CURRENT-41", {
             "run_id": None, "assignment": None, "attempt": None, "max_bytes": 8192,
         })]
