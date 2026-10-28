@@ -1089,6 +1089,11 @@ class InformationService:
                 used += packet.used_bytes
                 guidance_remaining = max(0, budget - used)
                 if not packet.complete:
+                    denied = next((item for item in packet.omissions
+                        if isinstance(item, Mapping) and item.get('reason') == 'path_denied'), None)
+                    if denied is not None:
+                        relation['target_status'] = 'unavailable'
+                        relation['target_reason'] = 'path_denied'
                     omissions.extend(packet.omissions or ['declared_guidance_incomplete'])
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 relation['target_context'] = []

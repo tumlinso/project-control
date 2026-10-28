@@ -153,6 +153,22 @@ def test_source_foundations_inherit_project_deny_policy_and_filter_cached_rows(t
     with pytest.raises(FileNotFoundError):
         index.read("hidden.py")
 
+    mixed = service.call("context", project="demo",
+        targets=["source:public.py", "source:hidden.py", "source:.env"],
+        include=["implementation"], budget_bytes=4096)
+    assert mixed["status"] == "partial"
+    assert any(row["path"] == "public.py" and "def public" in row["content"]
+        for row in mixed["data"]["sections"]["implementation"])
+    assert sum(item.get("reason") == "path_denied" for item in mixed["data"]["omissions"]) == 2
+    assert "tracked-secret" not in str(mixed)
+    assert "workspace-private-marker" not in str(mixed)
+
+    denied_only = service.call("context", project="demo", targets=["source:.env"],
+        include=["implementation"], budget_bytes=4096)
+    assert denied_only["status"] == "partial"
+    assert denied_only["data"]["sections"] == {}
+    assert denied_only["data"]["omissions"][0]["reason"] == "path_denied"
+
 
 def test_observer_bundle_local_guidance_and_budget_continuation(tmp_path, monkeypatch):
     repo = _repo(tmp_path / "repo", {
