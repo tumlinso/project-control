@@ -876,10 +876,10 @@ class NativeWorkflowHost:
                 return _public(session, "recovery_inspection", session.inspect_attempt(attempt_id))
             raise NativeWorkflowError("native_todo_operation_unknown")
         # These lifecycle and review operations use the profile's project-level
-        # host grant. An attempt bearer belongs to the worker and intentionally
-        # lacks Git integration, candidate reporting, and independent review
-        # rights. Keep the attempt ID as the native API selector; only change
-        # which trusted session supplies the authorization context.
+        # host grant, so an expired worker bearer cannot prevent source-fenced
+        # finalization. Native ownership, capability and handoff checks still
+        # apply to the exact attempt ID. Computation, verification and renewal
+        # continue to use the worker's attempt-scoped session.
         session_attempt_id = None if tool in _HOST_SESSION_OPERATIONS else attempt_id
         return self._guarded(
             project, action, attempt_id=session_attempt_id, repository=repository,
