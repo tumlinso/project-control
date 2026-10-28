@@ -2,6 +2,8 @@
 
 This candidate makes Project Control a deterministic source and evidence instrument, extracts Project-Lab, and introduces independently installable Project Source and Project Evidence packages. It is a review candidate, not a production cutover.
 
+This report records the 2026-10-27 candidate qualification. The subsequent authorized deployment is recorded in [the 2026-10-28 cutover report](cutover-2026-10-28.md).
+
 ## Source boundaries
 
 | Repository | Candidate | Starting revision |

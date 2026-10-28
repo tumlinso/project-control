@@ -1,21 +1,38 @@
-# Candidate delivery and production deployment
+# Run and maintain the installed applications
 
-Building and publishing this overhaul does not deploy it. Existing services and selected releases remain untouched until a separate production cutover.
+The separation was deployed on 2026-10-28. See the [cutover record](cutover-2026-10-28.md) for exact revisions, preservation checks, known limits and rollback locations. Ordinary development still uses [private candidates](development.md).
 
-## Implementation delivery
+## Project Control
 
-A delivery contains independently buildable applications/shared packages, review branches, tested source identities, known limits, archive provenance and candidate launch instructions. Compatibility readers are tested against copied historical stores.
+The stable launcher is `~/.local/bin/project-control`. Local profiles and the user service select an immutable environment through `~/.local/state/project-control/current`. The legacy `~/.local/share/project-control/current` selector now follows that same pointer. Source edits do not change the installed runtime.
 
-Candidates use private configuration, state, caches and artifacts, and separate ports. Installing development wheels does not authorize installing over a live application.
+```sh
+systemctl --user status project-control.service
+curl --fail http://127.0.0.1:8768/version
+curl --fail http://127.0.0.1:8768/readyz
+```
 
-## Existing runtime
+HTTP serves Observer's ten tools. Codex launches twelve through `project-control codex`; `project-control mutator` exposes fifteen. Existing clients may need to reconnect to refresh their loaded executable and catalog. Retired inference is masked and its launcher is archived outside `PATH`.
 
-The established host deployment selects a sealed release through `~/.local/state/project-control/current`. Its executable package, standalone Todo package and launch configuration are distinct from this source checkout. Keep the release immutable and preserve rollback information.
+Registration stays in `~/.config/project-control/config.toml`. Response packets and neutral evidence are under `~/.local/state/project-control/as1`; indexes use `~/.cache/project-control/source`. Peer evidence registrations are in `~/.config/project-control/evidence-stores.json`. An optional `cpp-exports.json` in that directory supplies the map described in [retrieval](retrieval.md). These are private local files, not package contents.
 
-This overhaul must not change that pointer, systemd units, launchers, registered credentials, installed skills, live databases or scheduler authority. It must not start a replacement allocator or inference service.
+## Project-Lab
 
-## A later cutover
+`project-lab` and `project-lab-worker` select `~/.local/state/project-lab/current`. Private configuration is `~/.config/project-lab/config.toml`; state is `~/.local/state/project-lab/data`. The application has a scoped scheduler caller and a separate Codex MCP entry. It needs no resident Lab daemon: the scheduler runs explicitly submitted controllers and effects.
 
-A future deployment identifies exact application/dependency versions, preserves authority state and checks actual client transports. Importing production source/index state and historical data requires an explicit compatibility decision. Rollback changes executable selection and launch configuration; it does not rewind task, experiment or scheduler authority state.
+```sh
+project-lab status
+project-lab status SESSION_ID
+project-lab results SESSION_ID
+project-lab compare SESSION_A SESSION_B
+```
 
-The former inference-era deployment guide is preserved at `archive/assistance-v0/docs/deployment.md` as historical material, not current instructions.
+Historical sessions appear separately as inspect-only records. Status, results and comparisons remain readable; historical handles do not authorize execution. A new run explicitly authorizes resource and stopping budgets. See [Project-Lab setup](https://github.com/tumlinso/project-lab/blob/main/docs/configuration.md).
+
+## Updates and rollback
+
+Build a new environment from recorded wheels and exact dependencies, validate separately, retain the previous environment and private configuration, then atomically change the selector and restart only the relevant service. Preserve Todo pairing and package fingerprints. Do not install over an active environment.
+
+Rollback changes executable selection and launch configuration, never task, experiment or scheduler authority revisions. Durable cutover backups contain rollback notes. Credentials and unrelated local source edits stay in place.
+
+Production changes require authorization. Source development alone does not authorize restarts, pointer changes or data imports. Model/GPU qualification and comprehensive benchmarking remain separate work.
