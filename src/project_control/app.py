@@ -1,172 +1,68 @@
+"""Project Control MCP startup and profile-specific lifecycle."""
 from __future__ import annotations
 
-import json
 import asyncio
-import contextvars
-import time
 from contextlib import asynccontextmanager
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Annotated, Any, Callable, Literal
+from typing import Any
 
-from mcp.types import ToolAnnotations
-from pydantic import Field, ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from .adapters.git import GitReadAdapter
 from .adapters.todo import TodoReadAdapter
+from .as1_surface import compose_surface, register_surface
 from .config import ProjectControlConfig, ServerConfig, load_config
-from .models import (
-    AgentStatusInput,
-    ArchitectureContextInput,
-    CoordinationViewInput,
-    DeltaSince,
-    EvidenceInput,
-    InspectInput,
-    LocalInvestigateInput,
-    HistoryTraceInput,
-    ImpactPreviewInput,
-    PerformanceStatusInput,
-    PerformanceProbeInput,
-    PlanPreviewInput,
-    ProjectDeltaInput,
-    ProjectFrontierInput,
-    ProjectIdentity,
-    ProjectOverviewInput,
-    ProjectSnapshot,
-    ProgramContextInput,
-    RepositoryIdentity,
-    SourceContextInput,
-    SourceTarget,
-    TerminalCaptureInput,
-    ToolEnvelope,
-    ToolStatus,
-    envelope,
-    utc_now,
-)
-from .registry import RegistryError, WorkspaceRegistry
-from .services.agents import agent_status as agent_status_service
-from .services.architecture import architecture_context as architecture_context_service
-from .services.coordination import coordination_view as coordination_view_service
-from .services.delta import project_delta as project_delta_service
-from .services.evidence import evidence_for
-from .services.frontier import project_frontier as project_frontier_service
-from .services.history import history_trace as history_trace_service
-from .services.impact import impact_preview as impact_preview_service
-from .services.inspect import inspect_subject
-from .services.overview import project_overview as project_overview_service
-from .services.performance import performance_status as performance_status_service
-from .services.performance_probe import performance_probe as performance_probe_service
-from .services.planning import MutationDetected
-from .services.program import program_context as program_context_service
-from .services.source_context import source_context as source_context_service
-from .services.local_investigate import local_investigate as local_investigate_service
-from .snapshot import SnapshotBuilder
-from .security import redact_output
-from .call_audit import caller_var
-from .normalize import bounded_envelope, bounded_payload
-from .terminal import TerminalSessionRegistry
+from .models import ProjectSnapshot
 from .profiles import MCPProfile, ProfiledFastMCP
+from .snapshot import SnapshotBuilder
 from .workflow_binding import initialize_workflow_binding, todo_read_port_factory
-from .workflow_tools import (
-    WORKFLOW_INSTRUCTIONS,
-    MaintenanceHostContext,
-    register_workflow_tools,
-)
-from .observer_analysis import ObserverAnalysisRegistry, SkillsObserverAnalysisProvider
-from .skills import SkillRegistry
-from .config import configured_observer_skills_root
-from .skill_context import SkillContext
+from .workflow_tools import (MaintenanceHostContext, WORKFLOW_INSTRUCTIONS,
+    register_workflow_tools)
+from .call_audit import caller_var
 
 
 SERVER_INSTRUCTIONS = (
-    "Use overview for orientation when needed, search for discovery or exact typed entities, "
-    "delta/frontier for current work, evidence/history/impact for supported traces, and machine for host facts. "
-    "Information returns scoped immutable packets and relative source locators. No overview is automatic. "
-    "Hints and packets confer no mutation authority."
+    "Project Control provides deterministic, source-grounded project retrieval. "
+    "Use overview for orientation, frontier for current work, delta for changes, "
+    "search for literal text or exact typed entities, context to assemble explicit "
+    "targets, trace for typed relationships, evidence for recorded observations, "
+    "and machine for bounded environment facts. Results preserve provenance and "
+    "report unavailable or omitted material."
 )
-CODEX_INSTRUCTIONS = SERVER_INSTRUCTIONS + " " + WORKFLOW_INSTRUCTIONS
-
-READ_ONLY = ToolAnnotations(
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=False,
-)
-
-TERMINAL_OBSERVATION = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=False,
-    idempotentHint=False,
-    openWorldHint=False,
-)
-
-# Registered probes may reserve accelerators and write evidence only below the
-# app-private artifact root.  They are not repository or Todo mutations, but
-# unlike read tools they are explicitly requested measurements.
-PERFORMANCE_PROBE = ToolAnnotations(
-    readOnlyHint=False,
-    destructiveHint=False,
-    idempotentHint=False,
-    openWorldHint=False,
-)
-
-MUTATOR_INSTRUCTIONS = (
-    "Use plan to inspect, preview and apply reviewed plan changes. Use the compact workflow "
-    "tools for execution, review and integration, and maintain_execution for recovery. "
-    "Project Control binds registered repositories, host principals, credentials and providers; "
-    "workflow handles carry the current scope and permitted next steps."
-)
-
-OverviewDetail = Literal["compact", "standard", "expanded"]
-DeltaDetail = Literal["architectural", "standard", "implementation"]
-InspectKind = Literal[
-    "task", "interface", "checkpoint", "decision", "dependency", "symbol", "path", "subsystem",
-    "run", "lane", "dispatch", "message", "rendezvous", "context_fragment", "workspace",
-    "worktree", "patch", "integration", "gate", "invariant", "artifact", "commit", "test",
-]
-InspectIntent = Literal["architecture", "implementation", "debug", "review", "performance"]
-EvidenceKind = Literal[
-    "source", "tests", "gates", "worker", "cuda", "git", "architecture", "decision",
-    "message", "context", "workspace", "integration",
-]
-EvidenceDetail = Literal["summary", "provenance", "bounded_excerpt"]
-PlanMode = Literal["context", "validate", "handoff"]
-PlanDetail = Literal["compact", "standard", "exact"]
-ContextDetail = Literal["compact", "standard", "expanded"]
-ImpactDetail = Literal["compact", "standard", "expanded", "exact"]
-ArchitectureScope = Literal["current", "current_and_reference", "all"]
-SourceKind = Literal["path", "symbol", "subsystem", "text"]
-SourceSelectorIntent = Literal["architecture", "implementation", "debug", "review", "performance"]
-SourceRelation = Literal[
-    "definitions", "references", "callers", "callees", "tests", "build_config_references",
-    "documentation", "recent_changes", "task_ownership", "interfaces", "performance_evidence", "context_notes",
-]
 
 
 class Runtime:
-    def __init__(self, config: ProjectControlConfig):
+    """Per-server source readers; Todo binding is opened only for local workflows."""
+
+    def __init__(self, config: ProjectControlConfig, *, enable_workflow: bool = False):
         self.config = config
+        self.workflow_enabled = enable_workflow
         self.workflow_binding = None
         self.workflow_binding_error = None
+        self.todo_read_port_factory = None
+        self.builder = SnapshotBuilder(config)
+
+    def enable_workflow(self):
+        if self.workflow_binding is not None:
+            return
         try:
-            self.workflow_binding = initialize_workflow_binding()
-            self.workflow_binding.validate()
+            binding = initialize_workflow_binding()
+            binding.validate()
+            self.workflow_binding = binding
             self.todo_read_port_factory = todo_read_port_factory()
+            self.builder.todo_read_port_factory = self.todo_read_port_factory
         except Exception as error:
-            # Keep liveness and unrelated read surfaces available so readiness
-            # can report the actual core binding failure. Workflow operations
-            # still fail through their own verified binding path.
-            self.todo_read_port_factory = None
-            self.workflow_binding = None
             self.workflow_binding_error = error
-        self.builder = SnapshotBuilder(
-            config, todo_read_port_factory=self.todo_read_port_factory,
-        )
-        self.terminals = TerminalSessionRegistry(config)
+            self.workflow_binding = None
+
+    def snapshot(self, project: str, *, host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
+        if self.workflow_enabled:
+            self.enable_workflow()
+        return self.builder.build(project, include_host=host, campaign=campaign)
 
     def todo_adapter(self, project: str) -> TodoReadAdapter | None:
+        if self.workflow_enabled:
+            self.enable_workflow()
         workspace = self.builder.registry.workspace(project)
         if not workspace.authority_repository:
             return None
@@ -174,156 +70,62 @@ class Runtime:
         if not provider.compatible or not (provider.read_port or provider.todo_script):
             return None
         repository = self.builder.registry.repository(project, workspace.authority_repository)
-        return TodoReadAdapter(
-            repository.root,
-            provider.todo_script,
-            read_port=provider.read_port,
-        )
-
-    def snapshot(self, project: str, *, host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
-        return self.builder.build(project, include_host=host, campaign=campaign)
-
-    def failure(self, tool: str, project: str, status: ToolStatus, warning: str) -> dict[str, Any]:
-        observed = utc_now()
-        snapshot = ProjectSnapshot(workspace_id=project, observed_at=observed, repositories={}, warnings=[warning])
-        value = ToolEnvelope(
-            tool=tool,
-            status=status,
-            project=snapshot.identity(),
-            data={},
-            warnings=[warning],
-            cursor=snapshot.cursor(),
-        )
-        return value.model_dump(mode="json")
-
-    def invoke(self, tool: str, project: str, operation: Callable[[], ToolEnvelope]) -> dict[str, Any]:
-        try:
-            return redact_output(operation().model_dump(mode="json"))
-        except (RegistryError, ValidationError, ValueError) as exc:
-            return self.failure(tool, project, ToolStatus.INVALID_REQUEST, str(exc))
-        except MutationDetected:
-            return self.failure(tool, project, ToolStatus.INTERNAL_ERROR, "read_only_mutation_guard_failed")
-        except Exception:
-            return self.failure(tool, project, ToolStatus.INTERNAL_ERROR, "bounded_read_failed")
+        return TodoReadAdapter(repository.root, provider.todo_script, read_port=provider.read_port)
 
 
-def create_mcp(
-    config: ProjectControlConfig | None = None,
-    *,
-    profile: MCPProfile | str = MCPProfile.OBSERVER,
-    maintenance_host: MaintenanceHostContext | None = None,
-    host=None,
-    state_directory: Path | None = None,
-    observer_backend=None,
-    observer_runtime_sha256: str | None = None,
-    coder_claim_provider=None,
-    command_port=None,
-) -> ProfiledFastMCP:
-    from .as1_surface import compose_surface, register_surface
-
+def create_mcp(config: ProjectControlConfig | None = None, *,
+               profile: MCPProfile | str = MCPProfile.OBSERVER,
+               maintenance_host: MaintenanceHostContext | None = None,
+               host=None, state_directory: Path | None = None) -> ProfiledFastMCP:
     active_config = config or load_config()
     selected_profile = MCPProfile(profile)
-    instructions = SERVER_INSTRUCTIONS
-    if selected_profile in {MCPProfile.CODER, MCPProfile.CODEX, MCPProfile.MUTATOR}:
-        instructions += " " + WORKFLOW_INSTRUCTIONS
-    if selected_profile == MCPProfile.OBSERVER:
-        instructions += (
-            " Observer tools provide read-only context, investigation and installed skill guidance. "
-            "Local analysis has limited reasoning: use it for bounded evidence gathering, targeted "
-            "read-only source or machine inspection, straightforward grounded summaries, and skill lookup. "
-            "Its advantage is registered-source, broker, command and skill context unavailable directly "
-            "to the caller, not stronger reasoning. Keep broad architecture, difficult inference, "
-            "multi-project synthesis, strategy and consequential decisions with the caller; ask narrow "
-            "factual subquestions, then decide. There is no implementation delegation, coding or network "
-            "authority. Use read or evidence for authoritative selected source. While investigate or skill "
-            "is thinking, continue useful work and repeat the identical question later; avoid submitting "
-            "variants. If busy, use search, read or evidence to contextualize or refine a later question."
-        )
-    if selected_profile == MCPProfile.MUTATOR:
-        instructions += " " + MUTATOR_INSTRUCTIONS
     if maintenance_host is not None:
         from .as1_context import ContextHost
         if selected_profile != MCPProfile.MUTATOR or host is not None:
-            raise ValueError('maintenance requires an explicit mutator startup principal')
-        host = ContextHost('mutator', maintenance_host.recipient_principal, frozenset(active_config.workspaces))
-    runtime = Runtime(active_config)
-    composition = compose_surface(runtime, selected_profile, host=host,
-        state_directory=state_directory, backend=observer_backend,
-        observer_runtime_sha256=observer_runtime_sha256,
-        coder_claim_provider=coder_claim_provider, command_port=command_port)
+            raise ValueError("maintenance requires an explicit mutator startup principal")
+        host = ContextHost("mutator", maintenance_host.recipient_principal,
+                           frozenset(active_config.workspaces))
+    runtime = Runtime(active_config,
+        enable_workflow=selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR})
+    composition = compose_surface(runtime, selected_profile, host=host, state_directory=state_directory)
+    instructions = SERVER_INSTRUCTIONS
+    if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
+        instructions += " " + WORKFLOW_INSTRUCTIONS
     server = active_config.server
     mcp = ProfiledFastMCP("project-control", profile=selected_profile, instructions=instructions,
         host=server.host, port=server.port, streamable_http_path="/mcp", stateless_http=True,
         json_response=True, max_request_body_size=384 * 1024)
     register_surface(mcp, composition)
-    register_workflow_tools(mcp, composition.workflow)
+    if selected_profile in {MCPProfile.CODEX, MCPProfile.MUTATOR}:
+        register_workflow_tools(mcp, composition.workflow)
 
-    def central_health():
-        status = getattr(composition.backend, "central_status", None)
-        if not callable(status):
-            return {"status": "unavailable", "reason": "central_supervisor_status_unavailable"}
-        try:
-            value = status()
-            return {"status": "available", "observer_contract": value.get("observer_contract"),
-                    "supervisor_pid": value.get("supervisor_pid"),
-                    "supervisor_process_start": value.get("supervisor_process_start"),
-                    "source_sha256": value.get("source_sha256")}
-        except Exception as error:
-            return {"status": "unavailable", "reason": SkillsObserverAnalysisProvider._failure(error)}
-
-    def workflow_health():
+    def readiness():
+        runtime.enable_workflow()
         binding = runtime.workflow_binding
-        error = runtime.workflow_binding_error
         if binding is None:
-            reason = getattr(error, "code", None) or "workflow_binding_unavailable"
-            return {"status": "unavailable", "configuration": "valid",
-                    "workflow_engine": "unavailable", "reason": str(reason)}
+            reason = getattr(runtime.workflow_binding_error, "code", None) or "workflow_binding_unavailable"
+            return {"status": "unavailable", "reason": str(reason)}
         try:
             binding.validate()
-            identity = binding.identity
-            return {"status": "available", "configuration": "valid",
-                    "workflow_engine": "available", "fingerprint": identity.fingerprint}
+            return {"status": "available", "fingerprint": binding.identity.fingerprint}
         except Exception as error:
-            reason = getattr(error, "code", None) or "workflow_binding_unavailable"
-            return {"status": "unavailable", "configuration": "valid",
-                    "workflow_engine": "unavailable", "reason": str(reason)}
-
-    def content_health():
-        try:
-            registrations = getattr(composition.skills, "skills", None)
-            if not isinstance(registrations, dict):
-                return {"status": "unavailable", "reason": "skill_registry_unavailable"}
-            if not registrations:
-                return {"status": "unavailable", "reason": "no_registered_skills",
-                        "skill_count": 0}
-            identity = composition.skills.catalog_identity()
-            if not isinstance(identity, str) or not identity:
-                raise ValueError("skill_catalog_identity_unavailable")
-            return {"status": "available", "catalog_sha256": identity,
-                    "skill_count": len(registrations)}
-        except Exception as error:
-            reason = getattr(error, "code", None) or "skill_catalog_unavailable"
-            return {"status": "unavailable", "reason": str(reason)}
+            return {"status": "unavailable", "reason": str(getattr(error, "code", None) or "workflow_binding_unavailable")}
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def health(_: Request):
-        central = await asyncio.to_thread(central_health)
-        return JSONResponse({"status": "ok", "jobs": composition.jobs.health(), "central_inference": central})
+        return JSONResponse({"status": "ok", "retrieval": "available"})
 
     @mcp.custom_route("/readyz", methods=["GET"])
     async def ready(_: Request):
-        core = await asyncio.to_thread(workflow_health)
-        central = await asyncio.to_thread(central_health)
-        content = await asyncio.to_thread(content_health)
-        ok = core.get("status") == "available"
-        return JSONResponse({"status": "ready" if ok else "unavailable", "core": core,
-                             "central_inference": central, "optional_content": content},
-                            status_code=200 if ok else 503)
+        core = await asyncio.to_thread(readiness) if selected_profile != MCPProfile.OBSERVER else {"status": "not_required"}
+        ok = selected_profile == MCPProfile.OBSERVER or core.get("status") == "available"
+        return JSONResponse({"status": "ready" if ok else "unavailable", "retrieval": "available", "workflow": core},
+            status_code=200 if ok else 503)
 
     @mcp.custom_route("/version", methods=["GET"])
     async def version(_: Request):
-        return JSONResponse({"name": "project-control", "version": "0.4.2", "tool_schema_version": 12,
-                             "features": mcp.feature_metadata})
+        return JSONResponse({"name": "project-control", "version": "0.5.0",
+            "tool_schema_version": 13, "features": mcp.feature_metadata})
 
     setattr(mcp, "_project_control_runtime", runtime)
     setattr(mcp, "_project_control_surface", composition)
@@ -332,8 +134,7 @@ def create_mcp(
 
 class AuditCallerMiddleware:
     """Capture the immediate HTTP peer without trusting forwarded headers."""
-
-    def __init__(self, wrapped_app: Any) -> None:
+    def __init__(self, wrapped_app: Any):
         self.wrapped_app = wrapped_app
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
@@ -341,7 +142,7 @@ class AuditCallerMiddleware:
             await self.wrapped_app(scope, receive, send)
             return
         peer = scope.get("client")
-        caller: dict[str, Any] = {"transport": "http", "upstream_identity": "unknown"}
+        caller = {"transport": "http", "upstream_identity": "unknown"}
         if isinstance(peer, (tuple, list)) and len(peer) >= 2:
             caller.update({"peer_ip": str(peer[0]), "peer_port": peer[1]})
         token = caller_var.set(caller)
@@ -355,72 +156,53 @@ def create_asgi_app(config: ProjectControlConfig | None = None):
     mcp = create_mcp(config)
     app = mcp.streamable_http_app()
     app.add_middleware(AuditCallerMiddleware)
-    original_lifespan = app.router.lifespan_context
-    runtime = getattr(mcp, "_project_control_runtime")
-    composition = getattr(mcp, "_project_control_surface")
+    original = app.router.lifespan_context
+    composition = mcp._project_control_surface
 
     @asynccontextmanager
-    async def application_lifespan(asgi_app):
-        async with original_lifespan(asgi_app) as state:
+    async def lifespan(asgi_app):
+        async with original(asgi_app) as state:
             composition.start()
             try:
                 yield state
             finally:
                 composition.close()
-                runtime.terminals.shutdown()
 
-    app.router.lifespan_context = application_lifespan
+    app.router.lifespan_context = lifespan
     return app
 
 
 def serve(*, host: str | None = None, port: int | None = None) -> int:
-    config = load_config()
-    selected = ServerConfig(
-        host=host or config.server.host,
-        port=port or config.server.port,
-        transport=config.server.transport,
-    )
-    config.server = selected
     import uvicorn
-
-    # The audit must identify the socket peer, not an untrusted forwarded header.
+    config = load_config()
+    selected = ServerConfig(host=host or config.server.host, port=port or config.server.port,
+                            transport=config.server.transport)
+    config.server = selected
     uvicorn.run(create_asgi_app(config), host=selected.host, port=selected.port,
-                log_level="info", proxy_headers=False)
+        log_level="info", proxy_headers=False)
     return 0
 
 
-def _serve_stdio(
-    profile: MCPProfile,
-    *,
-    maintenance_host: MaintenanceHostContext | None = None,
-) -> int:
-    """Run stdio MCP and disconnect its observer client on EOF/error."""
+def _serve_stdio(profile: MCPProfile, *, maintenance_host: MaintenanceHostContext | None = None) -> int:
     mcp = create_mcp(profile=profile, maintenance_host=maintenance_host)
+    composition = mcp._project_control_surface
     try:
-        getattr(mcp, "_project_control_surface").start()
+        composition.start()
         mcp.run(transport="stdio")
     finally:
-        getattr(mcp, "_project_control_surface").close()
+        composition.close()
     return 0
 
 
 def serve_codex() -> int:
-    """Run the explicitly selected Codex profile over stdio."""
-
     return _serve_stdio(MCPProfile.CODEX)
 
 
 def serve_maintenance_operator(principal: str) -> int:
-    """Run a mutator stdio server bound to one trusted host principal."""
     from .workflow_tools import trusted_maintenance_context
-
-    return _serve_stdio(
-        MCPProfile.MUTATOR,
-        maintenance_host=trusted_maintenance_context(principal),
-    )
+    return _serve_stdio(MCPProfile.MUTATOR,
+        maintenance_host=trusted_maintenance_context(principal))
 
 
 def serve_mutator() -> int:
-    """Run the explicitly selected mutation-capable profile over local stdio."""
-
     return _serve_stdio(MCPProfile.MUTATOR)

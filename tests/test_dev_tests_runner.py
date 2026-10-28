@@ -37,6 +37,9 @@ def _checkout(tmp_path: Path, *, symlink_venv: bool = False, with_python: bool =
     config = repo / "config"
     config.mkdir()
     shutil.copy2(ROOT / "config" / "todo-orchestrator-runtime.json", config / "todo-orchestrator-runtime.json")
+    foundations = repo / "project-foundations"
+    for package in ("project-source", "project-evidence"):
+        (foundations / "packages" / package).mkdir(parents=True)
 
     source = repo / "src"
     pc = source / "project_control"
@@ -103,17 +106,17 @@ def test_source_packages_and_clean_pins():
         encoding="utf-8",
     )
     for relative, test_name in (
-        ("test_dev_tests_runner.py", "test_smoke_runner"),
-        ("test_runtime_identity.py", "test_smoke_identity"),
-        ("test_workflow_binding.py", "test_smoke_binding"),
-        ("test_readiness.py", "test_smoke_readiness"),
-        ("test_native_todo_read.py", "test_smoke_native_read"),
-        ("as1/test_pc_as1_control.py", "test_mutator_independent_plan_and_role_boundary"),
+        ("test_overhaul_acceptance.py", "test_smoke_retrieval"),
+        ("test_project_resolution.py", "test_smoke_project_resolution"),
+        ("test_source_retrieval.py", "test_smoke_source_retrieval"),
+        ("test_profiles.py", "test_smoke_profiles"),
+        ("test_machine_inspection.py", "test_smoke_machine_inspection"),
     ):
         path = tests / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"def {test_name}():\n    assert True\n", encoding="utf-8")
     (repo / "pyproject.toml").write_text("[tool.pytest.ini_options]\ntestpaths = ['tests']\n", encoding="utf-8")
+    (repo / "README.md").write_text("Disposable pc-dev fixture.\n", encoding="utf-8")
 
     venv_target = repo / ".dev-env" if symlink_venv else repo / ".venv"
     bin_dir = venv_target / "bin"
@@ -267,20 +270,23 @@ def test_setup_uses_repo_cache_and_preserves_existing_venv_symlink(tmp_path: Pat
             "PROJECT_CONTROL_ALLOW_PROVISIONAL_TODO": "1",
         }
     )
-    result = _run(repo, "pc-dev", "setup", "--todo-wheel", str(repo / "todo-orchestrator-0.2.0-py3-none-any.whl"), env=environment)
+    result = _run(repo, "pc-dev", "setup", "--foundation-repo", str(repo / "project-foundations"), env=environment)
     assert result.returncode == 0, result.stderr
     records = record.read_text().splitlines()
-    cache_dir, project_environment, arguments = records[:3]
+    cache_dir, project_environment, first_build = records[:3]
     assert Path(cache_dir) == repo / ".cache/uv"
     assert Path(project_environment) == repo / ".venv"
-    assert arguments == "sync --no-install-project --frozen --group dev"
-    assert records[5] == f"pip install --python {repo}/.venv/bin/python --no-deps --force-reinstall {repo}/todo-orchestrator-0.2.0-py3-none-any.whl"
+    assert first_build.startswith("build --wheel --out-dir ")
+    assert records[5].startswith("build --wheel --out-dir ")
+    assert records[8].startswith(
+        f"sync --project {repo}/.cache/pc-dev-environment --no-install-project --group dev --find-links "
+    )
     assert os.readlink(repo / ".venv") == link_before
 
     environment["UV_CACHE_DIR"] = str(tmp_path / "provided-cache")
-    result = _run(repo, "pc-dev", "setup", "--todo-wheel", str(repo / "todo-orchestrator-0.2.0-py3-none-any.whl"), env=environment)
+    result = _run(repo, "pc-dev", "setup", "--foundation-repo", str(repo / "project-foundations"), env=environment)
     assert result.returncode == 0, result.stderr
-    cache_dir = record.read_text().splitlines()[-6]
+    cache_dir = record.read_text().splitlines()[-9]
     assert cache_dir == str(tmp_path / "provided-cache")
 
 

@@ -39,6 +39,54 @@ class WorkspaceRegistry:
         except KeyError as exc:
             raise RegistryError("unknown workspace") from exc
 
+    def resolve_workspace(self, selector: str, *, allowed_workspaces: set[str] | frozenset[str]):
+        """Resolve a human project selector without crossing the caller's allowlist.
+
+        Canonical IDs win exact matches. Display names and registered repository
+        aliases/root basenames are case-insensitive labels; exact registered root
+        paths are matched separately. Ambiguity candidates contain canonical
+        IDs only and are drawn exclusively from ``allowed_workspaces``.
+        """
+        if not isinstance(selector, str) or not selector.strip():
+            raise RegistryError("unknown workspace")
+        selector = selector.strip()
+        permitted = set(allowed_workspaces) & self.config.workspaces.keys()
+        if selector in permitted:
+            return selector, ()
+        if selector in self.config.workspaces:
+            raise RegistryError("workspace_not_permitted")
+
+        matches: set[str] = set()
+        folded = " ".join(selector.split()).casefold()
+        path_selector = None
+        try:
+            supplied_path = Path(selector).expanduser()
+            if supplied_path.is_absolute():
+                path_selector = supplied_path.resolve(strict=False)
+        except (OSError, RuntimeError):
+            path_selector = None
+
+        for workspace_id in sorted(permitted):
+            workspace = self.config.workspaces[workspace_id]
+            if workspace.display_name and " ".join(workspace.display_name.split()).casefold() == folded:
+                matches.add(workspace_id)
+            for alias, repository in workspace.repositories.items():
+                try:
+                    root = repository.root.expanduser().resolve(strict=False)
+                except (OSError, RuntimeError):
+                    continue
+                if path_selector is not None and root == path_selector:
+                    matches.add(workspace_id)
+                for label in (alias, root.name):
+                    if label.casefold() == folded:
+                        matches.add(workspace_id)
+
+        if len(matches) == 1:
+            return next(iter(matches)), ()
+        if matches:
+            return None, tuple(sorted(matches))
+        raise RegistryError("workspace_not_permitted")
+
     def repository(self, workspace_id: str, alias: str | None = None) -> RegisteredRepository:
         workspace = self.workspace(workspace_id)
         selected = alias or workspace.authority_repository

@@ -1,0 +1,21 @@
+{
+  "tools": [
+    "context",
+    "delta",
+    "evidence",
+    "frontier",
+    "inspect",
+    "machine",
+    "overview",
+    "read",
+    "search",
+    "trace"
+  ],
+  "port": 18768,
+  "private_root": "/tmp/pc-candidate-http-uz4qs_zu",
+  "health": {
+    "status": "ok",
+    "retrieval": "available"
+  },
+  "result": "passed"
+}

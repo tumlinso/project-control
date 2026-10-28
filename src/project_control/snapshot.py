@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import hashlib
+import json
 
 from .adapters.cuda import CudaReadAdapter
 from .adapters.git import GitReadAdapter
 from .adapters.host import HostReadAdapter
-from .adapters.local_worker import LocalWorkerReadAdapter
 from .adapters.todo import TodoReadAdapter
 from .cache import RevisionCache
 from .config import ProjectControlConfig
@@ -26,6 +27,10 @@ class SnapshotBuilder:
         self.config = config
         self.registry = WorkspaceRegistry(config)
         self.cache: RevisionCache[ProjectSnapshot] = RevisionCache()
+        # Worktree status is an observation, not a cheap repository property.
+        # Preserve its original observed_at while reusing it for at most the
+        # cache TTL. Exact source reads and explicit Git inspection bypass this.
+        self._worktree_cache: RevisionCache[tuple] = RevisionCache()
         self.todo_read_port_factory = todo_read_port_factory
         self.todo_principal = todo_principal
         self.todo_profile = todo_profile
@@ -44,6 +49,15 @@ class SnapshotBuilder:
             self._todo_providers[workspace_id] = provider
         return provider
 
+    @staticmethod
+    def _worktree_membership(common: Path) -> tuple:
+        directory = common / "worktrees"
+        try:
+            return tuple(sorted((entry.name, entry.stat().st_mtime_ns)
+                                for entry in directory.iterdir()))
+        except OSError:
+            return ()
+
     def build(self, workspace_id: str, *, include_host: bool = False, campaign: str | None = None) -> ProjectSnapshot:
         workspace = self.registry.workspace(workspace_id)
         repositories: dict[str, RepositoryIdentity] = {}
@@ -56,12 +70,18 @@ class SnapshotBuilder:
             try:
                 git = GitReadAdapter(registered.root)
                 identity = git.identity()
-                worktree_values = git.worktrees()
+                common = git.common_dir()
+                worktree_key = (alias, str(registered.root), identity.commit,
+                    identity.status_fingerprint, self._worktree_membership(common))
+                worktree_values = self._worktree_cache.get(worktree_key)
+                if worktree_values is None:
+                    worktree_values = git.worktrees()
+                    self._worktree_cache.put(worktree_key, worktree_values)
                 repositories[alias] = RepositoryIdentity(
                     commit=identity.commit,
                     dirty=identity.dirty,
                     working_tree_fingerprint=identity.status_fingerprint,
-                    git_common_id=stable_public_id("git-common", git.common_dir()),
+                    git_common_id=stable_public_id("git-common", common),
                     current_worktree_id=next(
                         (item.worktree_id for item in worktree_values if item.root == registered.root.resolve()),
                         None,
@@ -129,7 +149,7 @@ class SnapshotBuilder:
 
         authority_root = self.registry.repository(workspace_id, authority).root if authority else next(iter(workspace.repositories.values())).root
         cuda = CudaReadAdapter(authority_root).status(campaign)
-        worker = LocalWorkerReadAdapter(LocalWorkerReadAdapter.current_state_path()).status()
+        worker = {"status": "archived", "reason": "local investigator runtime moved out of Project Control"}
         host = HostReadAdapter().capacity() if include_host else {}
         provider_warnings["cuda"] = list(cuda.get("warnings", []))
         provider_warnings["worker"] = list(worker.get("warnings", []))
@@ -144,7 +164,15 @@ class SnapshotBuilder:
             todo_revision,
             include_host,
             campaign,
+            # Volatile providers and availability changes must not reuse a
+            # snapshot just because the Git/Todo revisions stayed unchanged.
+            hashlib.sha256(json.dumps({"cuda": cuda, "host": host,
+                "warnings": warnings, "providers": provider_warnings},
+                sort_keys=True, default=str).encode()).hexdigest(),
         )
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached.model_copy(deep=True)
         snapshot = ProjectSnapshot(
             workspace_id=workspace_id,
             display_name=workspace.display_name,
@@ -164,4 +192,5 @@ class SnapshotBuilder:
             warnings=list(dict.fromkeys(warnings)),
             provider_warnings=provider_warnings,
         )
-        return self.cache.put(cache_key, snapshot)
+        self.cache.put(cache_key, snapshot.model_copy(deep=True))
+        return snapshot

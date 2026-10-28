@@ -21,11 +21,9 @@ from .profiles import (CODEX_TOOL_NAMES, INTERNAL_TOOL_NAMES, MUTATOR_TOOL_NAMES
 
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 Nonempty = Annotated[str, Field(min_length=1)]
-Detail = Literal["compact", "standard", "extended"]
-SHARED_INFORMATION_TOOLS = ("overview", "delta", "frontier", "search", "evidence", "impact", "history", "machine")
+SHARED_INFORMATION_TOOLS = ("overview", "frontier", "delta", "search", "context", "trace", "evidence", "machine")
 WORKFLOW_TOOLS = TODO_WORKFLOW_TOOL_NAMES
-RESPONSE_BUDGETS_BYTES = {"compact": 2048, "standard": 8192, "extended": 65536}
-SKILL_ASSEMBLY_DETAIL = "extended"
+RESPONSE_BUDGETS_BYTES = {"local": 8192, "observer": 65536}
 
 
 def relative_path(value: str) -> str:
@@ -75,17 +73,28 @@ class ExactEntityQuery(Contract):
     target: Nonempty
 
 
+class RetrievalTarget(Contract):
+    """Explicit source target shared by context and relationship traversal."""
+    kind: Literal["path", "symbol", "test", "repository"]
+    target: Nonempty
+    repository: str | None = None
+    revision: str | None = None
+    line_start: int | None = Field(default=None, ge=1)
+    line_end: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_target_range(self):
+        if (self.line_start is not None or self.line_end is not None) and self.kind != "path":
+            raise ValueError("line ranges require a path target")
+        if self.line_start is not None and self.line_end is not None and self.line_end < self.line_start:
+            raise ValueError("line_end precedes line_start")
+        return self
+
+
 SearchQuery = str | ExactEntityQuery
 _SEARCH = TypeAdapter(SearchQuery)
 
 
-class ImpactTarget(Contract):
-    """Public selectors accepted by the bounded impact trace."""
-    project: str | None = None
-    repository: str | None = None
-    kind: str | None = None
-    id: str | None = None
-    path: str | None = None
 R = TypeVar("R")
 
 
@@ -141,71 +150,6 @@ class InformationPacket(Contract):
         if len(self.parents) != len(set(self.parents)):
             raise ValueError("packet parents must be unique")
         return self
-
-
-class Finding(Contract):
-    text: str
-    evidence_packets: list[str] = Field(min_length=1)
-
-
-class DurableJob(Contract):
-    format: Literal["pc-job/1"] = "pc-job/1"
-    job_id: str = Field(min_length=8)
-    mode: Literal["investigate", "skill"]
-    question: Nonempty
-    hints: list[str]
-    status: Literal["queued", "running", "yielding", "queued_after_eviction", "completed", "partial", "failed", "cancelled"]
-    attempt: int = Field(ge=0)
-    created_at: str
-    findings: list[Finding]
-    evidence_packets: list[str]
-    unresolved_questions: list[str]
-    project: str | None = None
-    skill: str | None = None
-    request_id: str | None = None
-    result_packet: str | None = None
-    scope: dict[str, Any] | None = None
-
-    deadline_epoch: float | None = None
-    execution_question: str | None = None
-    refresh_context: dict[str, Any] | None = None
-    answer: str | None = None
-    failure_reason: str | None = None
-    terminal_reason: str | None = None
-
-    _timestamp = field_validator("created_at")(InformationPacket.timestamp.__func__)
-
-    @field_validator("hints")
-    @classmethod
-    def unique_hints(cls, value):
-        if len(value) != len(set(value)):
-            raise ValueError("hints must be unique")
-        return value
-
-
-class SkillResourceSelection(Contract):
-    skill: str
-    resource: Nonempty
-    content_sha256: Sha256
-    line_start: int = Field(ge=1)
-    line_end: int = Field(ge=1)
-    reason: str
-    prerequisites: list[str] | None = None
-
-    _path = field_validator("resource")(relative_path)
-
-    @model_validator(mode="after")
-    def ordered_range(self):
-        if self.line_end < self.line_start:
-            raise ValueError("line_end precedes line_start")
-        return self
-
-
-class SkillSelection(Contract):
-    format: Literal["pc-skill-selection/1"] = "pc-skill-selection/1"
-    selections: list[SkillResourceSelection] = Field(min_length=1)
-    synthesis: str
-    unresolved: list[str] | None = None
 
 
 class ProjectAmendment(Contract):
@@ -303,37 +247,29 @@ BACKEND_REUSE = {
     "service_state": "one shared service-private durable packet/job store (AS1 implementation pending)",
 }
 
-# pc-adaptive-surface/2 records the live compact workflow tool names while preserving
-# Project Control's existing compact information, workflow and mutation surface.
-_DETAILS = ["compact", "standard"]
+# pc-adaptive-surface/3 records profile-owned delivery policy.
 SURFACE = {
-    "format": "pc-adaptive-surface/2",
-    "tool_schema_version": 12,
+    "format": "pc-adaptive-surface/3",
+    "tool_schema_version": 13,
     "profiles": {
-        "observer": {"tools": list(OBSERVER_TOOL_NAMES), "details": [*_DETAILS, "extended"],
+        "observer": {"tools": list(OBSERVER_TOOL_NAMES), "response_budget_bytes": 65536,
                      "native_filesystem": False, "automatic_overview": False},
-        "investigator": {"tools": list(INTERNAL_TOOL_NAMES), "details": list(_DETAILS),
-                         "native_filesystem": True, "automatic_overview": False, "internal": True},
-        "coder": {"tools": list(CODEX_TOOL_NAMES), "details": list(_DETAILS),
+        "coder": {"tools": list(CODEX_TOOL_NAMES), "response_budget_bytes": 8192,
                    "native_filesystem": True, "automatic_overview": False,
                    "compatibility_profile_name": "codex"},
-        "mutator": {"tools": list(MUTATOR_TOOL_NAMES), "details": list(_DETAILS),
+        "mutator": {"tools": list(MUTATOR_TOOL_NAMES), "response_budget_bytes": 8192,
                     "native_filesystem": True, "automatic_overview": False},
-        "skill_assembler": {"tools": list(INTERNAL_TOOL_NAMES), "details": list(_DETAILS),
-                            "native_filesystem": True, "automatic_overview": False, "internal": True,
-                            "mode_of": "investigator", "home": "registered_skills_root"},
     },
     "shared_information_tools": list(RICH_READ_TOOL_NAMES),
     "workflow_tools": list(TODO_WORKFLOW_TOOL_NAMES),
     "todo_admin_tools": list(TODO_ADMIN_TOOL_NAMES),
     "removed_default_names": ["project_overview", "project_delta", "project_frontier",
-        "architecture_context", "source_context", "inspect", "coordination_view", "program_context",
+        "architecture_context", "source_context", "coordination_view", "program_context",
         "history_trace", "impact_preview", "skill_list", "skill_context", "skill_read",
         "plan_preview", "apply_plan", "terminal_capture", "performance_probe", "agent_status",
         "performance_status", "local_investigate", "find"],
-    "common_contract": {"default_detail": "compact",
-        "proposed_response_budgets_bytes": {"compact": 2048, "standard": 8192, "extended": 65536},
-        "extended_profiles": ["observer"], "source_paths": "relative_only",
+    "common_contract": {"response_budget_is_profile_owned": True,
+        "source_paths": "relative_only",
         "source_locators": ["project", "repository", "path", "identity"],
         "all_information_results_packetized": True, "mutation_authority_from_hints": False},
     "mutator_actions": {"plan": ["context", "validate", "diff", "apply", "amend",
@@ -352,7 +288,7 @@ SURFACE = {
 }
 
 ROLE_POLICIES = MappingProxyType({
-    role: MappingProxyType({"tools": tuple(value["tools"]), "details": tuple(value["details"]),
+    role: MappingProxyType({"tools": tuple(value["tools"]), "response_budget_bytes": value["response_budget_bytes"],
                             "automatic_overview": False})
     for role, value in SURFACE["profiles"].items()
 })
@@ -360,11 +296,11 @@ BACKEND_REUSE = MappingProxyType(BACKEND_REUSE)
 
 
 
-def require_tool(profile: str, tool: str, detail: Detail = "compact") -> None:
+def require_tool(profile: str, tool: str) -> None:
     profile = "coder" if profile == "codex" else profile
     policy = ROLE_POLICIES.get(profile)
-    if policy is None or tool not in policy["tools"] or detail not in policy["details"]:
-        raise ValueError("tool/detail unavailable for trusted profile")
+    if policy is None or tool not in policy["tools"]:
+        raise ValueError("tool unavailable for trusted profile")
 
 
 class PairedReleaseComponent(Contract):

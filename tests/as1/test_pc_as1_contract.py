@@ -25,8 +25,8 @@ def test_role_contract_matches_ledger_and_enforces_roles():
     historical = json.loads((PACKAGE / "contracts/surface.json").read_text())
     expected = c.SURFACE
     assert historical["format"] == "pc-adaptive-surface/1"
-    assert expected["format"] == "pc-adaptive-surface/2"
-    assert expected["tool_schema_version"] == 12
+    assert expected["format"] == "pc-adaptive-surface/3"
+    assert expected["tool_schema_version"] == 13
     assert expected["profiles"]["coder"]["tools"] == list(c.CODEX_TOOL_NAMES)
     assert expected["profiles"]["mutator"]["tools"] == list(c.MUTATOR_TOOL_NAMES)
     assert expected["workflow_tools"] == list(c.TODO_WORKFLOW_TOOL_NAMES)
@@ -40,10 +40,6 @@ def test_role_contract_matches_ledger_and_enforces_roles():
         for hidden in expected["removed_default_names"] + ["delegate_task", "collect_delegation"]:
             with pytest.raises(ValueError):
                 c.require_tool(role, hidden)
-        if role != "observer":
-            for tool, detail in [("read", "compact"), ("skill", "compact"), ("overview", "extended")]:
-                with pytest.raises(ValueError):
-                    c.require_tool(role, tool, detail)
     assert c.CODEX_TOOL_NAMES[-4:] == ("next_task", "inspect_task", "coordinate_task", "finish_task")
     assert not any(name.startswith("todo_") for names in
                    (c.OBSERVER_TOOL_NAMES, c.CODEX_TOOL_NAMES, c.MUTATOR_TOOL_NAMES) for name in names)
@@ -79,8 +75,6 @@ def test_wire_roundtrips_and_json_schema_compatibility():
     samples = {
         "locator": (c.SourceLocator, LOC),
         "packet": (c.InformationPacket, dict(packet_id="packet-01", alias="amber-river", created_at=STAMP, tool="search", payload=payload, payload_sha256=c.canonical_digest(payload), sources=[LOC], parents=[], access_scope={"project": "project-control"})),
-        "job": (c.DurableJob, dict(job_id="job-0001", mode="skill", question="Select applicable resource", hints=[], status="queued_after_eviction", attempt=2, created_at=STAMP, findings=[{"text": "exact excerpt selected", "evidence_packets": ["packet-01"]}], evidence_packets=["packet-01"], unresolved_questions=["resource freshness"])),
-        "skill-selection": (c.SkillSelection, dict(selections=[dict(skill="cuda", resource="cuda/SKILL.md", content_sha256=HASH, line_start=1, line_end=2, reason="required route")], synthesis="secondary guidance")),
         "registration": (c.ProjectAmendment, dict(project="skills", action="record_skill_use", intent="Applied relevant route", expected_revision=888, operation_id="operation-01", payload={"applied": True}, mode="preview")),
         "impact-edge": (c.ImpactEdge, dict(source=dict(project_uuid="pc", repository="pc", kind="task", id="TASK-1"), target=dict(project_uuid="sk", repository="skills", kind="interface", id="INTERFACE-1"), relation="consumes", origin="project_declared", provider="todo", generation="revision-888", input_manifest=[dict(kind="semantic_revision", key="skills", digest=HASH)], resolution="resolved", change_conditions=["interface changes"]))
     }
@@ -151,15 +145,11 @@ def timestamp_document(kind, value):
         return c.InformationPacket(packet_id="packet-01", alias="amber-river", created_at=value,
                                    tool="search", payload={}, payload_sha256=c.canonical_digest({}),
                                    sources=[], parents=[], access_scope={})
-    if kind == "job":
-        return c.DurableJob(job_id="job-0001", mode="investigate", question="Inspect source",
-                            hints=[], status="queued", attempt=0, created_at=value,
-                            findings=[], evidence_packets=[], unresolved_questions=[])
     return c.ProducerReceipt.model_validate(dict(receipt().model_dump(), checked_at=value))
 
 
 @pytest.mark.as1_case("CON-01", "CON-03")
-@pytest.mark.parametrize("kind", ["packet", "job", "receipt"])
+@pytest.mark.parametrize("kind", ["packet", "receipt"])
 @pytest.mark.parametrize("invalid", [
     "2026-10-04X17:28:22+00:00",
     "2026-10-04T17:28:22+00:00:30",
@@ -176,7 +166,7 @@ def test_timestamp_contract_rejects_non_rfc3339(kind, invalid):
 
 
 @pytest.mark.as1_case("CON-01", "CON-03")
-@pytest.mark.parametrize("kind", ["packet", "job", "receipt"])
+@pytest.mark.parametrize("kind", ["packet", "receipt"])
 @pytest.mark.parametrize("valid", [
     "2026-10-04T17:28:22Z", "2026-10-04t17:28:22z",
     "2026-10-04T17:28:22.123+05:30", "2026-10-04T17:28:22-00:00",

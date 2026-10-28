@@ -30,20 +30,18 @@ class MCPProfile(StrEnum):
     CODER = "coder"
     CODEX = "codex"
     MUTATOR = "mutator"
-    INVESTIGATOR = "investigator"
-    SKILL_ASSEMBLER = "skill_assembler"
 
 
-RICH_READ_TOOL_NAMES = ("overview", "delta", "frontier", "search", "evidence", "impact", "history", "machine")
+SHARED_TOOL_NAMES = ("overview", "frontier", "delta", "search", "context", "trace", "evidence", "machine")
+RICH_READ_TOOL_NAMES = SHARED_TOOL_NAMES
 WORKFLOW_TOOL_NAMES = ("next_task", "inspect_task", "coordinate_task", "finish_task")
 MAINTENANCE_TOOL_NAME = "maintain_execution"
 MUTATION_TOOL_NAMES = ("plan", "amend_project", MAINTENANCE_TOOL_NAME)
-OBSERVER_ONLY_TOOL_NAMES = ("read", "investigate", "skill")
+OBSERVER_ONLY_TOOL_NAMES = ("read", "inspect")
 OBSERVER_TOOL_NAMES = RICH_READ_TOOL_NAMES + OBSERVER_ONLY_TOOL_NAMES
 CODEX_TOOL_NAMES = RICH_READ_TOOL_NAMES + WORKFLOW_TOOL_NAMES
-MUTATOR_TOOL_NAMES = (RICH_READ_TOOL_NAMES + ("investigate",) + WORKFLOW_TOOL_NAMES
-                      + MUTATION_TOOL_NAMES)
-INTERNAL_TOOL_NAMES = RICH_READ_TOOL_NAMES + ("command", "log")
+MUTATOR_TOOL_NAMES = RICH_READ_TOOL_NAMES + WORKFLOW_TOOL_NAMES + MUTATION_TOOL_NAMES
+INTERNAL_TOOL_NAMES: tuple[str, ...] = ()
 # Compatibility names for non-MCP contract readers.  These are categories on
 # the compact Project Control surface; the standalone native API is dispatched
 # behind the adapter and is never registered as a Project Control tool.
@@ -71,8 +69,7 @@ _PROFILE_POLICIES: Mapping[MCPProfile, ProfilePolicy] = MappingProxyType({
     profile: ProfilePolicy(profile, "streamable-http" if profile == MCPProfile.OBSERVER else "stdio", names)
     for profile, names in (
         (MCPProfile.OBSERVER, OBSERVER_TOOL_NAMES), (MCPProfile.CODER, CODEX_TOOL_NAMES),
-        (MCPProfile.CODEX, CODEX_TOOL_NAMES), (MCPProfile.MUTATOR, MUTATOR_TOOL_NAMES),
-        (MCPProfile.INVESTIGATOR, INTERNAL_TOOL_NAMES), (MCPProfile.SKILL_ASSEMBLER, INTERNAL_TOOL_NAMES))
+        (MCPProfile.CODEX, CODEX_TOOL_NAMES), (MCPProfile.MUTATOR, MUTATOR_TOOL_NAMES))
 })
 _KNOWN_TOOL_NAMES = frozenset(OBSERVER_TOOL_NAMES + CODEX_TOOL_NAMES + MUTATOR_TOOL_NAMES + INTERNAL_TOOL_NAMES)
 
@@ -164,8 +161,6 @@ class ProfiledFastMCP(FastMCP):
                                    else {"invalid_argument_type": type(arguments).__name__})})
         try:
             self._profile_policy.require_allowed(name)
-            if arguments.get("detail") == "extended" and self.profile != MCPProfile.OBSERVER:
-                raise ToolError("detail_not_permitted: extended is observer-only")
             result = await super().call_tool(name, arguments)
         except Exception:
             write_event({"event": "tool_call", "phase": "finished", "call_id": call_id,

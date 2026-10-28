@@ -1,0 +1,134 @@
+{
+  "checkout_revision": "c14ad76cef2de02c6a70c99b072eb81d9c5304a9",
+  "checkout_tracked_changes": true,
+  "created_at": "2026-10-27T21:00:54.857393+00:00",
+  "environment": {
+    "cpu_count": 80,
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "project_root": "/home/tumlinson/project-control/.overhaul-workspaces/project-control",
+    "python": "3.12.3"
+  },
+  "limits": [
+    "Synthetic small-repository sanity probe; not an end-to-end MCP latency measurement.",
+    "No statistical inference, performance threshold, comprehensive benchmark, live service, Todo authority, model, GPU, or scheduler was used.",
+    "Snapshot bypass retained the separate worktree-observation cache, so the result isolates snapshot memoization rather than a fully cold Git scan.",
+    "Results depend on local filesystem, Python, and Git versions; this report is one environment-specific sample."
+  ],
+  "method": {
+    "fixture": "temporary committed Git repository with 26 small Python files; no Todo authority configured",
+    "snapshot_cache_bypassed": "clear SnapshotBuilder result cache before each repeat; keep internal worktree cache warm",
+    "snapshot_cached": "reuse the snapshot result cache for identical input in the same process",
+    "snapshot_repeats": 7,
+    "source_context": "one cold target-symbol context request, one identical warm request, then one request after editing target implementation",
+    "timings_seconds": "wall-clock perf_counter; medians and p95 order statistic; descriptive only"
+  },
+  "project_source_revision": {
+    "git_head": "unborn-or-unavailable",
+    "git_status_lines": [
+      "?? .gitignore",
+      "?? README.md",
+      "?? docs/",
+      "?? packages/",
+      "?? pyproject.toml",
+      "?? tests/"
+    ],
+    "project_source_module_sha256": "91f02554e387e3be04feec8ef9c87cc90564781f2e2bdcf6201a336a659b0ab4",
+    "repository": "/home/tumlinson/project-control/.overhaul-workspaces/project-foundations"
+  },
+  "snapshot": {
+    "bypassed_to_cached_median_ratio": 1.007,
+    "median_seconds": {
+      "cache_bypassed": 0.00608,
+      "cached": 0.006037
+    },
+    "p95_seconds": {
+      "cache_bypassed": 0.006537,
+      "cached": 0.00674
+    },
+    "provider_calls_across_all_repeats": {
+      "cuda_status": 15,
+      "git_identity": 16,
+      "git_worktrees": 1
+    },
+    "same_git_and_todo_revision": true,
+    "samples_seconds": {
+      "cache_bypassed": [
+        0.00608,
+        0.007267,
+        0.006537,
+        0.005768,
+        0.005818,
+        0.005913,
+        0.006178
+      ],
+      "cached": [
+        0.007102,
+        0.00674,
+        0.005808,
+        0.006512,
+        0.005869,
+        0.00603,
+        0.006037
+      ]
+    },
+    "todo_provider": "not configured (fixture workspace has no authority repository)",
+    "worktree_cache_note": "only SnapshotBuilder result cache was bypassed; nested worktree observations remained reusable"
+  },
+  "source_context": {
+    "after_edit": {
+      "all_locators_have_sha256": true,
+      "complete": true,
+      "has_caller_callsite": true,
+      "has_implementation": true,
+      "has_test": true,
+      "source_locators": 3,
+      "status": "ok"
+    },
+    "cold": {
+      "all_locators_have_sha256": true,
+      "complete": true,
+      "has_caller_callsite": true,
+      "has_implementation": true,
+      "has_test": true,
+      "source_locators": 3,
+      "status": "ok"
+    },
+    "edited_source_hash_matches_returned_locator": true,
+    "expected_edit_digest": "cd6881408209db1bbe7c3b6f9251409e7343c644d2ddacd0bfb19a3eafd226df",
+    "index_update_calls": 3,
+    "index_update_results": [
+      {
+        "changed": 26,
+        "removed": 0,
+        "unchanged": 0
+      },
+      {
+        "changed": 0,
+        "removed": 0,
+        "unchanged": 26
+      },
+      {
+        "changed": 1,
+        "removed": 0,
+        "unchanged": 25
+      }
+    ],
+    "requested_context_sufficient": true,
+    "samples_seconds": {
+      "after_edit": 0.023723,
+      "cold": 0.051726,
+      "warm": 0.01946
+    },
+    "unchanged_repeat_same_sections_and_sources": true,
+    "warm": {
+      "all_locators_have_sha256": true,
+      "complete": true,
+      "has_caller_callsite": true,
+      "has_implementation": true,
+      "has_test": true,
+      "source_locators": 3,
+      "status": "ok"
+    }
+  }
+}

@@ -1,0 +1,280 @@
+from __future__ import annotations
+
+import io
+import json
+import os
+import sys
+import tempfile
+import types
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from project_control.cli import _serve_profile, main
+from project_control.config import ProjectControlConfig, configured_skills_root
+
+
+def _preconditions_fixture():
+    from project_control.models import ObservationPreconditions
+
+    return ObservationPreconditions(workspace_id="demo", observed_at="2026-08-31T00:00:00Z")
+
+
+class ProfileCliTests(unittest.TestCase):
+    def test_public_doctor_reports_safe_runtime_and_executor_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "todo-orchestrator" / "todo_orchestrator"
+            source.mkdir(parents=True)
+            (source / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+            module = types.ModuleType("todo_orchestrator")
+            module.__file__ = str(source / "__init__.py")
+            environment = {
+                "PROJECT_CONTROL_SKILLS_ROOT": str(root),
+                "API_SECRET": "must-not-appear",
+            }
+            with patch.dict(os.environ, environment, clear=True), \
+                 patch.dict(sys.modules, {"todo_orchestrator": module}), \
+                 patch("project_control.cli.load_config", return_value=ProjectControlConfig()), \
+                 patch("project_control.cli.BubblewrapSandbox.probe_diagnostics", return_value={"installed": False, "ready": False}), \
+                 patch("project_control.cli._terminal_service_constraints", return_value={"compatible": None}), \
+                 patch("sys.stdout", new_callable=io.StringIO) as output:
+                self.assertEqual(main(["doctor", "--json"]), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["workflow_runtime"]["status"], "verified")
+        self.assertNotIn("must-not-appear", output.getvalue())
+        self.assertEqual(
+            result["executor_capabilities"]["local_worker_observation_adapter"]["reason"],
+            "observer_only_local_worker_adapter",
+        )
+        self.assertEqual(
+            result["executor_capabilities"]["local_worker_observation_adapter"]["status"], "observation_only",
+        )
+
+    def test_doctor_binds_todo_provider_to_registered_authority_root(self) -> None:
+        from project_control.cli import _doctor
+        from project_control.config import RepositoryConfig, WorkspaceConfig
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            repository = base / "repository"
+            repository.mkdir()
+            skills = base / "skills"
+            skills.mkdir()
+            config = ProjectControlConfig(
+                observer_skills_root=skills,
+                workspaces={
+                    "fixture": WorkspaceConfig(
+                        authority_repository="source",
+                        repositories={"source": RepositoryConfig(root=repository)},
+                    ),
+                },
+            )
+            snapshot = SimpleNamespace(
+                warnings_for=lambda _component: [],
+                todo_revision=1,
+                todo_status={"component_authority": {}},
+                cuda={"status": "unavailable"},
+                local_worker={"status": "unavailable"},
+            )
+            provider = SimpleNamespace(
+                compatible=True,
+                selection_source="standalone_distribution",
+                package_root=None,
+                error_code=None,
+                local_diagnostics=lambda: {"status": "available"},
+            )
+            with patch("project_control.cli.load_config", return_value=config), \
+                 patch("project_control.cli.runtime_diagnostics", return_value={"status": "verified"}), \
+                 patch("project_control.cli.BubblewrapSandbox.probe_diagnostics",
+                       return_value={"installed": False, "ready": False}), \
+                 patch("project_control.cli._terminal_service_constraints", return_value={"compatible": None}), \
+                 patch("project_control.cli.SnapshotBuilder") as builder_type, \
+                 patch("project_control.cli.resolve_todo_provider", return_value=provider) as resolve:
+                builder_type.return_value.build.return_value = snapshot
+                ok, result = _doctor(tunnel=False)
+
+            self.assertTrue(ok)
+            self.assertEqual(result["providers"]["fixture"]["todo_kernel"]["status"], "ok")
+            self.assertEqual(resolve.call_args.kwargs["project_root"], repository.resolve())
+
+    def test_plan_compile_writes_native_plan_and_bounded_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package = root / "package"
+            package.mkdir()
+            (package / "proposed_todos.json").write_text(json.dumps([
+                {"id": "CLI-1", "title": "CLI task", "repository": "Demo", "purpose": "Exercise compile"},
+            ]), encoding="utf-8")
+            output_path = root / "native.json"
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                self.assertEqual(main([
+                    "plan", "compile", "--package", str(package),
+                    "--repository-label", "Demo", "--output", str(output_path),
+                ]), 0)
+            native = json.loads(output_path.read_text(encoding="utf-8"))
+            summary = json.loads(output.getvalue())
+            self.assertEqual(2, native["schema_version"])
+            self.assertEqual(["CLI-1"], [task["id"] for task in native["tasks"]])
+            self.assertEqual(1, summary["selected_task_count"])
+            self.assertNotIn("native_todo_plan", summary)
+            from project_control.mutation import plan_digest
+            self.assertEqual(plan_digest(native), summary["plan_digest"])
+
+    def test_plan_validate_and_apply_share_mutation_service(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            plan_file = Path(directory) / "plan.json"
+            plan = {"schema_version": 2, "tasks": []}
+            plan_file.write_text(json.dumps(plan), encoding="utf-8")
+            with patch("project_control.cli.load_config", return_value="config"), \
+                 patch("project_control.mutation.validate_native_plan", return_value={"status": "validated"}) as validate, \
+                 patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(main(["plan", "validate", "--project", "demo", "--file", str(plan_file)]), 0)
+            validate.assert_called_once_with("config", "demo", plan)
+
+            snapshot = unittest.mock.Mock(observed_at="2026-08-31T00:00:00Z")
+            snapshot.observation_preconditions.return_value = _preconditions_fixture()
+            with patch("project_control.cli.load_config", return_value="config"), \
+                 patch("project_control.mutation.build_mutation_snapshot", return_value=snapshot) as observe, \
+                 patch("project_control.proposals.observation_preconditions", return_value=_preconditions_fixture()), \
+                 patch("project_control.mutation.apply_proposal", return_value={"status": "applied"}) as apply, \
+                 patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(main(["plan", "apply", "--project", "demo", "--file", str(plan_file)]), 0)
+            observe.assert_called_once_with("config", "demo")
+            self.assertEqual("config", apply.call_args.args[0])
+            self.assertEqual("demo", apply.call_args.args[1])
+            self.assertFalse(apply.call_args.args[2].authority_to_apply)
+
+    def test_legacy_serve_is_observer_and_explicit_codex_is_stdio(self) -> None:
+        with patch("project_control.cli._serve_profile", return_value=0) as serve:
+            self.assertEqual(main(["serve"]), 0)
+            serve.assert_called_once_with("observer", host=None, port=None)
+        with patch("project_control.cli._serve_profile", return_value=0) as serve:
+            self.assertEqual(main(["serve", "codex"]), 0)
+            serve.assert_called_once_with("codex", host=None, port=None)
+
+    def test_top_level_codex_entry_point_uses_stdio_profile(self) -> None:
+        with patch("project_control.cli._serve_profile", return_value=0) as serve:
+            self.assertEqual(main(["codex"]), 0)
+            serve.assert_called_once_with("codex", host=None, port=None)
+
+    def test_explicit_mutator_entry_points_use_stdio_profile(self) -> None:
+        with patch("project_control.cli._serve_profile", return_value=0) as serve:
+            self.assertEqual(main(["serve", "mutator"]), 0)
+            serve.assert_called_once_with("mutator", host=None, port=None)
+        with patch("project_control.cli._serve_profile", return_value=0) as serve:
+            self.assertEqual(main(["mutator"]), 0)
+            serve.assert_called_once_with("mutator", host=None, port=None)
+
+    def test_codex_rejects_network_options_before_importing_server(self) -> None:
+        with self.assertRaisesRegex(ValueError, "stdio"):
+            _serve_profile("codex", host="127.0.0.1", port=None)
+        with self.assertRaisesRegex(ValueError, "stdio"):
+            _serve_profile("mutator", host="127.0.0.1", port=None)
+
+    def test_mutator_dispatches_only_to_explicit_server(self) -> None:
+        with patch("project_control.app.serve_mutator", return_value=0) as serve:
+            self.assertEqual(_serve_profile("mutator", host=None, port=None), 0)
+        serve.assert_called_once_with()
+
+    def test_migration_cli_dry_run_and_remove_modes(self) -> None:
+        with patch("project_control.migration.migrate", return_value={"status": "dry_run"}) as migrate, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main(["migrate-repository", "--repo", "/repo", "--dry-run"]), 0)
+        migrate.assert_called_once_with(Path("/repo"), apply=False, remove=False)
+        self.assertEqual(json.loads(output.getvalue()), {"status": "dry_run"})
+        with patch("project_control.migration.migrate", return_value={"status": "applied"}) as migrate, \
+             patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(main(["migrate-repository", "--repo", "/repo", "--remove"]), 0)
+        migrate.assert_called_once_with(Path("/repo"), apply=True, remove=True)
+
+    def test_admin_recovery_is_exposed_by_main_cli(self) -> None:
+        with patch("project_control.admin.inspect_recovery", return_value={"status": "safe"}) as inspect, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main(["admin", "recover", "--repo", "/repo", "--reason", "owner", "--inspect-only"]), 0)
+        inspect.assert_called_once_with("/repo", None)
+        self.assertEqual(json.loads(output.getvalue()), {"status": "safe"})
+
+    def test_prepare_maintenance_emits_only_fixed_operator_launch(self) -> None:
+        assignment = {
+            "status": "launch_required",
+            "assignment": {"grant_reference": "rca_exact"},
+        }
+        launch = {
+            "executable": "/verified/python",
+            "arguments": ["-m", "project_control.maintenance_host", "operator", "--principal", "operator-a"],
+            "environment": {"PROJECT_CONTROL_SKILLS_ROOT": "/verified/skills"},
+        }
+        with patch("project_control.admin.prepare_maintenance_assignment", return_value=assignment) as prepare, \
+             patch("project_control.maintenance_host.operator_launch_command", return_value=launch), \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "prepare-maintenance", "--repo", "/repo", "--task", "A",
+                "--recipient", "operator-a", "--expires", "60",
+            ]), 0)
+        prepare.assert_called_once_with(
+            "/repo", task_id="A", run_id=None, recipient_principal="operator-a", expires_seconds=60,
+        )
+        self.assertEqual({**assignment, "operator_launch": launch}, json.loads(output.getvalue()))
+
+    def test_admin_workspace_preparation_is_exposed_by_main_cli(self) -> None:
+        prepared = {"status": "prepared", "prepared": [{"lane_id": "L-A"}]}
+        with patch("project_control.admin.prepare_run_workspaces", return_value=prepared) as prepare, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "prepare-run-workspaces", "--repo", "/repo", "--plan", "/plan.json",
+                "--run", "RUN", "--apply", "--confirm", "PREPARE-RUN-WORKSPACES",
+            ]), 0)
+        prepare.assert_called_once_with(
+            "/repo", "/plan.json", "RUN", lane_id=None, apply=True,
+            confirmation="PREPARE-RUN-WORKSPACES",
+        )
+        self.assertEqual(json.loads(output.getvalue()), prepared)
+
+    def test_admin_workspace_base_reconciliation_is_exposed_by_main_cli(self) -> None:
+        reconciled = {"status": "reconciled", "lane_id": "L-A"}
+        with patch("project_control.admin.reconcile_workspace_base", return_value=reconciled) as reconcile, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "reconcile-workspace-base", "--repo", "/repo", "--run", "RUN",
+                "--lane", "L-A", "--base", "abc", "--reason", "prior wave",
+                "--apply", "--confirm", "RECONCILE-WORKSPACE-BASE",
+            ]), 0)
+        reconcile.assert_called_once_with(
+            "/repo", "RUN", "L-A", "abc", reason="prior wave",
+            apply=True, confirmation="RECONCILE-WORKSPACE-BASE",
+        )
+        self.assertEqual(json.loads(output.getvalue()), reconciled)
+
+    def test_admin_workspace_cleanup_eligibility_is_exposed_by_main_cli(self) -> None:
+        marked = {"status": "marked", "marked": [{"workspace_id": "W-A"}]}
+        with patch(
+            "project_control.admin.mark_run_workspaces_cleanup_eligible", return_value=marked
+        ) as cleanup, patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main([
+                "admin", "mark-run-workspaces-cleanup-eligible", "--repo", "/repo",
+                "--run", "RUN", "--apply", "--confirm",
+                "MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE",
+            ]), 0)
+        cleanup.assert_called_once_with(
+            "/repo", "RUN", apply=True,
+            confirmation="MARK-RUN-WORKSPACES-CLEANUP-ELIGIBLE",
+        )
+        self.assertEqual(json.loads(output.getvalue()), marked)
+
+    def test_canonical_root_wins_and_legacy_alias_warns(self) -> None:
+        config = ProjectControlConfig()
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+            value = configured_skills_root(config, {
+                "PROJECT_CONTROL_SKILLS_ROOT": first,
+                "CODING_WORKFLOW_SKILLS_ROOT": second,
+            })
+            self.assertEqual(value, Path(first).resolve())
+            with self.assertWarns(DeprecationWarning):
+                value = configured_skills_root(config, {"CODING_WORKFLOW_SKILLS_ROOT": second})
+            self.assertEqual(value, Path(second).resolve())
+
+
+if __name__ == "__main__":
+    unittest.main()
