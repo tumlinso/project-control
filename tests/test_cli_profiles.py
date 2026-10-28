@@ -1,6 +1,8 @@
 import unittest
 from contextlib import redirect_stderr
 from io import StringIO
+from pathlib import Path
+import tempfile
 from unittest.mock import patch
 
 from project_control.cli import _parser, main
@@ -24,6 +26,24 @@ class ProfileCliTests(unittest.TestCase):
         with patch("project_control.app.serve_mutator", return_value=0) as mutator:
             self.assertEqual(main(["mutator"]), 0)
         mutator.assert_called_once_with()
+
+    def test_workspace_cli_explicitly_selects_and_preserves_gitlink_policy(self):
+        from project_control.config import ProjectControlConfig
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = ProjectControlConfig()
+            output = StringIO()
+            from contextlib import redirect_stdout
+            with (patch("project_control.cli.load_config", return_value=config),
+                  patch("project_control.cli.save_config") as save,
+                  redirect_stdout(output)):
+                self.assertEqual(main(["workspace", "add", "demo", "source", str(root),
+                                       "--gitlink-policy", "opaque_clean"]), 0)
+                self.assertEqual(main(["workspace", "add", "demo", "source", str(root)]), 0)
+            self.assertEqual(save.call_count, 2)
+            self.assertEqual(config.workspaces["demo"].repositories["source"].gitlink_policy,
+                             "opaque_clean")
 
     def test_local_stdio_profiles_reject_network_options(self):
         error = StringIO()

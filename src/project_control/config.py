@@ -8,7 +8,7 @@ import math
 import tomllib
 import warnings
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -37,6 +37,8 @@ class RepositoryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     root: Path
     live_links: dict[str, Path] = Field(default_factory=dict)
+    # Trusted operator selection; it never initializes or follows remote modules.
+    gitlink_policy: Literal["reject", "opaque_clean"] = "reject"
 
     @field_validator("root")
     @classmethod
@@ -302,6 +304,8 @@ def render_config(config: ProjectControlConfig) -> str:
                 f"[{section}.repositories.{alias}]",
                 f"root = {_quote(str(repository.root))}",
             ])
+            if repository.gitlink_policy != "reject":
+                lines.append(f"gitlink_policy = {_quote(repository.gitlink_policy)}")
             if repository.live_links:
                 lines.extend(["", f"[{section}.repositories.{alias}.live_links]"])
                 for relative in sorted(repository.live_links):

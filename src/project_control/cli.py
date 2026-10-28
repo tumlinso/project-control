@@ -24,6 +24,8 @@ def _parser() -> argparse.ArgumentParser:
     add.add_argument("root", type=Path)
     add.add_argument("--authority", action="store_true",
         help="mark the repository that contains this project's Todo authority")
+    add.add_argument("--gitlink-policy", choices=("reject", "opaque_clean"), default=None,
+        help="explicit trusted source policy for pinned submodules; never initializes them")
     remove = actions.add_parser("remove", help="unregister a project")
     remove.add_argument("project")
     actions.add_parser("list", help="show registered projects and repository roots")
@@ -76,7 +78,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = load_config()
         registry = WorkspaceRegistry(config)
         if args.workspace_action == "add":
-            registry.add_workspace(args.project, args.repository, args.root, authority=args.authority)
+            registry.add_workspace(args.project, args.repository, args.root,
+                                   authority=args.authority, gitlink_policy=args.gitlink_policy)
             save_config(config)
             print(args.project)
         elif args.workspace_action == "remove":

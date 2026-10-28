@@ -9,6 +9,7 @@ from pathlib import Path
 from project_control.config import (
     ProgramConfig,
     ProjectControlConfig,
+    RepositoryConfig,
     ServerConfig,
     init_config,
     load_config,
@@ -46,6 +47,32 @@ class ConfigSecurityTests(unittest.TestCase):
                 registry.repository("missing")
             with self.assertRaises(RegistryError):
                 registry.add_workspace("../bad", "source", root)
+
+    def test_gitlink_policy_is_explicit_repository_scoped_and_roundtrips(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repo"
+            other = Path(temporary) / "other"
+            root.mkdir()
+            other.mkdir()
+            config = ProjectControlConfig()
+            registry = WorkspaceRegistry(config)
+            registry.add_workspace("demo", "source", root)
+            registry.add_workspace("other", "source", other)
+            self.assertEqual(config.workspaces["demo"].repositories["source"].gitlink_policy, "reject")
+            before = render_config(config)
+            self.assertNotIn("gitlink_policy", before)
+            registry.add_workspace("demo", "source", root, gitlink_policy="opaque_clean")
+            # Ordinary registration updates preserve the separately selected policy.
+            registry.add_workspace("demo", "source", root)
+            path = Path(temporary) / "config" / "config.toml"
+            save_config(config, path)
+            restored = load_config(path)
+            self.assertEqual(restored.workspaces["demo"].repositories["source"].gitlink_policy, "opaque_clean")
+            self.assertEqual(restored.workspaces["other"].repositories["source"].gitlink_policy, "reject")
+            registry.add_workspace("demo", "source", root, gitlink_policy="reject")
+            self.assertEqual(render_config(config), before)
+            with self.assertRaises(ValueError):
+                RepositoryConfig(root=root, gitlink_policy="allow_all")
 
     def test_symlink_secret_binary_and_oversized_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

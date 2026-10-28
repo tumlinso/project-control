@@ -157,6 +157,7 @@ class WorkspaceRegistry:
         authority: bool = False,
         display_name: str | None = None,
         live_links: Mapping[str, Path] | None = None,
+        gitlink_policy: str | None = None,
     ) -> None:
         validate_id(workspace_id, "workspace")
         validate_id(repository_alias, "repository")
@@ -168,7 +169,10 @@ class WorkspaceRegistry:
             workspace = WorkspaceConfig(
                 display_name=display_name,
                 authority_repository=repository_alias,
-                repositories={repository_alias: RepositoryConfig(root=resolved, live_links=dict(live_links or {}))},
+                repositories={repository_alias: RepositoryConfig(
+                    root=resolved, live_links=dict(live_links or {}),
+                    gitlink_policy=gitlink_policy if gitlink_policy is not None else "reject",
+                )},
             )
             self.config.workspaces[workspace_id] = workspace
             return
@@ -179,6 +183,8 @@ class WorkspaceRegistry:
         workspace.repositories[repository_alias] = RepositoryConfig(
             root=resolved,
             live_links=merged_live_links,
+            gitlink_policy=(gitlink_policy if gitlink_policy is not None
+                            else existing.gitlink_policy if existing else "reject"),
         )
         if authority or workspace.authority_repository is None:
             workspace.authority_repository = repository_alias
