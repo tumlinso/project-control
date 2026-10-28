@@ -554,7 +554,7 @@ print('contained command output')
             config = SimpleNamespace(workspaces={
                 "native": SimpleNamespace(
                     authority_repository="source",
-                    repositories={"source": SimpleNamespace(root=root)},
+                    repositories={"source": SimpleNamespace(root=root, gitlink_policy="opaque_clean")},
                 ),
             })
             state_home = Path(directory) / "state-home"
@@ -606,6 +606,7 @@ print('contained command output')
             git = providers.git_provider
             self.assertEqual(git.config.repository_root, root.resolve())
             self.assertEqual(git.config.excluded_paths, (".todo-orchestrator",))
+            self.assertEqual(git.config.gitlink_policy, "opaque_clean")
             self.assertNotEqual(git.config.workspace_root, root)
             self.assertNotEqual(git.config.journal_root, root)
             self.assertEqual(git.config.workspace_root.parent, state_home / "project-control" / "todo-orchestrator" / "project-native-factory")

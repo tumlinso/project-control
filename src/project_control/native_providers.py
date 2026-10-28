@@ -1125,6 +1125,7 @@ def providers_for_project(config: object, project: str, project_root: Path, *,
     if callable(authenticator_factory):
         principal_authenticator = authenticator_factory(str(project_id))
     repository_id = StableId(alias)
+    gitlink_policy = getattr(workspace.repositories[alias], "gitlink_policy", "reject")
     state_root = _private_state_root(project_id)
     workspace_root = state_root / "workspaces"
     journal_root = state_root / "git-journal"
@@ -1164,6 +1165,7 @@ def providers_for_project(config: object, project: str, project_root: Path, *,
         # The standalone authority lives at this fixed repository-local path;
         # it is runtime state, not task source or a worktree change.
         excluded_paths=(".todo-orchestrator",),
+        gitlink_policy=gitlink_policy,
     )
     # Build Git once so workspace/source and verification share one host
     # configuration. Unknown process/child observations stay unknown.
