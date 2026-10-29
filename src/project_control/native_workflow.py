@@ -268,7 +268,7 @@ def _public(session: object, kind: str, value: object) -> dict[str, object]:
     if not callable(serialize):
         raise NativeWorkflowError("native_serializer_unavailable")
     try:
-        if kind in {"git_effect", "recovery_inspection"}:
+        if kind in {"git_effect", "recovery_inspection", "recovery"}:
             value = _orchestration_source_projection(value)
         encoded = serialize(kind, value)
         result = json.loads(encoded)

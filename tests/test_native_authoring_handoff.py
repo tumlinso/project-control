@@ -168,6 +168,19 @@ def test_authoring_handoff_pins_current_clean_source_and_fences_later_host_git_e
 
     live_attempt = SimpleNamespace(ref=attempt_ref, lease=SimpleNamespace(lease_id=lease_id))
     assert git_provider.authoring_handoff_for(live_attempt) == proof
+    from todo_orchestrator.contracts import AttemptState
+    accepted_attempt = SimpleNamespace(ref=attempt_ref, lease=None, state=AttemptState.ACCEPTED)
+    assert git_provider.authoring_handoff_for(accepted_attempt) == proof
+    for state in (AttemptState.RELEASED, AttemptState.REJECTED, AttemptState.ADMITTED):
+        assert git_provider.authoring_handoff_for(SimpleNamespace(ref=attempt_ref, lease=None, state=state)) is None
+    handoff_provider = git_provider.handoff_authoring.__self__
+    handoff_provider.host_resources.owners_for_attempt = lambda *_args: [{"state": "held"}]
+    assert git_provider.authoring_handoff_for(accepted_attempt) is None
+    handoff_provider.host_resources.owners_for_attempt = lambda *_args: []
+    git_provider.child_observer = SimpleNamespace(inspect=lambda _attempt: ChildActivity.UNKNOWN)
+    assert git_provider.authoring_handoff_for(accepted_attempt) is None
+    git_provider.child_observer = SimpleNamespace(inspect=lambda _attempt: ChildActivity.NONE)
+    assert git_provider.authoring_handoff_for(accepted_attempt) == proof
     assert git_provider.has_authoring_handoff(attempt_ref.entity_id)
 
     source_revision = git_provider.qualified_revision(proof.source_commit)
@@ -191,5 +204,6 @@ def test_authoring_handoff_pins_current_clean_source_and_fences_later_host_git_e
 
     (workspace / "later.txt").write_text("changed after the handoff\n", encoding="utf-8")
     assert git_provider.authoring_handoff_for(live_attempt) is None
+    assert git_provider.authoring_handoff_for(accepted_attempt) is None
     assert git_provider.has_authoring_handoff(attempt_ref.entity_id)
 

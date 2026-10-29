@@ -80,3 +80,13 @@ def test_large_source_inventory_is_explicitly_summarized_after_native_validation
             assert payload['operations'][0][key]==full['operations'][0][key]
         for key in ['intents','blockers','preconditions','authority_revision']:
             assert payload[key]==full[key]
+
+
+def test_recovery_apply_result_summarizes_nested_large_git_effect():
+    source, view, _recovery = fixtures()
+    value = {"disposition": "retry_original_operation", "result": view}
+    with pytest.raises(ApiSerializationError):serialize_public_document("recovery",value)
+    result = _public(SimpleNamespace(serialize=serialize_public_document),"recovery",value)
+    assert len(json.dumps(result)) < 8192
+    assert result["payload"]["result"]["source_observation"]["inventory_summary"]["collections"]["inputs"]["count"] == 10802
+    assert result["payload"]["result"]["operation_id"] == str(view.operation_id)

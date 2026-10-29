@@ -449,14 +449,27 @@ class NativeAuthoringHandoffProvider:
                 record = _read_record(path, format_name=_HANDOFF_FORMAT,
                                       version=_HANDOFF_VERSION, fields=fields)
             if (record is None or record.get("project_id") != self.project_id
-                    or record.get("authority_id") != self.authority_id
-                    or getattr(attempt, "lease", None) is None
-                    or record.get("lease_id") != str(attempt.lease.lease_id)):
+                    or record.get("authority_id") != self.authority_id):
                 return None
+            lease = getattr(attempt, "lease", None)
+            if lease is None:
+                from todo_orchestrator.contracts import AttemptState
+
+                if getattr(attempt, "state", None) is not AttemptState.ACCEPTED:
+                    return None
+                # Acceptance removes the worker lease, not the durable source
+                # fence. Revalidate no authored commands/resources/children;
+                # this does not revive execution or assert a stopped process.
+                self._require_quiescent_host(attempt, attempt_id)
+                lease_id = str(record["lease_id"])
+            else:
+                lease_id = str(lease.lease_id)
+                if record.get("lease_id") != lease_id:
+                    return None
             workspace_id = record["workspace_id"]
             proof = self._proof_from_record(record, ref)
             return proof if self._validate_record(
-                record, proof, attempt_id=attempt_id, lease_id=str(attempt.lease.lease_id),
+                record, proof, attempt_id=attempt_id, lease_id=lease_id,
                 workspace_id=workspace_id,
             ) else None
         except Exception:
