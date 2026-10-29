@@ -116,16 +116,27 @@ def _authority_cursor(value: object) -> dict[str, object] | None:
     except (ValueError, json.JSONDecodeError) as error:
         raise ValueError("page_token_invalid") from error
     if (not isinstance(result, dict)
-            or set(result) != {"project_id", "authority_id", "semantic_revision", "section_index", "row_offset"}
+            or set(result) not in (
+                {"project_id", "authority_id", "semantic_revision", "section_index", "row_offset"},
+                {"project_id", "authority_id", "semantic_revision", "section_index", "row_offset",
+                 "review_selector"},
+            )
             or type(result.get("semantic_revision")) is not int
             or type(result.get("section_index")) is not int or result["section_index"] < 0
             or type(result.get("row_offset")) is not int or result["row_offset"] < 0):
+        raise ValueError("page_token_invalid")
+    selector = result.get("review_selector")
+    if selector is not None and (not isinstance(selector, dict)
+                                 or set(selector) != {"task_id", "run_id"}
+                                 or any(value is not None and not isinstance(value, str)
+                                        for value in selector.values())):
         raise ValueError("page_token_invalid")
     return result
 
 
 def _authority_page(session: object, *, expected_revision: int | None,
-                    limit: int, page_token: object) -> dict[str, object]:
+                    limit: int, page_token: object,
+                    review_selector: object = None) -> dict[str, object]:
     if type(limit) is not int or not 1 <= limit <= 200:
         raise ValueError("limit_invalid")
     cursor = _authority_cursor(page_token)
@@ -134,6 +145,37 @@ def _authority_page(session: object, *, expected_revision: int | None,
     sections = value.pop("sections", {})
     if not isinstance(sections, dict):
         raise NativeWorkflowError("native_authority_sections_invalid")
+    selector: dict[str, str | None] | None = None
+    if review_selector is not None:
+        if (not isinstance(review_selector, dict)
+                or set(review_selector) != {"task_id", "run_id"}
+                or any(item is not None and (not isinstance(item, str) or not item.strip()
+                                             or len(item.encode("utf-8")) > 128)
+                       for item in review_selector.values())):
+            raise ValueError("review_selector_invalid")
+        selector = {"task_id": review_selector.get("task_id"),
+                    "run_id": review_selector.get("run_id")}
+        all_attempts = sections.get("attempts", [])
+        all_candidates = sections.get("outcome_candidates", [])
+        if not isinstance(all_attempts, list) or not isinstance(all_candidates, list):
+            raise NativeWorkflowError("native_authority_sections_invalid")
+        attempts_by_id = {
+            row.get("attempt_id"): row for row in all_attempts
+            if isinstance(row, dict) and isinstance(row.get("attempt_id"), str)
+            and (selector["run_id"] is None or row.get("run_id") == selector["run_id"])
+        }
+        selected_candidates = [
+            row for row in all_candidates
+            if isinstance(row, dict) and row.get("state") == "pending"
+            and (selector["task_id"] is None or row.get("work_item_id") == selector["task_id"])
+            and row.get("attempt_id") in attempts_by_id
+        ]
+        selected_attempt_ids = {row.get("attempt_id") for row in selected_candidates}
+        sections = {
+            "attempts": [row for attempt_id, row in attempts_by_id.items()
+                         if attempt_id in selected_attempt_ids],
+            "outcome_candidates": selected_candidates,
+        }
     names = sorted(sections)
     project_id, authority_id = value.get("project_id"), value.get("authority_id")
     revision = value.get("semantic_revision")
@@ -141,6 +183,8 @@ def _authority_page(session: object, *, expected_revision: int | None,
         project_id, authority_id, revision
     ):
         raise NativeWorkflowError("todo_read_cursor_stale")
+    if cursor is not None and cursor.get("review_selector") != selector:
+        raise ValueError("page_token_scope_mismatch")
     section_index = 0 if cursor is None else cursor["section_index"]
     row_offset = 0 if cursor is None else cursor["row_offset"]
     if section_index > len(names):
@@ -194,6 +238,8 @@ def _authority_page(session: object, *, expected_revision: int | None,
             "semantic_revision": revision,
             **next_cursor,
         }
+        if selector is not None:
+            token_payload["review_selector"] = selector
         next_page_token = base64.urlsafe_b64encode(
             json.dumps(token_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).decode("ascii").rstrip("=")
@@ -207,6 +253,7 @@ def _authority_page(session: object, *, expected_revision: int | None,
         "section_counts": {name: len(sections[name]) for name in names},
         "page": {"limit": limit, "included_rows": taken, "complete": complete,
                  "next_page_token": next_page_token, "omissions": omitted},
+        **({"review_selector": selector} if selector is not None else {}),
     }
 
 
@@ -534,7 +581,8 @@ class NativeWorkflowHost:
                 page_token = arguments.get("page_token")
                 return guarded(lambda _root, session:
                                      _authority_page(session, expected_revision=revision,
-                                                     limit=limit, page_token=page_token))
+                                                     limit=limit, page_token=page_token,
+                                                     review_selector=arguments.get("review_selector")))
             if tool == "todo_open_run":
                 from todo_orchestrator.contracts import StableId
 

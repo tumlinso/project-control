@@ -490,6 +490,9 @@ def test_reviewer_gets_separate_handle_and_can_accept_then_integrate(tmp_path: P
     reviewer = _host(tmp_path, reviewer_native)
     review_task = reviewer.next_task(project="workspace", task_id="task-1")
     assert review_task["status"] == "review_required"
+    review_read = next(arguments for tool, arguments in reviewer_native.calls
+                       if tool == "todo_read_authority")
+    assert review_read["review_selector"] == {"task_id": "task-1", "run_id": None}
     assert review_task["workflow_handle"] != author["workflow_handle"]
     handle = review_task["workflow_handle"]
 
@@ -504,6 +507,25 @@ def test_reviewer_gets_separate_handle_and_can_accept_then_integrate(tmp_path: P
     assert integrated["result"]["payload"]["state"] == "finalized"
     assert [tool for tool, _arguments in reviewer_native.calls].count("todo_accept_outcome") == 1
     assert [tool for tool, _arguments in reviewer_native.calls].count("todo_integrate_attempt") == 1
+
+
+def test_unscoped_mutator_review_requests_global_pending_projection(tmp_path: Path):
+    native = _NativeHost("mutator")
+    native.candidates = [{
+        "candidate_id": "candidate-1", "attempt_id": "attempt-1",
+        "work_item_id": "task-1", "assignment_id": "assignment-1",
+        "state": "pending", "disposition": "completed", "source_digest": "a" * 64,
+    }]
+    native.attempts = [{"attempt_id": "attempt-1", "run_id": "run-1",
+                        "assignment_id": "assignment-1"}]
+    facade = _host(tmp_path, native)
+
+    result = facade.next_task(project="workspace", repository="source")
+
+    assert result["status"] == "review_required"
+    review_read = next(arguments for tool, arguments in native.calls
+                       if tool == "todo_read_authority")
+    assert review_read["review_selector"] == {"task_id": None, "run_id": None}
 
 
 def test_non_applied_git_integrations_require_inspection_and_do_not_replay(tmp_path: Path):

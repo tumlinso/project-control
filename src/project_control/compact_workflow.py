@@ -1478,9 +1478,17 @@ class CompactWorkflowHost:
         expected_revision = None
         candidates: list[dict[str, Any]] = []
         attempts: dict[str, dict[str, Any]] = {}
+        # Review lookup always asks for the bounded pending-review projection.
+        # Null selectors mean the global pending queue; omitting this object is
+        # reserved for ordinary, unfiltered authority reads.
+        review_selector = {
+            "task_id": requested.get("task_id"),
+            "run_id": requested.get("run_id"),
+        }
         for _ in range(32):
             page = self._invoke("todo_read_authority", scope_record, limit=200,
-                                page_token=page_token, expected_revision=expected_revision)
+                                page_token=page_token, expected_revision=expected_revision,
+                                review_selector=review_selector)
             if page.get("status") == "attention_required":
                 raise CompactWorkflowError(str(page.get("reason", "review_queue_unavailable")))
             if expected_revision is None:

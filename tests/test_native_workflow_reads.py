@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from project_control.config import ProjectControlConfig, RepositoryConfig, WorkspaceConfig
-from project_control.native_workflow import NativeWorkflowHost
+from project_control.native_workflow import NativeWorkflowHost, _authority_page
 from project_control.profiles import MCPProfile, ProfiledFastMCP, WORKFLOW_TOOL_NAMES
 from project_control.workflow_tools import register_workflow_tools
 
@@ -81,6 +84,95 @@ def test_native_paged_migration_reads_use_public_api_and_registered_repository(t
     assert session.context_calls == [("legacy-import", 19, context_cursor)]
     assert selected_repositories == ["secondary", "primary", "primary"]
     assert session.closed
+
+
+def test_pending_review_selector_filters_before_authority_page_budget_and_binds_cursor():
+    target_attempt = {"attempt_id": "attempt-target", "run_id": "run-target"}
+    unrelated_attempt = {"attempt_id": "attempt-other", "run_id": "run-other"}
+    model = {
+        "project_id": "project-1", "authority_id": "authority-1", "semantic_revision": 9,
+        "sections": {
+            # More unrelated authority records than the compact review reader's
+            # 32-page budget; they must not consume pages for an explicit review.
+            "audit_events": [{"event_id": f"event-{i}"} for i in range(7000)],
+            "attempts": [target_attempt, unrelated_attempt],
+            "outcome_candidates": [
+                {"candidate_id": "candidate-target", "attempt_id": "attempt-target",
+                 "work_item_id": "task-target", "state": "pending", "reported_at": "1"},
+                {"candidate_id": "candidate-other-task", "attempt_id": "attempt-target",
+                 "work_item_id": "task-other", "state": "pending", "reported_at": "0"},
+                {"candidate_id": "candidate-other-run", "attempt_id": "attempt-other",
+                 "work_item_id": "task-target", "state": "pending", "reported_at": "0"},
+                {"candidate_id": "candidate-resolved", "attempt_id": "attempt-target",
+                 "work_item_id": "task-target", "state": "accepted", "reported_at": "0"},
+            ],
+        },
+    }
+    session = SimpleNamespace(read_model=lambda *, expected_revision: SimpleNamespace(to_dict=lambda: deepcopy(model)))
+
+    page = _authority_page(session, expected_revision=9, limit=200, page_token=None,
+                           review_selector={"task_id": "task-target", "run_id": "run-target"})
+
+    assert page["review_selector"] == {"task_id": "task-target", "run_id": "run-target"}
+    assert page["page"]["complete"] is True
+    assert page["sections"]["outcome_candidates"] == [model["sections"]["outcome_candidates"][0]]
+    assert page["sections"]["attempts"] == [target_attempt]
+    assert "audit_events" not in page["sections"]
+    assert page["section_counts"] == {"attempts": 1, "outcome_candidates": 1}
+
+
+def test_pending_review_cursor_cannot_be_reused_without_its_selector():
+    model = {
+        "project_id": "project-1", "authority_id": "authority-1", "semantic_revision": 9,
+        "sections": {
+            "attempts": [{"attempt_id": "attempt-target", "run_id": "run-target"}],
+            "outcome_candidates": [{"candidate_id": f"candidate-{i}",
+                                     "attempt_id": "attempt-target", "work_item_id": "task-target",
+                                     "state": "pending", "reported_at": str(i)} for i in range(201)],
+        },
+    }
+    session = SimpleNamespace(read_model=lambda *, expected_revision: SimpleNamespace(to_dict=lambda: deepcopy(model)))
+    first = _authority_page(session, expected_revision=9, limit=1, page_token=None,
+                            review_selector={"task_id": "task-target", "run_id": "run-target"})
+    assert first["page"]["next_page_token"]
+
+    with pytest.raises(ValueError, match="page_token_scope_mismatch"):
+        _authority_page(session, expected_revision=9, limit=1,
+                        page_token=first["page"]["next_page_token"], review_selector=None)
+
+
+def test_unscoped_pending_review_projection_ignores_unrelated_rows_without_changing_generic_reads():
+    model = {
+        "project_id": "project-1", "authority_id": "authority-1", "semantic_revision": 9,
+        "sections": {
+            "attempts": [{"attempt_id": "attempt-1", "run_id": "run-1"}],
+            "audit_events": [{"event_id": f"event-{i}"} for i in range(7000)],
+            "outcome_candidates": [
+                {"candidate_id": "candidate-pending", "attempt_id": "attempt-1",
+                 "work_item_id": "task-1", "state": "pending"},
+                {"candidate_id": "candidate-resolved", "attempt_id": "attempt-1",
+                 "work_item_id": "task-2", "state": "accepted"},
+            ],
+        },
+    }
+    session = SimpleNamespace(read_model=lambda *, expected_revision: SimpleNamespace(to_dict=lambda: deepcopy(model)))
+
+    review_page = _authority_page(
+        session, expected_revision=9, limit=200, page_token=None,
+        review_selector={"task_id": None, "run_id": None},
+    )
+    generic_page = _authority_page(
+        session, expected_revision=9, limit=200, page_token=None,
+    )
+
+    assert review_page["page"]["complete"] is True
+    assert [row["candidate_id"] for row in review_page["sections"]["outcome_candidates"]] == [
+        "candidate-pending",
+    ]
+    assert "audit_events" not in review_page["sections"]
+    assert generic_page["page"]["complete"] is False
+    assert len(generic_page["sections"]["audit_events"]) > 0
+    assert generic_page["sections"]["outcome_candidates"] == []
 
 
 class _CompactFacade:
