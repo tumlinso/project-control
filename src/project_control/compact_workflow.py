@@ -1785,7 +1785,14 @@ class CompactWorkflowHost:
                     raise CompactWorkflowError("review_action_not_permitted")
                 if not all(isinstance(record.get(name), str) for name in ("attempt_id", "candidate_id")):
                     raise CompactWorkflowError("candidate_unavailable")
-            elif record.get("phase") != "active":
+            elif record.get("phase") != "active" and not (
+                action == "recover" and record.get("phase") in {
+                    "handback_pending", "report_pending", "release_pending",
+                }
+            ):
+                # A failed finish retains its immutable request. Only native
+                # recovery may reconcile that pending handle; the exact release
+                # receipt still determines whether it becomes terminal.
                 raise CompactWorkflowError("workflow_attempt_not_active")
             elif action in {"integrate", "accept_outcome", "reject_outcome"}:
                 raise CompactWorkflowError("review_handle_required")

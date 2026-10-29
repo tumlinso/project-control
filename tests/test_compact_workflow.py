@@ -7,6 +7,8 @@ import json
 import time
 import threading
 
+import pytest
+
 import project_control.compact_workflow as compact_module
 from project_control.compact_workflow import CompactWorkflowHost
 
@@ -752,3 +754,71 @@ def test_only_definite_stale_cas_refreshes_the_persisted_phase_intent(tmp_path: 
     assert workspace_calls[1]["expected_revision"] == 8
     assert workspace_calls[0]["idempotency_key"] != workspace_calls[1]["idempotency_key"]
 
+
+
+@pytest.mark.parametrize("phase", ["handback_pending", "report_pending", "release_pending"])
+@pytest.mark.parametrize("receipt_case", ["exact", "wrong_attempt", "wrong_lease", "unreleased", "denied"])
+def test_pending_finish_recovery_requires_exact_native_release(tmp_path: Path, phase: str,
+                                                              receipt_case: str):
+    native = _NativeHost("coder")
+    native.recovery_result = {
+        "disposition": "release_expired_attempt",
+        "intent": {"kind": "release_expired_attempt",
+                   "attempt": {"entity_id": "attempt-1"}, "expected_lease_id": "lease-1"},
+        "result": {"receipt": {"command_kind": "todo.attempt.reconcile_expired",
+                               "result": {"attempt_id": "attempt-1", "state": "released"}}},
+    }
+    if receipt_case == "wrong_attempt":
+        native.recovery_result["intent"]["attempt"]["entity_id"] = "other-attempt"
+    elif receipt_case == "wrong_lease":
+        native.recovery_result["intent"]["expected_lease_id"] = "other-lease"
+    elif receipt_case == "unreleased":
+        native.recovery_result["result"]["receipt"]["result"]["state"] = "unknown"
+    facade = _host(tmp_path, native)
+    claimed = facade.next_task(project="workspace", repository="source")
+    handle = claimed["workflow_handle"]
+    original_note = "Original immutable finish note"
+    facade._store.update("workflow", handle, "workspace", "source", {
+        "phase": phase, "finish_action": "complete", "finish_note": original_note,
+    })
+    if receipt_case == "denied":
+        original_invoke = native.invoke
+        def invoke(tool, **arguments):
+            if tool == "todo_apply_recovery":
+                return {"status": "attention_required", "reason": "native_operation_rejected"}
+            return original_invoke(tool, **arguments)
+        native.invoke = invoke
+    # Recovery does not unlock authoring/renewal or arbitrary coordination.
+    calls_before = len(native.calls)
+    for action in ("message", "heartbeat", "resume"):
+        denied = facade.coordinate_task(workflow_handle=handle, action=action)
+        assert denied["reason"] == "workflow_attempt_not_active"
+    assert len(native.calls) == calls_before
+    recovered = facade.coordinate_task(workflow_handle=handle, action="recover",
+                                       payload={"intent": "approved-intent"})
+    record = facade._store.get("workflow", handle, "workspace", "source")
+    assert record["finish_action"] == "complete"
+    assert record["finish_note"] == original_note
+    if receipt_case == "exact":
+        assert recovered["status"] == "ok"
+        assert record["phase"] == "released"
+        assert record["release_receipt"] == native.recovery_result
+        # The synthetic selector/dispatcher models a different eligible run.
+        original_invoke = native.invoke
+        def select_fresh_run(tool, **arguments):
+            result = original_invoke(tool, **arguments)
+            if tool == "todo_select_next_work":
+                result["data"]["run_id"] = "run-2"
+            return result
+        native.invoke = select_fresh_run
+        native._dispatch_intent = None
+        fresh = facade.next_task(project="workspace", repository="source", run_id="run-2")
+        assert fresh["status"] == "claimed"
+        assert fresh["workflow_handle"] != handle
+    else:
+        assert recovered["status"] == "attention_required"
+        assert record["phase"] == phase
+        assert "release_receipt" not in record
+        blocked = facade.next_task(project="workspace", repository="source", run_id="run-2")
+        assert blocked["status"] == "attention_required"
+        assert blocked["reason"] == "workflow_task_already_active"
