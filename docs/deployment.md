@@ -22,6 +22,16 @@ Keep the official Codex or Mutator stdio connection open from `next_task` throug
 
 The stdio server owns automatic attempt renewal. The Observer HTTP service does not renew that session's work, and a helper that launches a fresh server for each tool call stops renewal when it exits. Handles stay bound to the same identity, profile, credentials and providers across reconnects. Use supported inspection and resumption after a disconnect; an expired lease grants no permission for further computation. Source-fenced handoff and reporting preserve an exact committed result for review without renewing that lease or claiming the producer process stopped.
 
+### Large source inventories in workflow replies
+
+Orchestration replies for Git effects and recovery keep source digests, revisions,
+working-tree status, operation identities, native receipts and recovery intents.
+Their `source_observation.inventory_summary` explicitly marks file-input and
+artifact inventories as omitted, with exact counts and SHA-256 digests of each
+canonical JSON inventory. Native validation still uses the complete source
+observations. The standalone Todo API and its document ceiling are unchanged;
+these summaries are presentation records, not replacement validation evidence.
+
 ## Project-Lab
 
 `project-lab` and `project-lab-worker` select `~/.local/state/project-lab/current`. Private configuration is `~/.config/project-lab/config.toml`; state is `~/.local/state/project-lab/data`. The application has a scoped scheduler caller and a separate Codex MCP entry. It needs no resident Lab daemon: the scheduler runs explicitly submitted controllers and effects.

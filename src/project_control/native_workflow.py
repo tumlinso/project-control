@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 import base64
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -215,6 +216,47 @@ def _json_mapping(value: object, field: str) -> dict[str, Any]:
     return dict(value)
 
 
+def _orchestration_source_projection(value: object) -> object:
+    """Keep source identities/receipts while labeling omitted file inventories.
+
+    This is an orchestration presentation of public DTOs after native validation.
+    The full Todo serializer and its document limit remain unchanged.
+    """
+    from todo_orchestrator.api.serialization import public_value
+
+    source_fields = {"repository_id", "source_digest", "base_digest", "working_tree",
+                     "inputs", "artifacts", "source_revision"}
+
+    def project(node: object) -> object:
+        if isinstance(node, list):
+            return [project(child) for child in node]
+        if not isinstance(node, dict):
+            return node
+        result = {}
+        for key, child in node.items():
+            if (key == "source_observation" and isinstance(child, dict)
+                    and set(child) == source_fields
+                    and isinstance(child["inputs"], list) and isinstance(child["artifacts"], list)):
+                summary = {name: item for name, item in child.items()
+                           if name not in {"inputs", "artifacts"}}
+                inventories = {}
+                for name in ("inputs", "artifacts"):
+                    encoded = json.dumps(child[name], ensure_ascii=True, allow_nan=False,
+                                         sort_keys=True, separators=(",", ":")).encode("utf-8")
+                    inventories[name] = {"count": len(child[name]),
+                                         "sha256": hashlib.sha256(encoded).hexdigest()}
+                summary["inventory_summary"] = {
+                    "format": "project-control.source-inventory-summary", "version": 1,
+                    "included": False, "collections": inventories,
+                }
+                result[key] = summary
+            else:
+                result[key] = project(child)
+        return result
+
+    return project(public_value(value))
+
+
 def _public(session: object, kind: str, value: object) -> dict[str, object]:
     """Use a public DTO codec; never walk internal authority objects here."""
     to_dict = getattr(value, "to_dict", None)
@@ -226,6 +268,8 @@ def _public(session: object, kind: str, value: object) -> dict[str, object]:
     if not callable(serialize):
         raise NativeWorkflowError("native_serializer_unavailable")
     try:
+        if kind in {"git_effect", "recovery_inspection"}:
+            value = _orchestration_source_projection(value)
         encoded = serialize(kind, value)
         result = json.loads(encoded)
     except Exception as error:
