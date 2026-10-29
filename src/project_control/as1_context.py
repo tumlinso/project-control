@@ -873,6 +873,22 @@ class InformationService:
                 except (OSError, ValueError):
                     pass
                 continue
+            if kind == 'symbol':
+                # Exact resolution considers the full source inventory. Tree
+                # pagination is a presentation bound, not a symbol-search scope.
+                resolved = index.resolve(target, kinds=('definition', 'class'), limit=1000)
+                if not resolved.get('complete', True):
+                    matches.append({'repository': alias, 'resolution': 'coverage_limited', 'cursor': None})
+                for unit in resolved['matches']:
+                    if target not in {unit.get('name'), unit.get('qualified_name')}:
+                        continue
+                    source = unit.get('source', {})
+                    matches.append({'repository': alias, 'path': unit['path'], 'name': unit['name'],
+                        'qualified_name': unit.get('qualified_name'), 'kind': unit['kind'],
+                        'line_start': unit['line'], 'line_end': unit['end_line'],
+                        'content_sha256': unit.get('source_sha256') or source.get('sha256'),
+                        'provider': unit.get('provider'), 'resolution': 'resolved'})
+                continue
             tree = index.tree(limit=2000)
             if not tree.get('complete'):
                 matches.append({'repository': alias, 'resolution': 'coverage_limited', 'cursor': tree.get('cursor')})

@@ -119,3 +119,23 @@ def test_context_continuation_reads_next_source_bytes(tmp_path, monkeypatch):
     assert second["data"]["files"][0]["content"]
     assert second["data"]["files"][0]["complete"] is False
     assert second["data"]["files"][0]["cursor"]
+
+
+def test_exact_symbol_resolution_reaches_beyond_first_tree_page(tmp_path, monkeypatch):
+    repository, service = _service(tmp_path, monkeypatch)
+    padding = repository / 'a-padding'
+    padding.mkdir()
+    for number in range(2005):
+        (padding / f'{number:04}.txt').write_text('fixture\n')
+    (repository / 'z-last.py').write_text('def after_first_page():\n    return 1\n')
+    result = service.call('search', project='demo',
+        query={'kind': 'symbol', 'target': 'after_first_page'})
+    assert result['data']['resolution'] == 'resolved'
+    assert result['data']['complete'] is True
+    assert result['data']['matches'][0]['path'] == 'z-last.py'
+    assert len(result['data']['matches'][0]['content_sha256']) == 64
+    (repository / 'z-other.py').write_text('def after_first_page():\n    return 2\n')
+    ambiguous = service.call('search', project='demo',
+        query={'kind': 'symbol', 'target': 'after_first_page'})
+    assert ambiguous['data']['resolution'] == 'ambiguous'
+    assert {item['path'] for item in ambiguous['data']['matches']} == {'z-last.py', 'z-other.py'}
