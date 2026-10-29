@@ -429,15 +429,59 @@ class ControlService:
                 if not isinstance(intent, Mapping):
                     raise ValueError("run_lifecycle_intent_required")
                 allowed_intent = {"run_id", "successor_run_id"}
+                if action != "close_run":
+                    allowed_intent.update({"disposition_schema_version", "handoffs", "unresolved"})
                 if intent.keys() - allowed_intent or "run_id" not in intent:
                     raise ValueError("run_lifecycle_intent_fields_invalid")
-                if action == "close_run" and "successor_run_id" in intent:
-                    raise ValueError("close_run_successor_not_permitted")
+                if action == "close_run" and intent.keys() != {"run_id"}:
+                    if "successor_run_id" in intent:
+                        raise ValueError("close_run_successor_not_permitted")
+                    raise ValueError("run_lifecycle_intent_fields_invalid")
                 if action == "supersede" and not intent.get("successor_run_id"):
                     raise ValueError("supersede_successor_required")
                 run_id = intent.get("run_id")
                 if not isinstance(run_id, str) or not run_id:
                     raise ValueError("run_id_invalid")
+                if action != "close_run":
+                    has_version = "disposition_schema_version" in intent
+                    has_dispositions = "handoffs" in intent or "unresolved" in intent
+                    if has_version != has_dispositions:
+                        raise ValueError("retirement_dispositions_require_version")
+                    if has_version:
+                        if type(intent["disposition_schema_version"]) is not int or intent["disposition_schema_version"] != 1:
+                            raise ValueError("disposition_schema_version_unsupported")
+                        if "handoffs" not in intent or "unresolved" not in intent:
+                            raise ValueError("retirement_disposition_arrays_required")
+                        handoffs, unresolved = intent["handoffs"], intent["unresolved"]
+                        if not isinstance(handoffs, list) or not isinstance(unresolved, list):
+                            raise ValueError("retirement_disposition_arrays_invalid")
+                        if len(handoffs) + len(unresolved) > 4096:
+                            raise ValueError("retirement_dispositions_too_large")
+                        handoff_sources: list[str] = []
+                        unresolved_ids: list[str] = []
+                        for row in handoffs:
+                            if not isinstance(row, Mapping) or set(row) != {"source_assignment_id", "successor_assignment_id"}:
+                                raise ValueError("handoff_fields_invalid")
+                            for field in ("source_assignment_id", "successor_assignment_id"):
+                                value = row[field]
+                                if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 128:
+                                    raise ValueError(f"{field}_invalid")
+                            handoff_sources.append(row["source_assignment_id"])
+                        for row in unresolved:
+                            if not isinstance(row, Mapping) or set(row) != {"assignment_id", "reason"}:
+                                raise ValueError("unresolved_fields_invalid")
+                            assignment_id, reason = row["assignment_id"], row["reason"]
+                            if not isinstance(assignment_id, str) or not assignment_id or len(assignment_id.encode("utf-8")) > 128:
+                                raise ValueError("assignment_id_invalid")
+                            if not isinstance(reason, str) or not reason or len(reason.encode("utf-8")) > 512:
+                                raise ValueError("reason_invalid")
+                            unresolved_ids.append(assignment_id)
+                        if len(set(handoff_sources)) != len(handoff_sources) or len(set(unresolved_ids)) != len(unresolved_ids):
+                            raise ValueError("retirement_assignment_disposition_duplicate")
+                        if set(handoff_sources) & set(unresolved_ids):
+                            raise ValueError("retirement_assignment_disposition_conflict")
+                        if handoffs and not intent.get("successor_run_id"):
+                            raise ValueError("retirement_handoffs_require_successor")
                 revision = self._authority_revision(project, selected_repository)
                 # Prove that this is a current native run before issuing the
                 # host-bound prepared request. The lifecycle API rechecks this
@@ -450,8 +494,9 @@ class ControlService:
                     "idempotency_key": "pc-run-" + secrets.token_urlsafe(24),
                     "intent_digest": intent_digest,
                 }
-                if "successor_run_id" in intent:
-                    request["successor_run_id"] = intent["successor_run_id"]
+                for field in ("successor_run_id", "disposition_schema_version", "handoffs", "unresolved"):
+                    if field in intent:
+                        request[field] = intent[field]
                 record_ref = self._admin_store().record_admin_preview(
                     project, selected_repository, action=action,
                     package_digest=intent_digest, authority_revision=revision,
@@ -463,12 +508,15 @@ class ControlService:
                 raise ValueError("prepared_request_cannot_include_intent")
             request = dict(prepared_request)
             allowed = {"run_id", "expected_revision", "idempotency_key", "schedule_digest",
-                       "successor_run_id", "intent_digest", "proposal_ref"}
+                       "successor_run_id", "disposition_schema_version", "handoffs", "unresolved",
+                       "intent_digest", "proposal_ref"}
             required = {"run_id", "expected_revision", "idempotency_key", "intent_digest", "proposal_ref"}
             if request.keys() - allowed or not required <= request.keys():
                 raise ValueError("prepared_run_request_fields_invalid")
             if action == "close_run" and "successor_run_id" in request:
                 raise ValueError("close_run_successor_not_permitted")
+            if action == "close_run" and request.keys() & {"disposition_schema_version", "handoffs", "unresolved"}:
+                raise ValueError("close_run_dispositions_not_permitted")
             if action == "supersede" and not request.get("successor_run_id"):
                 raise ValueError("supersede_successor_required")
             ref = request.pop("proposal_ref")

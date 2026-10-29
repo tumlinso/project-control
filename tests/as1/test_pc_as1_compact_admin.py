@@ -1,4 +1,7 @@
 """Focused contracts for the compact mutator adapter over native public APIs."""
+import hashlib
+import json
+
 import pytest
 
 from project_control.as1_context import ContextHost
@@ -96,6 +99,88 @@ def test_run_retirement_requires_host_issued_fresh_request(control):
     assert retirement["expected_revision"] == 7 and retirement["idempotency_key"]
 
 
+def test_run_retirement_binds_and_forwards_explicit_versioned_dispositions(control):
+    service, native = control
+    intent = {
+        "run_id": "run-a", "successor_run_id": "run-b",
+        "disposition_schema_version": 1,
+        "handoffs": [{"source_assignment_id": "old-task", "successor_assignment_id": "new-task"}],
+        "unresolved": [{"assignment_id": "old-check", "reason": "Retained unresolved for audit."}],
+    }
+    prepared = service.plan("demo", "supersede", intent=intent)
+    typed = prepared["prepared_request"]
+    canonical = json.dumps(intent, ensure_ascii=False, allow_nan=False,
+                           sort_keys=True, separators=(",", ":")).encode()
+    assert typed["intent_digest"] == hashlib.sha256(canonical).hexdigest()
+    assert typed["disposition_schema_version"] == 1
+    assert typed["handoffs"] == intent["handoffs"]
+    assert typed["unresolved"] == intent["unresolved"]
+
+    result = service.plan("demo", "supersede", prepared_request=typed)
+    assert result["status"] == "retired"
+    retirement = next(args for tool, args in native.calls if tool == "todo_retire_run")
+    assert retirement["disposition_schema_version"] == intent["disposition_schema_version"]
+    assert retirement["handoffs"] == intent["handoffs"]
+    assert retirement["unresolved"] == intent["unresolved"]
+
+
+def test_run_retirement_tamper_and_stale_revision_are_denied(control):
+    service, native = control
+    prepared = service.plan("demo", "retire", intent={
+        "run_id": "run-a", "disposition_schema_version": 1,
+        "handoffs": [], "unresolved": [{"assignment_id": "old-task", "reason": "Kept unresolved."}],
+    })
+    typed = prepared["prepared_request"]
+    tampered = {**typed, "unresolved": [{"assignment_id": "old-task", "reason": "Changed."}]}
+    with pytest.raises(ValueError, match="host_issued_prepared_request_required"):
+        service.plan("demo", "retire", prepared_request=tampered)
+    assert not any(tool == "todo_retire_run" for tool, _ in native.calls)
+
+    native.revision += 1
+    stale = service.plan("demo", "retire", prepared_request=typed)
+    assert stale == {"status": "needs_prepare", "reason": "authority_revision_changed"}
+    assert not any(tool == "todo_retire_run" for tool, _ in native.calls)
+
+
+@pytest.mark.parametrize("intent, error", [
+    ({"run_id": "run-a", "disposition_schema_version": 2, "handoffs": [], "unresolved": []},
+     "disposition_schema_version_unsupported"),
+    ({"run_id": "run-a", "disposition_schema_version": True, "handoffs": [], "unresolved": []},
+     "disposition_schema_version_unsupported"),
+    ({"run_id": "run-a", "handoffs": []}, "retirement_dispositions_require_version"),
+    ({"run_id": "run-a", "disposition_schema_version": 1, "handoffs": [], "unresolved": []},
+     None),
+    ({"run_id": "run-a", "disposition_schema_version": 1,
+      "handoffs": [{"source_assignment_id": "a", "successor_assignment_id": "b"},
+                   {"source_assignment_id": "a", "successor_assignment_id": "c"}], "unresolved": []},
+     "retirement_assignment_disposition_duplicate"),
+    ({"run_id": "run-a", "disposition_schema_version": 1,
+      "handoffs": [{"source_assignment_id": "a", "successor_assignment_id": "b"}],
+      "unresolved": [{"assignment_id": "a", "reason": "Keep unresolved."}]},
+     "retirement_assignment_disposition_conflict"),
+    ({"run_id": "run-a", "disposition_schema_version": 1,
+      "handoffs": [{"source_assignment_id": "a", "successor_assignment_id": "b", "extra": 1}],
+      "unresolved": []}, "handoff_fields_invalid"),
+])
+def test_run_retirement_validates_disposition_contract_before_preparing(control, intent, error):
+    service, native = control
+    if error is None:
+        prepared = service.plan("demo", "retire", intent=intent)
+        assert prepared["status"] == "prepared"
+    else:
+        with pytest.raises(ValueError, match=error):
+            service.plan("demo", "retire", intent=intent)
+    assert not any(tool == "todo_retire_run" for tool, _ in native.calls)
+
+
+def test_close_run_rejects_retirement_dispositions(control):
+    service, native = control
+    intent = {"run_id": "run-a", "disposition_schema_version": 1, "handoffs": [], "unresolved": []}
+    with pytest.raises(ValueError, match="run_lifecycle_intent_fields_invalid"):
+        service.plan("demo", "close_run", intent=intent)
+    assert not any(tool == "todo_close_run" for tool, _ in native.calls)
+
+
 def test_mutator_surface_rejects_other_profiles(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
@@ -109,3 +194,6 @@ def test_mutator_surface_rejects_other_profiles(tmp_path):
         observer.plan("demo", "validate", native_plan={"schema_version": 1})
     with pytest.raises(PermissionError, match="mutator_profile_required"):
         observer.maintain_execution({"project": "demo", "action": "diagnose", "attempt_id": "A"})
+    with pytest.raises(PermissionError, match="mutator_profile_required"):
+        observer.plan("demo", "retire", intent={"run_id": "run-a", "disposition_schema_version": 1,
+                                                  "handoffs": [], "unresolved": []})
