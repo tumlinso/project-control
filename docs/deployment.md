@@ -32,6 +32,24 @@ canonical JSON inventory. Native validation still uses the complete source
 observations. The standalone Todo API and its document ceiling are unchanged;
 these summaries are presentation records, not replacement validation evidence.
 
+### Accepted integration recovery
+
+A failed private-ref integration may advertise an existing recovery intent after
+fresh proof that it was not applied. For an accepted terminal attempt, the
+original lease stays absent: the trusted host must revalidate its exact durable
+source fence, no outstanding authored commands, resource owners or children,
+and the complete source identity against accepted provenance. This proves scoped
+authoring quiescence without asserting that a producer process stopped. Missing,
+changed or mismatched proof leaves recovery unavailable. Review handles use the
+privileged `plan(recover)` route; resume the same pending integration afterward.
+
+Integration into an unchecked-out private ref uses in-core Git objects and an
+expected-old ref compare-and-swap. It preserves unrelated ignored root payloads
+without reading them, while retaining tracked/index and nonignored-file guards,
+including initialized module identities. Managed source observation remains fully
+strict. Custom merge-driver, renormalization or signing configuration retains
+the previous full raw-root guard.
+
 ## Project-Lab
 
 `project-lab` and `project-lab-worker` select `~/.local/state/project-lab/current`. Private configuration is `~/.config/project-lab/config.toml`; state is `~/.local/state/project-lab/data`. The application has a scoped scheduler caller and a separate Codex MCP entry. It needs no resident Lab daemon: the scheduler runs explicitly submitted controllers and effects.

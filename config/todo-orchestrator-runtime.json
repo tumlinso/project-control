@@ -3,8 +3,8 @@
   "version": 1,
   "distribution": "todo-orchestrator",
   "distribution_version": "0.2.1",
-  "source_commit": "3ea63d4a314179180fd5642b279fb256afd4fbfd",
-  "wheel_sha256": "32c9852672b4bceebd5c1811390b0887617d7a8be1fca53adce7855d829e37e7",
-  "package_fingerprint": "6be5a8aae275a01ad91523a3100ba517178ea928e5e6dd300fdca716351548f4",
+  "source_commit": "cb02ac03874a31dc8d6d1db409fee165514d7947",
+  "wheel_sha256": "7e92e515c5406294908ea5bfaff483adde11be0399ca3938edcf049bf88eae5b",
+  "package_fingerprint": "d6ee2fb4036c33b542ee75d3a806182f2883b0bb8adbfef07bc4503ec565b6ae",
   "provisional": false
 }
