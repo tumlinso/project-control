@@ -139,3 +139,30 @@ def test_exact_symbol_resolution_reaches_beyond_first_tree_page(tmp_path, monkey
         query={'kind': 'symbol', 'target': 'after_first_page'})
     assert ambiguous['data']['resolution'] == 'ambiguous'
     assert {item['path'] for item in ambiguous['data']['matches']} == {'z-last.py', 'z-other.py'}
+
+
+def test_cpp_revision_views_share_export_cache_but_validate_their_own_source(tmp_path, monkeypatch):
+    import json
+    repository, service = _service(tmp_path, monkeypatch)
+    source = repository / 'sample.cpp'
+    source.write_text('int original() { return 1; }\n')
+    _git(repository, 'add', 'sample.cpp')
+    _git(repository, 'commit', '-qm', 'historical C++ source')
+    revision = subprocess.check_output(['git', '-C', str(repository), 'rev-parse', 'HEAD'], text=True).strip()
+    source.write_text('int present() { return 2; }\n')
+    export = tmp_path / 'cpp-export.json'
+    export.write_text(json.dumps({'format': 'CTXPP-EXPORT/1', 'root': str(repository),
+        'index_integrity': True, 'index_meta': {'semantic': True}, 'freshness': {'status': 'fresh'},
+        'records': [{'record': 'file', 'path': 'sample.cpp',
+            'hash': hashlib.sha256(source.read_bytes()).hexdigest()},
+            {'record': 'symbol', 'file': 'sample.cpp', 'name': 'present', 'id': 'present-id',
+             'line': 1, 'end_line': 1, 'definition': True}]}))
+    monkeypatch.setenv('PROJECT_CONTROL_CPP_EXPORTS', json.dumps({'demo/source': str(export)}))
+    current = service._source_index('demo', 'source')
+    historical = service._source_index('demo', 'source', revision)
+    assert current.providers['cpp-context-compiler'] is historical.providers['cpp-context-compiler']
+    assert current.structure('sample.cpp').units[0].name == 'present'
+    stale = historical.structure('sample.cpp')
+    assert stale.coverage == 'stale'
+    assert stale.units == ()
+    assert current.structure('sample.cpp').units[0].name == 'present'

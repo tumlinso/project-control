@@ -68,6 +68,7 @@ class InformationService:
         self.native_reader = native_reader
         self.todo_adapter = todo_adapter
         self._source_indices = {}
+        self._cpp_providers = {}
         # Imported and constructed on first discovery/evidence request. This
         # keeps the packet producer's import graph independent of its consumer.
         self.notebook_provider = notebook_provider
@@ -817,7 +818,15 @@ class InformationService:
                     raise ValueError("cpp_export_configuration_must_map_repository_keys_to_paths")
                 export_path = exports.get(f"{project}/{alias}")
                 if export_path:
-                    providers.append(CppContextCompilerProvider(export_path))
+                    # Historical source views share immutable export data, while
+                    # extract() still validates each view's source hash/policy.
+                    provider_key = (project, alias)
+                    provider = self._cpp_providers.get(provider_key)
+                    resolved_export = Path(export_path).expanduser().resolve()
+                    if provider is None or provider.export_path != resolved_export:
+                        provider = CppContextCompilerProvider(resolved_export)
+                        self._cpp_providers[provider_key] = provider
+                    providers.append(provider)
             self._source_indices[key] = SourceIndex(Repository(repo.root,
                 f"{project}/{alias}", state, revision=revision,
                 deny_patterns=tuple(deny_patterns)), providers=providers)
